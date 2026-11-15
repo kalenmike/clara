@@ -2,13 +2,14 @@ import { createServer, type IncomingMessage, type ServerResponse } from 'node:ht
 import { readFileSync, realpathSync, statSync } from 'node:fs'
 import { extname, join, resolve, sep } from 'node:path'
 import type { Server } from 'node:http'
-import { quoteShellArgument, validateKind, validateOpencodeUrl } from '@clara/adapter-install'
+import { isAdapterInstallMethod, validateKind, validateOpencodeUrl } from '@clara/adapter-install'
 import {
   isSyncIntervalMs,
   MAX_DEVICE_ALIAS_LENGTH,
   type PanelAuthInfo,
   type PanelConfigUpdate,
   type PanelFeatureName,
+  type PanelHarnessSetupMode,
   type PanelMutationResponse,
   type PanelRelayUpdate,
   type PanelSessionsQuery,
@@ -739,16 +740,35 @@ async function startInstall(
     })
     return
   }
-  const unknown = unknownFields(body.value, ['kind', 'opencodeUrl'])
+  const unknown = unknownFields(body.value, ['kind', 'method', 'transport', 'wsUrl', 'opencodeUrl'])
   if (unknown) return invalidField(response, method, unknown)
 
   const kind = validateKind(body.value.kind)
-  const opencodeUrl = validateOpencodeUrl(body.value.opencodeUrl)
-  const offer = await controls.createAdapterPairing({ kind })
-  if (opencodeUrl && offer.command) {
-    offer.command = `${offer.command} ${quoteShellArgument('--opencode-url')} ${quoteShellArgument(opencodeUrl)}`
+  const installMethod = body.value.method
+  if (installMethod !== undefined && !isAdapterInstallMethod(installMethod)) {
+    return invalidField(response, method, 'method')
   }
+  const transport = body.value.transport
+  if (transport !== undefined && !isPanelHarnessSetupMode(transport)) {
+    return invalidField(response, method, 'transport')
+  }
+  const wsUrl = body.value.wsUrl
+  if (wsUrl !== undefined && typeof wsUrl !== 'string') {
+    return invalidField(response, method, 'wsUrl')
+  }
+  const opencodeUrl = validateOpencodeUrl(body.value.opencodeUrl)
+  const offer = await controls.createAdapterPairing({
+    kind,
+    ...(installMethod !== undefined ? { method: installMethod } : {}),
+    ...(transport !== undefined ? { transport } : {}),
+    ...(typeof wsUrl === 'string' && wsUrl.trim() ? { wsUrl: wsUrl.trim() } : {}),
+    ...(opencodeUrl ? { opencodeUrl } : {}),
+  })
   sendJson(response, method, 200, offer)
+}
+
+function isPanelHarnessSetupMode(value: unknown): value is PanelHarnessSetupMode {
+  return value === 'local' || value === 'relay' || value === 'docker'
 }
 
 async function handleHarness(

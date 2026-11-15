@@ -71,24 +71,26 @@ first-run, headless, and emergency surface.
    available from **Replay setup guide**. Reconfiguring a relay or its room can
    require adapters and devices to pair again.
 3. After signing in, open **Harness** and use **Pair Harness**. Choose the
-   adapter type, then answer **Remote** or **Local**. Remote installs over SSH
-   from `~/.ssh/config` or a typed user/host/port and uses the relay. Local asks
-   whether the adapter runs **on this machine** or **in a Docker container**:
-   a container target on a Docker-hosted hub uses the Docker network
-   (`ws://server:8788/ws`), while on a host-process hub it uses the relay.
-   Both branches run the registry install script on the target and stream the
-   log back, and both offer **Copy code** and **Copy command** for a manual
-   install. Install actions are off until they are enabled in **Settings →
-   Adapter downloads**, and a containerized hub cannot run them at all; in that
-   case the pairing still produces the container target's code and command and
-   the panel explains that the hub runs in Docker. The pairing card shows
-   **Waiting for the adapter to connect…**, switches to **Connected**, and the
-   footer becomes **Done** when the adapter registers. A new adapter appears
-   under **Paired harnesses** as **Paired · Offline**; when its credential
-   session connects it also appears under **Connected adapters** and becomes
-   **Online**. Use **Test** to probe an adapter. In
-   a container, the adapter connects to `ws://server:8788/ws` on the `clara`
-   network; `127.0.0.1` means the hub host.
+   adapter type, then answer **Remote** or **Local**. The choice sets how the
+   adapter reaches the hub: a remote harness normally uses the relay, a local
+   host uses the hub's loopback listener, and a local container uses the Docker
+   network on a containerized hub or the relay on a host-process hub. Remote and
+   container targets work without a relay when the adapter can reach the hub at
+   another address; enter it under **Advanced → WebSocket URL**. The hub issues
+   the one-time code, copy command, and `clara://adapter` link. Install actions
+   are off until they are enabled in **Settings → Adapter downloads**.
+   A browser-only user runs the command on the harness machine. Clara Desktop
+   adds the one-click path: its adapter host accepts **This computer**, an **SSH
+   host** from `~/.ssh/config` or a typed user/host/port, and a local
+   **Docker container**, streams the install log, and can cancel it. The hub
+   host never receives SSH keys, Docker access, or a route to the harness
+   machine. The pairing card shows **Waiting for the adapter to connect…**,
+   switches to **Connected**, and the footer becomes **Done** when the adapter
+   registers. A new adapter appears under **Paired harnesses** as **Paired ·
+   Offline**; when its credential session connects it also appears under
+   **Connected adapters** and becomes **Online**. Use **Test** to probe an
+   adapter. In a container, the adapter connects to `ws://server:8788/ws` on
+   the `clara` network; `127.0.0.1` means the hub host.
 4. The panel opens on **Overview** with a six-tile health strip — Hub, Local,
    Relay, Harness, Push, and Orchestration — then Active clients and Active
    adapters previews, the five most recent events, and a storage summary. The
@@ -242,10 +244,11 @@ first-run, headless, and emergency surface.
     Activity, and Settings views without leaving the app. Sign in with the hub
     owner account when asked. The app holds the resulting session token for the
     connection, and its API calls travel over the existing encrypted tunnel.
-    Harness adapter setup still offers a one-time code, copy command, and
-    `clara://adapter` link; Clara Desktop's adapter host runs the install on this
-    computer, an SSH host, or a local container. Controls that would drop the
-    current tunnel stay disabled.
+    Harness adapter setup runs in the same Harness view: choose remote or local,
+    install with the app's adapter host on this computer, an SSH host, or a
+    local container, or copy the one-time code, command, and `clara://adapter`
+    link for another machine. Controls that would drop the current tunnel stay
+    disabled.
 
 ## Core business rules
 
@@ -303,11 +306,12 @@ first-run, headless, and emergency surface.
    panel writes all of them, the environment overrides any field, and the VAPID
    contact and relay target are applied live. The appearance choice is
    browser-local: it never reaches the hub service or its database.
-   Adapter setup is off by default. The panel only issues the one-time code, the
-   registry manifest, the copy command, and the `clara://adapter` link. It never
-   runs SSH or Docker installs, so a containerized hub and a remote-exposed
-   panel behave like any other: the person or Clara Desktop runs the command on
-   the harness machine.
+   Adapter setup is off by default. The panel issues the one-time code, the
+   registry manifest, the copy command, and the `clara://adapter` link. The
+   served panel never runs SSH or Docker installs; a bundled desktop panel can
+   run them through the app's loopback adapter host. In both hosts the pairing
+   code carries the chosen transport and direct WebSocket address, so a remote
+   or container target can connect without a relay when it can reach the hub.
 7. **Traffic monitoring is advisory and in memory.** The meter counts frame
    sizes, decrypted request actions, and the failures the hub already detects;
    it never reads or stores payloads. Counters live in a sixty-minute ring of
@@ -634,9 +638,12 @@ first-run, headless, and emergency surface.
   - `DELETE /panel/api/v1/harnesses/:id`
   - `GET /panel/api/v1/install` returns the registry manifests and whether
     adapter setup is available
-  - `POST /panel/api/v1/install` with `{ "kind": "opencode", "opencodeUrl": "..." }`
+  - `POST /panel/api/v1/install` with
+    `{ "kind": "opencode", "method": "ssh", "transport": "local", "wsUrl": "ws://192.168.1.20:8788/ws", "opencodeUrl": "..." }`
     returns `{ pairing, manifest, command, deepLink }`; it does not run the
-    install
+    install. `method` describes where the installer runs, `transport` overrides
+    the derived relay/local/Docker choice, and `wsUrl` sets a direct address for
+    local or Docker transport.
   - `POST /panel/api/v1/install/settings` with `{ "enabled": true }` toggles
     adapter setup
   - `POST /panel/api/v1/devices/pairings` with `{ "localOnly": true }` creates a

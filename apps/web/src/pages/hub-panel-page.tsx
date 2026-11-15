@@ -4,6 +4,7 @@ import { Link, Navigate, useLocation } from 'react-router'
 import {
   PanelApp,
   PanelCapabilitiesProvider,
+  PanelRuntimeProvider,
   configurePanelApi,
   createTunnelPanelTransport,
   getPanelSessionToken,
@@ -12,7 +13,13 @@ import '@clara/panel/styles/globals.css'
 import '@clara/panel/styles/shell.css'
 import { ConnectionSplash } from '@/components/connect/connection-splash'
 import { Button } from '@/components/ui/button'
+import {
+  clearPendingAdapterLink,
+  readPendingAdapterLink,
+  type PendingAdapterLink,
+} from '@/features/harness/adapter-link'
 import type { ClientControl } from '@/lib/client'
+import { adapterHostAvailable, desktopAdapterHost } from '@/lib/desktop-adapter-host'
 import { hubPanelCapabilities, hubPanelTransport } from '@/lib/hub-panel'
 import { useConnection } from '@/providers/connection-provider'
 
@@ -27,6 +34,14 @@ export function HubPanelPage() {
   // The panel reads its transport from module state on mount, so the first
   // render waits until this effect has installed it.
   const [configured, setConfigured] = useState<ClientControl | null>(null)
+  const stateLink = (location.state as { adapterLink?: PendingAdapterLink } | null)?.adapterLink
+  const [initialPairingCode, setInitialPairingCode] = useState<string>()
+
+  useEffect(() => {
+    const link = stateLink ?? readPendingAdapterLink()
+    clearPendingAdapterLink()
+    if (link) setInitialPairingCode(link.code)
+  }, [stateLink])
 
   useEffect(() => {
     if (!control) return
@@ -66,9 +81,14 @@ export function HubPanelPage() {
         <span className="truncate text-xs text-muted-foreground">Hub panel</span>
       </header>
       <div className="panel-root min-h-0 flex-1">
-        <PanelCapabilitiesProvider capabilities={capabilities}>
-          <PanelApp />
-        </PanelCapabilitiesProvider>
+        <PanelRuntimeProvider
+          {...(adapterHostAvailable() ? { adapterHost: desktopAdapterHost } : {})}
+          defaultTransport={transport}
+        >
+          <PanelCapabilitiesProvider capabilities={capabilities}>
+            <PanelApp {...(initialPairingCode ? { initialPairingCode } : {})} />
+          </PanelCapabilitiesProvider>
+        </PanelRuntimeProvider>
       </div>
     </div>
   )

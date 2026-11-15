@@ -1,6 +1,6 @@
 import type {
-  AdapterInstallMethod,
   AdapterInstallOffer,
+  AdapterInstallOfferInput,
   PanelConfigInfo,
   PanelConfigUpdate,
   PanelControls,
@@ -34,10 +34,7 @@ export type PanelControlService = {
   createDevicePairing: (value: unknown) => Promise<PanelDevicePairingMutationResponse>
   cancelDevicePairing: (id: string) => void
   createHarnessPairing: (value: unknown) => Promise<PanelHarnessPairingMutationResponse>
-  createAdapterPairing: (input: {
-    kind: string
-    method?: AdapterInstallMethod
-  }) => Promise<AdapterInstallOffer>
+  createAdapterPairing: (input: AdapterInstallOfferInput) => Promise<AdapterInstallOffer>
   cancelHarnessPairing: (id: string) => Promise<void>
   testHarness: (id: string) => Promise<PanelHarnessTestResult>
   deleteHarness: (id: string) => Promise<PanelHarnessMutationResponse>

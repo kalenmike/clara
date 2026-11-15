@@ -9,12 +9,14 @@ export function HarnessPairDialog({
   now,
   onChanged,
   onClose,
+  initialCode,
 }: {
   open: boolean
   snapshot: PanelSnapshot
   now: number
   onChanged: () => void
   onClose: () => void
+  initialCode?: string
 }) {
   const dialogRef = useRef<HTMLDialogElement>(null)
   const flow = useHarnessPairing({
@@ -23,6 +25,7 @@ export function HarnessPairDialog({
     now,
     onChanged,
     onClose,
+    ...(initialCode ? { initialCode } : {}),
   })
 
   useEffect(() => {

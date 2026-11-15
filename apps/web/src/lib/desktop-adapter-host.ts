@@ -5,6 +5,7 @@ import type {
   PanelInstallManifest,
   PanelInstallSshTargets,
 } from '@clara/shared-types'
+import type { PanelAdapterHost } from '@clara/panel'
 import { parseAdapterInstallKind, parseAdapterInstallLink } from '@clara/shared-types'
 import { isDesktop } from './runtime'
 
@@ -136,4 +137,19 @@ export function subscribeAdapterHostLinks(handler: (link: AdapterHostLink) => vo
     disposed = true
     unlisten?.()
   }
+}
+
+/**
+ * The adapter host as the hub panel consumes it. Only the desktop build has a
+ * live Tauri bridge; every other surface keeps the panel's copy-command path.
+ */
+export const desktopAdapterHost: PanelAdapterHost = {
+  targets: async () => {
+    const value = await listAdapterHostTargets()
+    if (!value) throw new Error('The Clara desktop adapter host is not running.')
+    return value
+  },
+  start: startAdapterHostInstall,
+  job: adapterHostJob,
+  cancel: cancelAdapterHostInstall,
 }

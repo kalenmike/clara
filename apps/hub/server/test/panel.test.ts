@@ -10,6 +10,7 @@ import {
   type PanelConfigMutationResponse,
   type PanelConfigUpdate,
   type AdapterInstallOffer,
+  type AdapterInstallOfferInput,
   type PanelControls,
   type PanelInstallInfo,
   type PanelMutationResponse,
@@ -195,6 +196,7 @@ type FakeControls = PanelControlService & {
   roomRegenerations: number
   devicePairings: unknown[]
   cancelledDevicePairings: string[]
+  adapterOffers: AdapterInstallOfferInput[]
 }
 
 function fakeControls(initial: Partial<PanelControls> = {}): FakeControls {
@@ -241,6 +243,7 @@ function fakeControls(initial: Partial<PanelControls> = {}): FakeControls {
   let roomRegenerations = 0
   const devicePairings: unknown[] = []
   const cancelledDevicePairings: string[] = []
+  const adapterOffers: AdapterInstallOfferInput[] = []
   return {
     state,
     config,
@@ -260,6 +263,7 @@ function fakeControls(initial: Partial<PanelControls> = {}): FakeControls {
     },
     devicePairings,
     cancelledDevicePairings,
+    adapterOffers,
     controls: () => state,
     setFeature: async (feature, enabled) => {
       if (state.stopped) {
@@ -363,31 +367,34 @@ function fakeControls(initial: Partial<PanelControls> = {}): FakeControls {
         createdAt: new Date(0).toISOString(),
       },
     }),
-    createAdapterPairing: async (): Promise<AdapterInstallOffer> => ({
-      pairing: {
-        id: 'pair',
-        kind: 'opencode',
-        label: 'OpenCode',
-        transport: 'docker',
-        code: 'clara-harness1_test',
-        wsUrl: 'ws://127.0.0.1:8788/ws',
-        room: 'local',
-        fingerprint: 'fp',
-        expiresAt: new Date(0).toISOString(),
-        createdAt: new Date(0).toISOString(),
-      },
-      manifest: {
-        schemaVersion: 1,
-        harness: 'opencode',
-        version: '0.1.0',
-        install: 'https://clara.example/adapters/opencode/install.sh',
-        installSha256: 'a'.repeat(64),
-        artifacts: {},
-      },
-      command:
-        'curl -fsSL https://clara.example/adapters/opencode/install.sh | sh -s -- --pair clara-harness1_test --no-runner',
-      deepLink: 'clara://adapter?code=clara-harness1_test',
-    }),
+    createAdapterPairing: async (input: AdapterInstallOfferInput): Promise<AdapterInstallOffer> => {
+      adapterOffers.push(input)
+      return {
+        pairing: {
+          id: 'pair',
+          kind: 'opencode',
+          label: 'OpenCode',
+          transport: 'docker',
+          code: 'clara-harness1_test',
+          wsUrl: 'ws://127.0.0.1:8788/ws',
+          room: 'local',
+          fingerprint: 'fp',
+          expiresAt: new Date(0).toISOString(),
+          createdAt: new Date(0).toISOString(),
+        },
+        manifest: {
+          schemaVersion: 1,
+          harness: 'opencode',
+          version: '0.1.0',
+          install: 'https://clara.example/adapters/opencode/install.sh',
+          installSha256: 'a'.repeat(64),
+          artifacts: {},
+        },
+        command:
+          'curl -fsSL https://clara.example/adapters/opencode/install.sh | sh -s -- --pair clara-harness1_test --no-runner',
+        deepLink: 'clara://adapter?code=clara-harness1_test',
+      }
+    },
     cancelHarnessPairing: async () => undefined,
     testHarness: async () => ({
       ok: true,
@@ -591,7 +598,13 @@ describe('panel server', () => {
       registry: { baseUrl: 'https://clara.example/adapters' },
     })
 
-    const created = await post(server, 'install', { kind: 'opencode' })
+    const created = await post(server, 'install', {
+      kind: 'opencode',
+      method: 'ssh',
+      transport: 'local',
+      wsUrl: 'ws://192.168.1.20:8788/ws',
+      opencodeUrl: 'http://127.0.0.1:4096',
+    })
     expect(created.status).toBe(200)
     const body = (await created.json()) as {
       pairing: { kind: string }
@@ -601,6 +614,18 @@ describe('panel server', () => {
     expect(body.pairing.kind).toBe('opencode')
     expect(body.deepLink).toBe('clara://adapter?code=clara-harness1_test')
     expect(body.command).toContain('--pair')
+    expect(controls.adapterOffers).toEqual([
+      {
+        kind: 'opencode',
+        method: 'ssh',
+        transport: 'local',
+        wsUrl: 'ws://192.168.1.20:8788/ws',
+        opencodeUrl: 'http://127.0.0.1:4096',
+      },
+    ])
+
+    const invalid = await post(server, 'install', { kind: 'opencode', transport: 'carrier-pigeon' })
+    expect(invalid.status).toBe(400)
 
     const toggle = await post(server, 'install/settings', { enabled: true })
     expect(toggle.status).toBe(200)

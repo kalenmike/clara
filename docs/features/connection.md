@@ -14,10 +14,12 @@ device key through a one-time code; there is no shared browser key.
 
 1. Start the hub and open its panel. Create the owner account and sign in. Until
    that account exists the hub starts only the loopback panel and no
-   transports. Use **Harness → Pair Harness**, choose the adapter type, and copy
-   the one-time code and command. Clara Desktop can install it on this computer,
-   an SSH host, or a local container; a browser user runs the command on the
-   harness machine. For the included adapters, that is
+   transports. Use **Harness → Pair Harness**, choose the adapter type, answer
+   remote or local, and copy the one-time code and command. Clara Desktop can
+   install it on this computer, an SSH host, or a local container; a browser
+   user runs the command on the harness machine. A direct WebSocket URL under
+   **Advanced** lets a remote or container target connect without a relay. For
+   the included adapters, that is
    `clara start adapter --harness opencode --pair <code>` or
    `clara start adapter --harness claude --pair <code>`. The adapter
    discovers its harness, prompts for its URL/password if needed (OpenCode) or

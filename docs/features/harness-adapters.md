@@ -22,31 +22,39 @@ contacts the harness directly.
 
 ## User flow
 
-1. Open the Clara client → **Settings → Harness → Pair harness** (the hub panel
-   offers the same action). Choose OpenCode, Claude Code, or Pi.
+1. Open the hub panel's **Harness** view and choose **Pair Harness**. The
+   client's **Settings → Harness → Pair harness** action opens the same view.
+   Choose OpenCode, Claude Code, or Pi.
 2. The hub fetches the adapter manifest from the configured registry and returns
    a one-time code, a one-line install command, and a `clara://adapter` link. It
    never runs the install. Adapter codes start with `clara-harness1_` and only
    install an adapter; a browser pairs with a `clara1_` code from **Clients →
    Pair Client** or `clara pair`.
-3. A browser-only user copies the command and runs it on the machine that hosts
-   the harness. Clara Desktop adds a one-click path: choose **This computer**,
-   an **SSH host** from the laptop's `~/.ssh/config`, or a local **Docker
-   container**, and its adapter-host sidecar runs the same checksummed script.
-   The hub host never needs SSH keys, Docker access, or a route to the harness
-   machine.
-4. The install script detects the target platform, downloads the matching
+3. Answer **Remote** or **Local** and, for a local harness, whether the adapter
+   runs on the host or in a Docker container. The panel derives the transport
+   from that answer: relay for a remote machine, Docker network for a container
+   on a containerized hub, and the hub's loopback listener for a local host. A
+   container on a host-process hub uses the relay. A direct **WebSocket URL**
+   under **Advanced** overrides the address, so a remote or container target can
+   connect without a relay when it can reach the hub directly.
+4. A browser-only user copies the command and runs it on the machine that hosts
+   the harness. Clara Desktop adds a one-click path: the bundled panel's adapter
+   host accepts **This computer**, an **SSH host** from the laptop's
+   `~/.ssh/config` or a typed user/host/port, and a local **Docker container**,
+   and runs the same checksummed script. The hub host never needs SSH keys,
+   Docker access, or a route to the harness machine.
+5. The install script detects the target platform, downloads the matching
    Bun-compiled adapter archive, verifies its SHA-256, installs it under the
    adapter data directory, and runs the adapter installer. The manual commands
    are `clara start adapter --harness opencode --pair <code>`,
    `clara start adapter --harness claude --pair <code>`, and
    `clara start adapter --harness pi --pair <code>`.
-5. The OpenCode installer discovers OpenCode from flags, environment, or
+6. The OpenCode installer discovers OpenCode from flags, environment, or
    `~/.local/state/opencode/service.json`. The Claude Code installer uses the
    machine's existing Claude Code login and accepts `--claude-path`, `--model`,
    and `--permission-mode`. It never stores an API key. The Pi installer uses
    the machine's installed `pi` binary in RPC mode.
-6. The adapter enrolls and stores its credential. The installer then starts a
+7. The adapter enrolls and stores its credential. The installer then starts a
    user service, or a background adapter process when systemd/launchd is not
    available. The pairing card shows **Waiting for the adapter to connect…**
    and switches to **Connected** when the adapter registers; closing before
@@ -55,7 +63,7 @@ contacts the harness directly.
    adds a live row under **Connected adapters**. The first adapter is
    **Active**; turning the Harness switch off shows **Off** while the adapter
    credential is kept.
-7. Open the web client. Sessions arrive through the adapter; Clara projects are
+8. Open the web client. Sessions arrive through the adapter; Clara projects are
    created in the web client and their workspaces link directories on the
    adapter. The hub never contacts the harness.
 
@@ -67,8 +75,9 @@ contacts the harness directly.
 2. The client asks for a target and the hub picks the transport: the relay for
    a remote harness, the Docker network for a container on a containerized hub,
    and loopback for a local harness outside Docker. A container on a
-   host-process hub uses the relay. The user does not choose the transport; an
-   advanced WebSocket URL can override the local address.
+   host-process hub uses the relay. The user does not choose the transport
+   directly; an advanced WebSocket URL overrides the local address and lets a
+   remote or container target connect without a relay.
 3. Adapter pairing uses the same one-time code, fingerprint, expiry, E2EE
    handshake, replay guard, and revocation model as browser pairing. A relay
    code carries a ten-minute enrollment grant; the adapter then receives and
@@ -386,9 +395,10 @@ ask for confirmation run without one, exactly as in the Pi TUI.
   regenerates the same files from archives already attached to a release,
   reading asset names, sizes, and SHA-256 digests from the GitHub API without
   downloading them.
-- Panel routes: `GET /panel/api/v1/install`,
-  `POST /panel/api/v1/install`, `GET|DELETE /panel/api/v1/install/jobs/:id`,
-  and `POST /panel/api/v1/install/settings`.
+- Panel routes: `GET /panel/api/v1/install`, `POST /panel/api/v1/install`, and
+  `POST /panel/api/v1/install/settings`. The desktop adapter host exposes
+  `/targets`, `/install`, `/install/:id`, and `DELETE /install/:id` on its own
+  loopback token.
 - Docker: `infra/docker/adapter-opencode.compose.yml`; no published ports.
   No Claude Code or Pi image ships with Clara. Install the adapter in the
   container that runs the harness and mount its config directory and workspace.

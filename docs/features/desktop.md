@@ -34,9 +34,11 @@ adapter host remains its only bundled service.
 6. Install a newer build to update. There is no in-app updater yet.
 7. Settings → App identifies the desktop app and shows the same version and
    build stamp as the web client.
-8. Settings → Harness → Pair harness installs an adapter on **This computer**,
-   an **SSH host** from `~/.ssh/config`, or a local **Docker container**. A
-   `clara://adapter?code=…` link opens the same flow with the code filled in.
+8. Settings → Harness → Pair harness opens the hub panel's Harness view, which
+   installs an adapter on **This computer**, an **SSH host** from
+   `~/.ssh/config`, or a local **Docker container**. A
+   `clara://adapter?code=…` link opens the same panel flow with the code filled
+   in.
 9. Open **Hub** from the connected app to use the hub panel in the same window.
    Sign in with the hub owner account. The overview, harness, sessions,
    connections, clients, traffic, activity, and settings views use the paired
@@ -79,7 +81,7 @@ adapter host remains its only bundled service.
     **Go offline**, the transport switch carrying the session (local or relay),
     and relay target or room edits. Harness setup, device management, monitoring, sync,
     orchestration, and configuration stay available. Adapter setup offers are
-    carried out by the adapter host, not by the hub service.
+    carried out by the app's adapter host, not by the hub service.
 
 ## Edge cases
 
@@ -175,8 +177,10 @@ adapter host remains its only bundled service.
   The bridge adds no listener; the app still has no hub-service process.
 - The adapter host lives in `apps/desktop/host` (`@clara/desktop-host`). It
   reuses `@clara/adapter-install` from `packages/adapters/install` for planning,
-  target discovery, and jobs. Panel-issued adapter setup offers are the input to
-  this flow; the hub never runs an install.
+  target discovery, and jobs. The bundled panel supplies it through
+  `PanelRuntimeProvider`, so the same Harness view issues the pairing and runs
+  the install; the hub never runs an install. A `clara://adapter` link opens
+  `/hub#harness` with the one-time code instead of a separate Settings dialog.
   `pnpm --filter @clara/desktop-host run bundle` compiles the Bun sidecar into
   `apps/desktop/src-tauri/binaries/clara-adapter-host-<triple>`; the Tauri
   `externalBin` entry packages it. The shell's `adapter_host_runtime` and

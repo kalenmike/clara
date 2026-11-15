@@ -1,6 +1,6 @@
 import type {
-  AdapterInstallMethod,
   AdapterInstallOffer,
+  AdapterInstallOfferInput,
   AgentInfo,
   PanelInstallManifest,
 } from '@clara/shared-types'
@@ -18,10 +18,7 @@ export type ApiDependencies = {
   startedAt: number
   canAccess: () => boolean
   sessionCount: () => number
-  createAdapterPairing?: (input: {
-    kind: string
-    method?: AdapterInstallMethod
-  }) => Promise<AdapterInstallOffer>
+  createAdapterPairing?: (input: AdapterInstallOfferInput) => Promise<AdapterInstallOffer>
   adapterManifest?: (kind: string) => Promise<PanelInstallManifest>
   /**
    * Resolved lazily because the API app is created before the panel server
