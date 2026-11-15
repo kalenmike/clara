@@ -13,6 +13,7 @@ export type ClaraPaths = {
   logDir: string
   stateFile: string
   supervisorPidFile: string
+  stopRequestFile: string
 }
 
 export function resolvePaths(env: NodeJS.ProcessEnv = process.env): ClaraPaths {
@@ -33,6 +34,7 @@ export function resolvePaths(env: NodeJS.ProcessEnv = process.env): ClaraPaths {
     logDir: join(dataDir, 'logs'),
     stateFile: join(dataDir, 'services.json'),
     supervisorPidFile: join(dataDir, 'supervisor.pid'),
+    stopRequestFile: join(dataDir, 'stop.request'),
   }
 }
 

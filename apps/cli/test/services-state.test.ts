@@ -52,6 +52,15 @@ describe('services state', () => {
     expect(readServicesState(file)).toBeUndefined()
   })
 
+  it('keeps the supervisor phase across a write', () => {
+    const file = join(dir, 'services.json')
+    writeServicesState(file, {
+      ...state(),
+      supervisor: { ...state().supervisor, state: 'stopping' },
+    })
+    expect(readServicesState(file)?.supervisor.state).toBe('stopping')
+  })
+
   it('treats the current process as alive and rejects invalid pids', () => {
     expect(processAlive(process.pid)).toBe(true)
     expect(processAlive(0)).toBe(false)
