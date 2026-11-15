@@ -26,7 +26,7 @@ export function EmptyState({
       {icon ? <span className="[&_svg]:size-4">{icon}</span> : null}
       {title ? <p className="font-medium text-foreground">{title}</p> : null}
       {description ? <p>{description}</p> : null}
-      {children ? <p>{children}</p> : null}
+      {children ? <div>{children}</div> : null}
       {action ? <div className="mt-2">{action}</div> : null}
     </div>
   )
