@@ -37,7 +37,7 @@ $ARGUMENTS
 Call \`clara_start\` with:
 - \`prompt\`: the complete request above.
 
-The orchestrator owns the workspace and its configured entry point. Do not pass
+The engine owns the workspace and its configured entry point. Do not pass
 a workspace or a target; the entry point routes the request.
 
 The result contains a work order. Read it and do the work with your own tools.

@@ -18,7 +18,7 @@ test('builds a timestamped backup path for each target', () => {
   assert.equal(defaultBackupPath('default', now), resolve('clara-backup-20261110-123456.tar.gz'))
   assert.equal(defaultBackupPath('hub', now), resolve('clara-hub-backup-20261110-123456.tar.gz'))
   assert.equal(
-    defaultBackupPath('orchestrator', now),
+    defaultBackupPath('engine', now),
     resolve('clara-engine-backup-20261110-123456.tar.gz')
   )
 })
@@ -77,10 +77,8 @@ test('restores into all volumes with replace semantics', () => {
 test('selects volumes and containers for each backup target', () => {
   assert.deepEqual(targetVolumes('default'), VOLUMES)
   assert.deepEqual(targetVolumes('hub'), ['clara-server-config', 'clara-server-data'])
-  assert.deepEqual(targetVolumes('orchestrator'), ['clara-orchestrator-data'])
   assert.deepEqual(targetVolumes('engine'), ['clara-orchestrator-data'])
   assert.deepEqual(targetContainers('hub'), ['clara-server'])
-  assert.deepEqual(targetContainers('orchestrator'), ['clara-engine'])
   assert.deepEqual(targetContainers('engine'), ['clara-engine'])
   assert.throws(() => targetVolumes('web'), /unknown backup target/)
 })

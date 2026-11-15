@@ -20,11 +20,6 @@ export const BACKUP_TARGETS = {
   default: VOLUMES,
   hub: ['clara-server-config', 'clara-server-data'],
   engine: ['clara-orchestrator-data'],
-  orchestrator: ['clara-orchestrator-data'],
-}
-
-function canonicalTarget(target) {
-  return target === 'engine' ? 'orchestrator' : target
 }
 
 export function targetVolumes(target) {
@@ -34,10 +29,9 @@ export function targetVolumes(target) {
 }
 
 export function targetContainers(target) {
-  const name = canonicalTarget(target)
-  if (name === 'default') return SERVICES.map((entry) => CONTAINERS[entry])
-  if (name === 'hub') return [CONTAINERS.server]
-  if (name === 'orchestrator') return [CONTAINERS.orchestrator]
+  if (target === 'default') return SERVICES.map((entry) => CONTAINERS[entry])
+  if (target === 'hub') return [CONTAINERS.server]
+  if (target === 'engine') return [CONTAINERS.engine]
   return []
 }
 
@@ -46,8 +40,7 @@ export function defaultBackupPath(target = 'default', now = new Date()) {
   const iso = now.toISOString()
   const date = iso.slice(0, 10).replaceAll('-', '')
   const time = iso.slice(11, 19).replaceAll(':', '')
-  const name = target === 'orchestrator' || target === 'engine' ? 'engine' : target
-  const prefix = name === 'default' ? 'clara' : `clara-${name}`
+  const prefix = target === 'default' ? 'clara' : `clara-${target}`
   return resolve(`${prefix}-backup-${date}-${time}.tar.gz`)
 }
 
