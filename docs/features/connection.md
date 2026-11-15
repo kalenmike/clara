@@ -117,6 +117,17 @@ device key through a one-time code; there is no shared browser key.
   budget refused the socket; `4009` means one sealed frame exceeded 128 KiB. The
   adapter backs off and retries, and a persistent loop means the adapter is
   sending too much or a response was not split.
+- **Hub restart with a connected adapter** — the hub closes adapter sockets with
+  `1001`. The adapter process stays up, logs the close code, retries with
+  backoff, and re-authenticates when the hub returns; **Paired · Offline**
+  clears on its own. Losing the link never empties the event loop: the reconnect
+  wait and the live-state timer stay referenced, so the process cannot exit
+  between attempts. A newly installed systemd unit uses `Restart=always` and
+  launchd uses `KeepAlive`, so an unexpected exit is restarted too.
+- **Bad relay grant** — the relay refuses the upgrade with `401`, so retrying is
+  pointless. The adapter stops reconnecting but keeps running and reports the
+  reinstall message through `clara adapter status <kind>`; pair it again with a
+  fresh code.
 - **Browser throttled by the relay** — the transport paces its own frames under
   the device budget, so an ordinary load is not refused. A `4008` or `4009` close
   is reported as **The relay is throttling this device** in Settings, reconnects

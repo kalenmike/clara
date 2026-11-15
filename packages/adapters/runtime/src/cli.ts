@@ -299,8 +299,10 @@ async function serve<THarness>(
   transport.start()
   hostMetrics.start()
   writeLive()
+  // The adapter is a long-running service. This timer stays referenced so a
+  // disconnected hub cannot empty the event loop and exit the process; the
+  // transport owns reconnecting, and the state file keeps reporting it.
   const statusTimer = setInterval(writeLive, 2_000)
-  statusTimer.unref()
   const healthTimer = setInterval(() => {
     if (probing) return
     probing = true

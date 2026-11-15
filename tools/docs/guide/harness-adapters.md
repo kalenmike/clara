@@ -96,6 +96,11 @@ commands belong to the hub host; run `clara start`, `clara stop`, or
 `clara restart` there. `clara setup` is the explicit way to create a hub on the
 adapter machine too.
 
+Restarting the hub does not require restarting the adapter. A running adapter
+keeps retrying the link and returns to **Online** on its own once the hub is
+back; `clara adapter start <kind>` is only for an adapter process that is
+actually stopped.
+
 ### OpenCode
 
 If the installer cannot find OpenCode, it asks for the OpenCode URL, username,
@@ -266,9 +271,10 @@ connection keeps that state; use **Forget** only when you want to discard it.
   the browser. Use a browser code from **Clients → Pair Client** or
   `clara pair hub`, then paste that link or code in Clara.
 - **The adapter is offline** — **Paired harnesses** says **Paired · Offline**.
-  Start the adapter service, then use **Test** in the panel. The hub keeps the
-  connection and reconnects automatically. Clara stays connected and shows a
-  harness banner with **Retry**. Sessions on your other harnesses keep working.
+  A hub restart clears Online for that moment only; a running adapter retries
+  and registers again by itself. If it stays offline, start the adapter service
+  and use **Test** in the panel. Clara stays connected and shows a harness
+  banner with **Retry**. Sessions on your other harnesses keep working.
 - **The panel says Online but requests time out** — run
   `clara adapter status claude` (or `opencode`). The **hub** and
   **link** lines show whether the adapter has an authenticated session with the
