@@ -41,6 +41,20 @@ export const router = createBrowserRouter([
     HydrateFallback: () => <ConnectionSplash label="Loading the hub panel…" />,
   },
   {
+    // Activity and Settings are full-window surfaces too: they keep the header
+    // and its section tabs but drop the project sidebar and its banners.
+    path: '/activity',
+    lazy: () => import('@/pages/activity-page').then((m) => ({ Component: m.ActivityPage })),
+    errorElement: <RouteError />,
+    HydrateFallback: () => <ConnectionSplash label="Loading activity…" />,
+  },
+  {
+    path: '/settings',
+    lazy: () => import('@/pages/settings-page').then((m) => ({ Component: m.SettingsPage })),
+    errorElement: <RouteError />,
+    HydrateFallback: () => <ConnectionSplash label="Loading settings…" />,
+  },
+  {
     element: <AppShell />,
     errorElement: <RouteError />,
     // A deep link matches a lazy screen, so the first paint waits for that chunk.
@@ -48,10 +62,6 @@ export const router = createBrowserRouter([
     HydrateFallback: () => <ConnectionSplash label="Loading Clara…" />,
     children: [
       { index: true, element: <HomePage /> },
-      {
-        path: 'activity',
-        lazy: () => import('@/pages/activity-page').then((m) => ({ Component: m.ActivityPage })),
-      },
       {
         path: 'p/:projectId',
         lazy: () => import('@/pages/sessions-page').then((m) => ({ Component: m.SessionsPage })),
@@ -63,10 +73,6 @@ export const router = createBrowserRouter([
       {
         path: 'p/:projectId/s/:sessionId',
         lazy: () => import('@/pages/chat-page').then((m) => ({ Component: m.ChatPage })),
-      },
-      {
-        path: 'settings',
-        lazy: () => import('@/pages/settings-page').then((m) => ({ Component: m.SettingsPage })),
       },
     ],
   },
