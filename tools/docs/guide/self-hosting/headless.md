@@ -1,15 +1,14 @@
 ---
 title: Headless server
-description: Run the hub without the tray app and create the owner from a CLI.
+description: Install the hub CLI as a service and create the owner from a CLI.
 sidebar_position: 2.5
 ---
 
 # Run the hub headless
 
-The headless package contains the same hub service and panel as the tray app,
-without the desktop shell. Use it on a server or in CI. Build the package on the
-operating system you will run it on; the archive contains a compiled
-`clara-server` executable.
+The headless package contains the same hub service and embedded panel as the
+Hub CLI. Use it on a server or in CI. Build the package on the operating system
+you will run it on; the archive contains a compiled `clara-server` executable.
 
 ## Build
 

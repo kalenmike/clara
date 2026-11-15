@@ -17,7 +17,7 @@ never needs either. The browser keeps the copy-command path.
 The same window carries the hub panel at `/hub` for the hub it is paired with.
 It is the shared `@clara/panel` UI reached over the existing E2EE session, so
 the operator can administer a remote hub without opening its loopback page. The
-app does not run the hub service, a panel listener, or a second hub sidecar; the
+app does not run the hub service, a panel listener, or a second hub process; the
 adapter host remains its only bundled service.
 
 ## User flow
@@ -172,7 +172,7 @@ adapter host remains its only bundled service.
   paired E2EE session. It passes the house capability set that disables **Go
   offline**, the active transport switch (local or relay), and relay target/room
   edits.
-  The bridge adds no listener; the app still has no hub-service sidecar.
+  The bridge adds no listener; the app still has no hub-service process.
 - The adapter host lives in `apps/desktop/host` (`@clara/desktop-host`). It
   reuses `@clara/adapter-install` from `packages/adapters/install` for planning,
   target discovery, and jobs. Panel-issued adapter setup offers are the input to

@@ -13,7 +13,7 @@ or the home-screen install.
 
 Clara Desktop is the single GUI install for using Clara: the chat client and the
 hub panel share one window. The hub itself is still a service you run
-separately, with the [Hub app](hub-app.md), Docker, or a local install. The
+separately, with the [Hub CLI](hub-cli.md), Docker, or a local install. The
 desktop app does not run the hub service.
 
 ## Build an installer
@@ -104,5 +104,4 @@ Use the hub's own panel for those.
 Everything else, including end-to-end encryption, approval prompts, and cost
 reporting, matches the web client.
 
-To run the hub itself from a desktop window and tray icon, see the
-[Hub app](hub-app.md).
+To run the hub itself as a local service, see the [Hub CLI](hub-cli.md).

@@ -1,6 +1,6 @@
 # syntax=docker/dockerfile:1.7
 
-# Node fallback image for the hub. The default image is the Bun sidecar in
+# Node fallback image for the hub. The default image is the Bun executable in
 # server.Dockerfile; keep this one for one release while the Bun runtime settles.
 #
 # Build the hub service, its panel, and only its runtime dependencies.
