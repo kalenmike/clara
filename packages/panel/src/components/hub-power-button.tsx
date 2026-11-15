@@ -1,5 +1,6 @@
 import { useState } from 'react'
 import { Power } from 'lucide-react'
+import { GO_OFFLINE_UNAVAILABLE_REASON, usePanelCapabilities } from '../lib/capabilities-context.ts'
 import { postPanel } from '../lib/panel-api.ts'
 import { ConfirmDialog } from './confirm-dialog.tsx'
 
@@ -17,6 +18,7 @@ export function HubPowerButton({
   onChanged: () => void
   onError?: (message: string | undefined) => void
 }) {
+  const { allowGoOffline } = usePanelCapabilities()
   const [pending, setPending] = useState(false)
   const [confirmOpen, setConfirmOpen] = useState(false)
 
@@ -41,6 +43,8 @@ export function HubPowerButton({
     }
     void apply(false)
   }
+
+  if (!allowGoOffline) return <PowerUnavailable stopped={stopped} />
 
   return (
     <>
@@ -74,5 +78,25 @@ export function HubPowerButton({
         onConfirm={() => void apply(true)}
       />
     </>
+  )
+}
+
+/** The read-only stand-in the bundled panel shows in both of its host cards. */
+function PowerUnavailable({ stopped }: { stopped: boolean }) {
+  const label = stopped ? 'Go online' : 'Go offline'
+
+  return (
+    <button
+      type="button"
+      disabled
+      aria-label={`${label}: unavailable in the bundled panel`}
+      title={GO_OFFLINE_UNAVAILABLE_REASON}
+      className={`inline-flex items-center gap-1.5 rounded-lg px-2.5 py-1.5 text-xs font-semibold text-white shadow-sm disabled:cursor-not-allowed disabled:opacity-60 ${
+        stopped ? 'bg-emerald-600' : 'bg-red-600'
+      }`}
+    >
+      <Power className="size-3.5" aria-hidden="true" />
+      {label}
+    </button>
   )
 }

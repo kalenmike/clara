@@ -13,14 +13,27 @@ export function findFeature(controls: PanelControls, name: PanelFeatureName): Pa
   )
 }
 
+/**
+ * A host-level lock on one feature switch. The bundled panel uses it for the
+ * transport that carries its own connection, which it must not be able to cut.
+ */
+export type FeatureControlLock = {
+  locked: boolean
+  /** Why the switch is unavailable, shown as its tooltip and in the card. */
+  reason: string
+}
+
 /** Save one feature choice and expose the in-flight and failure state. */
 export function useFeatureControl(
   feature: PanelFeatureControl,
   stopped: boolean,
-  onChanged: () => void
+  onChanged: () => void,
+  lock?: FeatureControlLock
 ) {
   const [pending, setPending] = useState(false)
   const [error, setError] = useState<string>()
+  const locked = lock?.locked === true
+  const lockReason = locked ? lock?.reason : undefined
 
   const toggle = () => {
     setPending(true)
@@ -36,8 +49,10 @@ export function useFeatureControl(
   return {
     pending,
     error,
-    disabled: pending || stopped,
-    title: stopped ? 'Go online before changing features' : undefined,
+    locked,
+    lockReason,
+    disabled: pending || stopped || locked,
+    title: locked ? lockReason : stopped ? 'Go online before changing features' : undefined,
     toggle,
   }
 }
