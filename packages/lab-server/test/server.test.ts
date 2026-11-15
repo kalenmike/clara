@@ -77,6 +77,7 @@ describe('lab server', () => {
     expect(health.response.status).toBe(200)
     expect(health.value).toMatchObject({
       service: 'clara-lab',
+      version: 'test',
       connected: true,
       engineWorkspace: workspace,
       pid: expect.any(Number),

@@ -5,3 +5,5 @@ export function buildVersion(options: {
   packageVersion: string
   commit: string | undefined
 }): string
+
+export function checkoutVersion(cwd?: string): string

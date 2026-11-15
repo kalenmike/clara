@@ -3,6 +3,7 @@
 import { existsSync, readFileSync } from 'node:fs'
 import { join } from 'node:path'
 import { root, run, runPnpm } from './router.mjs'
+import { buildInfoEnv } from './server-control.mjs'
 import {
   logPath,
   processMatches,
@@ -168,6 +169,7 @@ export async function startLab(options = {}, repoRoot = root) {
     command: command.command,
     args: command.args,
     cwd: repoRoot,
+    env: { ...process.env, ...buildInfoEnv(repoRoot) },
     healthy: () => labHealthy(options.port ?? labPort()),
     timeoutMs: 60_000,
   })

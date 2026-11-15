@@ -6,6 +6,7 @@ import {
   startLabServer,
   workspace,
 } from '@clara/lab-server'
+import { version } from '../version.ts'
 
 /**
  * Run the Clara Lab service through the packaged command. The supervisor starts
@@ -22,6 +23,7 @@ export async function serveLab(): Promise<void> {
   const server = await startLabServer({
     runtime,
     port,
+    version: version(),
     ...(process.env.CLARA_LAB_HOST?.trim() ? { host: process.env.CLARA_LAB_HOST.trim() } : {}),
     ...(process.env.CLARA_LAB_TOKEN?.trim() ? { token: process.env.CLARA_LAB_TOKEN.trim() } : {}),
     ...(allowRemote() ? { allowRemote: true } : {}),
