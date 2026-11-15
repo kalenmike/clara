@@ -20,7 +20,9 @@ desktop-only: the deployed web/PWA build contains no lab code.
    editing it. The service opens on `127.0.0.1:8791` in a full-height workbench
    with one navigation rail: **Review**, **Runs**, **Traffic**, **Console**, and
    **Settings**. In Clara Desktop, open **Clara Lab** from the sidebar to use the
-   same UI at `/lab` through the hub bridge.
+   same UI at `/lab` through the hub bridge. The desktop route follows the
+   client's mode and color theme; the standalone page follows the operating
+   system and uses the Default palette.
 2. Open **Settings**, choose **Files on this machine** — the repository as the
    lab sees it. Use **Browse…** to pick the folder or type the path. The
    engine's own workspace is reported by the service and shown read-only
@@ -286,6 +288,11 @@ publish packages to the engine.
 - Start: `clara start lab` (serve), `clara status lab --check` (validate). Clara
   Desktop opens the same UI at `/lab` through the hub bridge.
 - Dev: `pnpm dev:lab` runs Vite on `5175` and the lab server on `8791`.
+- Styling: `packages/lab/src/styles.css` aliases `--lab-*` over the shared
+  semantic tokens, so the bundled `/lab` route inherits the client mode and
+  color theme. The standalone entry is `packages/lab/src/standalone.css`; it
+  loads Geist, `@clara/theme/tokens.css`, and applies `.dark` from the system
+  preference before React renders.
 - Default ports: lab `8791`, engine `8789`.
 - Environment (lab service): `CLARA_LAB_PORT`, `CLARA_LAB_OPEN=0`,
   `CLARA_LAB_HOST` (bind address), `CLARA_LAB_TOKEN` (shared bridge token),
