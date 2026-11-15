@@ -102,6 +102,8 @@ packages/
   orchestration/       engine, policy, control, mcp
   adapters/            runtime, binding, runner
   preview/             Pipeline preview, diagnostics, and snapshot diff SDK
+  ui/                  Shared web, panel, and lab component library
+  theme/               Shared palette and type tokens
   crypto/              device-key derivation, AES-GCM envelopes, replay guard
 infra/
   relay/               Cloudflare Worker + RelayRoom Durable Object

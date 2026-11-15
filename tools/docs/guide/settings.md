@@ -41,6 +41,9 @@ server-served panel keeps its own Light, Dark, and System switch. Clara Lab at
 `/lab` uses the same theme and mode. The standalone lab service has no client to
 follow, so it follows your system's light or dark setting.
 
+The panel and lab use the same controls as the main client, so buttons, fields,
+cards, and dialogs look and behave the same across surfaces.
+
 ## Preferences
 
 - **Session wording** — rename sessions in the interface. The default is

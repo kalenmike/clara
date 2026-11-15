@@ -39,6 +39,7 @@ packages/adapters/runner             Shared script runner for harness adapters
 packages/adapters/install            Adapter install planning, target discovery, and jobs
 packages/panel                       Shared hub panel UI for the served and bundled routes
 packages/theme                       Shared palette and theme tokens for the web, panel, and lab
+packages/ui                          Shared component library for the web, panel, and lab
 packages/lab                         Shared Clara Lab UI mounted by the desktop and the standalone entry
 packages/lab-server                  Lab service: workspace preview, engine token, MCP/SSE, asset cache
 packages/preview                     Pipeline preview, diagnostics, and snapshot diff SDK
@@ -204,8 +205,10 @@ transport, Worker, Durable Object, or crypto.
   the included adapter, its install commands, or a fact specific to OpenCode.
 - Web components live under `apps/web/src/components`; web hooks under
   `apps/web/src/features`. Server code lives under `apps/hub/server/src`.
-- Use the shadcn components in `apps/web/src/components/ui`; add new ones with
-  `pnpm dlx shadcn@latest add <name>` and keep the generated aliases.
+- Use the shared components in `packages/ui` (`@clara/ui`) before adding a
+  surface-local primitive; add new shadcn components from `packages/ui` with
+  `pnpm dlx shadcn@latest add <name>` and keep the generated aliases. Surface
+  layout and shell frames stay in their own package.
 - Path alias: `@/` maps to `apps/web/src/`.
 - Prefer `type` imports. No `any`; use the SDK's exported types.
 - Keep server state in TanStack Query and live stream state in `chatStore`.
@@ -327,6 +330,7 @@ is never published.
 | Relay Worker, DO, remote access    | [docs/architecture/relay.md](docs/architecture/relay.md)                 |
 | E2EE, device keys, envelopes       | [docs/architecture/e2ee.md](docs/architecture/e2ee.md)                   |
 | What ships and what does not       | [docs/features/capabilities.md](docs/features/capabilities.md)           |
+| Shared components and patterns     | [docs/features/ui.md](docs/features/ui.md)                               |
 | Engine service and control         | [docs/features/orchestration.md](docs/features/orchestration.md)         |
 | Pipeline DSL and package fields    | [docs/features/orchestration-dsl.md](docs/features/orchestration-dsl.md) |
 | Engine diagnosis and fixes         | [docs/features/diagnostics.md](docs/features/diagnostics.md)             |

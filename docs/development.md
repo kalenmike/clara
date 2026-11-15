@@ -200,9 +200,16 @@ transport and capability set: the served panel keeps its HttpOnly session
 cookie, while a tunneled panel uses a session bearer token and disables controls
 that would cut its own connection.
 
+`packages/ui` (`@clara/ui`) owns the component library shared by every surface:
+the shadcn primitives, `cn`, and the Clara patterns for status badges, notices,
+empty states, key/value rows, copy actions, and section cards. Import from the
+explicit component, pattern, or lib subpath; do not copy a primitive into a
+surface package. See [features/ui.md](features/ui.md).
+
 `packages/theme` (`@clara/theme`) owns the palettes and type tokens shared by the
 web client, the hub panel, and the lab. Tailwind hosts import `theme.css`; the
-standalone lab imports `tokens.css` directly.
+standalone lab imports the Tailwind theme and utilities layers plus `theme.css`
+without preflight.
 
 `apps/desktop/host` is the loopback adapter-host sidecar. It reuses
 `packages/adapters/install` for planning, target discovery, and jobs, and it
