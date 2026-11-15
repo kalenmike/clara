@@ -4,6 +4,7 @@ import { connect } from 'node:net'
 import { dirname, join } from 'node:path'
 import { fileURLToPath } from 'node:url'
 import { previewPipeline, type Diagnostic } from '@clara/pipeline-preview'
+import { checkoutVersion } from '../../build/version.mjs'
 import {
   ensureEngine,
   labPort,
@@ -196,6 +197,7 @@ async function serve(options: Options): Promise<void> {
   const server = await startLabServer({
     runtime,
     port,
+    version: process.env.CLARA_VERSION?.trim() || checkoutVersion(),
     ...(process.env.CLARA_LAB_HOST?.trim() ? { host: process.env.CLARA_LAB_HOST.trim() } : {}),
     ...(process.env.CLARA_LAB_TOKEN?.trim() ? { token: process.env.CLARA_LAB_TOKEN.trim() } : {}),
     ...(['1', 'true', 'yes', 'on'].includes(
