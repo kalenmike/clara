@@ -77,20 +77,17 @@ export function ClientSyncCard({
       }
     >
       <CardBody>
-        <p className="text-xs text-neutral-500 dark:text-neutral-400">
+        <p className="text-xs text-muted-foreground">
           Paired clients check for settings changes at this cadence. A local edit still pushes
           immediately, and clients pull only when the server revision changes.
         </p>
 
-        <div className="flex flex-wrap items-center justify-between gap-3 rounded-lg border border-neutral-200 px-2.5 py-2 dark:border-neutral-800">
+        <div className="flex flex-wrap items-center justify-between gap-3 rounded-lg border border-border px-2.5 py-2">
           <div className="min-w-0">
-            <label
-              htmlFor="client-sync-interval"
-              className="text-sm font-medium text-neutral-900 dark:text-neutral-100"
-            >
+            <label htmlFor="client-sync-interval" className="text-sm font-medium text-foreground">
               Check interval
             </label>
-            <p className="mt-0.5 text-xs text-neutral-500 dark:text-neutral-400">
+            <p className="mt-0.5 text-xs text-muted-foreground">
               Applies to every connected client and every new pairing.
             </p>
           </div>
@@ -101,7 +98,7 @@ export function ClientSyncCard({
               void update({ ...sync, intervalMs: Number(event.target.value) }, 'interval')
             }
             disabled={pending !== undefined}
-            className="rounded-lg border border-neutral-200 bg-white px-2.5 py-1.5 text-xs text-neutral-900 shadow-sm outline-none transition focus:border-neutral-400 disabled:cursor-not-allowed disabled:bg-neutral-50 disabled:text-neutral-500 dark:border-neutral-800 dark:bg-neutral-950 dark:text-neutral-100 dark:focus:border-neutral-600 dark:disabled:bg-neutral-900"
+            className="rounded-lg border border-border bg-card px-2.5 py-1.5 text-xs text-foreground shadow-sm outline-none transition focus:border-ring disabled:cursor-not-allowed disabled:bg-muted disabled:text-muted-foreground"
           >
             {intervals.map((interval) => (
               <option key={interval} value={interval}>
@@ -111,7 +108,7 @@ export function ClientSyncCard({
           </select>
         </div>
 
-        <p className="pt-2 text-[11px] text-neutral-500 dark:text-neutral-400">
+        <p className="pt-2 text-[11px] text-muted-foreground">
           Turning sync off hides the Sync tab on every client and rejects sync requests. Stored
           per-client choices and the server namespace are kept, so turning it back on resumes where
           it stopped.

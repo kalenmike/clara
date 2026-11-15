@@ -62,17 +62,17 @@ export function GuideStep({ snapshot, setup }: { snapshot: PanelSnapshot; setup:
         </p>
       </div>
 
-      <div className="rounded-lg border border-neutral-200 bg-neutral-50 p-3 dark:border-neutral-800 dark:bg-neutral-900/60">
+      <div className="rounded-lg border border-border bg-muted p-3">
         <div className="flex flex-wrap items-center justify-center gap-2 text-[11px] font-medium">
           <DiagramNode icon={<Laptop className="size-3.5" />} label="Clients" />
-          <ArrowLeftRight className="size-3.5 text-neutral-400" aria-hidden="true" />
+          <ArrowLeftRight className="size-3.5 text-muted-foreground" aria-hidden="true" />
           <DiagramNode icon={<Server className="size-3.5" />} label="Hub" />
-          <ArrowLeftRight className="size-3.5 text-neutral-400" aria-hidden="true" />
+          <ArrowLeftRight className="size-3.5 text-muted-foreground" aria-hidden="true" />
           <DiagramNode icon={<Cable className="size-3.5" />} label="Adapter" />
-          <ArrowLeftRight className="size-3.5 text-neutral-400" aria-hidden="true" />
+          <ArrowLeftRight className="size-3.5 text-muted-foreground" aria-hidden="true" />
           <DiagramNode icon={<Cable className="size-3.5" />} label="Harness" />
         </div>
-        <div className="mt-2 flex items-center justify-center gap-2 text-[10px] text-neutral-500 dark:text-neutral-400">
+        <div className="mt-2 flex items-center justify-center gap-2 text-[10px] text-muted-foreground">
           <Cloud className="size-3.5" aria-hidden="true" />
           Optional relay for clients and adapters on another network. It sees encrypted frames only.
         </div>
@@ -99,7 +99,7 @@ export function GuideStep({ snapshot, setup }: { snapshot: PanelSnapshot; setup:
 
       <div>
         <h3 className="text-xs font-semibold">What each view is for</h3>
-        <dl className="mt-1.5 divide-y divide-neutral-100 rounded-lg border border-neutral-200 text-[11px] dark:divide-neutral-800/60 dark:border-neutral-800">
+        <dl className="mt-1.5 divide-y divide-border rounded-lg border border-border text-[11px]">
           {TAB_GUIDE.map(([label, body]) => (
             <div key={label} className="flex gap-3 px-3 py-1.5">
               <dt className="w-20 shrink-0 font-medium">{label}</dt>
@@ -119,8 +119,8 @@ export function GuideStep({ snapshot, setup }: { snapshot: PanelSnapshot; setup:
 
 function DiagramNode({ icon, label }: { icon: ReactNode; label: string }) {
   return (
-    <span className="inline-flex items-center gap-1 rounded-md border border-neutral-200 bg-white px-2 py-1 dark:border-neutral-700 dark:bg-neutral-950">
-      <span className="text-neutral-500 dark:text-neutral-400">{icon}</span>
+    <span className="inline-flex items-center gap-1 rounded-md border border-border bg-card px-2 py-1 ">
+      <span className="text-muted-foreground">{icon}</span>
       {label}
     </span>
   )
@@ -128,7 +128,7 @@ function DiagramNode({ icon, label }: { icon: ReactNode; label: string }) {
 
 function Concept({ title, body }: { title: string; body: string }) {
   return (
-    <div className="rounded-lg border border-neutral-200 p-2.5 dark:border-neutral-800">
+    <div className="rounded-lg border border-border p-2.5">
       <p className="text-[11px] font-semibold">{title}</p>
       <p className="panel-muted mt-0.5 text-[11px]">{body}</p>
     </div>

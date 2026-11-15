@@ -146,16 +146,14 @@ export function SetupModal({
                   <span
                     key={item.id}
                     className={`flex items-center gap-1.5 text-[11px] ${
-                      item.id === step
-                        ? 'font-semibold text-[color:var(--panel-text)]'
-                        : 'panel-muted'
+                      item.id === step ? 'font-semibold text-foreground' : 'panel-muted'
                     }`}
                   >
                     <span
-                      className={`grid size-4 place-items-center rounded-full border text-[9px] ${
+                      className={`grid size-4 place-items-center rounded-full border text-[10px] ${
                         done
                           ? 'border-emerald-200 bg-emerald-50 text-emerald-700 dark:border-emerald-900 dark:bg-emerald-950/60 dark:text-emerald-300'
-                          : 'border-[color:var(--panel-border)] text-[color:var(--panel-faint)]'
+                          : 'border-border text-muted-foreground/70'
                       }`}
                       aria-hidden="true"
                     >

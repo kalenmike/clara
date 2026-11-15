@@ -9,13 +9,13 @@
  */
 
 @import 'tailwindcss';
+@import '@fontsource-variable/geist';
+@import './theme.css';
 @import './globals.css';
 @import './shell.css';
 
 /* The panel UI lives in this package, outside the served panel's Vite root. */
 @source '../';
-
-@custom-variant dark (&:is(.dark *));
 
 html,
 body,
@@ -29,19 +29,13 @@ body,
  * these rules apply.
  */
 html {
-  @apply bg-neutral-50 text-neutral-950 antialiased;
-  color-scheme: light;
-}
-
-html.dark {
-  @apply bg-neutral-950 text-neutral-50;
-  color-scheme: dark;
+  @apply bg-background text-foreground;
 }
 
 body {
   margin: 0;
   overflow: hidden;
   font-family: var(--font-sans);
-  font-size: 13px;
-  line-height: 1.45;
+  font-size: 0.875rem;
+  line-height: 1.5;
 }

@@ -8,6 +8,10 @@ including the Clara house palette, has a matching light and dark variant. This i
 for people who want the workspace to match their editor, terminal, or personal
 taste without giving up automatic appearance changes.
 
+The hub panel shares the same palettes and type tokens. The server-served panel
+keeps its own Light, Dark, and System switch in the panel browser; the bundled
+`/hub` panel follows the client's mode and color theme and hides that switch.
+
 ## User flow
 
 1. Open **Settings** and find the **Appearance** card.
@@ -94,8 +98,13 @@ taste without giving up automatic appearance changes.
 - Appearance card: `src/components/settings/theme-card.tsx`
 - Theme catalog and local store: `src/features/theme/color-theme.ts`
 - React binding: `src/features/theme/use-color-theme.ts`
-- Palette CSS: `src/styles/color-themes.css`, imported by `src/index.css`
-- Default palette: `:root` and `.dark` in `src/index.css`
+- Palette CSS: `packages/panel/src/styles/theme.css`, imported by the web
+  `src/index.css` and the panel `standalone.css`
+- Default palette: `:root` and `.dark` in
+  `packages/panel/src/styles/theme.css`
+- Panel tokens: `packages/panel/src/styles/globals.css` aliases `--panel-*` to
+  the semantic tokens so the served panel uses the Default palette and the
+  bundled `/hub` panel inherits the client mode and color theme
 - Mode provider: `src/providers/theme-provider.tsx` (wraps `next-themes`)
 - Storage keys: `clara.theme` (mode), `clara.colorTheme` (palette); both are
   eligible for optional client settings sync

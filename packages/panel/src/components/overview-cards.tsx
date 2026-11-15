@@ -172,7 +172,7 @@ export function LocalCard({
         <KeyValue label="Socket connections">{local.connections}</KeyValue>
         <KeyValue label="E2EE sessions">{sessions}</KeyValue>
         {local.error ? <Notice>{redact(local.error)}</Notice> : null}
-        <p className="pt-2 text-xs text-neutral-500 dark:text-neutral-400">
+        <p className="pt-2 text-xs text-muted-foreground">
           Sessions are authenticated with a per-device key. The panel never sees or displays that
           key.
         </p>
@@ -284,7 +284,7 @@ export function RelayCard({
             <EmptyState>
               This hub is local-only. Save a relay URL and hub token below to enable remote access.
             </EmptyState>
-            <p className="pt-2 text-xs text-neutral-500 dark:text-neutral-400">
+            <p className="pt-2 text-xs text-muted-foreground">
               A relay-disabled hub still serves the local WebSocket and this panel.
             </p>
           </>
@@ -352,7 +352,7 @@ export function PushCard({
           {push.publicKeyConfigured ? 'Configured' : 'Not configured'}
         </KeyValue>
         {push.error ? <Notice>{redact(push.error)}</Notice> : null}
-        <p className="pt-2 text-xs text-neutral-500 dark:text-neutral-400">
+        <p className="pt-2 text-xs text-muted-foreground">
           Push endpoints are never exposed by the panel.
         </p>
       </CardBody>
@@ -459,12 +459,10 @@ function ConfigRow({
   const display = sensitive && masked && value !== 'Not configured' ? PEEK_MASK : value
 
   return (
-    <div className="flex items-start justify-between gap-4 border-b border-neutral-100 py-1.5 text-sm last:border-0 dark:border-neutral-800/60">
-      <span className="shrink-0 text-neutral-500 dark:text-neutral-400">{label}</span>
+    <div className="flex items-start justify-between gap-4 border-b border-border py-1.5 text-sm last:border-0">
+      <span className="shrink-0 text-muted-foreground">{label}</span>
       <span className="flex min-w-0 flex-wrap items-center justify-end gap-2">
-        <span
-          className={`break-all text-right text-neutral-900 dark:text-neutral-100 ${mono ? 'font-mono text-xs' : ''}`}
-        >
+        <span className={`break-all text-right text-foreground ${mono ? 'font-mono text-xs' : ''}`}>
           {display}
         </span>
         <SourceTag source={sourceLabel(source)} />
@@ -541,9 +539,9 @@ export function ConfigEditorRow({
   }
 
   return (
-    <div className="border-b border-neutral-100 py-2 last:border-0 dark:border-neutral-800/60">
+    <div className="border-b border-border py-2 last:border-0">
       <div className="flex flex-wrap items-center justify-between gap-2">
-        <label htmlFor={id} className="text-sm font-medium text-neutral-900 dark:text-neutral-100">
+        <label htmlFor={id} className="text-sm font-medium text-foreground">
           {label}
         </label>
         <SourceTag source={sourceText} />
@@ -560,13 +558,13 @@ export function ConfigEditorRow({
             setDraft(event.target.value)
             setDirty(true)
           }}
-          className={`min-w-0 flex-1 rounded-lg border border-neutral-200 bg-white px-2.5 py-1.5 text-xs text-neutral-900 shadow-sm outline-none transition focus:border-neutral-400 disabled:cursor-not-allowed disabled:bg-neutral-50 disabled:text-neutral-500 dark:border-neutral-800 dark:bg-neutral-950 dark:text-neutral-100 dark:focus:border-neutral-600 dark:disabled:bg-neutral-900 ${mono ? 'font-mono' : ''}`}
+          className={`min-w-0 flex-1 rounded-lg border border-border bg-card px-2.5 py-1.5 text-xs text-foreground shadow-sm outline-none transition focus:border-ring disabled:cursor-not-allowed disabled:bg-muted disabled:text-muted-foreground ${mono ? 'font-mono' : ''}`}
         />
         <button
           type="button"
           onClick={save}
           disabled={disabled || !dirty}
-          className="inline-flex items-center rounded-md border border-neutral-200 px-2 py-1 text-[11px] font-medium transition hover:bg-neutral-100 disabled:cursor-not-allowed disabled:opacity-50 dark:border-neutral-700 dark:hover:bg-neutral-800"
+          className="inline-flex items-center rounded-md border border-border px-2 py-1 text-[11px] font-medium transition hover:bg-accent disabled:cursor-not-allowed disabled:opacity-50"
         >
           Save
         </button>
@@ -574,12 +572,12 @@ export function ConfigEditorRow({
           type="button"
           onClick={clear}
           disabled={disabled || source === 'default'}
-          className="inline-flex items-center rounded-md border border-neutral-200 px-2 py-1 text-[11px] font-medium transition hover:bg-neutral-100 disabled:cursor-not-allowed disabled:opacity-50 dark:border-neutral-700 dark:hover:bg-neutral-800"
+          className="inline-flex items-center rounded-md border border-border px-2 py-1 text-[11px] font-medium transition hover:bg-accent disabled:cursor-not-allowed disabled:opacity-50"
         >
           Use default
         </button>
       </div>
-      <p className="mt-1 text-[11px] text-neutral-500 dark:text-neutral-400">
+      <p className="mt-1 text-[11px] text-muted-foreground">
         {locked ? envHint : source === 'file' ? `${hint} ${savedHint}` : `${hint} ${defaultHint}`}
       </p>
       {error ? <Notice tone="danger">{redact(error)}</Notice> : null}

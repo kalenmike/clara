@@ -148,8 +148,8 @@ export function TrafficCard({
                   {
                     label: 'Requests',
                     values: traffic.series.map((sample) => sample.requests),
-                    stroke: 'stroke-neutral-400',
-                    dot: 'bg-neutral-400',
+                    stroke: 'stroke-muted-foreground',
+                    dot: 'bg-muted-foreground',
                   },
                   {
                     label: 'Errors',
@@ -201,11 +201,11 @@ export function TrafficCard({
                   ))}
               </div>
             ) : (
-              <p className="pt-2 text-xs text-neutral-500 dark:text-neutral-400">
+              <p className="pt-2 text-xs text-muted-foreground">
                 No failed handshakes, rejects, or refused commands since monitoring started.
               </p>
             )}
-            <p className="pt-2 text-xs text-neutral-500 dark:text-neutral-400">
+            <p className="pt-2 text-xs text-muted-foreground">
               Counters reset when the hub service restarts or monitoring is switched off. History
               stays in the systemd journal and Cloudflare analytics.
             </p>
@@ -240,7 +240,7 @@ function Sparkline({ lines, label }: { lines: SparkLine[]; label: string }) {
           y1={height - 0.5}
           x2={width}
           y2={height - 0.5}
-          className="stroke-neutral-200 dark:stroke-neutral-800"
+          className="stroke-border"
           strokeWidth="0.5"
         />
         {lines.map((line) => (
@@ -254,7 +254,7 @@ function Sparkline({ lines, label }: { lines: SparkLine[]; label: string }) {
           />
         ))}
       </svg>
-      <div className="flex flex-wrap gap-3 text-[10px] text-neutral-500 dark:text-neutral-400">
+      <div className="flex flex-wrap gap-3 text-[10px] text-muted-foreground">
         {lines.map((line) => (
           <span key={line.label} className="inline-flex items-center gap-1">
             <span className={`size-1.5 rounded-full ${line.dot}`} aria-hidden="true" />

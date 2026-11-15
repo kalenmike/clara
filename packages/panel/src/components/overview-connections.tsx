@@ -31,7 +31,7 @@ export function ActiveClientsCard({
     <section className="panel-card" aria-labelledby="overview-clients-title">
       <div className="panel-card-head flex items-center justify-between gap-2">
         <div>
-          <h2 id="overview-clients-title" className="text-[13px] font-semibold">
+          <h2 id="overview-clients-title" className="text-sm font-semibold">
             Active clients
           </h2>
           <p className="panel-muted text-[11px]">Live end-to-end encrypted browser sessions</p>
@@ -51,7 +51,7 @@ export function ActiveClientsCard({
           <div className="-mx-1 overflow-x-auto">
             <table className="w-full min-w-[420px] border-collapse text-left text-xs">
               <thead>
-                <tr className="text-[10px] uppercase tracking-wide text-neutral-500 dark:text-neutral-400">
+                <tr className="text-[10px] uppercase tracking-wide text-muted-foreground">
                   <th scope="col" className="px-1 py-2 font-medium">
                     Transport
                   </th>
@@ -76,7 +76,7 @@ export function ActiveClientsCard({
                   return (
                     <tr
                       key={`${client.transport}:${client.sid}`}
-                      className="border-t border-neutral-100 dark:border-neutral-800"
+                      className="border-t border-border"
                     >
                       <td className="px-1 py-2">
                         <Badge tone={client.transport === 'local' ? 'info' : 'neutral'}>
@@ -89,7 +89,7 @@ export function ActiveClientsCard({
                         ) : (
                           <>
                             <div className="font-medium">{label}</div>
-                            <div className="font-mono text-[10px] text-neutral-500 dark:text-neutral-400">
+                            <div className="font-mono text-[10px] text-muted-foreground">
                               {client.deviceId
                                 ? masked
                                   ? PEEK_MASK
@@ -100,13 +100,13 @@ export function ActiveClientsCard({
                         )}
                       </td>
                       <td
-                        className="px-1 py-2 text-neutral-600 dark:text-neutral-300"
+                        className="px-1 py-2 text-foreground"
                         title={formatTimestamp(client.connectedAt)}
                       >
                         {formatRelative(client.connectedAt, now)}
                       </td>
                       <td
-                        className="px-1 py-2 text-neutral-600 dark:text-neutral-300"
+                        className="px-1 py-2 text-foreground"
                         title={formatTimestamp(client.lastSeenAt)}
                       >
                         {formatRelative(client.lastSeenAt, now)}
@@ -142,7 +142,7 @@ export function ActiveAdaptersCard({
     <section className="panel-card" aria-labelledby="overview-adapters-title">
       <div className="panel-card-head flex items-center justify-between gap-2">
         <div>
-          <h2 id="overview-adapters-title" className="text-[13px] font-semibold">
+          <h2 id="overview-adapters-title" className="text-sm font-semibold">
             Active adapters
           </h2>
           <p className="panel-muted text-[11px]">Live end-to-end encrypted adapter sessions</p>
@@ -161,7 +161,7 @@ export function ActiveAdaptersCard({
           <div className="-mx-1 overflow-x-auto">
             <table className="w-full min-w-[420px] border-collapse text-left text-xs">
               <thead>
-                <tr className="text-[10px] uppercase tracking-wide text-neutral-500 dark:text-neutral-400">
+                <tr className="text-[10px] uppercase tracking-wide text-muted-foreground">
                   <th scope="col" className="px-1 py-2 font-medium">
                     Transport
                   </th>
@@ -184,7 +184,7 @@ export function ActiveAdaptersCard({
                   return (
                     <tr
                       key={`${client.transport}:${client.sid}`}
-                      className="border-t border-neutral-100 dark:border-neutral-800"
+                      className="border-t border-border"
                     >
                       <td className="px-1 py-2">
                         <Badge tone={client.transport === 'local' ? 'info' : 'neutral'}>
@@ -193,18 +193,18 @@ export function ActiveAdaptersCard({
                       </td>
                       <td className="px-1 py-2">
                         <div className="font-medium">{identity}</div>
-                        <div className="font-mono text-[10px] text-neutral-500 dark:text-neutral-400">
+                        <div className="font-mono text-[10px] text-muted-foreground">
                           {identityId ? (masked ? PEEK_MASK : shortId(identityId)) : '—'}
                         </div>
                       </td>
                       <td
-                        className="px-1 py-2 text-neutral-600 dark:text-neutral-300"
+                        className="px-1 py-2 text-foreground"
                         title={formatTimestamp(client.connectedAt)}
                       >
                         {formatRelative(client.connectedAt, now)}
                       </td>
                       <td
-                        className="px-1 py-2 text-neutral-600 dark:text-neutral-300"
+                        className="px-1 py-2 text-foreground"
                         title={formatTimestamp(client.lastSeenAt)}
                       >
                         {formatRelative(client.lastSeenAt, now)}

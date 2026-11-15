@@ -45,10 +45,7 @@ export default function CloudflareRelaySlot({ relay, now, onChanged }: Cloudflar
   const canDeploy = !cloudflare.envManaged
 
   return (
-    <div
-      className="space-y-2 border-t border-neutral-100 pt-2 dark:border-neutral-800/60"
-      data-clara-cloudflare-deployment="v1"
-    >
+    <div className="space-y-2 border-t border-border pt-2" data-clara-cloudflare-deployment="v1">
       {cloudflare.managed ? (
         <>
           <KeyValue label="Cloudflare account">
@@ -91,7 +88,7 @@ export default function CloudflareRelaySlot({ relay, now, onChanged }: Cloudflar
           <KeyValue label="API token">{cloudflare.tokenStored ? 'Saved' : 'Not saved'}</KeyValue>
         </>
       ) : (
-        <p className="text-[11px] text-neutral-500 dark:text-neutral-400">
+        <p className="text-[11px] text-muted-foreground">
           Deploy the relay Worker and its Durable Object to your own Cloudflare account. Clara
           stores the relay hub token on this hub; Cloudflare only forwards encrypted frames.
         </p>
@@ -133,7 +130,7 @@ export default function CloudflareRelaySlot({ relay, now, onChanged }: Cloudflar
             disabled={forgetting}
             className={
               cloudflare.managed
-                ? 'inline-flex items-center gap-1.5 rounded-lg border border-neutral-200 px-2.5 py-1.5 text-xs font-semibold transition hover:bg-neutral-50 disabled:opacity-60 dark:border-neutral-700 dark:hover:bg-neutral-900'
+                ? 'inline-flex items-center gap-1.5 rounded-lg border border-border px-2.5 py-1.5 text-xs font-semibold transition hover:bg-accent disabled:opacity-60'
                 : 'inline-flex items-center gap-1.5 rounded-lg bg-sky-600 px-2.5 py-1.5 text-xs font-semibold text-white shadow-sm transition hover:bg-sky-500 disabled:cursor-not-allowed disabled:opacity-60'
             }
           >
@@ -150,7 +147,7 @@ export default function CloudflareRelaySlot({ relay, now, onChanged }: Cloudflar
             type="button"
             onClick={() => void forget()}
             disabled={forgetting}
-            className="inline-flex items-center gap-1.5 rounded-lg border border-neutral-200 px-2.5 py-1.5 text-xs font-semibold transition hover:bg-neutral-50 disabled:opacity-60 dark:border-neutral-700 dark:hover:bg-neutral-900"
+            className="inline-flex items-center gap-1.5 rounded-lg border border-border px-2.5 py-1.5 text-xs font-semibold transition hover:bg-accent disabled:opacity-60"
           >
             <Trash2 className="size-3.5" aria-hidden="true" />
             {forgetting ? 'Forgetting…' : 'Forget token'}

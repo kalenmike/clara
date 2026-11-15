@@ -1,7 +1,7 @@
 import type { ToggleState } from '../components/primitives.tsx'
 
 const TOGGLE_TRACKS: Record<ToggleState, string> = {
-  off: 'border-neutral-300 bg-neutral-200 dark:border-neutral-700 dark:bg-neutral-800',
+  off: 'border-border bg-muted',
   pending: 'border-amber-500 bg-amber-500',
   on: 'border-emerald-600 bg-emerald-600',
 }

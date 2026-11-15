@@ -108,7 +108,7 @@ function RecentActivity({
     <section className="panel-card" aria-labelledby="overview-activity-title">
       <div className="panel-card-head flex items-center justify-between gap-2">
         <div>
-          <h2 id="overview-activity-title" className="text-[13px] font-semibold">
+          <h2 id="overview-activity-title" className="text-sm font-semibold">
             Recent activity
           </h2>
           <p className="panel-muted text-[11px]">In-memory events since the hub service started</p>
@@ -155,7 +155,7 @@ function StorageSummary({
     <section className="panel-card" aria-labelledby="overview-storage-title">
       <div className="panel-card-head flex items-center justify-between gap-2">
         <div>
-          <h2 id="overview-storage-title" className="text-[13px] font-semibold">
+          <h2 id="overview-storage-title" className="text-sm font-semibold">
             Storage
           </h2>
           <p className="panel-muted text-[11px]" title={summary.title}>

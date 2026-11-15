@@ -15,6 +15,7 @@ describe('hubPanelTransport', () => {
 describe('hubPanelCapabilities', () => {
   it('locks the local switch and Go offline on a local connection', () => {
     expect(hubPanelCapabilities('local')).toEqual({
+      allowThemeSwitch: false,
       allowGoOffline: false,
       allowLocalToggle: false,
       allowRelayToggle: true,
@@ -24,6 +25,7 @@ describe('hubPanelCapabilities', () => {
 
   it('locks relay transport and target edits on a relay connection', () => {
     expect(hubPanelCapabilities('relay')).toEqual({
+      allowThemeSwitch: false,
       allowGoOffline: false,
       allowLocalToggle: true,
       allowRelayToggle: false,

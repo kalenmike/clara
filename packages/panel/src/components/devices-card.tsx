@@ -98,7 +98,7 @@ export function DevicesCard({
           <div className="-mx-1 overflow-x-auto">
             <table className="w-full min-w-[760px] border-collapse text-left text-xs">
               <thead>
-                <tr className="text-[10px] uppercase tracking-wide text-neutral-500 dark:text-neutral-400">
+                <tr className="text-[10px] uppercase tracking-wide text-muted-foreground">
                   <th scope="col" className="px-1 py-2 font-medium">
                     Device
                   </th>
@@ -121,8 +121,8 @@ export function DevicesCard({
                 {[...active, ...revoked].map((device) => (
                   <tr
                     key={device.id}
-                    className={`border-t border-neutral-100 dark:border-neutral-800 ${
-                      device.revokedAt ? 'text-neutral-400 dark:text-neutral-500' : ''
+                    className={`border-t border-border border-border ${
+                      device.revokedAt ? 'text-muted-foreground' : ''
                     }`}
                   >
                     <td className="px-1 py-2">
@@ -144,9 +144,9 @@ export function DevicesCard({
                             placeholder={device.label}
                             aria-label={`Alias for ${device.label}`}
                             autoFocus
-                            className="w-full min-w-40 rounded-md border border-neutral-300 bg-white px-2 py-1 text-xs text-neutral-900 outline-none focus:border-neutral-500 dark:border-neutral-700 dark:bg-neutral-900 dark:text-neutral-100 dark:focus:border-neutral-400"
+                            className="w-full min-w-40 rounded-md border border-border bg-card px-2 py-1 text-xs text-foreground outline-none focus:border-ring "
                           />
-                          <div className="mt-1 font-mono text-[10px] text-neutral-500 dark:text-neutral-400">
+                          <div className="mt-1 font-mono text-[10px] text-muted-foreground">
                             {masked ? PEEK_MASK : shortId(device.id)}
                           </div>
                         </>
@@ -154,11 +154,11 @@ export function DevicesCard({
                         <>
                           <div className="font-medium">{device.alias ?? device.label}</div>
                           {device.alias ? (
-                            <div className="text-[10px] text-neutral-500 dark:text-neutral-400">
+                            <div className="text-[10px] text-muted-foreground">
                               Enrolled as {device.label}
                             </div>
                           ) : null}
-                          <div className="font-mono text-[10px] text-neutral-500 dark:text-neutral-400">
+                          <div className="font-mono text-[10px] text-muted-foreground">
                             {masked ? PEEK_MASK : shortId(device.id)}
                           </div>
                         </>
@@ -168,13 +168,13 @@ export function DevicesCard({
                       {masked ? PEEK_MASK : device.fingerprint}
                     </td>
                     <td
-                      className="px-1 py-2 text-neutral-600 dark:text-neutral-300"
+                      className="px-1 py-2 text-foreground"
                       title={formatTimestamp(device.createdAt)}
                     >
                       {formatRelative(device.createdAt, now)}
                     </td>
                     <td
-                      className="px-1 py-2 text-neutral-600 dark:text-neutral-300"
+                      className="px-1 py-2 text-foreground"
                       title={device.lastSeenAt ? formatTimestamp(device.lastSeenAt) : undefined}
                     >
                       {device.lastSeenAt ? formatRelative(device.lastSeenAt, now) : 'Never'}
@@ -205,7 +205,7 @@ export function DevicesCard({
                             type="button"
                             disabled={pending === device.id}
                             onClick={() => void saveAlias(device)}
-                            className="inline-flex items-center gap-1 rounded-md border border-neutral-300 px-2 py-1 text-[10px] font-medium text-neutral-700 transition hover:bg-neutral-50 disabled:opacity-60 dark:border-neutral-700 dark:text-neutral-200 dark:hover:bg-neutral-800"
+                            className="inline-flex items-center gap-1 rounded-md border border-border px-2 py-1 text-[10px] font-medium text-foreground transition hover:bg-accent disabled:opacity-60"
                           >
                             {pending === device.id ? 'Saving…' : 'Save'}
                           </button>
@@ -213,7 +213,7 @@ export function DevicesCard({
                             type="button"
                             disabled={pending === device.id}
                             onClick={cancelEdit}
-                            className="inline-flex items-center gap-1 rounded-md border border-neutral-300 px-2 py-1 text-[10px] font-medium text-neutral-600 transition hover:bg-neutral-50 disabled:opacity-60 dark:border-neutral-700 dark:text-neutral-300 dark:hover:bg-neutral-800"
+                            className="inline-flex items-center gap-1 rounded-md border border-border px-2 py-1 text-[10px] font-medium text-foreground transition hover:bg-accent disabled:opacity-60"
                           >
                             Cancel
                           </button>
@@ -224,7 +224,7 @@ export function DevicesCard({
                             type="button"
                             disabled={pending === device.id}
                             onClick={() => startEdit(device)}
-                            className="inline-flex items-center gap-1 rounded-md border border-neutral-300 px-2 py-1 text-[10px] font-medium text-neutral-700 transition hover:bg-neutral-50 disabled:opacity-60 dark:border-neutral-700 dark:text-neutral-200 dark:hover:bg-neutral-800"
+                            className="inline-flex items-center gap-1 rounded-md border border-border px-2 py-1 text-[10px] font-medium text-foreground transition hover:bg-accent disabled:opacity-60"
                           >
                             <Pencil className="size-3" aria-hidden="true" />
                             Edit
@@ -252,7 +252,7 @@ export function DevicesCard({
             {error}
           </p>
         ) : null}
-        <p className="pt-2 text-xs text-neutral-500 dark:text-neutral-400">
+        <p className="pt-2 text-xs text-muted-foreground">
           An alias changes only the name shown here; the enrolled label stays with the device
           record. Each device has its own key. Revoking one does not affect the others. Delete a
           revoked device to remove its record. Multiple live sessions on one device are usually tabs

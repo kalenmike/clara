@@ -37,7 +37,7 @@ export function SetupCard({
       <CardBody>
         {setup.requiredDone ? (
           <>
-            <p className="text-xs text-neutral-600 dark:text-neutral-300">
+            <p className="text-xs text-foreground">
               Connection path: <strong className="font-medium">{pathLabel}</strong>. Reconfigure
               only when you want to change the path or repair a pairing.
             </p>
@@ -61,7 +61,7 @@ export function SetupCard({
           </>
         ) : (
           <>
-            <p className="text-xs text-neutral-600 dark:text-neutral-300">
+            <p className="text-xs text-foreground">
               Setup is incomplete. The hub works, but a harness or client still needs to be paired.
             </p>
             <div className="flex flex-wrap gap-2 pt-1">

@@ -5,8 +5,7 @@ import { toggleTrackClasses } from '../lib/toggle-accent.ts'
 export type Tone = 'neutral' | 'success' | 'warning' | 'danger' | 'info'
 
 const TONE_CLASSES: Record<Tone, string> = {
-  neutral:
-    'border-neutral-200 bg-neutral-100 text-neutral-700 dark:border-neutral-700 dark:bg-neutral-800 dark:text-neutral-200',
+  neutral: 'border-border bg-muted text-foreground',
   success:
     'border-emerald-200 bg-emerald-50 text-emerald-700 dark:border-emerald-900 dark:bg-emerald-950 dark:text-emerald-300',
   warning:
@@ -17,7 +16,7 @@ const TONE_CLASSES: Record<Tone, string> = {
 }
 
 const DOT_CLASSES: Record<Tone, string> = {
-  neutral: 'bg-neutral-400',
+  neutral: 'bg-muted-foreground',
   success: 'bg-emerald-500',
   warning: 'bg-amber-500',
   danger: 'bg-red-500',
@@ -67,17 +66,17 @@ export function CollapsibleCard({
               aria-expanded={expanded}
               aria-controls={bodyId}
               aria-label={`${expanded ? 'Collapse' : 'Expand'} ${title}`}
-              className="absolute inset-0 rounded-md focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-neutral-400"
+              className="absolute inset-0 rounded-md focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-ring"
             />
           ) : null}
           <span className="mt-0.5 shrink-0">{icon}</span>
           <div className="min-w-0 flex-1">
-            <h2 className="flex flex-wrap items-center gap-2 text-[13px] font-semibold text-[color:var(--panel-text)]">
+            <h2 className="flex flex-wrap items-center gap-2 text-sm font-semibold text-foreground">
               {title}
               {action}
               {expandable ? (
                 <ChevronDown
-                  className={`size-3.5 shrink-0 text-neutral-400 transition ${expanded ? 'rotate-180' : ''}`}
+                  className={`size-3.5 shrink-0 text-muted-foreground transition ${expanded ? 'rotate-180' : ''}`}
                   aria-hidden="true"
                 />
               ) : null}
@@ -181,10 +180,10 @@ export function KeyValue({
   title?: string
 }) {
   return (
-    <div className="flex items-start justify-between gap-4 border-b border-neutral-100 py-1 text-[12px] last:border-0 dark:border-neutral-800/60">
-      <span className="shrink-0 text-neutral-500 dark:text-neutral-400">{label}</span>
+    <div className="flex items-start justify-between gap-4 border-b border-border py-1 text-xs last:border-0">
+      <span className="shrink-0 text-muted-foreground">{label}</span>
       <span
-        className={`min-w-0 break-words text-right text-[color:var(--panel-text)] ${mono ? 'panel-mono text-[11px]' : ''}`}
+        className={`min-w-0 break-words text-right text-foreground ${mono ? 'panel-mono text-[11px]' : ''}`}
         title={title}
       >
         {children}
@@ -199,7 +198,7 @@ export function Muted({ children }: { children: ReactNode }) {
 
 export function SourceTag({ source }: { source: string }) {
   return (
-    <span className="rounded-[3px] border border-neutral-200 px-1.5 py-0.5 text-[9px] font-medium uppercase tracking-wide text-neutral-500 dark:border-neutral-700 dark:text-neutral-400">
+    <span className="rounded-[3px] border border-border px-1.5 py-0.5 text-[10px] font-medium uppercase tracking-wide text-muted-foreground">
       {source}
     </span>
   )
@@ -241,7 +240,7 @@ export function CopyButton({
       className={
         variant === 'block'
           ? 'panel-button w-full'
-          : 'inline-flex cursor-pointer items-center gap-1 rounded-md border border-neutral-200 px-1.5 py-1 text-[11px] text-neutral-600 transition hover:border-neutral-300 hover:bg-neutral-100 active:translate-y-px focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-neutral-400 dark:border-neutral-700 dark:text-neutral-300 dark:hover:border-neutral-600 dark:hover:bg-neutral-800'
+          : 'inline-flex cursor-pointer items-center gap-1 rounded-md border border-border px-1.5 py-1 text-[11px] text-foreground transition hover:border-border hover:bg-accent active:translate-y-px focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-ring'
       }
       aria-label={label}
     >

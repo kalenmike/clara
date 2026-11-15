@@ -1,55 +1,11 @@
 /*
  * The hub panel borrows the Clara Lab workbench chrome: a compact title bar,
- * an activity rail, a scrollable workbench, and a status bar. Values mirror the
- * lab palettes so the two local surfaces feel like one tool.
+ * an activity rail, a scrollable workbench, and a status bar.
  *
- * The palette is declared on the document body as custom properties only, so
- * the bundled `/hub` route can import this file without restyling the chat app:
- * the app never reads `--panel-*`, and nothing here sets a document property.
- * `color-scheme` stays scoped to the panel container below.
+ * The palette comes from `globals.css`, where `--panel-*` names alias the
+ * shared semantic tokens. This file only lays out the shell, so the bundled
+ * `/hub` route can import it without restyling the chat app.
  */
-
-body {
-  --panel-bg: #f6f7f9;
-  --panel-surface: #ffffff;
-  --panel-surface-2: #f6f8fa;
-  --panel-surface-3: #eef1f5;
-  --panel-rail: #f0f2f5;
-  --panel-hover: #eaeef4;
-  --panel-border: #d8dee7;
-  --panel-border-strong: #b8c1cd;
-  --panel-text: #1f2328;
-  --panel-muted: #656d76;
-  --panel-faint: #8b949e;
-  --panel-accent: #0969da;
-  --panel-accent-soft: rgba(9, 105, 218, 0.1);
-  --panel-ok: #1a7f37;
-  --panel-bad: #cf222e;
-  --panel-warn: #9a6700;
-  --panel-live: #8250df;
-  --panel-mono:
-    ui-monospace, SFMono-Regular, 'SF Mono', Menlo, Monaco, Consolas, 'Liberation Mono', monospace;
-}
-
-.dark body {
-  --panel-bg: #0b0d10;
-  --panel-surface: #111419;
-  --panel-surface-2: #161a21;
-  --panel-surface-3: #1c222b;
-  --panel-rail: #0e1116;
-  --panel-hover: #1d232d;
-  --panel-border: #242a34;
-  --panel-border-strong: #36404d;
-  --panel-text: #d9dee7;
-  --panel-muted: #8b94a4;
-  --panel-faint: #5f6876;
-  --panel-accent: #4c9aff;
-  --panel-accent-soft: rgba(76, 154, 255, 0.13);
-  --panel-ok: #3fb950;
-  --panel-bad: #f85149;
-  --panel-warn: #d6a132;
-  --panel-live: #a371f7;
-}
 
 /*
  * Color scheme follows the panel's own dark state: an ancestor `.dark` (the
@@ -116,12 +72,12 @@ body {
   width: 25px;
   height: 25px;
   background: var(--panel-accent);
-  color: #fff;
-  font-size: 13px;
+  color: var(--primary-foreground);
+  font-size: 0.875rem;
 }
 
 .panel-titlebar-brand strong {
-  font-size: 13px;
+  font-size: 0.875rem;
   letter-spacing: 0.01em;
 }
 
@@ -130,7 +86,7 @@ body {
   border-radius: 3px;
   padding: 0 5px;
   color: var(--panel-faint);
-  font-size: 9px;
+  font-size: 0.625rem;
   text-transform: uppercase;
   letter-spacing: 0.08em;
 }
@@ -145,7 +101,7 @@ body {
 
 .panel-titlebar-updated {
   color: var(--panel-faint);
-  font-size: 10px;
+  font-size: 0.625rem;
   white-space: nowrap;
 }
 
@@ -161,7 +117,7 @@ body {
   color: var(--panel-text);
   border-radius: 4px;
   cursor: pointer;
-  font-size: 11px;
+  font-size: 0.75rem;
   white-space: nowrap;
 }
 
@@ -269,7 +225,7 @@ body {
 }
 
 .panel-rail-label {
-  font-size: 9px;
+  font-size: 0.625rem;
   font-weight: 600;
   letter-spacing: 0.04em;
   text-transform: uppercase;
@@ -290,8 +246,8 @@ body {
   background: var(--panel-surface);
   color: var(--panel-muted);
   font-family: var(--panel-mono);
-  font-size: 9px;
-  line-height: 13px;
+  font-size: 0.625rem;
+  line-height: 1rem;
   text-align: center;
 }
 
@@ -363,7 +319,7 @@ body {
 .panel-view-kicker {
   margin-bottom: 3px;
   color: var(--panel-accent);
-  font-size: 9px;
+  font-size: 0.625rem;
   font-weight: 700;
   letter-spacing: 0.13em;
   text-transform: uppercase;
@@ -371,7 +327,7 @@ body {
 
 .panel-view-head h1 {
   margin: 0 0 4px;
-  font-size: 23px;
+  font-size: 1.25rem;
   font-weight: 600;
   letter-spacing: -0.02em;
   line-height: 1.2;
@@ -381,7 +337,7 @@ body {
   margin: 0;
   max-width: 76ch;
   color: var(--panel-muted);
-  font-size: 12px;
+  font-size: 0.875rem;
 }
 
 .panel-view-actions {
@@ -425,7 +381,7 @@ body {
   color: var(--panel-accent);
   cursor: pointer;
   padding: 0;
-  font-size: 11px;
+  font-size: 0.75rem;
 }
 
 .panel-link:hover {
@@ -440,7 +396,7 @@ body {
   border-radius: 4px;
   padding: 7px 10px;
   background: var(--panel-surface-2);
-  font-size: 12px;
+  font-size: 0.875rem;
 }
 
 .panel-banner.warn {
@@ -505,21 +461,21 @@ body {
 
 .panel-health-label {
   color: var(--panel-faint);
-  font-size: 9px;
+  font-size: 0.625rem;
   font-weight: 600;
   letter-spacing: 0.07em;
   text-transform: uppercase;
 }
 
 .panel-health-status {
-  font-size: 13px;
+  font-size: 0.875rem;
   font-weight: 600;
 }
 
 .panel-health-detail {
   overflow-wrap: anywhere;
   color: var(--panel-muted);
-  font-size: 10px;
+  font-size: 0.625rem;
 }
 
 .panel-health-chevron {
@@ -574,7 +530,7 @@ body {
   gap: 8px;
   border-bottom: 1px solid var(--panel-border);
   padding: 6px 0;
-  font-size: 11px;
+  font-size: 0.75rem;
 }
 
 .panel-mini-row:last-child {
@@ -591,7 +547,7 @@ body {
   flex: 0 0 auto;
   color: var(--panel-faint);
   font-family: var(--panel-mono);
-  font-size: 9px;
+  font-size: 0.625rem;
 }
 
 /* Status bar */
@@ -606,7 +562,7 @@ body {
   padding: 0 8px;
   background: var(--panel-surface-2);
   border-top: 1px solid var(--panel-border);
-  font-size: 10px;
+  font-size: 0.625rem;
 }
 
 .panel-status-group {
@@ -627,7 +583,7 @@ body {
   background: transparent;
   color: var(--panel-muted);
   cursor: pointer;
-  font-size: 10px;
+  font-size: 0.625rem;
   white-space: nowrap;
 }
 
@@ -686,13 +642,13 @@ body {
   width: 32px;
   height: 32px;
   background: var(--panel-accent);
-  color: #fff;
-  font-size: 15px;
+  color: var(--primary-foreground);
+  font-size: 1rem;
 }
 
 .panel-boot h1 {
   margin: 0;
-  font-size: 20px;
+  font-size: 1.25rem;
   font-weight: 600;
 }
 
@@ -707,7 +663,7 @@ body {
   padding: 14px;
   color: var(--panel-muted);
   text-align: center;
-  font-size: 12px;
+  font-size: 0.875rem;
 }
 
 /* Responsive */
@@ -897,7 +853,7 @@ body {
 .panel-button.primary {
   border-color: var(--panel-accent);
   background: var(--panel-accent);
-  color: #fff;
+  color: var(--primary-foreground);
 }
 
 .panel-button.primary:hover:not(:disabled) {
@@ -907,15 +863,14 @@ body {
 }
 
 .panel-button.danger {
-  border-color: #dc2626;
-  background: #dc2626;
-  color: #fff;
+  border-color: color-mix(in oklab, var(--destructive) 45%, var(--panel-border));
+  background: color-mix(in oklab, var(--destructive) 12%, var(--panel-surface));
+  color: var(--destructive);
 }
 
 .panel-button.danger:hover:not(:disabled) {
-  border-color: #dc2626;
-  background: #dc2626;
-  filter: brightness(1.08);
+  border-color: color-mix(in oklab, var(--destructive) 65%, var(--panel-border));
+  background: color-mix(in oklab, var(--destructive) 18%, var(--panel-surface));
 }
 
 @media (max-width: 640px) {

@@ -30,33 +30,23 @@ export function ThemeCard() {
                 aria-pressed={selected}
                 className={`flex items-center gap-2 rounded-md border px-2.5 py-2 text-left transition ${
                   selected
-                    ? 'border-[color:var(--panel-accent)] bg-[var(--panel-accent-soft)]'
-                    : 'border-[color:var(--panel-border)] bg-[var(--panel-surface)] hover:border-[color:var(--panel-border-strong)] hover:bg-[var(--panel-hover)]'
+                    ? 'border-primary bg-primary/10'
+                    : 'border-border bg-card hover:border-ring hover:bg-accent'
                 }`}
               >
-                <option.icon
-                  className="size-4 shrink-0 text-[color:var(--panel-accent)]"
-                  aria-hidden="true"
-                />
+                <option.icon className="size-4 shrink-0 text-primary" aria-hidden="true" />
                 <span className="min-w-0 flex-1">
-                  <span className="block text-xs font-medium text-[color:var(--panel-text)]">
-                    {option.label}
-                  </span>
-                  <span className="block text-[10px] text-[color:var(--panel-faint)]">
-                    {option.hint}
-                  </span>
+                  <span className="block text-xs font-medium text-foreground">{option.label}</span>
+                  <span className="block text-[10px] text-muted-foreground/70">{option.hint}</span>
                 </span>
                 {selected ? (
-                  <Check
-                    className="size-3.5 shrink-0 text-[color:var(--panel-accent)]"
-                    aria-hidden="true"
-                  />
+                  <Check className="size-3.5 shrink-0 text-primary" aria-hidden="true" />
                 ) : null}
               </button>
             )
           })}
         </div>
-        <p className="pt-2 text-[11px] text-[color:var(--panel-muted)]">
+        <p className="pt-2 text-[11px] text-muted-foreground">
           System follows your operating system setting. The choice is stored in this browser.
         </p>
       </CardBody>

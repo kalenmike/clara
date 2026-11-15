@@ -90,15 +90,13 @@ export function OrchestrationCard({
       }
     >
       <CardBody>
-        <p className="text-xs text-neutral-500 dark:text-neutral-400">
+        <p className="text-xs text-muted-foreground">
           When on, the hub service keeps a local orchestration service running at{' '}
-          <code className="break-all rounded bg-neutral-100 px-1 py-0.5 dark:bg-neutral-900">
-            {orchestration.url}
-          </code>
-          . Worker sessions are grouped separately in Clara and their pushes stay quiet.
+          <code className="break-all rounded bg-muted px-1 py-0.5">{orchestration.url}</code>.
+          Worker sessions are grouped separately in Clara and their pushes stay quiet.
         </p>
 
-        <p className="pt-2 text-[11px] text-neutral-500 dark:text-neutral-400">
+        <p className="pt-2 text-[11px] text-muted-foreground">
           {managedElsewhere
             ? 'This instance was not started from the panel. Stop it with the command that started it.'
             : `State: ${STATE_LABELS[orchestration.state]}. Turning it off stops only a local instance started from this data directory.`}

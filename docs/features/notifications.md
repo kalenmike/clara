@@ -277,7 +277,7 @@ start an agent run and move on, so they do not have to watch the sidebar.
 - Sounds: Web Audio motifs in `src/features/notifications/sounds.ts`; the Done
   chime is `playDoneSound` and the Build chime is `playBuildSound`
 - Toast theme: `--status-success`, `--status-warning`, `--status-info`, and
-  `--status-danger` in `src/index.css` and `src/styles/color-themes.css`; the
+  `--status-danger` in `packages/panel/src/styles/theme.css`; the
   Default palette maps danger to `--destructive`, and palettes adjust a token
   where its icon needs more contrast. Accents and tint rules live in
   `src/index.css` and hook onto the `cn-toast` class in

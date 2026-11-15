@@ -55,12 +55,12 @@ export function HarnessPairContent({ flow, now }: { flow: HarnessPairingFlow; no
 function KindStep({ flow }: { flow: HarnessPairingFlow }) {
   return (
     <div className="space-y-4">
-      <label className="grid gap-1 text-[11px] font-medium text-neutral-600 dark:text-neutral-300">
+      <label className="grid gap-1 text-[11px] font-medium text-foreground">
         Harness
         <select
           value={flow.kind}
           onChange={(event) => flow.setKind(event.target.value)}
-          className="w-full rounded-md border border-neutral-200 bg-white px-2 py-1.5 text-xs dark:border-neutral-700 dark:bg-neutral-950"
+          className="w-full rounded-md border border-border bg-card px-2 py-1.5 text-xs "
         >
           {HARNESS_KINDS.map((item) => (
             <option key={item.kind} value={item.kind}>
@@ -71,22 +71,22 @@ function KindStep({ flow }: { flow: HarnessPairingFlow }) {
       </label>
 
       {flow.kind === 'opencode' ? (
-        <label className="grid gap-1 text-[11px] font-medium text-neutral-600 dark:text-neutral-300">
-          OpenCode URL <span className="font-normal text-neutral-500">(optional)</span>
+        <label className="grid gap-1 text-[11px] font-medium text-foreground">
+          OpenCode URL <span className="font-normal text-muted-foreground">(optional)</span>
           <input
             value={flow.opencodeUrl}
             onChange={(event) => flow.setOpencodeUrl(event.target.value)}
             placeholder="http://127.0.0.1:4096"
             spellCheck={false}
-            className="w-full rounded-md border border-neutral-200 bg-white px-2 py-1.5 font-mono text-[11px] dark:border-neutral-700 dark:bg-neutral-950"
+            className="w-full rounded-md border border-border bg-card px-2 py-1.5 font-mono text-[11px] "
           />
-          <span className="text-[10px] font-normal text-neutral-500 dark:text-neutral-400">
+          <span className="text-[10px] font-normal text-muted-foreground">
             Set this when the installer cannot discover OpenCode on the harness machine.
           </span>
         </label>
       ) : null}
 
-      <p className="text-[11px] text-neutral-500 dark:text-neutral-400">
+      <p className="text-[11px] text-muted-foreground">
         The hub issues the code and the install command. Run the command on the machine that hosts
         the harness, or open the link with Clara Desktop to install it in one click.
       </p>
@@ -102,26 +102,26 @@ function OfferStep({ flow, now }: { flow: HarnessPairingFlow; now: number }) {
   return (
     <div className="space-y-4">
       <div>
-        <span className="inline-flex rounded-md border border-neutral-300 bg-neutral-100 px-2.5 py-1 text-[11px] font-medium text-neutral-800 dark:border-neutral-600 dark:bg-neutral-800 dark:text-neutral-100">
+        <span className="inline-flex rounded-md border border-border bg-muted px-2.5 py-1 text-[11px] font-medium text-foreground">
           {offer.pairing.kind}
         </span>
       </div>
 
       <div className="space-y-1">
-        <p className="text-[10px] font-semibold tracking-wide text-neutral-500 uppercase dark:text-neutral-400">
+        <p className="text-[10px] font-semibold tracking-wide text-muted-foreground uppercase">
           Pairing code
         </p>
-        <code className="block break-all rounded-md bg-neutral-950 p-2 font-mono text-[11px] text-neutral-100">
+        <code className="block break-all rounded-md bg-muted p-2 font-mono text-[11px] text-foreground">
           {offer.pairing.code}
         </code>
       </div>
 
       {command ? (
         <div className="space-y-1">
-          <p className="text-[10px] font-semibold tracking-wide text-neutral-500 uppercase dark:text-neutral-400">
+          <p className="text-[10px] font-semibold tracking-wide text-muted-foreground uppercase">
             Install command
           </p>
-          <pre className="overflow-x-auto rounded-md bg-neutral-950 p-2 text-[11px] text-neutral-100">
+          <pre className="overflow-x-auto rounded-md bg-muted p-2 text-[11px] text-foreground">
             {command}
           </pre>
         </div>
@@ -129,21 +129,21 @@ function OfferStep({ flow, now }: { flow: HarnessPairingFlow; now: number }) {
 
       <a
         href={offer.deepLink}
-        className="inline-flex items-center gap-1.5 text-[11px] font-medium text-[color:var(--panel-accent)] hover:underline"
+        className="inline-flex items-center gap-1.5 text-[11px] font-medium text-primary hover:underline"
       >
         <ExternalLink className="size-3.5" aria-hidden="true" />
         Open in Clara Desktop
       </a>
 
       <div className="space-y-1 text-center">
-        <p className="text-[11px] text-neutral-500 dark:text-neutral-400">
+        <p className="text-[11px] text-muted-foreground">
           Expires {formatRelative(offer.pairing.expiresAt, now)}. It enrolls one adapter.
         </p>
         <p
           className={`flex items-center justify-center gap-1.5 text-[11px] ${
             flow.connection
               ? 'font-medium text-emerald-600 dark:text-emerald-400'
-              : 'text-neutral-500 dark:text-neutral-400'
+              : 'text-muted-foreground'
           }`}
         >
           {flow.connection ? (

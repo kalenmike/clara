@@ -164,7 +164,7 @@ export function DeployForm({
   }
 
   return (
-    <div className="space-y-2 rounded-lg border border-neutral-200 p-3 dark:border-neutral-800">
+    <div className="space-y-2 rounded-lg border border-border p-3">
       {needsToken ? (
         <>
           <div className="space-y-1">
@@ -179,7 +179,7 @@ export function DeployForm({
               autoComplete="off"
               spellCheck={false}
               placeholder="Paste a Workers-scoped API token"
-              className="w-full rounded-md border border-neutral-200 bg-white px-2 py-1.5 text-xs dark:border-neutral-700 dark:bg-neutral-900"
+              className="w-full rounded-md border border-border bg-card px-2 py-1.5 text-xs "
             />
           </div>
           <a
@@ -190,7 +190,7 @@ export function DeployForm({
           >
             Create a Cloudflare token
           </a>
-          <p className="text-[10px] text-neutral-500 dark:text-neutral-400">
+          <p className="text-[10px] text-muted-foreground">
             The token needs Workers Scripts: Edit, Zone: Read, and Zone: Workers Routes: Edit.
             Account Settings: Read lets the panel list your accounts; you can also enter the account
             ID manually.
@@ -205,7 +205,7 @@ export function DeployForm({
           </label>
         </>
       ) : (
-        <p className="text-[11px] text-neutral-500 dark:text-neutral-400">
+        <p className="text-[11px] text-muted-foreground">
           Using the saved Cloudflare token.{' '}
           <button
             type="button"
@@ -222,7 +222,7 @@ export function DeployForm({
           type="button"
           onClick={() => void loadAccounts()}
           disabled={pending !== undefined}
-          className="rounded-md border border-neutral-200 px-2 py-1 text-[11px] font-medium disabled:opacity-60 dark:border-neutral-700"
+          className="rounded-md border border-border px-2 py-1 text-[11px] font-medium disabled:opacity-60"
         >
           {pending === 'accounts' ? 'Checking…' : accounts ? 'Refresh accounts' : 'Check account'}
         </button>
@@ -238,7 +238,7 @@ export function DeployForm({
                 setZoneId('')
                 if (next) void loadZones(next)
               }}
-              className="ml-1 rounded-md border border-neutral-200 bg-white px-1.5 py-1 text-[11px] dark:border-neutral-700 dark:bg-neutral-900"
+              className="ml-1 rounded-md border border-border bg-card px-1.5 py-1 text-[11px] "
             >
               <option value="">Choose…</option>
               {accounts.map((account) => (
@@ -256,7 +256,7 @@ export function DeployForm({
               value={accountId}
               onChange={(event) => setAccountId(event.target.value)}
               placeholder="32-character account ID"
-              className="ml-1 w-56 rounded-md border border-neutral-200 bg-white px-1.5 py-1 font-mono text-[11px] dark:border-neutral-700 dark:bg-neutral-900"
+              className="ml-1 w-56 rounded-md border border-border bg-card px-1.5 py-1 font-mono text-[11px] "
             />
           </label>
         ) : null}
@@ -267,18 +267,18 @@ export function DeployForm({
         <input
           value={scriptName}
           onChange={(event) => setScriptName(event.target.value)}
-          className="mt-1 w-full rounded-md border border-neutral-200 bg-white px-2 py-1.5 font-mono text-xs dark:border-neutral-700 dark:bg-neutral-900"
+          className="mt-1 w-full rounded-md border border-border bg-card px-2 py-1.5 font-mono text-xs "
         />
       </label>
 
-      <div className="space-y-2 rounded-md border border-neutral-200 p-2 dark:border-neutral-800">
+      <div className="space-y-2 rounded-md border border-border p-2">
         <div className="flex flex-wrap items-end gap-2">
           <p className="text-[11px] font-medium">Custom domain (optional)</p>
           <button
             type="button"
             onClick={() => void loadZones()}
             disabled={pending !== undefined}
-            className="rounded-md border border-neutral-200 px-2 py-1 text-[11px] font-medium disabled:opacity-60 dark:border-neutral-700"
+            className="rounded-md border border-border px-2 py-1 text-[11px] font-medium disabled:opacity-60"
           >
             {pending === 'zones' ? 'Loading zones…' : zones ? 'Refresh zones' : 'Load zones'}
           </button>
@@ -288,7 +288,7 @@ export function DeployForm({
               <select
                 value={zoneId}
                 onChange={(event) => setZoneId(event.target.value)}
-                className="ml-1 rounded-md border border-neutral-200 bg-white px-1.5 py-1 text-[11px] dark:border-neutral-700 dark:bg-neutral-900"
+                className="ml-1 rounded-md border border-border bg-card px-1.5 py-1 text-[11px] "
               >
                 <option value="">Choose…</option>
                 {zones.map((zone) => (
@@ -307,9 +307,9 @@ export function DeployForm({
           spellCheck={false}
           autoComplete="off"
           aria-label="Custom domain hostname"
-          className="w-full rounded-md border border-neutral-200 bg-white px-2 py-1.5 font-mono text-xs dark:border-neutral-700 dark:bg-neutral-900"
+          className="w-full rounded-md border border-border bg-card px-2 py-1.5 font-mono text-xs "
         />
-        <p className="text-[10px] text-neutral-500 dark:text-neutral-400">
+        <p className="text-[10px] text-muted-foreground">
           Enter a bare hostname in one of this account&apos;s zones. Cloudflare issues the
           certificate after the deploy; the relay stays on workers.dev until the custom host
           answers.
@@ -325,11 +325,11 @@ export function DeployForm({
         Replace an existing Clara relay Worker with this name
       </label>
 
-      <details className="rounded-md border border-neutral-200 dark:border-neutral-800">
-        <summary className="cursor-pointer list-none px-2 py-1.5 text-[11px] font-medium text-neutral-600 marker:hidden dark:text-neutral-300 [&::-webkit-details-marker]:hidden">
+      <details className="rounded-md border border-border">
+        <summary className="cursor-pointer list-none px-2 py-1.5 text-[11px] font-medium text-foreground marker:hidden [&::-webkit-details-marker]:hidden">
           Advanced
         </summary>
-        <div className="space-y-1 border-t border-neutral-100 px-2 py-2 dark:border-neutral-800/60">
+        <div className="space-y-1 border-t border-border px-2 py-2">
           <label className="flex items-start gap-2 text-[11px]">
             <input
               type="checkbox"
@@ -340,10 +340,7 @@ export function DeployForm({
             />
             Enable preview and version URLs for this Worker
           </label>
-          <p
-            id="cloudflare-preview-urls-help"
-            className="text-[10px] text-neutral-500 dark:text-neutral-400"
-          >
+          <p id="cloudflare-preview-urls-help" className="text-[10px] text-muted-foreground">
             Preview URLs only add extra hostnames that bypass host-scoped WAF and rate-limit rules.
           </p>
           <label
@@ -363,10 +360,7 @@ export function DeployForm({
             />
             Disable the workers.dev hostname
           </label>
-          <p
-            id="cloudflare-disable-workers-dev-help"
-            className="text-[10px] text-neutral-500 dark:text-neutral-400"
-          >
+          <p id="cloudflare-disable-workers-dev-help" className="text-[10px] text-muted-foreground">
             Available after you enter a custom hostname. This changes the relay URL to the custom
             domain, and existing devices must pair again. The host is only turned off after the
             custom hostname answers its health check.
@@ -386,7 +380,7 @@ export function DeployForm({
         <Cloud className="size-3.5" aria-hidden="true" />
         {pending === 'deploy' ? 'Deploying…' : 'Deploy relay'}
       </button>
-      <p className="text-[10px] text-neutral-500 dark:text-neutral-400">
+      <p className="text-[10px] text-muted-foreground">
         Deployment usually takes under a minute; a new custom domain can take a few minutes for its
         certificate. Existing devices must pair again after the relay changes.
       </p>

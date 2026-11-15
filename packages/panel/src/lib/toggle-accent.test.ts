@@ -19,7 +19,7 @@ import { toggleTrackClasses } from './toggle-accent.ts'
 
 const GREEN = /bg-emerald-\d{3}/
 const RED = /bg-red-\d{3}/
-const NEUTRAL = /bg-neutral-\d{3}/
+const NEUTRAL = /bg-muted/
 
 describe('feature switch accent rule', () => {
   it('criterion 1: while connections are on, the toggle accent rule yields the green enabled accent for an enabled toggle and leaves a disabled toggle on the existing disabled accent', () => {

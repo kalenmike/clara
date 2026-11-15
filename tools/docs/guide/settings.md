@@ -34,6 +34,9 @@ palette has light and dark variants.
 Theme and mode are stored on this device. Press `ctrl+x` then `t` to toggle light
 and dark without changing the palette.
 
+The hub panel opened from Clara at `/hub` uses this theme and mode. The
+server-served panel keeps its own Light, Dark, and System switch.
+
 ## Preferences
 
 - **Session wording** — rename sessions in the interface. The default is

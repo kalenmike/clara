@@ -95,7 +95,7 @@ export function HarnessConnectionsCard({
           <div className="-mx-1 overflow-x-auto">
             <table className="w-full min-w-[1120px] border-collapse text-left text-xs">
               <thead>
-                <tr className="text-[10px] uppercase tracking-wide text-neutral-500 dark:text-neutral-400">
+                <tr className="text-[10px] uppercase tracking-wide text-muted-foreground">
                   <th scope="col" className="px-1 py-2 font-medium">
                     Harness
                   </th>
@@ -126,13 +126,10 @@ export function HarnessConnectionsCard({
                 {harnesses.map((connection) => {
                   const status = harnessState(connection, enabled)
                   return (
-                    <tr
-                      key={connection.id}
-                      className="border-t border-neutral-100 dark:border-neutral-800"
-                    >
+                    <tr key={connection.id} className="border-t border-border">
                       <td className="px-1 py-2">
                         <div className="font-medium">{connection.label}</div>
-                        <div className="font-mono text-[10px] text-neutral-500 dark:text-neutral-400">
+                        <div className="font-mono text-[10px] text-muted-foreground">
                           {connection.kind} · {masked ? PEEK_MASK : shortId(connection.harnessId)}
                           {connection.harnessVersion ? ` · ${connection.harnessVersion}` : ''}
                         </div>
@@ -156,13 +153,13 @@ export function HarnessConnectionsCard({
                         <Badge tone={status.tone}>{status.label}</Badge>
                       </td>
                       <td
-                        className="px-1 py-2 text-neutral-600 dark:text-neutral-300"
+                        className="px-1 py-2 text-foreground"
                         title={formatTimestamp(connection.createdAt)}
                       >
                         {formatRelative(connection.createdAt, now)}
                       </td>
                       <td
-                        className="px-1 py-2 text-neutral-600 dark:text-neutral-300"
+                        className="px-1 py-2 text-foreground"
                         title={
                           connection.lastSeenAt ? formatTimestamp(connection.lastSeenAt) : undefined
                         }
@@ -172,7 +169,7 @@ export function HarnessConnectionsCard({
                           : 'Never'}
                       </td>
                       <td
-                        className="px-1 py-2 text-neutral-600 dark:text-neutral-300"
+                        className="px-1 py-2 text-foreground"
                         title={
                           connection.lastTestAt ? formatTimestamp(connection.lastTestAt) : undefined
                         }
@@ -200,7 +197,7 @@ export function HarnessConnectionsCard({
                             type="button"
                             onClick={() => void runTest(connection)}
                             disabled={pending !== undefined}
-                            className="inline-flex items-center gap-1 rounded-md border border-neutral-200 px-2 py-1 text-[10px] font-medium transition hover:bg-neutral-100 disabled:opacity-50 dark:border-neutral-700 dark:hover:bg-neutral-800"
+                            className="inline-flex items-center gap-1 rounded-md border border-border px-2 py-1 text-[10px] font-medium transition hover:bg-accent disabled:opacity-50"
                           >
                             <FlaskConical className="size-3" aria-hidden="true" />
                             {pending === `test:${connection.id}` ? 'Testing…' : 'Test'}
@@ -218,7 +215,7 @@ export function HarnessConnectionsCard({
                             type="button"
                             onClick={() => setRemoveTarget({ connection, forget: true })}
                             disabled={pending !== undefined}
-                            className="rounded-md border border-neutral-200 px-2 py-1 text-[10px] font-medium text-neutral-600 transition hover:bg-neutral-100 disabled:opacity-50 dark:border-neutral-700 dark:text-neutral-300 dark:hover:bg-neutral-800"
+                            className="rounded-md border border-border px-2 py-1 text-[10px] font-medium text-foreground transition hover:bg-accent disabled:opacity-50"
                           >
                             {pending === `forget:${connection.id}` ? 'Forgetting…' : 'Forget'}
                           </button>
@@ -231,7 +228,7 @@ export function HarnessConnectionsCard({
             </table>
           </div>
         )}
-        <p className="pt-2 text-xs text-neutral-500 dark:text-neutral-400">
+        <p className="pt-2 text-xs text-muted-foreground">
           Every paired harness is independent; a workspace chooses the one it belongs to. Delete
           removes the connection but keeps the adapter identity and Clara metadata; Forget purges
           both. Test probes that adapter's harness endpoint. Fingerprints identify the credential

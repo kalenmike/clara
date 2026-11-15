@@ -43,7 +43,7 @@ export function HarnessSessionsCard({
           <div className="-mx-1 overflow-x-auto">
             <table className="w-full min-w-[980px] border-collapse text-left text-xs">
               <thead>
-                <tr className="text-[10px] uppercase tracking-wide text-neutral-500 dark:text-neutral-400">
+                <tr className="text-[10px] uppercase tracking-wide text-muted-foreground">
                   <th scope="col" className="px-1 py-2 font-medium">
                     Transport
                   </th>
@@ -94,7 +94,7 @@ export function HarnessSessionsCard({
                   return (
                     <tr
                       key={`${client.transport}:${client.sid}`}
-                      className="border-t border-neutral-100 dark:border-neutral-800"
+                      className="border-t border-border"
                     >
                       <td className="px-1 py-2">
                         <Badge tone={client.transport === 'local' ? 'info' : 'neutral'}>
@@ -113,7 +113,7 @@ export function HarnessSessionsCard({
                         }
                       >
                         <div className="font-medium">{identity}</div>
-                        <div className="font-mono text-[10px] text-neutral-500 dark:text-neutral-400">
+                        <div className="font-mono text-[10px] text-muted-foreground">
                           {identityId ? (masked ? PEEK_MASK : shortId(identityId)) : '—'}
                         </div>
                       </td>
@@ -125,20 +125,18 @@ export function HarnessSessionsCard({
                         {harness?.fingerprint ? (masked ? PEEK_MASK : harness.fingerprint) : '—'}
                       </td>
                       <td
-                        className="px-1 py-2 text-neutral-600 dark:text-neutral-300"
+                        className="px-1 py-2 text-foreground"
                         title={formatTimestamp(client.connectedAt)}
                       >
                         {formatRelative(client.connectedAt, now)}
                       </td>
                       <td
-                        className="px-1 py-2 text-neutral-600 dark:text-neutral-300"
+                        className="px-1 py-2 text-foreground"
                         title={formatTimestamp(client.lastSeenAt)}
                       >
                         {formatRelative(client.lastSeenAt, now)}
                       </td>
-                      <td className="px-1 py-2 text-neutral-600 dark:text-neutral-300">
-                        {formatDuration(client.idleMs)}
-                      </td>
+                      <td className="px-1 py-2 text-foreground">{formatDuration(client.idleMs)}</td>
                       <td className="px-1 py-2 text-right tabular-nums">{client.requests}</td>
                       {withTraffic ? (
                         <>
@@ -160,7 +158,7 @@ export function HarnessSessionsCard({
             </table>
           </div>
         )}
-        <p className="pt-2 text-xs text-neutral-500 dark:text-neutral-400">
+        <p className="pt-2 text-xs text-muted-foreground">
           Adapter sessions use the same encrypted transport as a browser client. They appear here
           instead of Clients because they have no device identity. The fingerprint matches the
           paired harness credential.
