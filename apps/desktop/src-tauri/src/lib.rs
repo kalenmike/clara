@@ -111,11 +111,13 @@ fn runtime_file() -> Option<PathBuf> {
 
     #[cfg(all(unix, not(target_os = "macos")))]
     {
+        // Keep these lowercase: packages/runtime-state writes
+        // <XDG_RUNTIME_DIR|XDG_DATA_HOME>/clara/runtime.json.
         if let Some(runtime) = env_path("XDG_RUNTIME_DIR") {
             return Some(runtime.join("clara").join("runtime.json"));
         }
         let base = env_path("XDG_DATA_HOME").or_else(dirs::data_dir)?;
-        return Some(base.join("Clara").join("runtime.json"));
+        return Some(base.join("clara").join("runtime.json"));
     }
 
     #[allow(unreachable_code)]
