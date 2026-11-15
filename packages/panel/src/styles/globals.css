@@ -48,21 +48,24 @@
   line-height: 1.5;
 }
 
-/* The route wrapper fills its host area; the panel shell is one screen tall. */
-.panel-root {
-  min-height: 100%;
-}
-
 /*
- * Height contract. An embedding host sizes the panel from its own layout box:
- * the `/hub` route mounts the shell in a flex column under the app bar. Only the
- * served page owns the viewport, and it marks `html` with `.panel-standalone`
- * (see `apps/hub/panel/src/main.tsx`) so `shell.css` keeps its viewport height.
+ * Height contract. The served page owns the viewport and keeps `shell.css`'s
+ * viewport heights. An embedding host sizes the panel from its own layout box:
+ * `apps/web/src/pages/hub-panel-page.tsx` mounts `.panel-root` as a flex slot
+ * under its app bar.
+ *
+ * The panel claims that slot instead of the viewport. Any viewport or percentage
+ * height here resolves against the route's full-viewport column, not the slot,
+ * and pushes the status bar off screen. A nested flex column needs neither.
  */
-html:not(.panel-standalone) .panel-shell {
-  height: 100%;
+.panel-root {
+  display: flex;
+  flex-direction: column;
+  min-height: 0;
 }
 
-html:not(.panel-standalone) .panel-boot {
-  min-height: 100%;
+.panel-root > :is(.panel-shell, .panel-boot, .panel-auth) {
+  flex: 1 1 auto;
+  height: auto;
+  min-height: 0;
 }
