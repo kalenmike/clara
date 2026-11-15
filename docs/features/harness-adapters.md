@@ -439,9 +439,10 @@ ask for confirmation run without one, exactly as in the Pi TUI.
   `adapters-v*` release, regenerates the registry, verifies each manifest and
   artifact digest against that release, and then deploys the web app;
   `pnpm adapters:check` runs the same verification without deploying.
-  `pnpm deploy:web` runs the structural part of that check before `wrangler`
-  and refuses a registry that is missing a harness or target, or that points at
-  a local archive URL. A local build writes relative artifact URLs, so
+  `pnpm deploy:web` runs the same check before `wrangler` (against
+  `CLARA_ADAPTER_RELEASE_TAG` when set), so it refuses a registry that is
+  missing a harness or target, that points at a local archive URL, or that does
+  not match the release. A local build writes relative artifact URLs, so
   `pnpm adapters:serve` (or `adapters:build --serve`) exposes
   `dist/adapters` on loopback and `CLARA_ADAPTER_REGISTRY_URL` points the
   packaged command or hub at it. A served or mirrored build instead writes

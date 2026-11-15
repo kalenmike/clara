@@ -259,9 +259,9 @@ clara`. A manually started hub is restarted from the captured root with its
   publish step in one command: it pins the newest `adapters-v*` release,
   regenerates the registry, verifies every manifest, target, and artifact digest
   against that release, and then deploys the web app. `pnpm adapters:check` is
-  the same verification without the deploy, and `pnpm deploy:web` runs the
-  structural check before `wrangler` so an empty, partial, or host-only registry
-  cannot be published. A local `pnpm adapters:build` builds only the
+  the same verification without the deploy, and `pnpm deploy:web` runs that
+  check before `wrangler` (against `CLARA_ADAPTER_RELEASE_TAG` when set) so an
+  empty, partial, host-only, or stale registry cannot be published. A local `pnpm adapters:build` builds only the
   host target under `dist/adapters` and is not the canonical registry; pair it
   with `pnpm adapters:serve` and `CLARA_ADAPTER_REGISTRY_URL` to test a build.
   The hub reads `CLARA_ADAPTER_REGISTRY_URL` or the panel setting; it never

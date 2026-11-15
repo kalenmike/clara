@@ -60,8 +60,8 @@ contents under `apps/web/public/adapters/`, then deploy the web app:
 pnpm deploy:web
 ```
 
-`pnpm deploy:web` refuses to run when the registry is missing, partial, or
-points at a local archive URL. To generate the registry from the newest release
+`pnpm deploy:web` refuses to run when the registry is missing, partial, points
+at a local archive URL, or does not match the newest adapter release. To generate the registry from the newest release
 and deploy in one step, use `pnpm deploy:web:registry` instead.
 
 The artifact path mirrors the web path:
@@ -124,8 +124,9 @@ pnpm deploy:web:registry --check
 ```
 
 `pnpm adapters:check` resolves the newest release and compares each manifest's
-version and every artifact SHA-256 with it. `pnpm deploy:web` runs the
-structural check before `wrangler`, and `pnpm deploy:web:registry` pins the
+version and every artifact SHA-256 with it. `pnpm deploy:web` runs the same
+check before `wrangler`; set `CLARA_ADAPTER_RELEASE_TAG` to verify against a
+pinned tag instead of the newest one. `pnpm deploy:web:registry` pins the
 release tag before generating so a release published mid-deploy cannot split the
 manifest from its archives.
 

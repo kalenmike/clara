@@ -82,7 +82,9 @@ function run(command, commandArgs) {
   const result = spawnSync(command, commandArgs, {
     cwd: repoRoot,
     stdio: 'inherit',
-    env: process.env,
+    // The web deploy's own registry check must verify the tag this run pinned,
+    // not whatever `latest` resolves to a moment later.
+    env: { ...process.env, CLARA_ADAPTER_RELEASE_TAG: tag },
     shell: process.platform === 'win32' && command === 'pnpm',
   })
   if (result.error) fail(`${command} could not run: ${result.error.message}`)

@@ -24,14 +24,15 @@ const directory = resolve(repoRoot, readString(args.dir, 'apps/web/public/adapte
 const kinds = parseKinds(args.kind)
 const targets = parseTargets(args.targets)
 const allowLocal = Boolean(args['allow-local'])
-const wanted = readString(args['from-release'], undefined)
+const offline = Boolean(args.offline)
+const wanted = offline
+  ? undefined
+  : readString(args['from-release'], process.env.CLARA_ADAPTER_RELEASE_TAG?.trim() || 'latest')
 const repo = readString(args.repo, process.env.GITHUB_REPOSITORY?.trim() || 'kalenmike/clara')
 const apiUrl = readString(
   args['api-url'],
   process.env.GITHUB_API_URL?.trim() || 'https://api.github.com'
 ).replace(/\/+$/, '')
-
-if (wanted && args.offline) fail('--from-release cannot be combined with --offline')
 
 let version
 let releaseAssets
