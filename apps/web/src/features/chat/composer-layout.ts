@@ -2,8 +2,8 @@ import type { ComposerMode } from '@/features/chat/composer-session'
 
 /**
  * The composer has three shapes: the pinned dock at the bottom of the chat, a
- * fullscreen panel, and a minimized header. Pinned and maximized remember which
- * one to return to after minimizing.
+ * fullscreen panel, and a minimized header. Collapsing remembers the expanded
+ * shape to restore, while expanding always targets fullscreen.
  */
 export type ExpandedComposerMode = Exclude<ComposerMode, 'minimized'>
 
@@ -17,21 +17,25 @@ export const COMPOSER_LAYOUT_DEFAULT: ComposerLayout = {
   expanded: 'pinned',
 }
 
-/** Maximize from pinned, return to pinned from maximized, restore from minimized. */
+/** Maximize from pinned or minimized, and dock from maximized. */
 export function expandComposer(layout: ComposerLayout): ComposerLayout {
-  if (layout.mode === 'minimized') {
-    return { mode: layout.expanded, expanded: layout.expanded }
-  }
   const mode: ExpandedComposerMode = layout.mode === 'maximized' ? 'pinned' : 'maximized'
   return { mode, expanded: mode }
 }
 
+/** Collapse to the header, remembering the expanded shape to restore. */
 export function minimizeComposer(layout: ComposerLayout): ComposerLayout {
-  return { mode: 'minimized', expanded: layout.expanded }
+  if (layout.mode === 'minimized') return layout
+  return { mode: 'minimized', expanded: layout.mode }
 }
 
 /** Restoring a minimized header uses the last expanded shape. */
 export function restoreComposer(layout: ComposerLayout): ComposerLayout {
   if (layout.mode !== 'minimized') return layout
   return { mode: layout.expanded, expanded: layout.expanded }
+}
+
+/** The chevron collapses an expanded composer and restores a minimized one. */
+export function toggleComposerCollapse(layout: ComposerLayout): ComposerLayout {
+  return layout.mode === 'minimized' ? restoreComposer(layout) : minimizeComposer(layout)
 }

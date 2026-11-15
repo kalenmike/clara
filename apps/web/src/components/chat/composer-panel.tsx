@@ -46,7 +46,7 @@ function ConnectedComposer({
     currentSessionID,
     selectTab,
     closeTab,
-    minimize,
+    toggleCollapse,
     toggleExpand,
     openModels,
     openAgents,
@@ -155,7 +155,7 @@ function ConnectedComposer({
         onSelect={selectTab}
         onClose={closeTab}
         onToggleExpand={toggleExpand}
-        onMinimize={minimize}
+        onToggleCollapse={toggleCollapse}
       />
 
       <div className={cn('flex min-h-0 flex-1 flex-col', mode === 'minimized' && 'hidden')}>

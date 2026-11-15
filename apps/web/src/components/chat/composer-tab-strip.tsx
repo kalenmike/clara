@@ -1,5 +1,5 @@
 import { useNavigate } from 'react-router'
-import { CornerUpLeft, Maximize2, Minimize2, Minus, X } from 'lucide-react'
+import { ChevronDown, ChevronUp, CornerUpLeft, Maximize2, Minimize2, X } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { Tooltip, TooltipContent, TooltipTrigger } from '@/components/ui/tooltip'
 import type { ComposerMode } from '@/features/chat/composer-session'
@@ -19,7 +19,7 @@ export function ComposerTabStrip({
   onSelect,
   onClose,
   onToggleExpand,
-  onMinimize,
+  onToggleCollapse,
 }: {
   tabs: readonly ComposerTab[]
   mode: ComposerMode
@@ -30,7 +30,7 @@ export function ComposerTabStrip({
   onSelect: (sessionID: string) => void
   onClose: (sessionID: string) => void
   onToggleExpand: () => void
-  onMinimize: () => void
+  onToggleCollapse: () => void
 }) {
   const fullscreen = mode === 'maximized'
   const minimized = mode === 'minimized'
@@ -63,25 +63,17 @@ export function ComposerTabStrip({
               variant="ghost"
               size="icon-sm"
               className="max-md:size-11"
-              onClick={onToggleExpand}
-              aria-label={
-                minimized
-                  ? 'Restore the composer'
-                  : fullscreen
-                    ? 'Dock the composer'
-                    : 'Expand composer'
-              }
+              onClick={onToggleCollapse}
+              aria-label={minimized ? 'Restore the composer' : 'Collapse the composer'}
             >
-              {fullscreen && !minimized ? (
-                <Minimize2 className="size-3.5 max-md:size-5" />
+              {minimized ? (
+                <ChevronUp className="size-3.5 max-md:size-5" />
               ) : (
-                <Maximize2 className="size-3.5 max-md:size-5" />
+                <ChevronDown className="size-3.5 max-md:size-5" />
               )}
             </Button>
           </TooltipTrigger>
-          <TooltipContent>
-            {minimized ? 'Restore' : fullscreen ? 'Return to the dock' : 'Expand'}
-          </TooltipContent>
+          <TooltipContent>{minimized ? 'Restore' : 'Collapse'}</TooltipContent>
         </Tooltip>
 
         <Tooltip>
@@ -91,14 +83,17 @@ export function ComposerTabStrip({
               variant="ghost"
               size="icon-sm"
               className="max-md:size-11"
-              onClick={onMinimize}
-              disabled={minimized}
-              aria-label="Minimize composer"
+              onClick={onToggleExpand}
+              aria-label={fullscreen ? 'Dock the composer' : 'Expand composer'}
             >
-              <Minus className="size-3.5 max-md:size-5" />
+              {fullscreen ? (
+                <Minimize2 className="size-3.5 max-md:size-5" />
+              ) : (
+                <Maximize2 className="size-3.5 max-md:size-5" />
+              )}
             </Button>
           </TooltipTrigger>
-          <TooltipContent>Minimize</TooltipContent>
+          <TooltipContent>{fullscreen ? 'Return to the dock' : 'Expand'}</TooltipContent>
         </Tooltip>
       </div>
     </div>
