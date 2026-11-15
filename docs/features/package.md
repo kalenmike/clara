@@ -28,20 +28,23 @@ a checkout.
 ## Core business rules
 
 1. One binary, one version. The command, hub, engine, Lab, panel, and web client
-   are compiled together, so they cannot drift apart. Assets are extracted once
-   per build into the cache directory and each service reads its own subtree.
-   The packaged command runs the lab service only: Clara Desktop renders the
-   Lab UI at `/lab` and reaches the service through the hub bridge.
+   are compiled together, so they cannot drift apart. Assets are extracted once per
+   build into the cache directory and each service reads its own subtree. A
+   release reports its release version; a build from a checkout reports
+   `<package version>-dev+<7-character commit>` (for example
+   `0.1.0-dev+abc1234`), so two local builds are distinct artifacts. The
+   packaged command runs the lab service only: Clara Desktop renders the Lab UI
+   at `/lab` and reaches the service through the hub bridge.
 2. One supervisor. `clara start` detaches a single `__supervise` process that
    starts engine → Lab → hub → web, restarts a crashed child a few times, and
-   stops everything in reverse order. A login service runs the same supervisor
-   in the foreground.
+   stops everything in reverse order. A login service runs the same supervisor in the
+   foreground.
 3. Ports and paths match the existing services. Hub panel `8790`, hub local
    WebSocket `8788`, engine `8789`, Lab `8791`, web `8080`; `~/.config/clara`,
    `~/.local/share/clara`, and `~/.cache/clara`, with the existing environment
    overrides. The hub keeps its runtime file and ephemeral-port behavior. The
    supervisor points the hub's `CLARA_LAB_URL` at the supervised Lab and the
-   Lab's `CLARA_ENGINE_URL` at the supervised engine unless the host sets
+   lab's `CLARA_ENGINE_URL` at the supervised engine unless the host sets
    either.
 4. Adapters are pulled, never shipped. The command reads the adapter registry,
    verifies the artifact SHA-256 before extraction, installs under the data
@@ -118,8 +121,9 @@ a checkout.
   build without rebuilding it: it stages the binary under
   `<data>/versions/<version>/clara`, links it from the user bin directory, and
   writes `install.json` with channel `local`, so `clara doctor`, `clara update`,
-  and `clara uninstall` work as for a release. `--from`, `--bin-dir`, and
-  `--dry-run` change the source and target; `pnpm cli:uninstall [--purge]`
-  removes the install through `clara uninstall`.
+  and `clara uninstall` work as for a release. The store path uses the full dev
+  version, so installing a different commit leaves the previous build in place.
+  `--from`, `--bin-dir`, and `--dry-run` change the source and target;
+  `pnpm cli:uninstall [--purge]` removes the install through `clara uninstall`.
 
 </details>

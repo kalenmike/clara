@@ -131,7 +131,9 @@ pnpm cli:uninstall   # remove the installed command
 ```
 
 `pnpm cli:build` writes `apps/cli/dist/package/<bun-target>/clara` for the host
-target. `pnpm cli:install` never builds: it installs that build under
+target. A checkout build reports `<package version>-dev+<7-character commit>`
+unless `CLARA_VERSION` is set, so `clara status` and the version store identify
+the exact build. `pnpm cli:install` never builds: it installs that build under
 `<data>/versions/<version>/clara`, points the user bin directory at it, and
 writes `install.json` with channel `local`, so `clara doctor`, `clara update`,
 and `clara uninstall` treat it as a normal install. Use `--from <file|dir>`,

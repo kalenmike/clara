@@ -13,6 +13,7 @@ import {
 } from '../state/services.ts'
 import { probe, waitFor } from '../service/probe.ts'
 import { SPECS, START_ORDER, STOP_ORDER } from '../service/specs.ts'
+import { version } from '../version.ts'
 
 const START_TIMEOUT_MS = 60_000
 const STOP_TIMEOUT_MS = 12_000
@@ -138,6 +139,7 @@ export async function runSupervisor(options: SupervisorOptions): Promise<number>
           ...process.env,
           ...spec.env(options.ports),
           CLARA_SERVICE: name,
+          CLARA_VERSION: version(),
         },
         stdio: ['ignore', fd, fd],
         windowsHide: true,
