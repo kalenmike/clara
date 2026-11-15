@@ -21,7 +21,10 @@ export function useSessionMailboxSignals(sessions: ClaraSession[]) {
       queryKey: queryKeys.sessionMailbox(session.id),
       queryFn: ({ signal }) => loadSessionMailboxSignals(client!, session.id, signal),
       enabled: Boolean(client),
-      staleTime: 60_000,
+      // One lookup fans out to three requests, so keep it off the remount and
+      // focus paths: a mailbox signal is refreshed by the events that change
+      // it, and a stale one only affects grouping for a moment.
+      staleTime: 5 * 60_000,
       refetchOnWindowFocus: false,
       retry: 1,
     })),

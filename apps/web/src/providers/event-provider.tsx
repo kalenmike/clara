@@ -50,6 +50,12 @@ const EventContext = createContext<EventContextValue>({
 
 const RECONNECT_NOTICE_MS = 5_000
 
+/**
+ * What a recovery refetches immediately. Keys are roots, so `sessions` also
+ * covers the active map and `activity` covers every project's list.
+ */
+const RECOVERED_QUERIES = ['sessions', 'session', 'projects', 'harnesses', 'activity'] as const
+
 const MESSAGE_EVENTS = new Set([
   'session.synthetic',
   'session.skill.activated',
@@ -136,9 +142,18 @@ export function EventProvider({ children }: { children: ReactNode }) {
     const recovered = (downForMs: number) => {
       chatStore.resetHistories()
       void queryClient.resetQueries({ queryKey: ['messages'] })
+      // Mark everything else stale without refetching it. One gap must not
+      // launch the whole sidebar fan-out — three mailbox lookups per session —
+      // over the same socket that just came back. These lists are what the
+      // screen is built from; everything else refreshes from its own event,
+      // focus, or poll.
       void queryClient.invalidateQueries({
         predicate: (query) => query.queryKey[0] !== 'messages',
+        refetchType: 'none',
       })
+      for (const key of RECOVERED_QUERIES) {
+        void queryClient.invalidateQueries({ queryKey: [key] })
+      }
       if (downForMs > RECONNECT_NOTICE_MS) {
         toast.success('Reconnected', { id: 'stream-reconnected' })
       }
