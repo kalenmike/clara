@@ -5,6 +5,7 @@ import type { AddressInfo } from 'node:net'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import { afterEach, describe, expect, it } from 'vitest'
+import type { DockerResult, DockerRunner } from '../src/adapters/container.ts'
 import { ChecksumError } from '../src/adapters/download.ts'
 import {
   adapterBinaryPath,
@@ -122,6 +123,7 @@ function deps(
     result?: (args: readonly string[]) => { code: number; stderr: string }
     extract?: ExtractRunner
     progress?: (received: number, total: number | undefined) => void
+    docker?: DockerRunner
   } = {}
 ): InstallDeps {
   const calls = options.calls ?? []
@@ -145,6 +147,55 @@ function deps(
     runBinary,
     extract,
     ...(options.progress ? { onProgress: options.progress } : {}),
+    ...(options.docker ? { docker: options.docker } : {}),
+  }
+}
+
+type ContainerOptions = {
+  running?: boolean
+  status?: string
+  configPresent?: boolean
+  calls?: Calls
+}
+
+/** A Docker stand-in that describes one adapter container. */
+function containerDocker(options: ContainerOptions = {}): DockerRunner {
+  const running = options.running ?? true
+  const status =
+    options.status ??
+    ['adapter:  opencode 0.1.0-dev+abc', 'config:   /config/config.json'].join('\n')
+  const calls = options.calls
+  const result = (value: Partial<DockerResult> = {}): DockerResult => ({
+    code: 0,
+    stdout: '',
+    stderr: '',
+    ...value,
+  })
+  return (args) => {
+    calls?.push({ command: 'docker', args: [...args] })
+    if (args[0] === 'inspect' && args[1] === '-f') return result({ stdout: `${running}\n` })
+    if (args[0] === 'inspect') {
+      return result({
+        stdout: JSON.stringify([
+          {
+            State: { Running: running },
+            Config: {
+              Entrypoint: ['node', '/app/dist/index.js'],
+              Env: ['CLARA_ADAPTER_CONFIG_DIR=/config', 'CLARA_ADAPTER_DATA_DIR=/data'],
+              Labels: {
+                'com.docker.compose.project': 'clara-adapter-opencode',
+                'com.docker.compose.service': 'adapter',
+                'com.docker.compose.project.config_files':
+                  '/repo/infra/docker/adapter-opencode.compose.yml',
+              },
+            },
+          },
+        ]),
+      })
+    }
+    if (args[0] === 'exec' && args.includes('status')) return result({ stdout: status })
+    if (args[0] === 'cp') return result({ code: options.configPresent === false ? 1 : 0 })
+    return result()
   }
 }
 
@@ -493,6 +544,135 @@ describe('adapter install', () => {
     expect(actions).toContain(`remove ${record.path}`)
     expect(readAdapterState(paths).adapters.opencode).toBeUndefined()
     expect(existsSync(join(paths.dataDir, 'adapters', 'opencode'))).toBe(false)
+  })
+})
+
+describe('adapter container install', () => {
+  it('adopts a paired container without a host install path', async () => {
+    const fixture = await registryServer()
+    const paths = tempPaths()
+    const calls: Calls = []
+    const record = await installAdapter(
+      { kind: 'opencode', container: 'clara-adapter-opencode', start: false },
+      deps(fixture, paths, { docker: containerDocker({ calls }) })
+    )
+
+    expect(record.path).toBeUndefined()
+    expect(record.version).toBe('0.1.0-dev+abc')
+    expect(record.platform).toBe('linux-x64')
+    expect(record.pairedAt).toBe('2026-02-03T04:05:06.000Z')
+    expect(record.container).toEqual({
+      name: 'clara-adapter-opencode',
+      entry: ['node', '/app/dist/index.js'],
+      configDir: '/config',
+      dataDir: '/data',
+      compose: {
+        project: 'clara-adapter-opencode',
+        service: 'adapter',
+        file: '/repo/infra/docker/adapter-opencode.compose.yml',
+      },
+    })
+    expect(readAdapterState(paths).adapters.opencode).toEqual(record)
+    expect(calls.map((call) => call.args)).toEqual([
+      ['inspect', 'clara-adapter-opencode'],
+      ['exec', 'clara-adapter-opencode', 'node', '/app/dist/index.js', 'status'],
+    ])
+  })
+
+  it('runs the container installer and records the pairing', async () => {
+    const fixture = await registryServer()
+    const paths = tempPaths()
+    const calls: Calls = []
+    const record = await installAdapter(
+      {
+        kind: 'opencode',
+        container: 'clara-adapter-opencode',
+        pairCode: 'clara-pair-abc',
+        start: false,
+      },
+      deps(fixture, paths, { docker: containerDocker({ calls }) })
+    )
+
+    expect(record.pairedAt).toBe('2026-02-03T04:05:06.000Z')
+    expect(calls.map((call) => call.args)).toContainEqual([
+      'exec',
+      'clara-adapter-opencode',
+      'node',
+      '/app/dist/index.js',
+      'install',
+      '--pair',
+      'clara-pair-abc',
+    ])
+  })
+
+  it('refuses to pair into a stopped container', async () => {
+    const fixture = await registryServer()
+    const paths = tempPaths()
+    await expect(
+      installAdapter(
+        {
+          kind: 'opencode',
+          container: 'clara-adapter-opencode',
+          pairCode: 'clara-pair-abc',
+          start: false,
+        },
+        deps(fixture, paths, { docker: containerDocker({ running: false }) })
+      )
+    ).rejects.toThrow('is stopped')
+    expect(readAdapterState(paths).adapters.opencode).toBeUndefined()
+  })
+
+  it('refuses to adopt a container that is not paired', async () => {
+    const fixture = await registryServer()
+    const paths = tempPaths()
+    const docker = containerDocker({
+      status: 'adapter:  opencode 0.1.0-dev+abc\nconfig:   missing',
+    })
+
+    await expect(
+      installAdapter(
+        { kind: 'opencode', container: 'clara-adapter-opencode', start: false },
+        deps(fixture, paths, { docker })
+      )
+    ).rejects.toThrow('is not paired')
+    expect(readAdapterState(paths).adapters.opencode).toBeUndefined()
+  })
+
+  it('stops the container and forgets the record without deleting its data', async () => {
+    const fixture = await registryServer()
+    const paths = tempPaths()
+    await installAdapter(
+      { kind: 'opencode', container: 'clara-adapter-opencode', start: false },
+      deps(fixture, paths, { docker: containerDocker() })
+    )
+    const calls: Calls = []
+    const actions = await removeAdapter(
+      'opencode',
+      deps(fixture, paths, {
+        docker: containerDocker({ calls }),
+      })
+    )
+
+    expect(actions).toEqual([
+      'stop the adapter container',
+      'remove the adapter install record',
+      'the container clara-adapter-opencode (compose service adapter) and its volumes were left in place',
+    ])
+    expect(calls.map((call) => call.args)).toContainEqual(['stop', 'clara-adapter-opencode'])
+    expect(readAdapterState(paths).adapters.opencode).toBeUndefined()
+  })
+
+  it('refuses to upgrade a container adapter', async () => {
+    const fixture = await registryServer()
+    const paths = tempPaths()
+    await installAdapter(
+      { kind: 'opencode', container: 'clara-adapter-opencode', start: false },
+      deps(fixture, paths, { docker: containerDocker() })
+    )
+
+    await expect(upgradeAdapter('opencode', deps(fixture, paths))).rejects.toThrow(
+      'Rebuild and recreate the container'
+    )
   })
 })
 
