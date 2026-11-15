@@ -30,6 +30,11 @@ COPY package.json pnpm-lock.yaml pnpm-workspace.yaml tsconfig.base.json ./
 # resolve imports even though the filtered install succeeds.
 COPY apps/web/package.json apps/web/package.json
 COPY packages/panel/package.json packages/panel/package.json
+COPY packages/lab/package.json packages/lab/package.json
+COPY packages/preview/package.json packages/preview/package.json
+COPY packages/orchestration/policy/package.json packages/orchestration/policy/package.json
+COPY packages/orchestration/engine/package.json packages/orchestration/engine/package.json
+COPY packages/sqlite/package.json packages/sqlite/package.json
 COPY packages/api/api-client/package.json packages/api/api-client/package.json
 COPY packages/contracts/api-contract/package.json packages/contracts/api-contract/package.json
 COPY packages/crypto/package.json packages/crypto/package.json
@@ -38,6 +43,11 @@ RUN pnpm install --frozen-lockfile --filter @clara/web...
 
 COPY apps/web apps/web
 COPY packages/panel packages/panel
+COPY packages/lab packages/lab
+COPY packages/preview packages/preview
+COPY packages/orchestration/policy packages/orchestration/policy
+COPY packages/orchestration/engine packages/orchestration/engine
+COPY packages/sqlite packages/sqlite
 COPY tools/build tools/build
 COPY packages/api/api-client packages/api/api-client
 COPY packages/contracts/api-contract packages/contracts/api-contract

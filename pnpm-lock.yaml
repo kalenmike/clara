@@ -738,6 +738,9 @@ importers:
 
   packages/lab:
     dependencies:
+      '@clara/pipeline-preview':
+        specifier: workspace:*
+        version: link:../preview
       '@clara/policy':
         specifier: workspace:*
         version: link:../orchestration/policy
@@ -751,9 +754,6 @@ importers:
         specifier: ^4.0.1
         version: 4.0.1
     devDependencies:
-      '@clara/pipeline-preview':
-        specifier: workspace:*
-        version: link:../preview
       '@types/node':
         specifier: ^24.19.2
         version: 24.19.2

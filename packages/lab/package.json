@@ -12,6 +12,7 @@
     "test": "vitest run"
   },
   "dependencies": {
+    "@clara/pipeline-preview": "workspace:*",
     "@clara/policy": "workspace:*",
     "react-markdown": "^10.1.0",
     "remark-breaks": "^4.0.0",
@@ -21,7 +22,6 @@
     "react": "^19.3.1"
   },
   "devDependencies": {
-    "@clara/pipeline-preview": "workspace:*",
     "@types/node": "^24.19.2",
     "@types/react": "^19.3.0",
     "react": "^19.3.1",

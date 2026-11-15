@@ -31,7 +31,5 @@ packages/adapters/opencode
 packages/adapters/claude
 packages/adapters/pi
 packages/contracts/harness-protocol
-packages/orchestration
-packages/preview
 .vscode
 .idea
