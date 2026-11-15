@@ -5,6 +5,15 @@ export const PAIRING_CODE_PREFIX = 'clara1_'
 export const HARNESS_PAIRING_CODE_PREFIX = 'clara-harness1_'
 
 /**
+ * The pairing link is rendered as a QR and read by a phone camera at the sizes
+ * the panel and the terminal can show. A relay link carries a one-time
+ * enrollment grant and already uses most of this budget; a field that pushes
+ * it further makes the code too dense to scan. The guard test fails the build
+ * before that reaches a host.
+ */
+export const PAIRING_LINK_MAX_LENGTH = 768
+
+/**
  * The desktop client registers this protocol. A hub page can hand an adapter
  * pairing code to the client without the person copying the code by hand.
  */
