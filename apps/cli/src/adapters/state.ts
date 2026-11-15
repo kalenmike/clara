@@ -12,8 +12,10 @@ export type AdapterInstallRecord = {
   platform: string
   /** The versioned install directory that holds the adapter binary. */
   path: string
-  /** A JavaScript entry run with the current Node binary instead of a native binary. */
+  /** A JavaScript entry run with Node instead of a native binary. */
   entry?: string
+  /** The Node executable that runs `entry`; defaults to the current runtime. */
+  node?: string
   /** Adapter install flags replayed when the adapter is reinstalled. */
   installArgs?: string[]
   installedAt: string
@@ -176,6 +178,7 @@ function isRecordEntry(
     typeof value.path === 'string' &&
     typeof value.installedAt === 'string' &&
     (value.entry === undefined || typeof value.entry === 'string') &&
+    (value.node === undefined || typeof value.node === 'string') &&
     (value.installArgs === undefined ||
       (Array.isArray(value.installArgs) &&
         value.installArgs.every((arg) => typeof arg === 'string'))) &&

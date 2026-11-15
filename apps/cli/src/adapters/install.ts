@@ -96,7 +96,7 @@ export function adapterEntryPath(record: AdapterInstallRecord): string {
 /** The command that runs an installed adapter. */
 export function adapterCommand(record: AdapterInstallRecord): AdapterCommand {
   if (record.entry) {
-    return { command: process.execPath, args: [join(record.path, record.entry)] }
+    return { command: record.node ?? process.execPath, args: [join(record.path, record.entry)] }
   }
   return { command: adapterBinaryPath(record), args: [] }
 }
@@ -284,9 +284,26 @@ function stageLocalAdapter(
     platform: target,
     path: installDir,
     entry: 'index.js',
+    node: nodeExecutable(),
     installedAt: previous?.installedAt ?? new Date((deps.now ?? Date.now)()).toISOString(),
     ...(previous?.pairedAt ? { pairedAt: previous.pairedAt } : {}),
   }
+}
+
+/**
+ * The packaged command is a Bun binary; a checkout adapter is a Node build.
+ * Persist the Node path so a later `clara` run uses it instead of Bun.
+ */
+export function nodeExecutable(env: NodeJS.ProcessEnv = process.env): string {
+  const configured = env.CLARA_NODE_BIN?.trim()
+  if (configured) return configured
+  if (!process.versions.bun) return process.execPath
+  const result = spawnSync('node', ['-p', 'process.execPath'], { encoding: 'utf8' })
+  const resolved = result.status === 0 ? String(result.stdout).trim() : ''
+  if (resolved) return resolved
+  throw new Error(
+    'Installing a checkout adapter build needs Node. Run `pnpm cli` or set CLARA_NODE_BIN.'
+  )
 }
 
 function readAdapterPackage(root: string): { name?: string; version?: string } | undefined {

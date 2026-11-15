@@ -145,10 +145,11 @@ describe('adapter command', () => {
       platform: 'linux-x64',
       path: '/data/adapters/opencode/0.1.0-dev+local',
       entry: 'index.js',
+      node: '/opt/node/bin/node',
       installedAt: '2026-01-01T00:00:00.000Z',
     }
     expect(adapterCommand(staged)).toEqual({
-      command: process.execPath,
+      command: '/opt/node/bin/node',
       args: [join(staged.path, 'index.js')],
     })
   })
