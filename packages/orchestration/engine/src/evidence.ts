@@ -1,5 +1,5 @@
 import { existsSync } from 'node:fs'
-import Database from 'better-sqlite3'
+import { openSqlite, type SqliteDatabase } from '@clara/sqlite'
 import type { AlertRow, RunRow, StepAttemptRow, StepRow } from './store.ts'
 
 const RESULT_LIMIT = 8_000
@@ -241,7 +241,7 @@ export function readRunEvidenceFile(
       failure: null,
     }
   }
-  const db = new Database(path, { readonly: true, fileMustExist: true })
+  const db = openSqlite(path, { readonly: true, fileMustExist: true })
   try {
     return readRunEvidence(db, options)
   } finally {
@@ -250,7 +250,7 @@ export function readRunEvidenceFile(
 }
 
 export function readRunEvidence(
-  db: Database.Database,
+  db: SqliteDatabase,
   options: { runId?: number; workspace?: string } = {}
 ): RunEvidence {
   let run: RunRow | undefined

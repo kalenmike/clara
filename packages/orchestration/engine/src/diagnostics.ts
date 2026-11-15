@@ -1,5 +1,5 @@
 import { existsSync } from 'node:fs'
-import Database from 'better-sqlite3'
+import { openSqlite, type SqliteDatabase } from '@clara/sqlite'
 
 export interface DiagnosticsOptions {
   /** Window in days. Zero or negative analyzes all history. */
@@ -302,7 +302,7 @@ export function analyzeDatabaseFile(
       database: { path },
     }
   }
-  const db = new Database(path, { readonly: true, fileMustExist: true })
+  const db = openSqlite(path, { readonly: true, fileMustExist: true })
   try {
     return analyzeDatabase(db, { ...options, path })
   } finally {
@@ -311,7 +311,7 @@ export function analyzeDatabaseFile(
 }
 
 export function analyzeDatabase(
-  db: Database.Database,
+  db: SqliteDatabase,
   options: DiagnosticsOptions = {}
 ): DiagnosticsReport {
   const now = options.now ?? new Date()
