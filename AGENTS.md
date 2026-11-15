@@ -13,8 +13,7 @@ apps/web                             React/Vite SPA (Cloudflare Pages or the web
 apps/desktop                         Tauri shell that packages the web client for desktop
 apps/desktop/host                    Loopback adapter-host sidecar for local, SSH, and Docker installs
 apps/hub/panel                       Hub panel entry that serves the shared panel package
-apps/hub/desktop                     Tauri tray app that runs the Bun hub sidecar and panel
-apps/hub/server                      Node hub service, local WS + outbound Cloudflare relay
+apps/hub/server                      Hub service, CLI, Bun executable, local WS + outbound Cloudflare relay
 apps/orchestrator                    Loopback engine service, REST/SSE/MCP (legacy path)
 apps/adapters/opencode               OpenCode harness adapter, binding, and standalone bin
 apps/adapters/claude                 Claude Code harness adapter and standalone bin
@@ -53,8 +52,8 @@ infra/docker                         Compose files, Dockerfiles, and the stack .
 - `@opencode/client@2.1.1` — pinned to the targeted OpenCode server version; used only by the OpenCode adapter and Clara Lab
 - `@anthropic-ai/claude-agent-sdk@0.3.325` — pinned to Claude Code 2.1.325; used only by the Claude Code adapter
 - Pi 1.5.x — driven as the user's installed `pi` binary over `--mode rpc`; the Pi SDK is not a dependency
-- Tauri 2 and Rust for the desktop apps; `@tauri-apps/cli` and the `tauri` crates live only in `apps/desktop` and `apps/hub/desktop`
-- Bun 1.4+ for the hub sidecar; `@clara/sqlite` selects `better-sqlite3` on Node and `bun:sqlite` under Bun
+- Tauri 2 and Rust for the web desktop app; `@tauri-apps/cli` and the `tauri` crates live only in `apps/desktop`
+- Bun 1.4+ for the hub executable; `@clara/sqlite` selects `better-sqlite3` on Node and `bun:sqlite` under Bun
 - `ws`, WebCrypto, Cloudflare Workers/Durable Objects, Wrangler
 
 ## Commands
@@ -117,13 +116,8 @@ pnpm desktop:build  # Native installer for the host OS (needs Rust + WebView dev
 pnpm desktop:build:app # App bundle without installers
 pnpm desktop:build:docker # Linux bundles in Docker, extracted to dist/desktop
 pnpm desktop:icons  # Regenerate the desktop icons from the web mark
-pnpm hub:dev        # Hub tray app with the Bun sidecar
-pnpm hub:build      # Hub native installer for the host OS
-pnpm hub:build:app  # Hub app bundle without installers
-pnpm hub:build:docker # Linux hub bundles in Docker, extracted to dist/hub
+pnpm hub:binary     # Build the embedded-panel Bun hub executable
 pnpm hub:headless   # Headless hub archive with install helpers, under dist/headless
-pnpm hub:sidecar    # Build the embedded-panel Bun sidecar only
-pnpm hub:icons      # Regenerate the hub app icons from the web mark
 ```
 
 ## Worktrees
@@ -209,10 +203,10 @@ transport, Worker, Durable Object, or crypto.
   `.env`/`.dev.vars`.
 - Keep files focused; split a component once it carries more than one concern.
 - The desktop shell lives in `apps/desktop` and consumes the web client built in
-  desktop mode. The hub tray shell lives in `apps/hub/desktop` and consumes the
-  Bun sidecar built in `apps/hub/server`. Keep Tauri dependencies out of the web,
-  hub server, and shared packages; desktop-only web behavior sits behind the
-  build-time surface flag.
+  desktop mode. The hub is a CLI service built in `apps/hub/server`, including
+  its Bun executable. Keep Tauri dependencies out of the web, hub server, and
+  shared packages; desktop-only web behavior sits behind the build-time surface
+  flag.
 - Commit incrementally with Conventional Commits; see [Commits](#commits).
 
 ## Planning
@@ -325,7 +319,7 @@ is never published.
 | Pairing, QR codes, device storage  | [docs/features/pairing.md](docs/features/pairing.md)                     |
 | Install, updates, offline caching  | [docs/features/install.md](docs/features/install.md)                     |
 | Desktop shell and native build     | [docs/features/desktop.md](docs/features/desktop.md)                     |
-| Hub tray app, sidecar, ports       | [docs/features/hub-app.md](docs/features/hub-app.md)                     |
+| Hub CLI, Bun executable, ports     | [docs/features/hub-cli.md](docs/features/hub-cli.md)                     |
 | Connection and credentials         | [docs/features/connection.md](docs/features/connection.md)               |
 | Hub panel and local hub state      | [docs/features/panel.md](docs/features/panel.md)                         |
 | Project/session browser            | [docs/features/sessions.md](docs/features/sessions.md)                   |
@@ -340,9 +334,9 @@ is never published.
 ## Definition of done
 
 1. `pnpm check` passes.
-2. `pnpm build` succeeds. The desktop shells are outside that build; run
+2. `pnpm build` succeeds. The desktop shell is outside that build; run
    `pnpm desktop:build` when your change touches the client shell and
-   `pnpm hub:build` when it touches the hub shell or sidecar.
+   `pnpm hub:binary` when it touches the hub executable.
 3. The touched screen works against a live target harness, through the
    affected transport. For the included adapters, that means OpenCode 2.1.x,
    Claude Code 2.1.325, or Pi 1.5.x.

@@ -1,12 +1,12 @@
 import { existsSync, mkdirSync, readFileSync, rmSync, writeFileSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import { dirname, isAbsolute, join } from 'node:path'
-import { main } from '@clara/hub-server/main'
+import { main } from './main.ts'
 import { assets, buildId } from './embedded-assets.generated'
 
 /**
- * The sidecar is one executable. The panel files are embedded by
- * `scripts/build-sidecar.mjs`; extract them once per build so the existing
+ * The hub binary is one executable. The panel files are embedded by
+ * `scripts/build-bun.mjs`; extract them once per build so the existing
  * disk-based panel server can read them.
  */
 const cacheRoot = process.env.CLARA_CACHE_DIR?.trim() || join(tmpdir(), 'clara-hub')

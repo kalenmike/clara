@@ -32,12 +32,11 @@ RUN corepack enable && bun --version
 WORKDIR /repo
 COPY package.json pnpm-lock.yaml pnpm-workspace.yaml tsconfig.base.json ./
 # These manifest copies cover the workspace dependency closure of the hub
-# desktop sidecar. Missing packages make the build fail to resolve imports even
-# though the filtered install succeeds.
+# binary. Missing packages make the build fail to resolve imports even though
+# the filtered install succeeds.
 COPY apps/hub/server/package.json apps/hub/server/package.json
 COPY apps/hub/panel/package.json apps/hub/panel/package.json
 COPY packages/panel/package.json packages/panel/package.json
-COPY apps/hub/desktop/package.json apps/hub/desktop/package.json
 COPY packages/sqlite/package.json packages/sqlite/package.json
 COPY packages/runtime-state/package.json packages/runtime-state/package.json
 COPY packages/crypto/package.json packages/crypto/package.json
@@ -47,13 +46,12 @@ COPY packages/contracts/api-contract/package.json packages/contracts/api-contrac
 COPY packages/contracts/harness-protocol/package.json packages/contracts/harness-protocol/package.json
 COPY packages/adapters/install/package.json packages/adapters/install/package.json
 RUN pnpm install --frozen-lockfile \
-      --filter @clara/hub-desktop... \
+      --filter @clara/hub-server... \
       --filter @clara/hub-panel...
 
 COPY apps/hub/server apps/hub/server
 COPY apps/hub/panel apps/hub/panel
 COPY packages/panel packages/panel
-COPY apps/hub/desktop apps/hub/desktop
 COPY infra/relay infra/relay
 COPY tools/build tools/build
 COPY packages/sqlite packages/sqlite
@@ -69,7 +67,7 @@ ARG CLARA_COMMIT=
 ARG CLARA_DIRTY=0
 ENV CLARA_COMMIT=$CLARA_COMMIT
 ENV CLARA_DIRTY=$CLARA_DIRTY
-RUN node apps/hub/desktop/scripts/build-sidecar.mjs
+RUN node apps/hub/server/scripts/build-bun.mjs
 
 FROM debian:bookworm-slim AS runtime
 # Keep the 1000:1000 IDs the previous Node image used. Existing
@@ -98,7 +96,7 @@ ENV CLARA_ORCHESTRATION_PORT=8789
 WORKDIR /app
 RUN mkdir -p /config /data /tmp/clara && chown -R clara:clara /app /config /data /tmp/clara
 
-COPY --from=build /repo/apps/hub/desktop/src-tauri/binaries/clara-server-* /app/clara-server
+COPY --from=build /repo/apps/hub/server/dist/bun/clara-server /app/clara-server
 RUN chmod +x /app/clara-server && chown clara:clara /app/clara-server
 
 USER clara

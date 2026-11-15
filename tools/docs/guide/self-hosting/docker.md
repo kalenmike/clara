@@ -8,7 +8,7 @@ sidebar_position: 1
 
 Docker is the default target for `clara`. It creates one external network
 called `clara` and runs the hub, web client, and optionally the orchestration
-service as containers. The hub container is the Bun sidecar with the panel
+service as containers. The hub container runs the Bun executable with the panel
 embedded; `infra/docker/server-node.Dockerfile` keeps the previous Node image
 as a fallback.
 

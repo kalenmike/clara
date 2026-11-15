@@ -35,11 +35,8 @@
       "project": ["src/**/*.{ts,tsx}", "server/**/*.ts", "test/**/*.ts"]
     },
     "apps/hub/server": {
-      "project": ["src/**/*.ts", "test/**/*.ts"]
-    },
-    "apps/hub/desktop": {
-      "entry": ["src/entry.ts", "scripts/*.mjs"],
-      "project": ["src/**/*.ts", "scripts/**/*.mjs"]
+      "entry": ["src/bun.ts", "scripts/*.mjs"],
+      "project": ["src/**/*.ts", "test/**/*.ts", "scripts/**/*.mjs"]
     },
     "packages/contracts/shared-types": {
       "project": ["src/**/*.ts", "test/**/*.ts"]

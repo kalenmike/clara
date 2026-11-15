@@ -92,17 +92,17 @@ The hub panel page is loopback-only. Do not expose it to the internet. Clara
 Desktop reaches the same panel through the hub's encrypted connection; that does
 not publish the panel port.
 
-The Docker stack keeps fixed container ports. The hub desktop app reuses its
-previous panel and local ports and falls back to a free port when one is busy;
-the desktop client follows the local port through the hub's runtime file. See
-[Hub app](../hub-app.md).
+The Docker stack keeps fixed container ports. The Hub CLI reuses its previous
+panel and local ports and falls back to a free port when one is busy; the desktop
+client follows the local port through the hub's runtime file. See
+[Hub CLI](../hub-cli.md).
 
 ## Where to go next
 
 - [Docker](docker.md)
 - [Local install](local.md)
 - [Headless server](headless.md)
-- [Hub app](../hub-app.md)
+- [Hub CLI](../hub-cli.md)
 - [Configuration](configuration.md)
 - [Remote access with the relay](relay.md)
 - [Updates and backups](updates.md)

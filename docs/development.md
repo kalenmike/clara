@@ -90,41 +90,28 @@ their own hosts. AppImage bundling sets `NO_STRIP` and extract-and-run so
 linuxdeploy survives without FUSE; narrow the bundle list if it still fails. See
 [features/desktop.md](features/desktop.md).
 
-### Hub app
+### Hub CLI
 
-`apps/hub/desktop` is a second Tauri app: a tray shell around the Bun hub
-sidecar. It needs the same Rust and WebView prerequisites, plus Bun 1.4+. The
-sidecar build embeds the panel and compiles one executable.
+The hub is a CLI service. `apps/hub/server` owns the hub code and the Bun
+executable build. The build embeds the panel and compiles one executable; it
+needs Bun 1.4+ but no Rust or WebView packages.
 
 ```bash
-pnpm hub:sidecar   # panel + embedded-asset sidecar only
-pnpm hub:dev       # sidecar, then the tray app
-pnpm hub:build     # sidecar, then the host installer
+pnpm hub:binary    # panel + embedded-asset Bun executable
 pnpm hub:headless  # standalone server archive and install helpers
 ```
 
-`pnpm hub:build:docker` builds the Linux bundles in Debian 12 with Rust, Node,
-and Bun, then extracts them to `dist/hub`. The image compiles the panel and the
-Bun sidecar first, then lets Tauri bundle the tray shell around the sidecar
-executable. It takes the same `--bundles`, `--platform`, `--output`, `--base`,
-and `--no-cache` options as the desktop build, plus `--cloudflare` (or
-`ENABLE_CLOUDFLARE_DEPLOYMENT`) to embed the relay. Like the desktop build, it
-cannot produce macOS or Windows installers.
+`pnpm hub:binary` writes `apps/hub/server/dist/bun/clara-server` by default.
+Pass `--target bun-linux-x64`, `bun-darwin-arm64`, or another Bun target for a
+cross-build. `pnpm build` builds the Node server and panel, not the Bun
+executable. See [features/hub-cli.md](features/hub-cli.md) for ports, the runtime
+file, and the Docker image.
 
-```bash
-pnpm hub:build:docker
-pnpm hub:build:docker --bundles deb --platform linux/amd64
-```
-
-`pnpm build` does not build either Tauri app. See
-[features/hub-app.md](features/hub-app.md) for ports, the runtime file, and the
-Docker switch.
-
-`pnpm hub:headless` reuses the sidecar build and writes a standalone archive
-under `dist/headless` with the executable, an install helper, and a Linux
-systemd unit, macOS LaunchAgent, or Windows sign-in task. Build each platform on
-its own host. `.github/workflows/hub-installers.yml` runs the tray and headless
-builds on macOS arm64/x64, Linux x64, and Windows x64.
+`pnpm hub:headless` reuses the Bun build and writes a standalone archive under
+`dist/headless` with the executable, an install helper, and a Linux systemd
+unit, macOS LaunchAgent, or Windows sign-in task. Build each platform on its own
+host. `.github/workflows/hub-installers.yml` runs the headless build on macOS
+arm64/x64, Linux x64, and Windows x64.
 
 Each build verifies the result:
 

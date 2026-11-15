@@ -9,7 +9,7 @@ pnpm-lock.yaml
 **/src-tauri/target
 **/src-tauri/gen
 **/src-tauri/binaries
-apps/hub/desktop/src/embedded-assets.generated.mjs
+apps/hub/server/src/embedded-assets.generated.mjs
 tools/docs/.docusaurus
 tools/docs/build
 packages/contracts/api-contract/src/generated
