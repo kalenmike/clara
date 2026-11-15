@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useState } from 'react'
+import { Notice } from '@clara/ui/patterns/notice'
 import { pickDirectory, preflight, reconnect, registerAdapter, removeAdapter } from './api'
 import { Console } from './components/Console'
 import { Icon } from './components/Icon'
@@ -187,13 +188,13 @@ export function App() {
       />
 
       <main className="workbench">
-        {stream.error ? <div className="banner warn">{stream.error}</div> : null}
+        {stream.error ? <Notice tone="warning">{stream.error}</Notice> : null}
         {runtimeError ? (
-          <div className="banner warn">
-            <strong>{runtimeError.title}.</strong> {runtimeError.hint ?? runtimeError.detail}
-          </div>
+          <Notice tone="warning" title={`${runtimeError.title}.`}>
+            {runtimeError.hint ?? runtimeError.detail}
+          </Notice>
         ) : null}
-        {notice ? <div className="banner ok">{notice}</div> : null}
+        {notice ? <Notice tone="success">{notice}</Notice> : null}
 
         <div className="view-slot" hidden={settings.tab !== 'pipeline'}>
           <Preview

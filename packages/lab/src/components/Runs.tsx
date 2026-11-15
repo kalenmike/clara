@@ -1,4 +1,10 @@
 import { useCallback, useEffect, useState } from 'react'
+import { Empty } from './Badge'
+import { Card } from '@clara/ui/components/card'
+import { SectionCard } from '@clara/ui/patterns/section-card'
+import { Checkbox } from '@clara/ui/components/checkbox'
+import { Notice } from '@clara/ui/patterns/notice'
+import { Button } from '@clara/ui/components/button'
 import { callTool, cancelAllRuns, getRun, getRuns, getStep } from '../api'
 import type { LabStream } from '../useLab'
 import type { RunRow, StatusResult, StepDetail, StepSummary } from '../types'
@@ -280,292 +286,303 @@ export function Runs({
             <Badge tone="warn">{hiddenDebugActive} debug hidden</Badge>
           ) : null}
           <label className="check runs-debug-toggle">
-            <input
-              type="checkbox"
+            <Checkbox
               checked={showDebugRuns}
-              onChange={(event) => onShowDebugRunsChange(event.target.checked)}
+              onCheckedChange={(value) => onShowDebugRunsChange(value === true)}
             />
             Show debug runs{debug.length ? ` (${debug.length})` : ''}
           </label>
-          <button
+          <Button
             type="button"
-            className="button"
             onClick={() => void refreshRuns()}
             disabled={busy}
+            variant="outline"
           >
             Refresh
-          </button>
-          <button
+          </Button>
+          <Button
             type="button"
-            className="button danger"
             onClick={() => void killAll()}
             disabled={busy || !allActiveCount}
+            variant="destructive"
           >
             Kill all runs
-          </button>
+          </Button>
         </div>
       </header>
 
       {friendly ? (
-        <div className="banner bad">
-          <strong>{friendly.title}.</strong> {friendly.detail}
-          {friendly.hint ? <div className="muted">{friendly.hint}</div> : null}
-        </div>
+        <Notice tone="danger" title={`${friendly.title}.`}>
+          {friendly.detail}
+          {friendly.hint ? <div className="mt-1 text-xs">{friendly.hint}</div> : null}
+        </Notice>
       ) : null}
 
       <div className="runs-grid">
-        <aside className="panel run-list">
-          <div className="panel-head">
-            <h3>Runs</h3>
-            <span className="muted">{visible.length}</span>
-          </div>
-          <div className="run-list-items">
-            {visible.map((run) => (
-              <button
-                key={run.id}
-                type="button"
-                className={`run-item ${selectedID === run.id ? 'selected' : ''}`}
-                onClick={() => setSelectedID(run.id)}
-              >
-                <div className="row-between">
-                  <span>
-                    <strong>#{run.id}</strong> {run.target}
-                  </span>
-                  <span className="row">
-                    {isDebugRun(run) ? <Badge tone="warn">debug</Badge> : null}
-                    <Badge tone={statusTone(run.state)}>{run.state}</Badge>
-                  </span>
-                </div>
-                <div className="muted">{short(run.prompt, 90)}</div>
-                <div className="run-origin muted">{originText(run)}</div>
-              </button>
-            ))}
-            {!visible.length ? (
-              <div className="empty">
-                {debug.length && !showDebugRuns ? (
-                  <>
-                    No external runs.{' '}
-                    <button
-                      type="button"
-                      className="link"
-                      onClick={() => onShowDebugRunsChange(true)}
-                    >
-                      Show {debug.length} debug run{debug.length === 1 ? '' : 's'}
-                    </button>
-                  </>
-                ) : (
-                  'No runs yet.'
-                )}
-              </div>
-            ) : null}
-          </div>
-
-          {selectedStatus?.alerts.length ? (
-            <>
-              <div className="panel-head">
-                <h3>Alerts</h3>
-              </div>
-              <div className="alert-list">
-                {selectedStatus.alerts.map((alert) => (
-                  <div key={alert.id} className="alert">
-                    <div className="row-between">
-                      <Badge tone="warn">{alert.kind}</Badge>
-                      <code>#{alert.id}</code>
-                    </div>
-                    <div>{alert.title}</div>
-                    <div className="muted">{alert.body}</div>
-                  </div>
-                ))}
-              </div>
-            </>
-          ) : null}
-        </aside>
-
-        <section className="panel run-main">
-          {selectedStatus && selectedRun ? (
-            <>
-              <div className="run-head">
-                <div>
-                  <div className="work-title">
-                    <Badge tone={statusTone(selectedRun.state)}>{selectedRun.state}</Badge>
-                    {isDebug ? <Badge tone="warn">debug</Badge> : null}
-                    <h2>Run #{selectedRun.id}</h2>
-                    <span className="muted">{selectedRun.target}</span>
-                  </div>
-                  <div className="muted">{short(selectedRun.prompt, 180)}</div>
-                </div>
-                <div className="run-head-actions">
-                  <div className="chips">
-                    {selectedStatus.stepCount ? (
-                      <span className="chip">
-                        {doneStepCount(selectedStatus.steps)}/{selectedStatus.stepCount} steps
-                      </span>
-                    ) : null}
-                    <span className="chip">{selectedRun.pipeline_ref}</span>
-                    {selectedRun.enforcement === 'strict' ? (
-                      <span className="chip chip-warn">strict</span>
-                    ) : null}
-                  </div>
-                  {isDebug ? (
-                    <button
-                      type="button"
-                      className="button ghost small"
-                      onClick={() => onOpenReview(selectedRun.id)}
-                    >
-                      Continue on Review
-                    </button>
-                  ) : null}
-                  <button
-                    type="button"
-                    className="button danger"
-                    onClick={() => void cancel()}
-                    disabled={busy || !isActiveRun(selectedRun)}
-                  >
-                    <Icon name="stop" size={14} />
-                    Cancel run
-                  </button>
-                </div>
-              </div>
-
-              <div className="grid three">
-                <Field label="Host files" value={hostWorkspace || '—'} />
-                <Field label="Engine workspace" value={selectedRun.workspace} />
-                <Field label="Origin" value={originText(selectedRun)} />
-                <Field label="Created" value={dateTime(selectedRun.created_at)} />
-                <Field
-                  label="Finished"
-                  value={selectedRun.finished_at ? dateTime(selectedRun.finished_at) : '—'}
-                />
-                <Field label="Hash" value={selectedRun.hash.slice(0, 20)} />
-                <Field label="Tokens" value={formatTokens(totals.tokens)} />
-                <Field label="Calls" value={totals.calls} />
-              </div>
-              {selectedRun.error ? <div className="banner bad">{selectedRun.error}</div> : null}
-
-              <div className="panel-head">
-                <h3>Current step</h3>
-                <span className="muted">read-only</span>
-              </div>
-              <div className="run-current">
-                {step ? (
-                  <>
-                    <div className="work-title">
-                      <Badge tone={statusTone(step.status)}>{step.status}</Badge>
-                      <strong>{step.name}</strong>
-                      <code>{step.path}</code>
-                      <span className="muted">
-                        attempt {step.attempt}/{step.max_attempts} ·{' '}
-                        {modelLabel(step.model, step.provider)}
-                      </span>
-                    </div>
-                    {currentWork ? (
-                      <pre className="prompt small">{currentWork.order.prompt}</pre>
-                    ) : null}
-                  </>
-                ) : (
-                  <div className="empty">
-                    {selectedRun.state === 'completed'
-                      ? 'Run complete.'
-                      : selectedRun.state === 'failed'
-                        ? 'Run failed.'
-                        : 'No current step.'}
-                  </div>
-                )}
-                <div className="muted">
-                  {isDebug
-                    ? 'Step through and complete this run in the Debug dock on Review.'
-                    : `Owned by ${originText(selectedRun)}. This page only observes it.`}
-                </div>
-              </div>
-
-              <div className="panel-head">
-                <h3>Steps</h3>
-                <span className="muted">click a step for its result, lease, and usage</span>
-              </div>
-              <RunTree
-                steps={selectedStatus.steps}
-                selected={selectedStep}
-                onSelect={(entry: StepSummary) => setSelectedStep(entry.path)}
-              />
-              <RunStepDetail step={stepDetail ?? undefined} />
-
-              {selectedStatus.children.length ? (
-                <>
-                  <div className="panel-head">
-                    <h3>Child runs</h3>
-                  </div>
-                  <div className="children">
-                    {selectedStatus.children.map((child) => (
-                      <button
-                        key={child.id}
-                        type="button"
-                        className="button ghost small"
-                        onClick={() => setSelectedID(child.id)}
-                      >
-                        #{child.id} {child.target} · {child.state}
-                      </button>
-                    ))}
-                  </div>
-                </>
-              ) : null}
-
-              <details className="panel events-panel">
-                <summary>
-                  Events{' '}
-                  <span className="muted">
-                    ({stream.events.filter((event) => event.run_id === selectedID).length})
-                  </span>
-                </summary>
-                <RunEvents events={stream.events.filter((event) => event.run_id === selectedID)} />
-              </details>
-
-              <details className="panel advanced-panel">
-                <summary>Recovery controls</summary>
-                <div className="actions">
-                  <button
-                    type="button"
-                    className="button"
-                    onClick={() => void tick()}
-                    disabled={busy}
-                  >
-                    Watchdog tick
-                  </button>
-                </div>
-                <div className="muted">
-                  Repairs stalled steps and expired leases. Heartbeat and lease controls live in the
-                  Debug dock on Review.
-                </div>
-              </details>
-            </>
-          ) : (
-            <div className="run-empty">
-              <Icon name="runs" size={28} />
-              <h2>
-                {visible.length
-                  ? 'Select a run'
-                  : debug.length && !showDebugRuns
-                    ? 'Debug runs are hidden'
-                    : 'No runs yet'}
-              </h2>
-              <p className="muted">
-                {visible.length
-                  ? 'Choose a run from the list to inspect its steps, work orders, and events.'
-                  : debug.length && !showDebugRuns
-                    ? 'This page shows owned runs by default. Show debug runs to inspect lab tests.'
-                    : 'Start a debug run from the Debug dock on Review.'}
-              </p>
-              {debug.length && !showDebugRuns ? (
+        <Card asChild>
+          <aside className="run-list">
+            <div className="mb-2 flex items-start justify-between gap-2.5">
+              <h3>Runs</h3>
+              <span className="muted">{visible.length}</span>
+            </div>
+            <div className="run-list-items">
+              {visible.map((run) => (
                 <button
+                  key={run.id}
                   type="button"
-                  className="button"
-                  onClick={() => onShowDebugRunsChange(true)}
+                  className={`run-item ${selectedID === run.id ? 'selected' : ''}`}
+                  onClick={() => setSelectedID(run.id)}
                 >
-                  Show debug runs ({debug.length})
+                  <div className="row-between">
+                    <span>
+                      <strong>#{run.id}</strong> {run.target}
+                    </span>
+                    <span className="row">
+                      {isDebugRun(run) ? <Badge tone="warn">debug</Badge> : null}
+                      <Badge tone={statusTone(run.state)}>{run.state}</Badge>
+                    </span>
+                  </div>
+                  <div className="muted">{short(run.prompt, 90)}</div>
+                  <div className="run-origin muted">{originText(run)}</div>
                 </button>
+              ))}
+              {!visible.length ? (
+                <Empty>
+                  {debug.length && !showDebugRuns ? (
+                    <>
+                      No external runs.{' '}
+                      <Button
+                        type="button"
+                        variant="link"
+                        className="inline h-auto p-0"
+                        onClick={() => onShowDebugRunsChange(true)}
+                      >
+                        Show {debug.length} debug run{debug.length === 1 ? '' : 's'}
+                      </Button>
+                    </>
+                  ) : (
+                    'No runs yet.'
+                  )}
+                </Empty>
               ) : null}
             </div>
-          )}
-        </section>
+
+            {selectedStatus?.alerts.length ? (
+              <>
+                <div className="mb-2 flex items-start justify-between gap-2.5">
+                  <h3>Alerts</h3>
+                </div>
+                <div className="alert-list">
+                  {selectedStatus.alerts.map((alert) => (
+                    <div key={alert.id} className="alert">
+                      <div className="row-between">
+                        <Badge tone="warn">{alert.kind}</Badge>
+                        <code>#{alert.id}</code>
+                      </div>
+                      <div>{alert.title}</div>
+                      <div className="muted">{alert.body}</div>
+                    </div>
+                  ))}
+                </div>
+              </>
+            ) : null}
+          </aside>
+        </Card>
+
+        <Card asChild>
+          <section className="run-main">
+            {selectedStatus && selectedRun ? (
+              <>
+                <div className="run-head">
+                  <div>
+                    <div className="work-title">
+                      <Badge tone={statusTone(selectedRun.state)}>{selectedRun.state}</Badge>
+                      {isDebug ? <Badge tone="warn">debug</Badge> : null}
+                      <h2>Run #{selectedRun.id}</h2>
+                      <span className="muted">{selectedRun.target}</span>
+                    </div>
+                    <div className="muted">{short(selectedRun.prompt, 180)}</div>
+                  </div>
+                  <div className="run-head-actions">
+                    <div className="chips">
+                      {selectedStatus.stepCount ? (
+                        <span className="chip">
+                          {doneStepCount(selectedStatus.steps)}/{selectedStatus.stepCount} steps
+                        </span>
+                      ) : null}
+                      <span className="chip">{selectedRun.pipeline_ref}</span>
+                      {selectedRun.enforcement === 'strict' ? (
+                        <span className="chip chip-warn">strict</span>
+                      ) : null}
+                    </div>
+                    {isDebug ? (
+                      <Button
+                        type="button"
+                        onClick={() => onOpenReview(selectedRun.id)}
+                        variant="ghost"
+                        size="xs"
+                      >
+                        Continue on Review
+                      </Button>
+                    ) : null}
+                    <Button
+                      type="button"
+                      onClick={() => void cancel()}
+                      disabled={busy || !isActiveRun(selectedRun)}
+                      variant="destructive"
+                    >
+                      <Icon name="stop" size={14} />
+                      Cancel run
+                    </Button>
+                  </div>
+                </div>
+
+                <div className="grid three">
+                  <Field label="Host files" value={hostWorkspace || '—'} />
+                  <Field label="Engine workspace" value={selectedRun.workspace} />
+                  <Field label="Origin" value={originText(selectedRun)} />
+                  <Field label="Created" value={dateTime(selectedRun.created_at)} />
+                  <Field
+                    label="Finished"
+                    value={selectedRun.finished_at ? dateTime(selectedRun.finished_at) : '—'}
+                  />
+                  <Field label="Hash" value={selectedRun.hash.slice(0, 20)} />
+                  <Field label="Tokens" value={formatTokens(totals.tokens)} />
+                  <Field label="Calls" value={totals.calls} />
+                </div>
+                {selectedRun.error ? <Notice tone="danger">{selectedRun.error}</Notice> : null}
+
+                <div className="mb-2 flex items-start justify-between gap-2.5">
+                  <h3>Current step</h3>
+                  <span className="muted">read-only</span>
+                </div>
+                <div className="run-current">
+                  {step ? (
+                    <>
+                      <div className="work-title">
+                        <Badge tone={statusTone(step.status)}>{step.status}</Badge>
+                        <strong>{step.name}</strong>
+                        <code>{step.path}</code>
+                        <span className="muted">
+                          attempt {step.attempt}/{step.max_attempts} ·{' '}
+                          {modelLabel(step.model, step.provider)}
+                        </span>
+                      </div>
+                      {currentWork ? (
+                        <pre className="prompt small">{currentWork.order.prompt}</pre>
+                      ) : null}
+                    </>
+                  ) : (
+                    <Empty>
+                      {selectedRun.state === 'completed'
+                        ? 'Run complete.'
+                        : selectedRun.state === 'failed'
+                          ? 'Run failed.'
+                          : 'No current step.'}
+                    </Empty>
+                  )}
+                  <div className="muted">
+                    {isDebug
+                      ? 'Step through and complete this run in the Debug dock on Review.'
+                      : `Owned by ${originText(selectedRun)}. This page only observes it.`}
+                  </div>
+                </div>
+
+                <div className="mb-2 flex items-start justify-between gap-2.5">
+                  <h3>Steps</h3>
+                  <span className="muted">click a step for its result, lease, and usage</span>
+                </div>
+                <RunTree
+                  steps={selectedStatus.steps}
+                  selected={selectedStep}
+                  onSelect={(entry: StepSummary) => setSelectedStep(entry.path)}
+                />
+                <RunStepDetail step={stepDetail ?? undefined} />
+
+                {selectedStatus.children.length ? (
+                  <>
+                    <div className="mb-2 flex items-start justify-between gap-2.5">
+                      <h3>Child runs</h3>
+                    </div>
+                    <div className="children">
+                      {selectedStatus.children.map((child) => (
+                        <Button
+                          key={child.id}
+                          type="button"
+                          onClick={() => setSelectedID(child.id)}
+                          variant="ghost"
+                          size="xs"
+                        >
+                          #{child.id} {child.target} · {child.state}
+                        </Button>
+                      ))}
+                    </div>
+                  </>
+                ) : null}
+
+                <SectionCard
+                  title={
+                    <>
+                      Events{' '}
+                      <span className="text-xs text-muted-foreground">
+                        ({stream.events.filter((event) => event.run_id === selectedID).length})
+                      </span>
+                    </>
+                  }
+                  collapsible
+                >
+                  <RunEvents
+                    events={stream.events.filter((event) => event.run_id === selectedID)}
+                  />
+                </SectionCard>
+
+                <SectionCard title="Recovery controls" collapsible>
+                  <div className="actions">
+                    <Button
+                      type="button"
+                      onClick={() => void tick()}
+                      disabled={busy}
+                      variant="outline"
+                    >
+                      Watchdog tick
+                    </Button>
+                  </div>
+                  <div className="text-muted-foreground">
+                    Repairs stalled steps and expired leases. Heartbeat and lease controls live in
+                    the Debug dock on Review.
+                  </div>
+                </SectionCard>
+              </>
+            ) : (
+              <div className="run-empty">
+                <Icon name="runs" size={28} />
+                <h2>
+                  {visible.length
+                    ? 'Select a run'
+                    : debug.length && !showDebugRuns
+                      ? 'Debug runs are hidden'
+                      : 'No runs yet'}
+                </h2>
+                <p className="muted">
+                  {visible.length
+                    ? 'Choose a run from the list to inspect its steps, work orders, and events.'
+                    : debug.length && !showDebugRuns
+                      ? 'This page shows owned runs by default. Show debug runs to inspect lab tests.'
+                      : 'Start a debug run from the Debug dock on Review.'}
+                </p>
+                {debug.length && !showDebugRuns ? (
+                  <Button
+                    type="button"
+                    onClick={() => onShowDebugRunsChange(true)}
+                    variant="outline"
+                  >
+                    Show debug runs ({debug.length})
+                  </Button>
+                ) : null}
+              </div>
+            )}
+          </section>
+        </Card>
       </div>
     </div>
   )

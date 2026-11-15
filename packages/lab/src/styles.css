@@ -58,39 +58,15 @@
   line-height: 1.5;
 }
 
-.lab-root button,
-.lab-root input,
-.lab-root select,
-.lab-root textarea {
+.lab-root button {
   font: inherit;
   color: inherit;
 }
 
-.lab-root input,
-.lab-root select,
-.lab-root textarea {
-  background: var(--lab-surface-2);
-  border: 1px solid var(--lab-border);
-  border-radius: 4px;
-  padding: 6px 8px;
-  min-width: 0;
-}
-
-.lab-root input:hover,
-.lab-root select:hover,
-.lab-root textarea:hover {
-  border-color: var(--lab-border-strong);
-}
-
 .lab-root textarea {
   resize: vertical;
-  font-family: var(--lab-mono);
-  font-size: 0.75rem;
 }
 
-.lab-root input:focus,
-.lab-root select:focus,
-.lab-root textarea:focus,
 .lab-root button:focus-visible {
   outline: 1px solid var(--lab-accent);
   outline-offset: 0;
@@ -531,15 +507,6 @@
 
 /* Shared primitives */
 
-.lab-root .panel {
-  background: var(--lab-surface);
-  border: 1px solid var(--lab-border);
-  border-radius: 6px;
-  padding: 12px;
-  min-width: 0;
-}
-
-.lab-root .panel-head,
 .lab-root .section-head {
   display: flex;
   align-items: flex-start;
@@ -548,12 +515,10 @@
   margin: 12px 0 8px;
 }
 
-.lab-root .panel-head:first-child,
 .lab-root .section-head:first-child {
   margin-top: 0;
 }
 
-.lab-root .panel-head h2,
 .lab-root .section-head h2 {
   font-size: 0.875rem;
 }
@@ -562,118 +527,6 @@
   margin: 3px 0 0;
   font-size: 0.75rem;
   max-width: 58ch;
-}
-
-.lab-root .button {
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  gap: 5px;
-  appearance: none;
-  border: 1px solid var(--lab-border);
-  background: var(--lab-surface-2);
-  color: var(--lab-text);
-  border-radius: 4px;
-  padding: 5px 9px;
-  cursor: pointer;
-  white-space: nowrap;
-  font-size: 0.75rem;
-}
-
-.lab-root .button:hover:not(:disabled) {
-  background: var(--lab-hover);
-  border-color: var(--lab-border-strong);
-}
-
-.lab-root .button:disabled {
-  opacity: 0.45;
-  cursor: not-allowed;
-}
-
-.lab-root .button.primary {
-  background: var(--lab-accent);
-  border-color: var(--lab-accent);
-  color: var(--primary-foreground);
-}
-
-.lab-root .button.primary:hover:not(:disabled) {
-  filter: brightness(1.08);
-  background: var(--lab-accent);
-}
-
-.lab-root .button.danger {
-  border-color: color-mix(in srgb, var(--lab-bad) 50%, var(--lab-border));
-  color: var(--lab-bad);
-  background: color-mix(in srgb, var(--lab-bad) 7%, var(--lab-surface));
-}
-
-.lab-root .button.danger:hover:not(:disabled) {
-  background: color-mix(in srgb, var(--lab-bad) 16%, var(--lab-surface));
-}
-
-.lab-root .button.ghost {
-  background: transparent;
-}
-
-.lab-root .button.small {
-  padding: 2px 6px;
-  font-size: 0.625rem;
-}
-
-.lab-root .link {
-  appearance: none;
-  border: 0;
-  background: transparent;
-  color: var(--lab-accent);
-  cursor: pointer;
-  padding: 0;
-  text-align: left;
-  font-size: inherit;
-}
-
-.lab-root .link:hover {
-  text-decoration: underline;
-}
-
-.lab-root .link.active {
-  color: var(--lab-text);
-  font-weight: 600;
-}
-
-.lab-root .badge {
-  display: inline-flex;
-  align-items: center;
-  gap: 4px;
-  border-radius: 3px;
-  padding: 1px 6px;
-  font-size: 0.625rem;
-  font-weight: 600;
-  border: 1px solid var(--lab-border);
-  background: var(--lab-surface-2);
-  color: var(--lab-muted);
-  white-space: nowrap;
-  text-transform: uppercase;
-  letter-spacing: 0.03em;
-}
-
-.lab-root .badge-ok {
-  color: var(--lab-ok);
-  border-color: color-mix(in srgb, var(--lab-ok) 50%, var(--lab-border));
-}
-
-.lab-root .badge-bad {
-  color: var(--lab-bad);
-  border-color: color-mix(in srgb, var(--lab-bad) 50%, var(--lab-border));
-}
-
-.lab-root .badge-live {
-  color: var(--lab-live);
-  border-color: color-mix(in srgb, var(--lab-live) 50%, var(--lab-border));
-}
-
-.lab-root .badge-warn {
-  color: var(--lab-warn);
-  border-color: color-mix(in srgb, var(--lab-warn) 50%, var(--lab-border));
 }
 
 .lab-root .chips {
@@ -695,44 +548,6 @@
 .lab-root .chip-warn {
   color: var(--lab-warn);
   border-color: color-mix(in srgb, var(--lab-warn) 50%, var(--lab-border));
-}
-
-.lab-root .banner {
-  border-radius: 4px;
-  padding: 7px 10px;
-  margin: 0 0 10px;
-  border: 1px solid var(--lab-border);
-  background: var(--lab-surface-2);
-  font-size: 0.75rem;
-}
-
-.lab-root .banner.bad {
-  border-color: color-mix(in srgb, var(--lab-bad) 45%, var(--lab-border));
-  background: color-mix(in srgb, var(--lab-bad) 9%, var(--lab-surface));
-}
-
-.lab-root .banner.ok {
-  border-color: color-mix(in srgb, var(--lab-ok) 45%, var(--lab-border));
-  background: color-mix(in srgb, var(--lab-ok) 8%, var(--lab-surface));
-}
-
-.lab-root .banner.warn {
-  border-color: color-mix(in srgb, var(--lab-warn) 45%, var(--lab-border));
-  background: color-mix(in srgb, var(--lab-warn) 8%, var(--lab-surface));
-}
-
-.lab-root .empty {
-  border: 1px dashed var(--lab-border);
-  border-radius: 5px;
-  padding: 14px;
-  color: var(--lab-muted);
-  text-align: center;
-  font-size: 0.75rem;
-}
-
-.lab-root .empty.compact {
-  padding: 9px;
-  font-size: 0.75rem;
 }
 
 .lab-root .row {
@@ -783,23 +598,11 @@
   grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
 }
 
-.lab-root .field {
-  display: flex;
-  flex-direction: column;
-  gap: 1px;
-  min-width: 0;
-}
-
 .lab-root .field-label {
   font-size: 0.625rem;
   text-transform: uppercase;
   letter-spacing: 0.06em;
   color: var(--lab-faint);
-}
-
-.lab-root .field-value {
-  overflow-wrap: anywhere;
-  font-size: 0.75rem;
 }
 
 .lab-root .field-block {
@@ -886,27 +689,6 @@
   color: var(--lab-faint);
   font-family: var(--lab-mono);
   font-size: 0.625rem;
-}
-
-.lab-root .status-pill {
-  display: inline-flex;
-  align-items: center;
-  gap: 5px;
-  border: 1px solid var(--lab-border);
-  border-radius: 3px;
-  padding: 2px 7px;
-  font-size: 0.625rem;
-  font-weight: 600;
-}
-
-.lab-root .status-pill.tone-ok {
-  border-color: color-mix(in srgb, var(--lab-ok) 45%, var(--lab-border));
-  background: color-mix(in srgb, var(--lab-ok) 8%, var(--lab-surface));
-}
-
-.lab-root .status-pill.tone-warn {
-  border-color: color-mix(in srgb, var(--lab-warn) 45%, var(--lab-border));
-  background: color-mix(in srgb, var(--lab-warn) 8%, var(--lab-surface));
 }
 
 /* Toolbar and forms */
@@ -2418,10 +2200,6 @@
 .lab-root .path-row input {
   flex: 1 1 auto;
   min-width: 0;
-}
-
-.lab-root .path-row .button {
-  flex: 0 0 auto;
 }
 
 .lab-root .adapter-list {

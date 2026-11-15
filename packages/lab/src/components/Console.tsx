@@ -1,4 +1,9 @@
 import { useEffect, useMemo, useState } from 'react'
+import { Empty } from './Badge'
+import { Card } from '@clara/ui/components/card'
+import { Textarea } from '@clara/ui/components/textarea'
+import { Notice } from '@clara/ui/patterns/notice'
+import { Button } from '@clara/ui/components/button'
 import { callTool } from '../api'
 import type { CallRecord } from '../types'
 import type { LabStream } from '../useLab'
@@ -195,135 +200,138 @@ export function Console({ stream }: { stream: LabStream }) {
       </header>
 
       <div className="console-grid">
-        <aside className="panel console-tools">
-          <div className="panel-head">
-            <h3>Tools</h3>
-            <span className="muted">{tools.length}</span>
-          </div>
-          <div className="tool-picker">
-            {tools.map((entry) => (
-              <button
-                key={entry.name}
-                type="button"
-                className={`tool-option ${entry.name === tool ? 'active' : ''}`}
-                onClick={() => selectTool(entry.name)}
-              >
-                <code>{entry.name}</code>
-                {entry.description ? <span>{short(entry.description, 110)}</span> : null}
-              </button>
-            ))}
-          </div>
-
-          <div className="panel-head">
-            <h3>Recent calls</h3>
-            <span className="muted">{recent.length}</span>
-          </div>
-          <div className="recent-calls">
-            {recent.map((call) => (
-              <button
-                key={call.id}
-                type="button"
-                className={`recent-call ${call.isError ? 'bad' : ''}`}
-                onClick={() => load(call)}
-              >
-                <span className="event-time">{clock(call.at)}</span>
-                <code>{call.tool}</code>
-                <span className="muted">{duration(call.durationMs)}</span>
-              </button>
-            ))}
-            {!recent.length ? <div className="empty compact">No calls yet.</div> : null}
-          </div>
-        </aside>
-
-        <section className="panel console-main">
-          <div className="console-tool-head">
-            <div>
-              <h2>
-                <code>{tool}</code>
-              </h2>
-              <p className="muted">{selected?.description ?? 'Select a tool to inspect it.'}</p>
+        <Card asChild>
+          <aside className="console-tools">
+            <div className="mb-2 flex items-start justify-between gap-2.5">
+              <h3>Tools</h3>
+              <span className="muted">{tools.length}</span>
             </div>
-            <button
-              type="button"
-              className="button primary"
-              onClick={() => void send()}
-              disabled={busy || !tool}
-            >
-              <Icon name="play" size={14} />
-              {busy ? 'Calling…' : 'Call tool'}
-            </button>
-          </div>
-
-          <div className="console-args">
-            <div className="row-between">
-              <span className="field-label">Arguments</span>
-              {fields ? (
-                <div className="segmented">
-                  <button
-                    type="button"
-                    className={formMode ? 'active' : ''}
-                    onClick={() => changeMode('form')}
-                  >
-                    Form
-                  </button>
-                  <button
-                    type="button"
-                    className={!formMode ? 'active' : ''}
-                    onClick={() => changeMode('json')}
-                  >
-                    JSON
-                  </button>
-                </div>
-              ) : (
-                <span className="field-label">raw JSON</span>
-              )}
+            <div className="tool-picker">
+              {tools.map((entry) => (
+                <button
+                  key={entry.name}
+                  type="button"
+                  className={`tool-option ${entry.name === tool ? 'active' : ''}`}
+                  onClick={() => selectTool(entry.name)}
+                >
+                  <code>{entry.name}</code>
+                  {entry.description ? <span>{short(entry.description, 110)}</span> : null}
+                </button>
+              ))}
             </div>
 
-            {formMode && fields ? (
-              <ToolForm
-                fields={fields}
-                values={values}
-                errors={errors}
-                disabled={busy}
-                onChange={setValue}
-              />
-            ) : (
-              <label className="field-block grow-block">
-                <span>Arguments (JSON object)</span>
-                <textarea
-                  className="console-input"
-                  rows={8}
-                  value={raw}
-                  onChange={(event) => updateRaw(event.target.value)}
-                  spellCheck={false}
+            <div className="mb-2 flex items-start justify-between gap-2.5">
+              <h3>Recent calls</h3>
+              <span className="muted">{recent.length}</span>
+            </div>
+            <div className="recent-calls">
+              {recent.map((call) => (
+                <button
+                  key={call.id}
+                  type="button"
+                  className={`recent-call ${call.isError ? 'bad' : ''}`}
+                  onClick={() => load(call)}
+                >
+                  <span className="event-time">{clock(call.at)}</span>
+                  <code>{call.tool}</code>
+                  <span className="muted">{duration(call.durationMs)}</span>
+                </button>
+              ))}
+              {!recent.length ? <Empty>No calls yet.</Empty> : null}
+            </div>
+          </aside>
+        </Card>
+
+        <Card asChild>
+          <section className="console-main">
+            <div className="console-tool-head">
+              <div>
+                <h2>
+                  <code>{tool}</code>
+                </h2>
+                <p className="muted">{selected?.description ?? 'Select a tool to inspect it.'}</p>
+              </div>
+              <Button
+                type="button"
+                onClick={() => void send()}
+                disabled={busy || !tool}
+                variant="default"
+              >
+                <Icon name="play" size={14} />
+                {busy ? 'Calling…' : 'Call tool'}
+              </Button>
+            </div>
+
+            <div className="console-args">
+              <div className="row-between">
+                <span className="field-label">Arguments</span>
+                {fields ? (
+                  <div className="segmented">
+                    <button
+                      type="button"
+                      className={formMode ? 'active' : ''}
+                      onClick={() => changeMode('form')}
+                    >
+                      Form
+                    </button>
+                    <button
+                      type="button"
+                      className={!formMode ? 'active' : ''}
+                      onClick={() => changeMode('json')}
+                    >
+                      JSON
+                    </button>
+                  </div>
+                ) : (
+                  <span className="field-label">raw JSON</span>
+                )}
+              </div>
+
+              {formMode && fields ? (
+                <ToolForm
+                  fields={fields}
+                  values={values}
+                  errors={errors}
                   disabled={busy}
+                  onChange={setValue}
                 />
-              </label>
+              ) : (
+                <label className="field-block grow-block">
+                  <span>Arguments (JSON object)</span>
+                  <Textarea
+                    rows={8}
+                    value={raw}
+                    onChange={(event) => updateRaw(event.target.value)}
+                    spellCheck={false}
+                    disabled={busy}
+                  />
+                </label>
+              )}
+
+              {notice ? <Notice tone="warning">{notice}</Notice> : null}
+              {error ? <Notice tone="danger">{error}</Notice> : null}
+            </div>
+
+            {result !== null && result !== undefined ? (
+              <div className="console-result">
+                <div className="row-between">
+                  <h3>Result</h3>
+                  <CopyButton value={result} />
+                </div>
+                <JsonView value={result} maxHeight={420} />
+              </div>
+            ) : (
+              <Empty>Call a tool to see its result here.</Empty>
             )}
 
-            {notice ? <div className="banner warn">{notice}</div> : null}
-            {error ? <div className="banner bad">{error}</div> : null}
-          </div>
-
-          {result !== null && result !== undefined ? (
-            <div className="console-result">
-              <div className="row-between">
-                <h3>Result</h3>
-                <CopyButton value={result} />
-              </div>
-              <JsonView value={result} maxHeight={420} />
-            </div>
-          ) : (
-            <div className="empty compact">Call a tool to see its result here.</div>
-          )}
-
-          {selected?.inputSchema ? (
-            <details className="context">
-              <summary>Input schema</summary>
-              <JsonView value={selected.inputSchema} maxHeight={320} />
-            </details>
-          ) : null}
-        </section>
+            {selected?.inputSchema ? (
+              <details className="context">
+                <summary>Input schema</summary>
+                <JsonView value={selected.inputSchema} maxHeight={320} />
+              </details>
+            ) : null}
+          </section>
+        </Card>
       </div>
     </div>
   )

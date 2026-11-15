@@ -1,4 +1,8 @@
 import type { ReactNode } from 'react'
+import { Empty } from './Badge'
+import { Input } from '@clara/ui/components/input'
+import { Notice } from '@clara/ui/patterns/notice'
+import { Button } from '@clara/ui/components/button'
 import type { LabSnapshot, PreflightResult } from '../types'
 import { friendlyError } from '../lib/errors'
 import { Badge } from './Badge'
@@ -58,26 +62,26 @@ export function SettingsView({
           </p>
         </div>
         <div className="view-head-actions">
-          <span className={`status-pill ${ok ? 'tone-ok' : preflight ? 'tone-warn' : 'tone-idle'}`}>
+          <Badge tone={ok ? 'ok' : preflight ? 'warn' : 'idle'}>
             <Icon name={ok ? 'check' : 'alert'} size={14} />
             {preflight
               ? ok
                 ? 'Setup ready'
                 : `${issueCount} setup issue${issueCount === 1 ? '' : 's'}`
               : 'Setup unchecked'}
-          </span>
-          <button type="button" className="button" onClick={onCheck} disabled={loading}>
+          </Badge>
+          <Button type="button" onClick={onCheck} disabled={loading} variant="outline">
             <Icon name="refresh" size={14} />
             {loading ? 'Checking…' : 'Run setup check'}
-          </button>
+          </Button>
         </div>
       </header>
 
       {friendly ? (
-        <div className="banner bad">
-          <strong>{friendly.title}.</strong> {friendly.detail}
-          {friendly.hint ? <div className="muted">{friendly.hint}</div> : null}
-        </div>
+        <Notice tone="danger" title={`${friendly.title}.`}>
+          {friendly.detail}
+          {friendly.hint ? <div className="mt-1 text-xs">{friendly.hint}</div> : null}
+        </Notice>
       ) : null}
 
       <div className="settings-grid">
@@ -94,15 +98,15 @@ export function SettingsView({
           <label className="field-block">
             <span>Files on this machine</span>
             <div className="path-row">
-              <input
+              <Input
                 value={hostWorkspace}
                 onChange={(event) => onHostWorkspace(event.target.value)}
                 placeholder="/home/jet/Projects/clara"
               />
-              <button type="button" className="button" onClick={onBrowse} disabled={browsing}>
+              <Button type="button" onClick={onBrowse} disabled={browsing} variant="outline">
                 <Icon name="folder" size={14} />
                 {browsing ? 'Browsing…' : 'Browse…'}
-              </button>
+              </Button>
             </div>
           </label>
           <p className="muted section-note">
@@ -140,10 +144,10 @@ export function SettingsView({
             </div>
           </dl>
           <div className="inline-actions">
-            <button type="button" className="button" onClick={onReconnect}>
+            <Button type="button" onClick={onReconnect} variant="outline">
               <Icon name="refresh" size={14} />
               Reconnect
-            </button>
+            </Button>
             {!snapshot.tokenPresent ? (
               <span className="muted">
                 Start the service or set <code>CLARA_ENGINE_TOKEN</code>.
@@ -182,26 +186,27 @@ export function SettingsView({
                   </div>
                   <code>{adapter.capabilities}</code>
                 </div>
-                <button
+                <Button
                   type="button"
-                  className="button ghost small"
                   onClick={() => onRemoveAdapter(adapter.id)}
+                  variant="ghost"
+                  size="xs"
                 >
                   Remove
-                </button>
+                </Button>
               </div>
             ))}
             {!snapshot.adapters.length ? (
-              <div className="empty compact">
+              <Empty>
                 No adapter is registered. Starting a strict run registers one automatically; you can
                 also do it here.
-              </div>
+              </Empty>
             ) : null}
           </div>
           <div className="inline-actions">
-            <button type="button" className="button" onClick={onEnableAdapter}>
+            <Button type="button" onClick={onEnableAdapter} variant="outline">
               Register lab adapter
-            </button>
+            </Button>
             <span className="muted">For orchestration testing, not real enforcement.</span>
           </div>
         </section>
@@ -270,10 +275,10 @@ export function SettingsView({
               />
             </div>
           ) : (
-            <div className="empty compact">
+            <Empty>
               Run the setup check after choosing the local workspace. Results are also mirrored into
               the status bar.
-            </div>
+            </Empty>
           )}
         </section>
       </div>

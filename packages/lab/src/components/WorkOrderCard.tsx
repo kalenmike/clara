@@ -1,4 +1,16 @@
 import { useState } from 'react'
+import { SectionCard } from '@clara/ui/patterns/section-card'
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from '@clara/ui/components/select'
+import { Textarea } from '@clara/ui/components/textarea'
+import { Input } from '@clara/ui/components/input'
+import { Notice } from '@clara/ui/patterns/notice'
+import { Button } from '@clara/ui/components/button'
 import { callTool, violation } from '../api'
 import type { WorkRecord } from '../types'
 import { friendlyError } from '../lib/errors'
@@ -260,13 +272,13 @@ export function WorkOrderCard({
           <pre className="prompt">
             {isScript ? (order.script?.command ?? '') : (order.prompt ?? '')}
           </pre>
-          <details className="panel step-panel">
-            <summary>
-              <span>Inputs and artifacts</span>
-              <span className="muted">
-                {order.context.inputs.length ? `${order.context.inputs.length} declared` : 'none'}
-              </span>
-            </summary>
+          <SectionCard
+            title="Inputs and artifacts"
+            description={
+              order.context.inputs.length ? `${order.context.inputs.length} declared` : 'none'
+            }
+            collapsible
+          >
             <div className="step-panel-body">
               <InputList
                 inputs={order.context.inputs}
@@ -276,7 +288,7 @@ export function WorkOrderCard({
               <h4>Root request</h4>
               <pre className="prompt small">{order.context.prompt}</pre>
             </div>
-          </details>
+          </SectionCard>
           {order.policy ? (
             <details className="context">
               <summary>Policy and limits</summary>
@@ -296,42 +308,46 @@ export function WorkOrderCard({
               <div className="route-picker">
                 <label>
                   Choose the route the classifier would pick
-                  <select value={route} onChange={(event) => setRoute(event.target.value)}>
-                    {order.routes?.map((item) => (
-                      <option key={item.when} value={item.when}>
-                        {item.when} — {item.criteria ?? item.run}
-                      </option>
-                    ))}
-                  </select>
+                  <Select value={route || undefined} onValueChange={setRoute}>
+                    <SelectTrigger className="w-full">
+                      <SelectValue placeholder="Choose a route" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      {order.routes?.map((item) => (
+                        <SelectItem key={item.when} value={item.when}>
+                          {item.when} — {item.criteria ?? item.run}
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
                 </label>
               </div>
-              <button
+              <Button
                 type="button"
-                className="button primary"
                 onClick={() => void chooseRoute()}
                 disabled={busy}
+                variant="default"
               >
                 {autoRun ? 'Choose route and continue' : 'Choose route'}
-              </button>
+              </Button>
             </>
           ) : (
             <>
               <h4>Your result</h4>
-              <textarea
-                className="result-input"
+              <Textarea
                 value={result}
                 onChange={(event) => setResult(event.target.value)}
                 placeholder="Type the result the AI would return. Plain text or JSON."
                 rows={6}
               />
-              <button
+              <Button
                 type="button"
-                className="button primary"
                 onClick={() => void complete()}
                 disabled={busy}
+                variant="default"
               >
                 {autoRun ? 'Complete and continue' : 'Complete step'}
-              </button>
+              </Button>
               <div className="muted work-hint">
                 The result is stored as the step output and shown in the Steps tree.
               </div>
@@ -339,23 +355,28 @@ export function WorkOrderCard({
           )}
 
           {friendly ? (
-            <div className="banner bad">
-              <strong>{friendly.title}.</strong> {friendly.detail}
-              {friendly.hint ? <div className="muted">{friendly.hint}</div> : null}
-            </div>
+            <Notice tone="danger" title={`${friendly.title}.`}>
+              {friendly.detail}
+              {friendly.hint ? <div className="mt-1 text-xs">{friendly.hint}</div> : null}
+            </Notice>
           ) : null}
 
           <details className="advanced">
             <summary>Usage and advanced actions</summary>
 
-            <button type="button" className="link" onClick={() => setShowUsage((value) => !value)}>
+            <Button
+              type="button"
+              variant="link"
+              className="h-auto p-0"
+              onClick={() => setShowUsage((value) => !value)}
+            >
               {showUsage ? 'Hide usage fields' : 'Report usage (optional)'}
-            </button>
+            </Button>
             {showUsage ? (
               <div className="usage-row">
                 <label>
                   turns
-                  <input
+                  <Input
                     value={turns}
                     onChange={(event) => setTurns(event.target.value)}
                     inputMode="numeric"
@@ -363,7 +384,7 @@ export function WorkOrderCard({
                 </label>
                 <label>
                   tokens
-                  <input
+                  <Input
                     value={tokens}
                     onChange={(event) => setTokens(event.target.value)}
                     inputMode="numeric"
@@ -371,7 +392,7 @@ export function WorkOrderCard({
                 </label>
                 <label>
                   tools
-                  <input
+                  <Input
                     value={toolCalls}
                     onChange={(event) => setToolCalls(event.target.value)}
                     inputMode="numeric"
@@ -379,7 +400,7 @@ export function WorkOrderCard({
                 </label>
                 <label>
                   violations
-                  <input
+                  <Input
                     value={violations}
                     onChange={(event) => setViolations(event.target.value)}
                     inputMode="numeric"
@@ -391,98 +412,98 @@ export function WorkOrderCard({
             <h4>Failure</h4>
             <label className="full">
               Failure error
-              <input
+              <Input
                 value={error}
                 onChange={(event) => setError(event.target.value)}
                 placeholder="why the step failed"
               />
             </label>
             <div className="actions">
-              <button
+              <Button
                 type="button"
-                className="button danger"
                 onClick={() => void fail()}
                 disabled={busy}
+                variant="destructive"
               >
                 Fail step
-              </button>
-              <button
+              </Button>
+              <Button
                 type="button"
-                className="button"
                 onClick={() => void exceedBudget()}
                 disabled={busy}
+                variant="outline"
               >
                 Exceed budget and complete
-              </button>
+              </Button>
             </div>
 
             <h4>Policy</h4>
             <div className="grid two">
               <label>
                 action
-                <input
+                <Input
                   value={policyAction}
                   onChange={(event) => setPolicyAction(event.target.value)}
                 />
               </label>
               <label>
                 tool
-                <input value={policyTool} onChange={(event) => setPolicyTool(event.target.value)} />
+                <Input value={policyTool} onChange={(event) => setPolicyTool(event.target.value)} />
               </label>
               <label>
                 resources
-                <input
+                <Input
                   value={policyResources}
                   onChange={(event) => setPolicyResources(event.target.value)}
                 />
               </label>
               <label>
                 command
-                <input
+                <Input
                   value={policyCommand}
                   onChange={(event) => setPolicyCommand(event.target.value)}
                 />
               </label>
               <label>
                 network
-                <input
+                <Input
                   value={policyNetwork}
                   onChange={(event) => setPolicyNetwork(event.target.value)}
                 />
               </label>
             </div>
             <div className="actions">
-              <button type="button" className="button" onClick={() => void check()} disabled={busy}>
+              <Button type="button" onClick={() => void check()} disabled={busy} variant="outline">
                 Check policy
-              </button>
-              <button type="button" className="button" onClick={() => void heartbeat()}>
+              </Button>
+              <Button type="button" onClick={() => void heartbeat()} variant="outline">
                 Renew lease
-              </button>
+              </Button>
             </div>
             {decision ? <JsonView value={decision} /> : null}
 
             <h4>Violation</h4>
             <label className="full">
               Violation reason
-              <input
+              <Input
                 value={violationReason}
                 onChange={(event) => setViolationReason(event.target.value)}
               />
             </label>
-            <button
+            <Button
               type="button"
-              className="button"
               onClick={() => void raiseViolation()}
               disabled={busy}
+              variant="outline"
             >
               Record violation
-            </button>
+            </Button>
 
             <h4>Spawn workers</h4>
             <div className="row">
               <label>
                 Count
-                <input
+                <Input
                   value={spawnCount}
                   onChange={(event) => setSpawnCount(event.target.value)}
                   inputMode="numeric"
@@ -490,14 +511,14 @@ export function WorkOrderCard({
               </label>
               <label className="grow">
                 Prompt
-                <input
+                <Input
                   value={spawnPrompt}
                   onChange={(event) => setSpawnPrompt(event.target.value)}
                 />
               </label>
-              <button type="button" className="button" onClick={() => void spawn()} disabled={busy}>
+              <Button type="button" onClick={() => void spawn()} disabled={busy} variant="outline">
                 Spawn
-              </button>
+              </Button>
             </div>
           </details>
         </div>

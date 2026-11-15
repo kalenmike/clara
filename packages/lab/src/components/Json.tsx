@@ -1,4 +1,5 @@
 import { json } from '../lib/format'
+import { Button } from '@clara/ui/components/button'
 
 export function JsonView({
   value,
@@ -21,14 +22,15 @@ export function JsonView({
 
 export function CopyButton({ value, label = 'Copy' }: { value: unknown; label?: string }) {
   return (
-    <button
+    <Button
       type="button"
-      className="button ghost small"
       onClick={() => {
         void navigator.clipboard?.writeText(json(value)).catch(() => {})
       }}
+      variant="ghost"
+      size="xs"
     >
       {label}
-    </button>
+    </Button>
   )
 }
