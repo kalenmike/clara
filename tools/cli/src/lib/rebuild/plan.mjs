@@ -133,7 +133,7 @@ export function restartPlan(state, { skip = [], manageExternal = false, only, mo
         mode: capturedMode,
       })
       warnings.push(
-        `orchestrator at ${captured.url} is external; pass --manage-external to restart it`
+        `engine at ${captured.url} is external; pass --manage-external to restart it`
       )
       continue
     }
@@ -221,13 +221,13 @@ export function evaluateHealth(state, observed, { adapter, now = new Date(), mod
     )
   }
   if (state?.orchestrator?.external) {
-    orchestrator.warnings.push('orchestrator is managed outside this checkout')
+    orchestrator.warnings.push('engine is managed outside this checkout')
   }
   services.push(orchestrator)
 
   const lab = serviceResult('lab', state?.lab?.expected, observed?.lab)
   if (state?.lab?.connected && observed?.lab?.healthy && !observed.lab.connected) {
-    lab.warnings.push(`lab lost its orchestrator connection at ${state.lab.orchestrator}`)
+    lab.warnings.push(`lab lost its engine connection at ${state.lab.orchestrator}`)
   }
   if (
     state?.lab?.workspace &&
@@ -333,7 +333,8 @@ export function summarizeHealth(report) {
   const lines = []
   for (const service of report.services) {
     const marker = service.expected ? (service.healthy ? 'ok' : 'fail') : 'skip'
-    lines.push(`${marker.padEnd(4)} ${service.name.padEnd(12)} ${service.url ?? '-'}`)
+    const name = service.name === 'orchestrator' ? 'engine' : service.name
+    lines.push(`${marker.padEnd(4)} ${name.padEnd(12)} ${service.url ?? '-'}`)
   }
   lines.push(
     `${report.adapters.opencode.linked && report.adapters.opencode.agentInstalled ? 'ok' : 'fail'}   adapter      ${report.adapters.opencode.target ?? '-'}`

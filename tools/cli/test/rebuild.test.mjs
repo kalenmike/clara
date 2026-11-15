@@ -506,7 +506,7 @@ test('health reports a lost lab connection without failing the lab itself', () =
     { adapter }
   )
   assert.equal(report.ok, true)
-  assert.ok(report.warnings.some((warning) => warning.includes('lost its orchestrator')))
+  assert.ok(report.warnings.some((warning) => warning.includes('lost its engine')))
 })
 
 test('health fails when the adapter is missing or the MCP entry was expected', () => {

@@ -32,7 +32,7 @@ test('maps the public hub target to the internal server service', () => {
 })
 
 test('limits backup and pairing targets', () => {
-  assert.deepEqual(BACKUP_TARGETS, ['default', 'hub', 'orchestrator'])
+  assert.deepEqual(BACKUP_TARGETS, ['default', 'hub', 'engine', 'orchestrator'])
   assert.deepEqual(PAIR_TARGETS, ['default', 'hub', 'adapter'])
   assert.equal(takeTarget(['hub', 'archive.tar.gz'], BACKUP_TARGETS).target, 'hub')
   assert.equal(takeTarget(['archive.tar.gz'], BACKUP_TARGETS).target, 'default')

@@ -1,5 +1,5 @@
 import { spawnSync } from 'node:child_process'
-import { CONTAINERS, SERVICES, orchestratorURL } from './stack-control.mjs'
+import { CONTAINERS, SERVICES, engineURL } from './stack-control.mjs'
 import { localURL, panelURL, probe } from './server-control.mjs'
 import { webURL } from './web-control.mjs'
 import { docsPort, docsURL, labPort, labURL, labHealthy } from './dev-services.mjs'
@@ -40,7 +40,8 @@ async function probeService(url, service) {
   if (!body || typeof body !== 'object' || Array.isArray(body)) {
     return { health: 'fail', error: `${url} did not return a health object` }
   }
-  if (body.service !== service) {
+  const expected = Array.isArray(service) ? service : [service]
+  if (!expected.includes(body.service)) {
     return {
       health: 'foreign',
       error: `${url} answered as ${typeof body.service === 'string' ? body.service : 'another service'}`,
@@ -78,25 +79,29 @@ export function displayState(record) {
 }
 
 async function collectOrchestratorStatus() {
-  const service = await probeService(`${orchestratorURL()}/health`, 'clara-orchestrator')
+  const service = await probeService(`${engineURL()}/health`, [
+    'clara-engine',
+    'clara-orchestrator',
+  ])
   const container = containerState(CONTAINERS.orchestrator)
   const mode =
     service.body?.mode ??
     (container.state === 'running' ? 'container' : service.health === 'ok' ? 'external' : 'unknown')
   const resolved = resolveState({ health: service.health, container, mode })
   return {
-    service: 'orchestrator',
+    service: 'engine',
     container: CONTAINERS.orchestrator,
     state: resolved.state,
     mode: resolved.mode,
     healthy: resolved.state === 'running',
-    url: orchestratorURL(),
+    url: engineURL(),
     error: service.error ?? null,
     details: {
       database:
         resolved.mode === 'container'
-          ? process.env.CLARA_ORCHESTRATOR_DATA_DIR?.trim()
-            ? 'host bind from CLARA_ORCHESTRATOR_DATA_DIR'
+          ? process.env.CLARA_ENGINE_DATA_DIR?.trim() ||
+            process.env.CLARA_ORCHESTRATOR_DATA_DIR?.trim()
+            ? 'host bind from CLARA_ENGINE_DATA_DIR'
             : 'Docker volume clara-orchestrator-data'
           : resolved.mode === 'local'
             ? 'local data directory'
@@ -239,6 +244,7 @@ async function collectDocsStatus() {
 }
 
 const collectors = {
+  engine: collectOrchestratorStatus,
   orchestrator: collectOrchestratorStatus,
   server: collectServerStatus,
   hub: collectServerStatus,

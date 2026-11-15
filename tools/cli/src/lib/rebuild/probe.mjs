@@ -9,7 +9,7 @@ import { join } from 'node:path'
 import { setTimeout as delay } from 'node:timers/promises'
 import { isRuntimeLive, readRuntimeState } from '@clara/runtime-state'
 import { findListenerPid, systemdUnitActive } from '../local-runtime.mjs'
-import { readDockerToken, orchestratorContainerRunning } from '../stack-control.mjs'
+import { engineContainerRunning, readEngineToken } from '../stack-control.mjs'
 import { dataDir } from './state.mjs'
 
 export {
@@ -47,10 +47,10 @@ export function ensureHttpURL(value) {
 }
 
 export function orchestratorURL(env = process.env) {
-  const configured = ensureHttpURL(env.CLARA_ORCHESTRATION_URL)
+  const configured = ensureHttpURL(env.CLARA_ENGINE_URL || env.CLARA_ORCHESTRATION_URL)
   if (configured) return configured
-  const host = env.CLARA_ORCHESTRATION_HOST?.trim() || '127.0.0.1'
-  const port = positiveInt(env.CLARA_ORCHESTRATION_PORT, 8789)
+  const host = env.CLARA_ENGINE_HOST?.trim() || env.CLARA_ORCHESTRATION_HOST?.trim() || '127.0.0.1'
+  const port = positiveInt(env.CLARA_ENGINE_PORT ?? env.CLARA_ORCHESTRATION_PORT, 8789)
   return `http://${host}:${port}`
 }
 
@@ -63,10 +63,10 @@ export function isLoopbackURL(value) {
 }
 
 export function readToken(env = process.env) {
-  const configured = env.CLARA_ORCHESTRATION_TOKEN?.trim()
+  const configured = env.CLARA_ENGINE_TOKEN?.trim() || env.CLARA_ORCHESTRATION_TOKEN?.trim()
   if (configured) return configured
 
-  const file = env.CLARA_ORCHESTRATION_TOKEN_FILE?.trim()
+  const file = env.CLARA_ENGINE_TOKEN_FILE?.trim() || env.CLARA_ORCHESTRATION_TOKEN_FILE?.trim()
   if (file) {
     try {
       return readFileSync(file, 'utf8').trim()
@@ -77,16 +77,19 @@ export function readToken(env = process.env) {
 
   // The Docker stack keeps its own control token so a local install and a
   // containerised stack never share credentials.
-  if (orchestratorContainerRunning()) {
-    const dockerToken = readDockerToken(undefined, env)
+  if (engineContainerRunning()) {
+    const dockerToken = readEngineToken(undefined, env)
     if (dockerToken) return dockerToken
   }
 
-  try {
-    return readFileSync(join(dataDir(env), 'orchestrator.token'), 'utf8').trim()
-  } catch {
-    return ''
+  for (const name of ['engine.token', 'orchestrator.token']) {
+    try {
+      return readFileSync(join(dataDir(env), name), 'utf8').trim()
+    } catch {
+      // Try the next name.
+    }
   }
+  return ''
 }
 
 export async function fetchJson(url, { timeoutMs = 1500, headers } = {}) {
@@ -122,7 +125,11 @@ export async function probeOrchestrator({
 } = {}) {
   const base = ensureHttpURL(url)
   const health = await fetchJson(`${base}/health`, { timeoutMs })
-  if (!health.ok || !health.body || health.body.service !== 'clara-orchestrator') {
+  if (
+    !health.ok ||
+    !health.body ||
+    (health.body.service !== 'clara-engine' && health.body.service !== 'clara-orchestrator')
+  ) {
     return {
       expected: false,
       healthy: false,
@@ -155,7 +162,7 @@ export async function probeOrchestrator({
       result.workspace = stringOrUndefined(config.body.workspace)
       result.configPath = stringOrUndefined(config.body.configPath)
     } else if (config.status === 401) {
-      result.warning = 'the orchestrator rejected the token; workspace is unknown'
+      result.warning = 'the engine rejected the token; workspace is unknown'
     }
   }
   return result
@@ -196,7 +203,7 @@ export async function probeLabPort(port, timeoutMs = 1200) {
     pid: numberOrNull(health.body.pid) ?? findListenerPid(port) ?? null,
     root: stringOrUndefined(health.body.root),
     workspace: stringOrUndefined(health.body.workspace),
-    orchestrator: stringOrUndefined(health.body.orchestrator),
+    orchestrator: stringOrUndefined(health.body.engine ?? health.body.orchestrator),
     orchestratorWorkspace: stringOrUndefined(health.body.orchestratorWorkspace),
     connected: health.body.connected === true,
     version: stringOrUndefined(health.body.version),

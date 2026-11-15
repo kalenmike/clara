@@ -12,6 +12,7 @@ export const LIFECYCLE_TARGETS = [
   'default',
   'hub',
   'web',
+  'engine',
   'orchestrator',
   'adapter',
   'runner',
@@ -21,9 +22,19 @@ export const LIFECYCLE_TARGETS = [
 
 export const CORE_TARGETS = ['hub', 'web', 'orchestrator']
 
-export const BACKUP_TARGETS = ['default', 'hub', 'orchestrator']
+export const BACKUP_TARGETS = ['default', 'hub', 'engine', 'orchestrator']
 
 export const PAIR_TARGETS = ['default', 'hub', 'adapter']
+
+/**
+ * `engine` is the public name. The rebuild snapshot and the internal service
+ * map still use `orchestrator` for one release, so the alias resolves here.
+ */
+const TARGET_ALIASES = { engine: 'orchestrator' }
+
+export function normalizeTarget(target) {
+  return TARGET_ALIASES[target] ?? target
+}
 
 /** Target names that map to the internal `server` service key. */
 export function serviceKey(target) {
