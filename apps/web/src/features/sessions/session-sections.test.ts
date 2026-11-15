@@ -1,5 +1,6 @@
 import { describe, expect, it } from 'vitest'
 import type { ClaraSession } from '@clara/api-contract'
+import type { SessionMailboxSignals } from '@clara/shared-types'
 import { groupSessionsByMailbox, mergeSessionLists, mergeSessionPages } from './session-sections'
 
 function session(
@@ -76,6 +77,40 @@ describe('groupSessionsByMailbox', () => {
     const merged = mergeSessionLists([active], [archived])
 
     expect(merged).toEqual([archived])
+  })
+
+  it('keeps a running session in Inbox while it waits on a form', () => {
+    const blocked = session('blocked', 4)
+    const signals: ReadonlyMap<string, SessionMailboxSignals> = new Map([
+      ['blocked', { last: 'assistant', awaitingInput: true, lastError: false, planReply: false }],
+    ])
+
+    const groups = groupSessionsByMailbox(
+      [blocked],
+      signals,
+      { blocked: { type: 'running' } },
+      new Set()
+    )
+
+    expect(groups.inbox.map((item) => item.id)).toEqual(['blocked'])
+    expect(groups.outbox).toHaveLength(0)
+  })
+
+  it('keeps a running session in Outbox when nothing waits on the person', () => {
+    const working = session('working', 4)
+    const signals: ReadonlyMap<string, SessionMailboxSignals> = new Map([
+      ['working', { last: 'assistant', awaitingInput: false, lastError: false, planReply: false }],
+    ])
+
+    const groups = groupSessionsByMailbox(
+      [working],
+      signals,
+      { working: { type: 'running' } },
+      new Set()
+    )
+
+    expect(groups.outbox.map((item) => item.id)).toEqual(['working'])
+    expect(groups.inbox).toHaveLength(0)
   })
 })
 
