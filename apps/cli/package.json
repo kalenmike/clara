@@ -27,6 +27,7 @@
     "@clara/lab-server": "workspace:*",
     "@clara/runner": "workspace:*",
     "@clara/runtime-state": "workspace:*",
+    "@clara/service-control": "workspace:*",
     "@clara/shared-types": "workspace:*"
   },
   "devDependencies": {

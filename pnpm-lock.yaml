@@ -176,6 +176,9 @@ importers:
       '@clara/runtime-state':
         specifier: workspace:*
         version: link:../../packages/runtime-state
+      '@clara/service-control':
+        specifier: workspace:*
+        version: link:../../packages/orchestration/control
       '@clara/shared-types':
         specifier: workspace:*
         version: link:../../packages/contracts/shared-types
