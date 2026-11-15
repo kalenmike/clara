@@ -32,12 +32,13 @@ RUN corepack enable && bun --version
 WORKDIR /repo
 COPY package.json pnpm-lock.yaml pnpm-workspace.yaml tsconfig.base.json ./
 # These manifest copies cover the workspace dependency closure of the hub
-# binary. Missing packages make the build fail to resolve imports even though
+# binary, including the shared panel and its component library. Missing packages make the build fail to resolve imports even though
 # the filtered install succeeds.
 COPY apps/hub/server/package.json apps/hub/server/package.json
 COPY apps/hub/panel/package.json apps/hub/panel/package.json
 COPY packages/panel/package.json packages/panel/package.json
 COPY packages/theme/package.json packages/theme/package.json
+COPY packages/ui/package.json packages/ui/package.json
 COPY packages/sqlite/package.json packages/sqlite/package.json
 COPY packages/runtime-state/package.json packages/runtime-state/package.json
 COPY packages/crypto/package.json packages/crypto/package.json
@@ -54,6 +55,7 @@ COPY apps/hub/server apps/hub/server
 COPY apps/hub/panel apps/hub/panel
 COPY packages/panel packages/panel
 COPY packages/theme packages/theme
+COPY packages/ui packages/ui
 COPY infra/relay infra/relay
 COPY tools/build tools/build
 COPY packages/sqlite packages/sqlite
