@@ -11,7 +11,8 @@ for every AI agent working in this repo.
 ```text
 apps/web                             React/Vite SPA (Cloudflare Pages or the web container)
 apps/desktop                         Tauri shell that packages the web client for desktop
-apps/hub/panel                       Authenticated hub panel and setup surface
+apps/desktop/host                    Loopback adapter-host sidecar for local, SSH, and Docker installs
+apps/hub/panel                       Hub panel entry that serves the shared panel package
 apps/hub/desktop                     Tauri tray app that runs the Bun hub sidecar and panel
 apps/hub/server                      Node hub service, local WS + outbound Cloudflare relay
 apps/orchestrator                    Loopback orchestration service, REST/SSE/MCP
@@ -35,6 +36,8 @@ packages/orchestration/mcp           Orchestration MCP tools and stdio bridge
 packages/adapters/runtime            Harness-neutral adapter runtime and supervision
 packages/adapters/binding            Orchestration binding client, delivery, and usage
 packages/adapters/runner             Shared script runner for harness adapters
+packages/adapters/install            Adapter install planning, target discovery, and jobs
+packages/panel                       Shared hub panel UI for the served and bundled routes
 packages/preview                     Pipeline preview, diagnostics, and snapshot diff SDK
 packages/crypto                      Device-key derivation, AES-GCM envelopes, replay guard
 infra/relay                          Cloudflare Worker + RelayRoom Durable Object

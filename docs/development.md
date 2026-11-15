@@ -132,6 +132,19 @@ Each build verifies the result:
   are present;
 - disabled: those routes, strings, and the relay artifact are absent.
 
+### Panel UI and adapter installs
+
+`packages/panel` (`@clara/panel`) owns the shared panel UI. The hub service serves
+it on the loopback panel listener, and the web and desktop clients render the
+same package at `/hub` over the paired E2EE session. Hosts differ only in the API
+transport and capability set: the served panel keeps its HttpOnly session
+cookie, while a tunneled panel uses a session bearer token and disables controls
+that would cut its own connection.
+
+`apps/desktop/host` is the loopback adapter-host sidecar. It reuses
+`packages/adapters/install` for planning, target discovery, and jobs, and it
+remains the surface that runs local, SSH, and Docker adapter installs.
+
 ## Developer commands
 
 ```bash
