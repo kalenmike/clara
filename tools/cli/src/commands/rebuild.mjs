@@ -26,43 +26,20 @@ import {
   runStatus,
   summarizeHealth,
 } from '../lib/rebuild/run.mjs'
+import { clara } from '../clara.mjs'
+import { renderHelp } from '../lib/router.mjs'
 
-const USAGE = [
-  'Clara rebuild lifecycle',
-  '',
-  'Usage:',
-  '  pnpm clara rebuild status [--json] [--root <path>] [--state <path>]',
-  '  pnpm clara rebuild build [--json] [--root <path>] [--state <path>]',
-  '  pnpm clara rebuild adapters [--json] [--root <path>] [--state <path>] [--mcp|--no-mcp]',
-  '  pnpm clara rebuild restart [--json] [--dry-run] [--local|--docker|--all] [--manage-external] [--force] [--skip <service>]',
-  '  pnpm clara rebuild health [--json] [--state <path>] [--local|--docker|--all]',
-  '  pnpm clara rebuild inspect [--json] [--state <path>] [--lines <n>]',
-  '  pnpm clara rebuild recover [--json] [--local|--docker|--all] [--manage-external] [--force] [--skip <service>]',
-  '',
-  'Options:',
-  '  --root <path>       Build checkout (default: the primary worktree)',
-  '  --state <path>      Snapshot path (default: <data dir>/rebuild/setup.json)',
-  '  --json              Print machine-readable JSON on stdout',
-  '  --local             Manage local services only',
-  '  --docker            Manage container services only (default)',
-  '  --all               Manage local and container services together',
-  '  --dry-run           Show the restart plan without changing services',
-  '  --manage-external   Restart an orchestrator that is managed outside this checkout',
-  '  --force             Ignore a stale snapshot or completed restart journal',
-  '  --skip <service>    Skip web, lab, hub, or orchestrator (repeatable)',
-  '  --mcp / --no-mcp    Install or skip the MCP entry',
-  '  -h, --help          Show this help',
-].join('\n')
+const USAGE = renderHelp(clara, ['rebuild'])
 
 function main(argv) {
   const { command, options, help } = parseArgs(argv)
-  if (help || !command) {
-    console.log(USAGE)
-    return command ? 0 : 2
-  }
-  if (command === 'help') {
+  if (help || command === 'help') {
     console.log(USAGE)
     return 0
+  }
+  if (!command) {
+    console.log(USAGE)
+    return 2
   }
   if (
     !['status', 'build', 'adapters', 'restart', 'health', 'inspect', 'recover'].includes(command)

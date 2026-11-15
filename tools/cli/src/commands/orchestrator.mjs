@@ -9,7 +9,7 @@
 import { existsSync } from 'node:fs'
 import { join } from 'node:path'
 import { followLog } from '../lib/local-runtime.mjs'
-import { root, run, runNode, runPnpm } from '../lib/router.mjs'
+import { renderCommandHelp, root, run, runNode, runPnpm } from '../lib/router.mjs'
 import { printServiceStatus, readServiceArgs } from '../lib/service-cli.mjs'
 import {
   composeEnvValues,
@@ -119,21 +119,31 @@ async function logs() {
 }
 
 function printHelp() {
-  console.log(`Run the Clara orchestration service
-
-Usage:
-  pnpm clara <command> orchestrator [--local|--docker] [options]
-
-Commands:
-  start [--build]     Start the container, or the local service with --local
-  stop                Stop the container, or the local service with --local
-  restart [--build]   Restart the selected mode
-  serve               Run the local service in the foreground
-  status [--json]     Probe the service
-  logs                Follow container logs, or the local log with --local
-  analyze             Analyze run history for failure patterns
-  inspect             Read one failed run's evidence
-  token               Print the active bearer token
-
-Docker is the default. Pass --local to use the PID-managed local service.`)
+  console.log(
+    renderCommandHelp({
+      summary: 'Manage the Clara orchestration service',
+      usage: [
+        'start orchestrator [--docker|--local] [--build] [--foreground]',
+        'stop orchestrator [--docker|--local]',
+        'restart orchestrator [--docker|--local] [--build]',
+        'status orchestrator [--json]',
+        'logs orchestrator [--docker|--local] [--lines <n>] [--no-follow]',
+      ],
+      options: [
+        { flags: '--docker', description: 'use the clara-orchestrator container (default)' },
+        { flags: '--local', description: 'use the PID-managed local service' },
+        { flags: '--build', description: 'build before starting' },
+        { flags: '--foreground', description: 'start: run the local service in the foreground' },
+        { flags: '--json', description: 'machine-readable status' },
+        { flags: '--lines <n>', description: 'tail length (default 80)' },
+        { flags: '--no-follow', description: 'print the tail and exit' },
+      ],
+      examples: [
+        'clara start orchestrator',
+        'clara start orchestrator --foreground',
+        'clara status orchestrator',
+        'clara logs orchestrator --local',
+      ],
+    })
+  )
 }

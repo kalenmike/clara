@@ -11,7 +11,7 @@ import { existsSync } from 'node:fs'
 import { join } from 'node:path'
 import { logPath } from '../lib/local-runtime.mjs'
 import { WEB_DIST } from '../lib/local-web.mjs'
-import { root } from '../lib/router.mjs'
+import { renderCommandHelp, root } from '../lib/router.mjs'
 import { probe } from '../lib/server-control.mjs'
 import { readServiceArgs, runServiceLifecycle } from '../lib/service-cli.mjs'
 import { compose, waitForWeb, webPort, webURL } from '../lib/web-control.mjs'
@@ -77,18 +77,25 @@ if (!(await runServiceLifecycle(webService, ctx))) {
 }
 
 function printHelp() {
-  console.log(`Manage the Clara web client
-
-Usage:
-  pnpm clara <command> web [--local|--docker] [options]
-
-Commands:
-  start [--build]     Start the container, or the built SPA with --local
-  stop                Stop the container, or the local server with --local
-  restart [--build]   Restart the selected mode
-  status [--json]     Probe the /healthz endpoint
-  logs                Follow container logs, or the local log with --local
-
-Docker is the default. Local mode serves apps/web/dist on CLARA_WEB_PORT
-(default 8080) with the same /healthz contract as the container.`)
+  console.log(
+    renderCommandHelp({
+      summary: 'Manage the Clara web client',
+      usage: [
+        'start web [--docker|--local] [--build]',
+        'stop web [--docker|--local]',
+        'restart web [--docker|--local] [--build]',
+        'status web [--json]',
+        'logs web [--docker|--local] [--lines <n>] [--no-follow]',
+      ],
+      options: [
+        { flags: '--docker', description: 'use the clara-web container (default)' },
+        { flags: '--local', description: 'serve the built SPA from apps/web/dist' },
+        { flags: '--build', description: 'build before starting' },
+        { flags: '--json', description: 'machine-readable status' },
+        { flags: '--lines <n>', description: 'tail length (default 80)' },
+        { flags: '--no-follow', description: 'print the tail and exit' },
+      ],
+      examples: ['clara start web --local', 'clara status web', 'clara logs web --local'],
+    })
+  )
 }

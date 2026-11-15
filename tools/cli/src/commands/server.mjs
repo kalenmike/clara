@@ -15,7 +15,7 @@ import { existsSync } from 'node:fs'
 import { isRuntimeLive, readRuntimeState } from '@clara/runtime-state'
 import { logPath } from '../lib/local-runtime.mjs'
 import { openPanel } from '../lib/panel.mjs'
-import { root } from '../lib/router.mjs'
+import { renderCommandHelp, root } from '../lib/router.mjs'
 import {
   compose,
   detectServerTarget,
@@ -231,29 +231,34 @@ async function chooseTarget() {
 }
 
 function printHelp() {
-  console.log(`Manage the Clara hub
-
-Usage:
-  pnpm clara <command> hub [--local|--docker] [options]
-
-Commands:
-  start [--build]              Start the container, or the local hub service with --local
-  stop                         Stop the container, or the local hub service with --local
-  restart [--build]            Restart the selected mode
-  status [--json]              Probe the panel and local listener
-  panel                        Open the hub panel in a browser
-  setup                        Create the owner account without a browser
-  setup-token                  Print a host-supplied setup token, when one is configured
-  admin reset                  Reset the panel superadmin password
-  pair [--no-relay]            Print a pairing code from the selected deployment
-  logs                         Follow container logs, or the local log with --local
-
-Docker is the default. Pass --local to run the built agent as a detached local
-process for start, stop, restart, and logs. For setup, setup-token, admin, and
-pair, --local selects the host install and --docker selects the container.
-Pair with --no-relay to emit a local-only code and print the local web app link.
-
-'clara-server setup --password-stdin' reads the owner password from stdin.
-It works after the hub has started in setup mode. For unattended start, set
-CLARA_ADMIN_PASSWORD or CLARA_ADMIN_PASSWORD_FILE before the hub starts.`)
+  console.log(
+    renderCommandHelp({
+      summary: 'Manage the Clara hub',
+      usage: [
+        'start hub [--docker|--local] [--build]',
+        'stop hub [--docker|--local]',
+        'restart hub [--docker|--local] [--build]',
+        'status hub [--json]',
+        'status hub --open',
+        'logs hub [--docker|--local] [--lines <n>] [--no-follow]',
+        'pair hub [--no-relay] [--docker|--local]',
+      ],
+      options: [
+        { flags: '--docker', description: 'use the clara-server container' },
+        { flags: '--local', description: 'use the local hub service' },
+        { flags: '--build', description: 'build before starting' },
+        { flags: '--json', description: 'machine-readable status' },
+        { flags: '--open', description: 'open the hub panel' },
+        { flags: '--no-relay', description: 'print a local-only pairing code' },
+        { flags: '--lines <n>', description: 'tail length (default 80)' },
+        { flags: '--no-follow', description: 'print the tail and exit' },
+      ],
+      examples: [
+        'clara start hub --local',
+        'clara start hub --open',
+        'clara status hub --open',
+        'clara pair hub --no-relay',
+      ],
+    })
+  )
 }

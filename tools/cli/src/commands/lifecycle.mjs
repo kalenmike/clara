@@ -44,11 +44,12 @@ import {
   stopLab,
   typecheckDocs,
 } from '../lib/dev-services.mjs'
+import { clara } from '../clara.mjs'
 import { adapterInstallCommand, createAdapterPairing } from '../lib/hub-pairing.mjs'
 import { logPath, stateDir } from '../lib/local-runtime.mjs'
 import { followCommands, followFiles } from '../lib/multi-log.mjs'
 import { openPanel } from '../lib/panel.mjs'
-import { root, runNode, runPnpm } from '../lib/router.mjs'
+import { renderHelp, root, runNode, runPnpm } from '../lib/router.mjs'
 import {
   readRunnerManifest,
   renderRunnerStatus,
@@ -1037,114 +1038,5 @@ function positiveNumber(value, flag) {
 }
 
 function printHelp(topic) {
-  if (topic === 'start' || topic === 'stop' || topic === 'restart') {
-    console.log(`${topic} a Clara target
-
-Usage:
-  clara ${topic} [target] [options]
-
-Targets:
-  default       hub + web + orchestrator
-  hub           Clara hub
-  web           web client
-  orchestrator  orchestration service
-  adapter       installed harness adapters
-  runner        shared script runner
-  lab           Clara Lab
-  docs          documentation site
-
-Core options:
-  --docker      use Docker (default)
-  --local       use host processes
-  --build       build before starting
-  --open        open the hub panel (start/restart hub)
-
-Adapter options:
-  --harness <opencode|claude|pi|all>
-  --pair [<code>]   install and pair
-  --mcp             register the MCP bridge
-  --mcp-api         register the read-only hub API MCP
-  --no-runner       skip the shared runner
-
-Runner options:
-  --workspace <path> --url <url> --concurrency <n> --label <name>
-  --no-service --foreground
-
-Lab options:
-  --workspace <path> --target <ref> --config <path> --port <n> --no-open --build
-
-Docs options:
-  --port <n> --no-open --preview --build`)
-    return
-  }
-  if (topic === 'status') {
-    console.log(`Inspect a Clara target
-
-Usage:
-  clara status [target] [--json]
-
-Targets:
-  default, hub, web, orchestrator, adapter, runner, lab, docs
-
-Options:
-  --json       machine-readable output
-  --harness    filter adapter status
-  --verify     run adapter verification
-  --directory  native workspace for --verify
-  --write      create a scratch session during --verify
-  --open       open the hub panel
-  --check      run the Lab or docs check
-  --typecheck  typecheck the docs site`)
-    return
-  }
-  if (topic === 'logs') {
-    console.log(`Follow Clara logs
-
-Usage:
-  clara logs [target] [--lines <n>] [--no-follow]
-
-Targets:
-  default, hub, web, orchestrator, adapter, runner, lab, docs
-
-Options:
-  --docker     read container logs
-  --local      read local log files
-  --harness    filter adapter logs
-  --lines <n>  tail length (default 80)
-  --no-follow  print the tail and exit`)
-    return
-  }
-  if (topic === 'backup' || topic === 'restore') {
-    console.log(`${topic} Clara state
-
-Usage:
-  clara backup [default|hub|orchestrator] [--output <path>]
-  clara restore [default|hub|orchestrator] <archive> [--force]`)
-    return
-  }
-  if (topic === 'pair') {
-    console.log(`Pair a device or harness adapter
-
-Usage:
-  clara pair [hub] [--no-relay] [--no-qr] [--no-panel] [--revoke-all] [--revoke <id>] [--docker|--local]
-  clara pair adapter --harness <opencode|claude|pi> [--transport local|relay|docker] [--ws-url <url>] [--docker|--local]`)
-    return
-  }
-
-  console.log(`Clara lifecycle
-
-Usage:
-  clara start [target] [options]
-  clara stop [target] [options]
-  clara restart [target] [options]
-  clara status [target] [options]
-  clara logs [target] [options]
-  clara backup [default|hub|orchestrator] [--output <path>]
-  clara restore [default|hub|orchestrator] <archive> [--force]
-  clara pair [hub|adapter] [options]
-
-Targets:
-  default, hub, web, orchestrator, adapter, runner, lab, docs
-
-Run \`clara <command> --help\` for command options.`)
+  console.log(renderHelp(clara, topic ? [topic] : []))
 }

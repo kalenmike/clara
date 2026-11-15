@@ -5,7 +5,7 @@ import { renderHelp, resolveCommand } from '../src/lib/router.mjs'
 const tree = {
   name: 'demo',
   summary: 'Demo tools',
-  examples: ['pnpm demo run'],
+  examples: ['demo run'],
   commands: [
     {
       name: 'run',
@@ -31,10 +31,10 @@ const tree = {
 test('renders root help with commands, examples, and version', () => {
   const help = renderHelp(tree)
   assert.match(help, /Demo tools/)
-  assert.match(help, /pnpm demo <command> \[options\]/)
+  assert.match(help, /demo <command> \[options\]/)
   assert.match(help, /run\s+Run something/)
   assert.match(help, /-v, --version/)
-  assert.match(help, /pnpm demo run/)
+  assert.match(help, /demo run/)
 })
 
 test('groups commands under their headings in first-appearance order', () => {
@@ -72,7 +72,7 @@ test('aligns grouped command columns to the widest name', () => {
 
 test('renders leaf usage and options', () => {
   const help = renderHelp(tree, ['run'])
-  assert.match(help, /pnpm demo run \[name\]/)
+  assert.match(help, /demo run \[name\]/)
   assert.match(help, /--now\s+Run immediately/)
   assert.doesNotMatch(help, /--version/)
 })
