@@ -10,10 +10,10 @@ import {
   restartStack,
   startStack,
   statusStack,
-  stopStack,
   type ServiceStatus,
   type StatusReport,
 } from '../service/lifecycle.ts'
+import { stopStack, waitForStackStop } from '../service/stop.ts'
 import { followLogs } from '../service/logs.ts'
 import { isServiceName, SPECS } from '../service/specs.ts'
 import { mismatchNote, statusColumns } from '../service/status-view.ts'
@@ -106,7 +106,12 @@ export async function runStart(args: readonly string[]): Promise<number> {
   const ports = resolvePorts()
   const services = parsed.explicit ? parsed.services : defaultServices()
 
-  const running = liveState(paths)
+  let running = liveState(paths)
+  if (running?.supervisor.state === 'stopping') {
+    console.log(dim('The previous stack is still stopping…'))
+    await waitForStackStop(paths)
+    running = liveState(paths)
+  }
   if (running) {
     console.log(warn('The Clara stack is already running.'))
     await printStatus(paths, ports, services, false)
@@ -116,22 +121,33 @@ export async function runStart(args: readonly string[]): Promise<number> {
 
   const foreground = parsed.flags.has('--foreground')
   const spinner = foreground ? undefined : startSpinner(`Starting ${services.join(', ')}`)
-  const code = await startStack({ paths, ports, services, foreground })
-  if (code !== 0) {
-    spinner?.fail('The Clara stack did not start.')
-    console.error(red('The Clara stack did not start.'))
-    for (const name of services) {
-      const tail = logTail(paths, name, 15)
-      if (tail) console.error(dim(`--- ${name} ---\n${tail}`))
+  try {
+    const code = await startStack({
+      paths,
+      ports,
+      services,
+      foreground,
+      ...(spinner ? { onProgress: (message: string) => spinner.update(message) } : {}),
+    })
+    if (code !== 0) {
+      spinner?.fail('The Clara stack did not start.')
+      console.error(red('The Clara stack did not start.'))
+      for (const name of services) {
+        const tail = logTail(paths, name, 15)
+        if (tail) console.error(dim(`--- ${name} ---\n${tail}`))
+      }
+      return code
     }
-    return code
-  }
-  spinner?.succeed('Clara is running')
+    spinner?.succeed('Clara is running')
 
-  const report = await statusStack(paths, ports, services)
-  printSummary(report.services)
-  if (parsed.flags.has('--open')) openUrl(panelUrl(report))
-  return 0
+    const report = await statusStack(paths, ports, services)
+    printSummary(report.services)
+    if (parsed.flags.has('--open')) openUrl(panelUrl(report))
+    return 0
+  } catch (cause) {
+    spinner?.fail('The Clara stack did not start.')
+    throw cause
+  }
 }
 
 export async function runStop(args: readonly string[]): Promise<number> {
@@ -144,13 +160,25 @@ export async function runStop(args: readonly string[]): Promise<number> {
   }
   const target = parsed.explicit && parsed.services.length === 1 ? parsed.services[0] : undefined
   const spinner = startSpinner('Stopping the Clara stack')
-  const code = await stopStack(paths, target)
-  if (code === 0) {
-    spinner.succeed('Stopped the Clara stack.')
-  } else {
-    spinner.fail('The Clara stack did not stop cleanly.')
+  try {
+    const result = await stopStack(paths, target, {
+      onProgress: (message) => spinner.update(message),
+    })
+    if (result.code === 0) {
+      spinner.succeed('Stopped the Clara stack.')
+      if (result.cleaned.length > 0) {
+        console.log(dim(`Cleaned up ${result.cleaned.join(', ')} after the supervisor exited.`))
+      }
+      return 0
+    }
+    spinner.fail(`Could not stop ${result.survivors.join(', ')}.`)
+    console.error(warn(`Still running: ${result.survivors.join(', ')}.`))
+    console.error(dim('The state is kept so `clara stop` can try again.'))
+    return result.code
+  } catch (cause) {
+    spinner.fail('The Clara stack did not stop.')
+    throw cause
   }
-  return code
 }
 
 export async function runRestart(args: readonly string[]): Promise<number> {

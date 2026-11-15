@@ -35,6 +35,12 @@ export function readServicesState(file: string): ServicesState | undefined {
   }
 }
 
+/** The state of a stack whose supervisor is still alive. */
+export function liveServicesState(file: string): ServicesState | undefined {
+  const state = readServicesState(file)
+  return state && processAlive(state.supervisor.pid) ? state : undefined
+}
+
 /** Write atomically so a status probe never reads a half-written file. */
 export function writeServicesState(file: string, state: ServicesState): void {
   mkdirSync(dirname(file), { recursive: true, mode: 0o700 })

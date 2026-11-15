@@ -1,12 +1,18 @@
 import { spawn } from 'node:child_process'
-import { existsSync, readFileSync, rmSync } from 'node:fs'
+import { existsSync, readFileSync } from 'node:fs'
 import { isRuntimeLive, readRuntimeState } from '@clara/runtime-state'
 import { serviceLogPath, type ClaraPaths } from '../paths.ts'
 import type { Ports, ServiceName } from '../ports.ts'
 import { selfCommand } from '../self.ts'
-import { processAlive, readServicesState, type ServicesState } from '../state/services.ts'
+import {
+  liveServicesState,
+  processAlive,
+  readServicesState,
+  type ServicesState,
+} from '../state/services.ts'
 import { probe, waitFor } from './probe.ts'
 import { isServiceName, SPECS, START_ORDER, ordered } from './specs.ts'
+import { clearStaleStack, stopStack } from './stop.ts'
 import { version } from '../version.ts'
 
 export type ServiceStatus = {
@@ -31,7 +37,6 @@ export type StatusReport = {
 }
 
 const START_TIMEOUT_MS = 90_000
-const STOP_TIMEOUT_MS = 15_000
 
 export function defaultServices(): ServiceName[] {
   return [...START_ORDER]
@@ -45,8 +50,7 @@ export function resolveServices(values: readonly string[]): ServiceName[] {
 }
 
 export function liveState(paths: ClaraPaths): ServicesState | undefined {
-  const state = readServicesState(paths.stateFile)
-  return state && processAlive(state.supervisor.pid) ? state : undefined
+  return liveServicesState(paths.stateFile)
 }
 
 export async function statusStack(
@@ -118,11 +122,22 @@ export async function startStack(options: {
   ports: Ports
   services: readonly ServiceName[]
   foreground: boolean
+  onProgress?: (message: string) => void
 }): Promise<number> {
   const names = options.services.length > 0 ? [...options.services] : defaultServices()
   const running = liveState(options.paths)
   if (running) {
     return 0
+  }
+
+  // An interrupted stop can leave services behind with no live supervisor.
+  // Clean them up instead of starting a second stack on the same ports.
+  const stale = await clearStaleStack(options.paths, { onProgress: options.onProgress })
+  if (!stale.ok) {
+    console.error(
+      `Could not stop ${stale.survivors.join(', ')} from the previous stack; not starting another one.`
+    )
+    return 1
   }
 
   if (options.foreground) {
@@ -151,39 +166,6 @@ export async function startStack(options: {
   return 0
 }
 
-export async function stopStack(
-  paths: ClaraPaths,
-  target: ServiceName | undefined
-): Promise<number> {
-  const state = readServicesState(paths.stateFile)
-  if (!state || !processAlive(state.supervisor.pid)) {
-    const pid = readSupervisorPid(paths)
-    if (pid !== undefined && processAlive(pid)) {
-      await terminate(pid)
-      rmSync(paths.stateFile, { force: true })
-      rmSync(paths.supervisorPidFile, { force: true })
-      return 0
-    }
-    rmSync(paths.stateFile, { force: true })
-    rmSync(paths.supervisorPidFile, { force: true })
-    return 0
-  }
-
-  if (
-    target &&
-    !(state.supervisor.services.length === 1 && state.supervisor.services[0] === target)
-  ) {
-    throw new Error(
-      `The stack is supervised as one process (${state.supervisor.services.join(', ')}). Run \`clara stop\` to stop it.`
-    )
-  }
-
-  const stopped = await terminate(state.supervisor.pid)
-  rmSync(paths.stateFile, { force: true })
-  rmSync(paths.supervisorPidFile, { force: true })
-  return stopped ? 0 : 1
-}
-
 export async function restartStack(
   paths: ClaraPaths,
   ports: Ports,
@@ -192,8 +174,8 @@ export async function restartStack(
   const state = readServicesState(paths.stateFile)
   const previous = state?.supervisor.services ?? []
   const target = [...services]
-  const code = await stopStack(paths, undefined)
-  if (code !== 0) return code
+  const result = await stopStack(paths, undefined)
+  if (result.code !== 0) return result.code
   return startStack({
     paths,
     ports,
@@ -214,30 +196,5 @@ export function logTail(paths: ClaraPaths, service: ServiceName, lines = 20): st
       .trimEnd()
   } catch {
     return ''
-  }
-}
-
-async function terminate(pid: number): Promise<boolean> {
-  try {
-    process.kill(pid, 'SIGTERM')
-  } catch {
-    return true
-  }
-  const exited = await waitFor(() => !processAlive(pid), STOP_TIMEOUT_MS, 100)
-  if (exited) return true
-  try {
-    process.kill(pid, 'SIGKILL')
-  } catch {
-    return true
-  }
-  return waitFor(() => !processAlive(pid), 3_000, 50)
-}
-
-function readSupervisorPid(paths: ClaraPaths): number | undefined {
-  try {
-    const pid = Number.parseInt(readFileSync(paths.supervisorPidFile, 'utf8').trim(), 10)
-    return Number.isInteger(pid) && pid > 0 ? pid : undefined
-  } catch {
-    return undefined
   }
 }
