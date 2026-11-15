@@ -13,7 +13,7 @@ import {
   seal,
   utf8,
   verifyV4HelloMac,
-  type SessionKeys,
+  type V4SessionKeys,
   type V4EphemeralKeyPair,
 } from '@clara/crypto'
 import {
@@ -187,7 +187,7 @@ function closeServer(server: Server): Promise<void> {
 
 type Client = {
   sid: string
-  keys: SessionKeys
+  keys: V4SessionKeys
   sendSeq: number
   receiveSeq: number
 }
@@ -248,7 +248,7 @@ async function completeHandshake(
   hello: ClientHelloFrameV4,
   hubHello: HubHelloFrameV4,
   ephemeral: V4EphemeralKeyPair
-): Promise<SessionKeys> {
+): Promise<V4SessionKeys> {
   const input = {
     staticKey: key,
     sid: hello.sid,

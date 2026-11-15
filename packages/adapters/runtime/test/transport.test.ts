@@ -10,7 +10,7 @@ import {
   randomBytes,
   seal,
   utf8,
-  type SessionKeys,
+  type V4SessionKeys,
   type V4EphemeralKeyPair,
 } from '@clara/crypto'
 import { PROTOCOL_VERSION, RELAY_AUTH_PREFIX, type RelayGrantState } from '@clara/shared-types'
@@ -23,7 +23,7 @@ type Hello = {
   agentNonce: string
   clientEph: string
   ephemeral: V4EphemeralKeyPair
-  keys: SessionKeys
+  keys: V4SessionKeys
 }
 
 type ClientFrame = { seq: number; payload: Record<string, unknown> }
@@ -342,7 +342,7 @@ async function startHub(options: StartHubOptions = {}): Promise<FakeHub> {
   const sockets = new Set<WebSocket>()
   const protocols: Array<string | undefined> = []
   let client: WebSocket | undefined
-  let keys: SessionKeys | undefined
+  let keys: V4SessionKeys | undefined
   const clientFrames: ClientFrame[] = []
   const arrival: number[] = []
   let resolveHello!: (hello: Hello) => void

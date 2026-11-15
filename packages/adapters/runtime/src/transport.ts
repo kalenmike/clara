@@ -12,7 +12,7 @@ import {
   seal,
   utf8,
   verifyV4HelloMac,
-  type SessionKeys,
+  type V4SessionKeys,
   type V4EphemeralKeyPair,
 } from '@clara/crypto'
 import {
@@ -77,7 +77,7 @@ type Pending = {
 export class AdapterTransport {
   private readonly options: AdapterTransportOptions
   private socket: WebSocket | null = null
-  private keys: SessionKeys | null = null
+  private keys: V4SessionKeys | null = null
   private sid = ''
   private sendSeq = 0
   private sendChain: Promise<void> = Promise.resolve()

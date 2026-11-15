@@ -10,7 +10,7 @@ import {
   seal,
   utf8,
   verifyV4HelloMac,
-  type SessionKeys,
+  type V4SessionKeys,
 } from '@clara/crypto'
 import {
   PROTOCOL_VERSION,
@@ -68,7 +68,7 @@ async function waitFor<T>(
 
 type Client = {
   sid: string
-  keys: SessionKeys
+  keys: V4SessionKeys
   sendSeq: number
   receive: ReplayGuard
   seen: Set<number>

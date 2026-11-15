@@ -10,7 +10,7 @@ import {
   randomBytes,
   seal,
   utf8,
-  type SessionKeys,
+  type V4SessionKeys,
 } from '@clara/crypto'
 import { PROTOCOL_VERSION, RELAY_AUTH_PREFIX, type RelayGrantState } from '@clara/shared-types'
 import { REINSTALL_GRANT_MESSAGE } from '../src/config'
@@ -51,7 +51,7 @@ async function startHub(): Promise<EnrollmentHub> {
   server.on('connection', (socket, request) => {
     sockets.add(socket)
     protocols.push(request.headers['sec-websocket-protocol'])
-    let keys: SessionKeys | undefined
+    let keys: V4SessionKeys | undefined
     socket.on('message', (data) => {
       void handleFrame(data.toString()).catch(() => {})
     })

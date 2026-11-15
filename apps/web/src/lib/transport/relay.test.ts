@@ -12,7 +12,7 @@ import {
   randomBytes,
   seal,
   utf8,
-  type SessionKeys,
+  type V4SessionKeys,
 } from '@clara/crypto'
 import {
   PROTOCOL_VERSION,
@@ -435,7 +435,7 @@ function attachFakeAgent(
   key: string,
   options: RelayOptions & { greet?: Greet } = {}
 ): void {
-  let keys: SessionKeys | null = null
+  let keys: V4SessionKeys | null = null
   let sid = ''
   let sendSeq = 0
   let chain = Promise.resolve()

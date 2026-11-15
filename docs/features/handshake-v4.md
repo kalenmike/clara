@@ -162,9 +162,11 @@ mac     = HMAC(macKey, transcript)
   between fields, so the frame guards reject `|` inside `sid` and `nonce`.
 - The static key is the HKDF base key so a browser can keep it as a
   non-extractable `CryptoKey` and never export bytes. The ECDH secret goes into
-  the salt because the salt does not need to be secret. An attacker who records
-  a session and later steals the static key still lacks the discarded ephemeral
-  private key, so the salt and the session keys cannot be rebuilt.
+  the salt because HKDF-Extract keys the PRK with that salt: the salt must stay
+  secret for the forward-secrecy property, and only the ephemeral private keys
+  can rebuild it. An attacker who records a session and later steals the static
+  key still lacks the discarded ephemeral private key, so the salt and the
+  session keys cannot be rebuilt.
 - Both sides derive the same `c2s`, `s2c`, and `mac`. A client with the wrong
   static key derives a different MAC and must abort; the hub only accepts sealed
   frames that decrypt.

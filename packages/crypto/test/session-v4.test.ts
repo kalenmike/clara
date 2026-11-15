@@ -127,6 +127,43 @@ describe('v4 key schedule', () => {
     }
   })
 
+  it('cannot reopen a recorded session with the static key alone', async () => {
+    // Forward-secrecy regression: an attacker who records the transcript and
+    // later steals the static device key still lacks the discarded ephemeral
+    // private key. Holding the transcript and static key but deriving with a
+    // fresh ephemeral pair must not reproduce the recorded session keys.
+    const value = await setup()
+    const recorded = await deriveV4SessionKeys(clientInput(value))
+    const box = await seal(recorded.keys.c2s, c2s, utf8('recorded payload'))
+
+    const intruder = await generateEphemeralKeyPair()
+    const intruderPeer = await generateEphemeralKeyPair()
+    const attacked = await deriveV4SessionKeys({
+      ...clientInput(value),
+      privateKey: intruder.privateKey,
+      peerPublicKey: intruderPeer.publicKey,
+    })
+
+    expect(attacked.mac).not.toBe(recorded.mac)
+    await expect(open(attacked.keys.c2s, c2s, box)).rejects.toThrow()
+  })
+
+  it('rejects tampered ciphertext', async () => {
+    const value = await setup()
+    const keys = await deriveV4SessionKeys(clientInput(value))
+    const box = await seal(keys.keys.c2s, c2s, utf8('hello'))
+    const bytes = base64UrlToBytes(box.ct)
+    bytes[0] ^= 1
+    await expect(open(keys.keys.c2s, c2s, { ...box, ct: base64Url(bytes) })).rejects.toThrow()
+  })
+
+  it('binds the sequence number into the AAD', async () => {
+    const value = await setup()
+    const keys = await deriveV4SessionKeys(clientInput(value))
+    const box = await seal(keys.keys.c2s, c2s, utf8('a'))
+    await expect(open(keys.keys.c2s, { ...c2s, seq: c2s.seq + 1 }, box)).rejects.toThrow()
+  })
+
   it('rejects a peer key that is not an uncompressed P-256 point', async () => {
     const value = await setup()
     await expect(
