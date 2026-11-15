@@ -56,3 +56,6 @@ apps/desktop/src-tauri/icons/64x64.png
 # Docs
 tools/docs/.docusaurus
 tools/docs/build
+
+# Adapter manifests
+apps/web/public/adapters/*
