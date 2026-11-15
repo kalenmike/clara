@@ -25,9 +25,11 @@ model and agent selection, waiting question forms, and the plan-ready handoff.
 5. Select another tab to edit that session's draft without leaving the chat on
    screen, press its go-to button to open that session, or close the tab to drop
    the shortcut while keeping the local draft.
-6. Expand the composer to fill the screen, or minimize it to the tab strip. The
-   expand control restores the last expanded shape; a minimized tab selection
-   restores the composer before focusing the editor.
+6. Expand the composer to fill the screen, or collapse it to the tab strip with
+   the leading chevron. The chevron restores the last expanded shape from the
+   header, while Expand always goes fullscreen, including from a collapsed
+   composer. A minimized tab selection restores the composer before focusing the
+   editor.
 7. When a question form or plan-ready handoff is waiting, select its card above
    the editor. Send answers it, optionally with a message; a secondary Skip or
    Start button sits beside Send.
@@ -37,8 +39,10 @@ model and agent selection, waiting question forms, and the plan-ready handoff.
 1. The composer has exactly three shapes. **Pinned** is the default dock above
    the usage bar and is resizable from 220px to 720px. **Maximized** is a
    fullscreen panel with no margin or corner radius. **Minimized** shows only the
-   tab strip and controls. The height persists; the shape resets to pinned on
-   reload.
+   tab strip and controls. The leading chevron collapses an expanded composer and
+   restores a minimized one to its last expanded shape; the expand control only
+   toggles fullscreen and the pinned dock, and targets fullscreen from a
+   minimized header. The height persists; the shape resets to pinned on reload.
 2. The session on screen always has a highlighted tab and cannot close it, so
    the strip is never empty. Leaving a session keeps its tab only when that
    session's composer has unsent text or attachments. Tabs persist across
@@ -57,11 +61,13 @@ model and agent selection, waiting question forms, and the plan-ready handoff.
    open tab in memory. A successful send clears the editor and keeps the
    composer open; a failed send keeps the text, attachments, and delivery.
 6. Waiting requests belong to the composer. The first pending question is
-   selected by default, otherwise the plan-ready card. A touched form with a
-   message admits the prompt first with resume disabled, then answers the form;
-   an untouched form with a message is skipped before sending. A ready plan
-   starts through the secondary Start button and ignores typed text, which is
-   sent to the Plan agent as an adjustment.
+   selected by default, otherwise the plan-ready card. The cards scroll with the
+   editor rather than in their own scroller, so a tall form never hides the
+   message box. A touched form with a message admits the prompt first with
+   resume disabled, then answers the form; an untouched form with a message is
+   skipped before sending. A ready plan starts through the secondary Start
+   button and ignores typed text, which is sent to the Plan agent as an
+   adjustment.
 
 ## Edge cases
 
@@ -71,6 +77,9 @@ model and agent selection, waiting question forms, and the plan-ready handoff.
   a new line; tap Send to submit.
 - **Tab strip overflow** — tabs scroll horizontally and titles truncate; controls
   stay on the right.
+- **Tall question forms** — the request cards and the editor share one scroll
+  region, and the editor keeps a usable minimum height, so scrolling down always
+  reaches the message box.
 - **Closing tabs** — the current session's tab has no close control. Closing a
   selected tab returns the composer to the session on screen.
 - **Attachments only** — an attachment-only tab is kept during the visit but is

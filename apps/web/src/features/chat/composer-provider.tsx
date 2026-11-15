@@ -13,8 +13,8 @@ import { useMatches } from 'react-router'
 import {
   COMPOSER_LAYOUT_DEFAULT,
   expandComposer,
-  minimizeComposer,
   restoreComposer,
+  toggleComposerCollapse,
   type ComposerLayout,
 } from '@/features/chat/composer-layout'
 import {
@@ -71,7 +71,7 @@ type ComposerContextValue = {
   selectTab: (sessionID: string) => void
   closeTab: (sessionID: string) => void
   toggleExpand: () => void
-  minimize: () => void
+  toggleCollapse: () => void
   openModels: () => void
   openAgents: () => void
   consumeHandoff: () => void
@@ -205,8 +205,8 @@ export function ComposerProvider({ children }: { children: ReactNode }) {
     setFocusSignal((value) => value + 1)
   }, [])
 
-  const minimize = useCallback(() => {
-    setLayout((current) => minimizeComposer(current))
+  const toggleCollapse = useCallback(() => {
+    setLayout((current) => toggleComposerCollapse(current))
   }, [])
 
   const openModels = useCallback(() => {
@@ -271,7 +271,7 @@ export function ComposerProvider({ children }: { children: ReactNode }) {
       selectTab,
       closeTab,
       toggleExpand,
-      minimize,
+      toggleCollapse,
       openModels,
       openAgents,
       consumeHandoff,
@@ -289,7 +289,7 @@ export function ComposerProvider({ children }: { children: ReactNode }) {
       handoff,
       lastSent,
       layout,
-      minimize,
+      toggleCollapse,
       modelRequest,
       notifySent,
       open,

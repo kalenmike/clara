@@ -831,59 +831,61 @@ export function Composer({
           </div>
         )}
 
-        <ComposerRequestList
-          forms={forms}
-          planReady={planReady}
-          selection={activeSelection}
-          answers={formAnswers}
-          touchedForms={touchedForms}
-          pending={Boolean(disabled) || pending}
-          onSelectionChange={setSelection}
-          onAnswersChange={updateFormAnswers}
-        />
+        <div className="flex min-h-0 flex-1 flex-col overflow-y-auto overscroll-contain">
+          <ComposerRequestList
+            forms={forms}
+            planReady={planReady}
+            selection={activeSelection}
+            answers={formAnswers}
+            touchedForms={touchedForms}
+            pending={Boolean(disabled) || pending}
+            onSelectionChange={setSelection}
+            onAnswersChange={updateFormAnswers}
+          />
 
-        {files.length > 0 && (
-          <div className="flex shrink-0 flex-wrap gap-1.5 border-b px-3 py-2 max-md:gap-2">
-            {files.map((file, index) => (
-              <Badge
-                key={`${file.name}-${index}`}
-                variant="secondary"
-                className="gap-1 text-[10px] max-md:h-9 max-md:overflow-visible"
-              >
-                <FileText className="size-3" />
-                {file.name ?? 'file'}
-                <button
-                  type="button"
-                  onClick={() => setFiles((current) => current.filter((_, i) => i !== index))}
-                  className="relative ml-1 rounded-full hover:bg-background/50 max-md:size-7 max-md:after:absolute max-md:after:-inset-2 max-md:after:content-['']"
+          {files.length > 0 && (
+            <div className="flex shrink-0 flex-wrap gap-1.5 border-b px-3 py-2 max-md:gap-2">
+              {files.map((file, index) => (
+                <Badge
+                  key={`${file.name}-${index}`}
+                  variant="secondary"
+                  className="gap-1 text-[10px] max-md:h-9 max-md:overflow-visible"
                 >
-                  <X className="size-3 max-md:size-4" />
-                </button>
-              </Badge>
-            ))}
-          </div>
-        )}
+                  <FileText className="size-3" />
+                  {file.name ?? 'file'}
+                  <button
+                    type="button"
+                    onClick={() => setFiles((current) => current.filter((_, i) => i !== index))}
+                    className="relative ml-1 rounded-full hover:bg-background/50 max-md:size-7 max-md:after:absolute max-md:after:-inset-2 max-md:after:content-['']"
+                  >
+                    <X className="size-3 max-md:size-4" />
+                  </button>
+                </Badge>
+              ))}
+            </div>
+          )}
 
-        <textarea
-          ref={textareaRef}
-          value={text}
-          onChange={(event) => setText(event.target.value)}
-          onKeyDown={onKeyDown}
-          onPaste={(event) => {
-            const pasted = Array.from(event.clipboardData.files)
-            if (pasted.length > 0) {
-              event.preventDefault()
-              void addFiles(pasted)
+          <textarea
+            ref={textareaRef}
+            value={text}
+            onChange={(event) => setText(event.target.value)}
+            onKeyDown={onKeyDown}
+            onPaste={(event) => {
+              const pasted = Array.from(event.clipboardData.files)
+              if (pasted.length > 0) {
+                event.preventDefault()
+                void addFiles(pasted)
+              }
+            }}
+            placeholder={
+              draft
+                ? 'Write your first message…  / commands   @ files'
+                : 'Write your reply…  / commands   @ files'
             }
-          }}
-          placeholder={
-            draft
-              ? 'Write your first message…  / commands   @ files'
-              : 'Write your reply…  / commands   @ files'
-          }
-          disabled={disabled}
-          className="min-h-0 flex-1 resize-none bg-transparent px-3 py-3 text-base outline-none placeholder:text-muted-foreground disabled:opacity-60 md:text-sm"
-        />
+            disabled={disabled}
+            className="min-h-24 flex-1 resize-none bg-transparent px-3 py-3 text-base outline-none placeholder:text-muted-foreground disabled:opacity-60 md:text-sm"
+          />
+        </div>
       </div>
 
       <div className="flex shrink-0 items-center gap-1 border-t px-2 py-2 max-md:gap-0.5 max-md:px-3 max-md:pb-[max(1.25rem,calc(0.5rem_+_env(safe-area-inset-bottom)))]">
