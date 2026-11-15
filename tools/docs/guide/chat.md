@@ -67,7 +67,8 @@ cancels a part selection, and only then interrupts the run.
 
 - Type in the composer to continue the session.
 - The send menu's **Done** archives the session and returns to the start view.
-- **Reopen** in the send menu clears an archive or snooze.
+- **Reopen** in the send menu clears an archive or snooze. The header's more
+  menu also offers Reopen instead of Archive once the session is archived.
 - **Snooze** moves the session to the Snoozed section.
 
 ## Plan handoff

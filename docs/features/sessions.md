@@ -83,8 +83,9 @@ list has no checkbox column or bulk toolbar.
     otherwise never redirected. The switch shows whether monitoring is active
     whenever the start view is shown, and reports how many agents are working in
     the project's Outbox with a pulsing dot while any run is active.
-12. The chat header can rename, snooze, archive, or delete the current session. A
-    home button to the left of the title returns to the start view.
+12. The chat header can rename, snooze, archive, or delete the current session,
+    and an archived session shows **Reopen** in place of **Archive**. A home
+    button to the left of the title returns to the start view.
 13. The composer's send menu archives the session without renaming it through
     **Done**, and returns to the start view (or opens the next Inbox session
     while Monitor Inbox is active). An empty draft offers **Delete empty draft**
@@ -190,7 +191,8 @@ list has no checkbox column or bulk toolbar.
     running and on snoozed sessions.
 12. Reopening clears the archived flag and any snooze metadata, and does not
     rename the session. Reopen is available while the composer is idle and the
-    session is archived or snoozed.
+    session is archived or snoozed, and the chat header's more menu offers it on
+    an archived session regardless of run state.
 13. A session without projected messages and without a pending draft shows a
     dedicated New message view instead of the chat. The composer stays pinned
     below it with that session's tab. A new session focuses that tab immediately.
