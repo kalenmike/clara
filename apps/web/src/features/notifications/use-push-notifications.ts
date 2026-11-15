@@ -1,12 +1,12 @@
 import { useCallback, useEffect, useMemo, useState } from 'react'
 import type { PushSubscriptionPayload } from '@clara/shared-types'
 import { useOrchestratorMode } from '@/features/orchestration/use-orchestrator-mode'
+import { isStandalone } from '@/lib/runtime'
 import { useConnection } from '@/providers/connection-provider'
 import { readNotificationPermission, requestNotificationPermission } from './notifier'
 import {
   describePushError,
   isIos,
-  isStandalone,
   pushSupported,
   readPushSubscription,
   subscribeToPush,

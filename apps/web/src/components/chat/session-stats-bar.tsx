@@ -37,7 +37,7 @@ export function SessionStatsBar({
   return (
     <footer
       aria-label="Session usage"
-      className="flex shrink-0 items-center overflow-x-auto border-t bg-background px-3 pt-1.5 pb-[max(0.375rem,env(safe-area-inset-bottom))] text-[10px] whitespace-nowrap text-muted-foreground [scrollbar-width:none] md:text-xs [&::-webkit-scrollbar]:hidden"
+      className="flex shrink-0 items-center overflow-x-auto border-t bg-background px-3 pt-1.5 pb-1.5 text-[10px] whitespace-nowrap text-muted-foreground [scrollbar-width:none] md:text-xs [&::-webkit-scrollbar]:hidden"
     >
       <span className="font-mono">{text}</span>
     </footer>

@@ -4,6 +4,7 @@ import { Menu } from 'lucide-react'
 import { ConnectionSplash } from '@/components/connect/connection-splash'
 import { Button } from '@/components/ui/button'
 import { Sheet, SheetContent, SheetDescription, SheetTitle } from '@/components/ui/sheet'
+import { AppStatusBar } from '@/components/layout/app-status-bar'
 import { HarnessBanner } from '@/components/layout/harness-banner'
 import { MobileActionsProvider, MobileActionsSlot } from '@/components/layout/mobile-actions'
 import { RouteProgress } from '@/components/layout/route-progress'
@@ -38,53 +39,58 @@ export function AppShell() {
     <InboxMonitorProvider>
       <SettingsSyncProvider>
         <MobileActionsProvider>
-          <div className="flex h-full overflow-hidden bg-background text-foreground">
-            <Sidebar />
+          <div className="flex h-full flex-col overflow-hidden bg-background text-foreground">
+            <div className="flex min-h-0 flex-1 overflow-hidden">
+              <Sidebar />
 
-            <Sheet open={mobileOpen} onOpenChange={setMobileOpen}>
-              <SheetContent
-                side="left"
-                className="gap-0 p-0"
-                // Inline width beats the sheet's `data-[side=left]:w-3/4` and leaves a
-                // 44px strip of scrim to tap out, while capping the list on wide phones.
-                style={{ width: 'min(24rem, calc(100vw - 2.75rem))' }}
-                showCloseButton={false}
-              >
-                <SheetTitle className="sr-only">Navigation</SheetTitle>
-                <SheetDescription className="sr-only">Projects and {lowerPlural}</SheetDescription>
-                <SidebarContent onNavigate={() => setMobileOpen(false)} scope="drawer" />
-              </SheetContent>
-            </Sheet>
-
-            <div className="flex min-w-0 flex-1 flex-col">
-              {/* The installed PWA draws under the status bar, so the bar owns the
-                top safe-area inset and stays 48px tall below it. */}
-              <div className="flex h-[calc(3rem_+_env(safe-area-inset-top))] shrink-0 items-center gap-2 border-b px-3 pt-[env(safe-area-inset-top)] md:hidden">
-                <Button
-                  variant="ghost"
-                  size="icon"
-                  className="size-11"
-                  onClick={() => setMobileOpen(true)}
+              <Sheet open={mobileOpen} onOpenChange={setMobileOpen}>
+                <SheetContent
+                  side="left"
+                  className="gap-0 p-0"
+                  // Inline width beats the sheet's `data-[side=left]:w-3/4` and leaves a
+                  // 44px strip of scrim to tap out, while capping the list on wide phones.
+                  style={{ width: 'min(24rem, calc(100vw - 2.75rem))' }}
+                  showCloseButton={false}
                 >
-                  <Menu className="size-5" />
-                  <span className="sr-only">Open navigation</span>
-                </Button>
-                <span className="text-sm font-semibold">Clara</span>
-                <MobileActionsSlot />
-              </div>
-              <UpdateBanner />
-              <HarnessBanner />
-              <div className="min-h-0 flex-1">
-                <PushProvider>
-                  <NotificationProvider>
-                    <div className="relative h-full">
-                      <RouteProgress />
-                      <Outlet />
-                    </div>
-                  </NotificationProvider>
-                </PushProvider>
+                  <SheetTitle className="sr-only">Navigation</SheetTitle>
+                  <SheetDescription className="sr-only">
+                    Projects and {lowerPlural}
+                  </SheetDescription>
+                  <SidebarContent onNavigate={() => setMobileOpen(false)} scope="drawer" />
+                </SheetContent>
+              </Sheet>
+
+              <div className="flex min-w-0 flex-1 flex-col">
+                {/* The installed PWA draws under the status bar, so the bar owns the
+                  top safe-area inset and stays 48px tall below it. */}
+                <div className="flex h-[calc(3rem_+_env(safe-area-inset-top))] shrink-0 items-center gap-2 border-b px-3 pt-[env(safe-area-inset-top)] md:hidden">
+                  <Button
+                    variant="ghost"
+                    size="icon"
+                    className="size-11"
+                    onClick={() => setMobileOpen(true)}
+                  >
+                    <Menu className="size-5" />
+                    <span className="sr-only">Open navigation</span>
+                  </Button>
+                  <span className="text-sm font-semibold">Clara</span>
+                  <MobileActionsSlot />
+                </div>
+                <UpdateBanner />
+                <HarnessBanner />
+                <div className="min-h-0 flex-1">
+                  <PushProvider>
+                    <NotificationProvider>
+                      <div className="relative h-full">
+                        <RouteProgress />
+                        <Outlet />
+                      </div>
+                    </NotificationProvider>
+                  </PushProvider>
+                </div>
               </div>
             </div>
+            <AppStatusBar />
           </div>
         </MobileActionsProvider>
       </SettingsSyncProvider>

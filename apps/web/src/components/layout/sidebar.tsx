@@ -77,7 +77,6 @@ import {
 import { useStartSession } from '@/features/sessions/use-start-session'
 import { useSessionWording } from '@/features/sessions/use-wording'
 import { useSidebarWidth } from '@/hooks/use-sidebar-width'
-import { claraBuildTitle, claraDisplayVersion } from '@/lib/build-info'
 import { errorMessage } from '@/lib/errors'
 import { isTextEntryTarget } from '@/lib/keyboard'
 import {
@@ -973,14 +972,6 @@ export function SidebarContent({
       </ScrollArea>
 
       <SidebarNav onNavigate={onNavigate} />
-
-      <div className="shrink-0 px-3 pb-2.5 pt-1 text-[11px] text-muted-foreground md:pb-2 md:text-[10px]">
-        <div className="flex justify-end">
-          <span className="truncate" title={claraBuildTitle}>
-            Clara {claraDisplayVersion}
-          </span>
-        </div>
-      </div>
 
       <DeleteSessionDialog
         open={dialogOpen}
