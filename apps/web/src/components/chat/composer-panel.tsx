@@ -13,9 +13,13 @@ import { useSwitchAgent } from '@/features/chat/use-chat'
 import { useComposerAutoHide } from '@/features/settings/use-composer-auto-hide'
 import { useSessionWording } from '@/features/sessions/use-wording'
 import { useComposerHeight } from '@/hooks/use-composer-height'
+import { useElementHeight } from '@/hooks/use-element-height'
 import { useIsTouchDevice } from '@/hooks/use-is-touch-device'
 import { COMPOSER_HEIGHT_MIN, readDraft } from '@/lib/storage'
 import { cn } from '@/lib/utils'
+
+/** Matches the shell height transition, so the shape fade ends with it. */
+const COMPOSER_SHAPE_MS = 150
 
 export function ComposerPanel({
   harnessID,
@@ -64,7 +68,10 @@ function ConnectedComposer({
   const isTouchDevice = useIsTouchDevice()
   const autoHideEnabled = autoHide && !isTouchDevice
   const [hovered, setHovered] = useState(false)
+  const [shapeEntering, setShapeEntering] = useState(false)
   const sectionRef = useRef<HTMLElement>(null)
+  const [stripRef, stripHeight] = useElementHeight<HTMLDivElement>()
+  const previousShape = useRef(mode)
   const menuOpen = useComposerMenuOpen(sectionRef, autoHideEnabled)
   const { lowerSingular } = useSessionWording()
   const { session, directory, busy, ready, empty, menuMode, planReady, disabled } =
@@ -132,17 +139,39 @@ function ConnectedComposer({
   )
   const togglePinned = useCallback(() => setPinned(!pinned), [pinned, setPinned])
 
+  /**
+   * The dock and the fullscreen panel are different boxes, so the shape change
+   * gets a quick fade instead of a height transition. Collapsing stays with the
+   * height transition and is left alone here.
+   */
+  useEffect(() => {
+    const previous = previousShape.current
+    if (previous === displayMode) return
+    previousShape.current = displayMode
+    if (previous === 'minimized' || displayMode === 'minimized') return
+    setShapeEntering(true)
+    const timer = window.setTimeout(() => setShapeEntering(false), COMPOSER_SHAPE_MS)
+    return () => window.clearTimeout(timer)
+  }, [displayMode])
+
+  const shellHeight =
+    displayMode === 'maximized' ? null : displayMode === 'pinned' ? height : stripHeight
+
   return (
     <section
       ref={sectionRef}
       role="region"
       aria-label={`Composer for ${title}`}
-      style={displayMode === 'pinned' ? { height } : undefined}
+      style={shellHeight ? { height: shellHeight } : undefined}
       className={cn(
-        'relative flex flex-col overflow-hidden border bg-popover text-popover-foreground',
+        'relative flex flex-col overflow-hidden bg-popover text-popover-foreground',
         displayMode === 'maximized'
-          ? 'fixed inset-0 z-50 rounded-none border-0 pt-[var(--safe-top)]'
-          : 'w-full shrink-0 rounded-none border-x-0 border-b-0 shadow-[0_-12px_24px_-16px_rgba(0,0,0,0.35)]'
+          ? 'fixed inset-0 z-50 rounded-none pt-[var(--safe-top)]'
+          : 'w-full shrink-0 rounded-none shadow-[0_-12px_24px_-16px_rgba(0,0,0,0.35)]',
+        shapeEntering && 'clara-composer-enter',
+        displayMode !== 'maximized' &&
+          !dragging &&
+          'transition-[height] duration-150 ease-[cubic-bezier(0.32,0.72,0,1)] motion-reduce:transition-none'
       )}
       onPointerEnter={() => setHovered(true)}
       onPointerLeave={() => setHovered(false)}
@@ -170,22 +199,33 @@ function ConnectedComposer({
         </div>
       )}
 
-      <ComposerTabStrip
-        tabs={tabs}
-        mode={displayMode}
-        autoHide={autoHideEnabled}
-        pinned={pinned}
-        currentSessionID={currentSessionID}
-        selectedSessionID={sessionID}
-        selectedPlanReady={planReady}
-        onSelect={selectTab}
-        onClose={closeTab}
-        onToggleExpand={toggleExpand}
-        onToggleCollapse={toggleCollapse}
-        onTogglePin={togglePinned}
-      />
+      <div ref={stripRef} className="shrink-0">
+        <ComposerTabStrip
+          tabs={tabs}
+          mode={displayMode}
+          autoHide={autoHideEnabled}
+          pinned={pinned}
+          currentSessionID={currentSessionID}
+          selectedSessionID={sessionID}
+          selectedPlanReady={planReady}
+          onSelect={selectTab}
+          onClose={closeTab}
+          onToggleExpand={toggleExpand}
+          onToggleCollapse={toggleCollapse}
+          onTogglePin={togglePinned}
+        />
+      </div>
 
-      <div className={cn('flex min-h-0 flex-1 flex-col', displayMode === 'minimized' && 'hidden')}>
+      <div
+        inert={displayMode === 'minimized'}
+        aria-hidden={displayMode === 'minimized'}
+        className={cn(
+          'flex min-h-0 flex-1 flex-col transition-opacity ease-out motion-reduce:transition-none',
+          displayMode === 'minimized'
+            ? 'pointer-events-none opacity-0 duration-100'
+            : 'opacity-100 duration-150'
+        )}
+      >
         <Composer
           key={sessionID}
           session={session}
