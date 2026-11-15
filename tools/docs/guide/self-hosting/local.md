@@ -106,10 +106,26 @@ pulling changes, use `clara restart --build`.
 
 ## Run it as a service
 
-The repository includes a systemd unit at `clara.service` and an
-`install-service.sh` helper. Run the helper from the checkout to install the unit
-for the current user. Confirm the paths inside the unit before enabling it if your
-checkout is not at the same location.
+Install the per-user login service with the packaged command:
+
+```bash
+clara service install
+```
+
+On Linux this writes a `systemd --user` unit (or an XDG autostart entry when
+systemd is unavailable); macOS uses a LaunchAgent and Windows a sign-in task. The
+service starts the installed `clara` command, so it keeps working after you move
+the checkout, and it never needs administrator rights.
+
+```bash
+clara service status
+clara service uninstall
+clara service print   # show the unit for a host without a supported manager
+```
+
+A checkout host must install the packaged command first with `pnpm cli:install`
+or a release, because the unit points at the installed `clara` binary rather than
+Node and the checkout paths.
 
 ## Development mode
 
