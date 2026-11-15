@@ -212,18 +212,12 @@ body {
 
 /*
  * The app header owns the top edge on every surface. Toasts start underneath
- * it instead of behind the logo and destinations: one 48px row on desktop, plus
- * the 44px phone tab row below `md`. The header itself absorbs the status-bar
- * inset, and `1rem` keeps the toaster's own gap below that.
+ * it instead of behind the logo and destinations: one 48px row on desktop and
+ * phones. The header itself absorbs the status-bar inset, and `1rem` keeps the
+ * toaster's own gap below that.
  */
 [data-sonner-toaster].toaster[data-y-position='top'] {
   top: calc(3rem + var(--safe-top) + 1rem);
-}
-
-@media (width < 48rem) {
-  [data-sonner-toaster].toaster[data-y-position='top'] {
-    top: calc(5.75rem + var(--safe-top) + 1rem);
-  }
 }
 
 .cn-toast[data-styled='true'] {

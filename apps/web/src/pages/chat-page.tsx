@@ -18,6 +18,7 @@ import { MessageList } from '@/components/chat/message-list'
 import { PermissionPanel } from '@/components/chat/permission-panel'
 import { ComposerPanel } from '@/components/chat/composer-panel'
 import { SessionStatsBar } from '@/components/chat/session-stats-bar'
+import { MobileActionsRow } from '@/components/layout/mobile-actions'
 import { SidePanel } from '@/components/layout/side-panel'
 import { useDefaultAgent } from '@/features/agents/use-default-agent'
 import { primaryAgents } from '@/features/agents/default-agent'
@@ -446,6 +447,7 @@ function ChatPageContent() {
                   onToggleInternal={toggleInternal}
                 />
                 <SessionStatsBar session={session} snapshot={snapshot} harnessID={harnessID} />
+                <MobileActionsRow />
 
                 {draftCount > 0 && !busy && !isArchivedSession(session) && (
                   <DraftStartPanel key={sessionId} sessionID={sessionId} count={draftCount} />

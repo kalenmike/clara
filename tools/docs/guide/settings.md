@@ -7,8 +7,8 @@ sidebar_position: 8
 # Settings
 
 Open **Settings** from the app header. Settings opens full-window, so the
-project sidebar is not shown; the header keeps its section tabs. The page has
-seven tabs:
+project sidebar is not shown; on phones the header's section links live in the
+top-right menu. The page has seven tabs:
 Appearance, Preferences, Models, Notifications, Sync, Shortcuts, and Advanced.
 On a narrow screen the tabs become a section menu.
 

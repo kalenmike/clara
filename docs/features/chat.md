@@ -442,8 +442,8 @@ one paragraph, list, or section. See [fork.md](fork.md).
 - **Title preserved on archive** — Done archives the session as-is, so existing
   titles, including legacy `[DONE]` and `(DONE)` suffixes, are never changed.
 - **Narrow viewport** — the session title keeps its own row and ellipsizes; the
-  internal-output, collapse-all, side-panel, and more actions move into the top
-  row of the fixed app header instead of sharing the title row. Every icon
+  internal-output, collapse-all, side-panel, and more actions move into their
+  own row below the usage bar instead of sharing the title row. Every icon
   control in the mobile chrome uses a 44px touch target and a 20px glyph, while
   the desktop header keeps its compact 32px controls.
 - **Part selection while streaming** — **Select part** stays hidden until the

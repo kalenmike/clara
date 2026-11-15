@@ -10,9 +10,9 @@ type MobileActionsContextValue = {
 const MobileActionsContext = createContext<MobileActionsContextValue | null>(null)
 
 /**
- * Shares the mobile action mount point between the app header and the page
- * header. The slot is always in the DOM; the strip itself is only visible
- * below `md`.
+ * Shares the session header's mobile action mount point with the chat page.
+ * The row sits below the usage bar, and the strip itself is only visible below
+ * `md`; the desktop header keeps its inline controls.
  */
 export function MobileActionsProvider({ children }: { children: ReactNode }) {
   const [node, setNode] = useState<HTMLDivElement | null>(null)
@@ -23,9 +23,17 @@ export function MobileActionsProvider({ children }: { children: ReactNode }) {
   )
 }
 
-export function MobileActionsSlot({ className }: { className?: string }) {
+export function MobileActionsRow({ className }: { className?: string }) {
   const { setNode } = useMobileActions()
-  return <div ref={setNode} className={cn('ml-auto flex items-center gap-1', className)} />
+  return (
+    <div
+      ref={setNode}
+      className={cn(
+        'flex h-12 shrink-0 items-center justify-end gap-1 border-b bg-background px-2 md:hidden',
+        className
+      )}
+    />
+  )
 }
 
 export function useMobileActions() {

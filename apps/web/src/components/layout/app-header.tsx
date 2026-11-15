@@ -1,24 +1,27 @@
 import { Link, useLocation } from 'react-router'
-import { Menu } from 'lucide-react'
+import { Check, Menu } from 'lucide-react'
 import { Button } from '@/components/ui/button'
-import { MobileActionsSlot } from '@/components/layout/mobile-actions'
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuTrigger,
+} from '@/components/ui/dropdown-menu'
 import { visibleAppNavItems, type AppNavItem } from '@/components/layout/app-nav'
 import { isDesktop } from '@/lib/runtime'
 import { cn } from '@/lib/utils'
 
 /**
  * Fixed chrome for every connected surface. The desktop row pairs the Clara
- * mark with text destinations. Phones get a second, equal-width tab row so the
- * five destinations keep readable labels instead of collapsing to glyphs.
+ * mark with text destinations. Phones keep a single row: the left button opens
+ * the project drawer and the right button folds the destinations into a menu,
+ * so the header leaves its height to the session below it.
  */
 export function AppHeader({
   onOpenNav,
-  showMobileActions = false,
 }: {
   /** Opens the sidebar drawer. Omitted on full-window surfaces without one. */
   onOpenNav?: () => void
-  /** Mounts the chat header's mobile action strip beside the mark. */
-  showMobileActions?: boolean
 }) {
   const { pathname } = useLocation()
   const items = visibleAppNavItems(isDesktop)
@@ -54,18 +57,37 @@ export function AppHeader({
           ))}
         </nav>
 
-        {showMobileActions && (
-          <div className="ml-auto md:hidden">
-            <MobileActionsSlot />
-          </div>
-        )}
+        <DropdownMenu>
+          <DropdownMenuTrigger asChild>
+            <Button
+              variant="ghost"
+              size="icon"
+              className="ml-auto size-11 md:hidden"
+              title="Open main menu"
+            >
+              <Menu className="size-5" />
+              <span className="sr-only">Open main menu</span>
+            </Button>
+          </DropdownMenuTrigger>
+          <DropdownMenuContent align="end" className="w-44">
+            {items.map((item) => {
+              const current = item.active(pathname)
+              return (
+                <DropdownMenuItem
+                  key={item.key}
+                  asChild
+                  className={cn('min-h-11', current && 'bg-accent text-accent-foreground')}
+                >
+                  <Link to={item.to} aria-current={current ? 'page' : undefined}>
+                    {item.label}
+                    {current && <Check className="ml-auto size-4" />}
+                  </Link>
+                </DropdownMenuItem>
+              )
+            })}
+          </DropdownMenuContent>
+        </DropdownMenu>
       </div>
-
-      <nav aria-label="Main" className="flex h-11 items-stretch border-t md:hidden">
-        {items.map((item) => (
-          <AppNavLink key={item.key} item={item} pathname={pathname} />
-        ))}
-      </nav>
     </header>
   )
 }
@@ -77,9 +99,8 @@ function AppNavLink({ item, pathname }: { item: AppNavItem; pathname: string }) 
       to={item.to}
       aria-current={current ? 'page' : undefined}
       className={cn(
-        'flex min-w-0 flex-1 items-center justify-center px-1 text-xs font-medium transition-colors',
+        'flex min-w-0 items-center justify-center rounded-md px-2.5 py-1.5 text-sm font-medium transition-colors',
         'outline-none focus-visible:ring-2 focus-visible:ring-ring',
-        'md:flex-none md:rounded-md md:px-2.5 md:py-1.5 md:text-sm',
         current
           ? 'bg-accent text-foreground'
           : 'text-muted-foreground hover:bg-accent/60 hover:text-foreground'
