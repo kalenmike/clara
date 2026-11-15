@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest'
-import { resolveStepWiring } from '../server/step-wiring.ts'
-import type { StepSummary } from '../server/types.ts'
+import { resolveStepWiring } from '../src/step-wiring.ts'
+import type { StepSummary } from '../src/types.ts'
 
 function snapshot(): string {
   return JSON.stringify({

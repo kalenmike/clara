@@ -71,6 +71,12 @@
       "path": "./packages/preview"
     },
     {
+      "path": "./packages/lab"
+    },
+    {
+      "path": "./packages/lab-server"
+    },
+    {
       "path": "./tools/lab"
     },
     {

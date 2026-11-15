@@ -34,8 +34,14 @@
       ]
     },
     "tools/lab": {
-      "entry": ["index.html"],
-      "project": ["src/**/*.{ts,tsx}", "server/**/*.ts", "test/**/*.ts"]
+      "entry": ["index.html", "server/index.ts"],
+      "project": ["src/**/*.{ts,tsx}", "server/**/*.ts"]
+    },
+    "packages/lab": {
+      "project": ["src/**/*.{ts,tsx,css}", "test/**/*.ts"]
+    },
+    "packages/lab-server": {
+      "project": ["src/**/*.ts", "test/**/*.ts"]
     },
     "apps/hub/server": {
       "entry": ["src/bun.ts", "scripts/*.mjs"],

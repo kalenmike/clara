@@ -1,13 +1,13 @@
 import { StrictMode } from 'react'
 import { createRoot } from 'react-dom/client'
-import { App } from './App'
-import './styles.css'
+import { LabApp } from '@clara/lab'
+import '@clara/lab/styles.css'
 
 const root = document.getElementById('root')
 if (!root) throw new Error('Clara Lab root element is missing')
 
 createRoot(root).render(
   <StrictMode>
-    <App />
+    <LabApp />
   </StrictMode>
 )

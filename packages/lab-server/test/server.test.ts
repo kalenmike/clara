@@ -3,8 +3,8 @@ import type { AddressInfo } from 'node:net'
 import { afterAll, beforeAll, describe, expect, it } from 'vitest'
 import { Runtime, Store, defaultConfigPath } from '@clara/orchestration'
 import { createEngineServer, type EngineServer } from '../../../apps/orchestrator/src/server.ts'
-import { startLabServer, type LabServer } from '../server/http.ts'
-import { LabRuntime } from '../server/runtime.ts'
+import { startLabServer, type LabServer } from '../src/http.ts'
+import { LabRuntime } from '../src/runtime.ts'
 
 const workspace = fileURLToPath(new URL('../../../', import.meta.url))
 const config = defaultConfigPath()

@@ -1,7 +1,8 @@
 #!/usr/bin/env node
 import { existsSync } from 'node:fs'
 import { connect } from 'node:net'
-import { join } from 'node:path'
+import { dirname, join } from 'node:path'
+import { fileURLToPath } from 'node:url'
 import { previewPipeline, type Diagnostic } from '@clara/pipeline-preview'
 import {
   ensureEngine,
@@ -10,11 +11,11 @@ import {
   openBrowser,
   engineURL,
   readToken,
-  repoRoot,
+  startLabServer,
+  staticRootCandidates,
   workspace,
-} from './config.ts'
-import { startLabServer } from './http.ts'
-import { LabRuntime } from './runtime.ts'
+  LabRuntime,
+} from '@clara/lab-server'
 
 interface Options {
   command: string
@@ -185,13 +186,15 @@ async function serve(options: Options): Promise<void> {
     token,
     workspace: options.workspace ?? workspace(),
   })
-  if (!existsSync(join(repoRoot(), 'apps', 'lab', 'dist', 'web', 'index.html'))) {
+  const staticRoots = staticRootCandidates(dirname(fileURLToPath(import.meta.url)))
+  if (!staticRoots.some((root) => existsSync(join(root, 'index.html')))) {
     console.warn('[clara-lab] web UI is not built; run `pnpm build` or use `pnpm dev:lab`.')
   }
   await runtime.start()
   const server = await startLabServer({
     runtime,
     port,
+    staticRoots,
     log: (message, detail) => console.error(`[clara-lab] ${message}`, detail ?? ''),
   })
 

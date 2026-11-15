@@ -121,7 +121,7 @@ function runPnpmCommand() {
 }
 
 export function buildLab(repoRoot = root) {
-  return runPnpm(['--filter', '@clara/lab', 'build'], { cwd: repoRoot })
+  return runPnpm(['--filter', '@clara/lab-cli', 'build'], { cwd: repoRoot })
 }
 
 export function buildDocs(repoRoot = root) {

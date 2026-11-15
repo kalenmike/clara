@@ -29,6 +29,8 @@ export interface LabServerOptions {
   runtime: LabRuntime
   port: number
   version?: string
+  /** Directories that may hold the standalone UI. The desktop sidecar omits them. */
+  staticRoots?: string[]
   log?: (message: string, detail?: unknown) => void
 }
 
@@ -97,7 +99,7 @@ function previewInput(body: Record<string, unknown>): PreviewInput {
 
 export async function startLabServer(options: LabServerOptions): Promise<LabServer> {
   const runtime = options.runtime
-  let files = loadStaticFiles()
+  let files = loadStaticFiles(options.staticRoots)
   const watcher = new SourceWatcher()
   const streams = new Set<ServerResponse>()
   let allowedSources = new Set<string>()
@@ -222,7 +224,9 @@ export async function startLabServer(options: LabServerOptions): Promise<LabServ
         return
       }
 
-      if (!files.index) files = loadStaticFiles()
+      if (!files.index && options.staticRoots?.length) {
+        files = loadStaticFiles(options.staticRoots)
+      }
       if (
         (method === 'GET' || method === 'HEAD') &&
         serveStatic(response, method, url.pathname, files)
@@ -230,7 +234,7 @@ export async function startLabServer(options: LabServerOptions): Promise<LabServ
         return
       }
 
-      if (!files.index && (method === 'GET' || method === 'HEAD')) {
+      if (!files.index && options.staticRoots?.length && (method === 'GET' || method === 'HEAD')) {
         response.writeHead(503, { 'content-type': 'text/plain; charset=utf-8' })
         response.end(
           `Clara Lab web assets were not found in ${files.root}. Run \`pnpm build\` and reload.\n`
