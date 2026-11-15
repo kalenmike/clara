@@ -65,9 +65,10 @@ means the latest run failed. An orange dot marks a finished Plan waiting for
 ## Plan and Build
 
 Some agents work in two stages. A **Plan** run researches and writes a plan.
-When it finishes, Clara offers a handoff: **Start** switches to the working agent
-and begins, while typing a message sends an adjustment back to the planner. The
-handoff appears as a card in the composer, not as something you typed.
+When it finishes, Clara offers a handoff: **Start work** in the send menu
+switches to the working agent and begins, while typing a message and pressing
+Send sends an adjustment back to the planner. A message typed before you choose
+Start work becomes the first prompt for the working agent.
 
 ## Automation
 

@@ -3,7 +3,6 @@ import type { ClaraFormField, ClaraForm } from '@clara/api-contract'
 import {
   composerCanSend,
   composerRequestCount,
-  composerSecondaryAction,
   defaultComposerSelection,
   initialFormAnswers,
   resolveComposerSelection,
@@ -40,68 +39,44 @@ describe('composerCanSend', () => {
   })
 })
 
-describe('composerSecondaryAction', () => {
-  it('offers Skip for questions and Start for a ready plan', () => {
-    expect(composerSecondaryAction({ hasActiveForm: true, planSelected: false })).toBe('skip')
-    expect(composerSecondaryAction({ hasActiveForm: false, planSelected: true })).toBe('start')
-    expect(composerSecondaryAction({ hasActiveForm: false, planSelected: false })).toBeNull()
-  })
-})
-
 describe('defaultComposerSelection', () => {
-  it('selects the first form before the plan', () => {
-    expect(defaultComposerSelection([form('a'), form('b')], true)).toEqual({
+  it('selects the first form', () => {
+    expect(defaultComposerSelection([form('a'), form('b')])).toEqual({
       kind: 'form',
       formID: 'a',
     })
   })
 
-  it('selects the plan when no form is waiting', () => {
-    expect(defaultComposerSelection([], true)).toEqual({ kind: 'plan' })
-  })
-
   it('selects nothing when the session is idle', () => {
-    expect(defaultComposerSelection([], false)).toBe('none')
+    expect(defaultComposerSelection([])).toBe('none')
   })
 })
 
 describe('resolveComposerSelection', () => {
   it('keeps a valid form selection', () => {
-    expect(
-      resolveComposerSelection([form('a'), form('b')], true, { kind: 'form', formID: 'b' })
-    ).toEqual({ kind: 'form', formID: 'b' })
-  })
-
-  it('keeps the plan selection while the plan is ready', () => {
-    expect(resolveComposerSelection([form('a')], true, { kind: 'plan' })).toEqual({
-      kind: 'plan',
-    })
+    expect(resolveComposerSelection([form('a'), form('b')], { kind: 'form', formID: 'b' })).toEqual(
+      { kind: 'form', formID: 'b' }
+    )
   })
 
   it('falls back when the selected form disappears', () => {
-    expect(resolveComposerSelection([form('b')], true, { kind: 'form', formID: 'a' })).toEqual({
+    expect(resolveComposerSelection([form('b')], { kind: 'form', formID: 'a' })).toEqual({
       kind: 'form',
       formID: 'b',
     })
   })
 
-  it('falls back to the plan when no form remains', () => {
-    expect(resolveComposerSelection([], true, { kind: 'form', formID: 'a' })).toEqual({
-      kind: 'plan',
-    })
-  })
-
-  it('falls back to nothing when the plan stops being ready', () => {
-    expect(resolveComposerSelection([], false, { kind: 'plan' })).toBe('none')
+  it('falls back to nothing when no form remains', () => {
+    expect(resolveComposerSelection([], { kind: 'form', formID: 'a' })).toBe('none')
   })
 
   it('keeps an explicit message-only choice', () => {
     const choice: ComposerRequestSelection = 'none'
-    expect(resolveComposerSelection([form('a')], true, choice)).toBe('none')
+    expect(resolveComposerSelection([form('a')], choice)).toBe('none')
   })
 
   it('defaults when no explicit choice exists', () => {
-    expect(resolveComposerSelection([form('a')], true, null)).toEqual({
+    expect(resolveComposerSelection([form('a')], null)).toEqual({
       kind: 'form',
       formID: 'a',
     })
