@@ -1,11 +1,6 @@
 import { createInterface } from 'node:readline/promises'
 import { stdin, stdout } from 'node:process'
 import {
-  HARNESS_PAIRING_CODE_PREFIX,
-  parseHarnessPairingInput,
-  type HarnessPairingPayload,
-} from '@clara/shared-types'
-import {
   REINSTALL_GRANT_MESSAGE,
   adapterLogSize,
   argValue,
@@ -16,6 +11,7 @@ import {
   isLocalHubUrl,
   removeAdapterService,
   removeState,
+  resolveInstallPairing,
   selfEntry,
   startAdapterProcess,
   waitForAdapterAuthentication,
@@ -26,6 +22,7 @@ import {
   adapterLogPath,
   loadIdentity,
   openCodePaths,
+  readConfig,
   removeConfig,
   removeIdentity,
   writeConfig,
@@ -63,6 +60,8 @@ const CAPABILITIES = {
 
 export type InstallOptions = {
   pair?: string
+  /** Reuse the saved connection and skip enrollment. */
+  reusePairing?: boolean
   opencodeUrl?: string
   opencodeUsername?: string
   opencodePassword?: string
@@ -97,6 +96,7 @@ export function parseInstallOptions(args: string[]): InstallOptions {
   const concurrency = argValue(args, '--concurrency')
   return {
     ...(argValue(args, '--pair') ? { pair: argValue(args, '--pair') } : {}),
+    ...(hasFlag(args, '--reuse-pairing') ? { reusePairing: true } : {}),
     ...(argValue(args, '--opencode-url') ? { opencodeUrl: argValue(args, '--opencode-url') } : {}),
     ...(argValue(args, '--opencode-username')
       ? { opencodeUsername: argValue(args, '--opencode-username') }
@@ -174,16 +174,20 @@ export async function installOpenCode(options: InstallOptions): Promise<InstallR
 
 /** Install the hub-facing adapter daemon and pair it in one command. */
 export async function installOpenCodeAdapter(options: InstallOptions): Promise<InstallResult> {
-  const pairing = await pairingInput(options.pair)
-  if (pairing.kind !== 'opencode') {
-    throw new Error(`This pairing code is for ${pairing.kind}, not OpenCode`)
-  }
+  const pairing = await resolveInstallPairing({
+    name: 'opencode',
+    label: 'OpenCode',
+    paths: openCodePaths(),
+    ...(options.pair ? { pair: options.pair } : {}),
+    ...(options.reusePairing ? { reuse: true } : {}),
+  })
   const discovery = await discoverOpenCode({
     ...(options.opencodeUrl ? { url: options.opencodeUrl } : {}),
     ...(options.opencodeUsername ? { username: options.opencodeUsername } : {}),
     ...(options.opencodePassword ? { password: options.opencodePassword } : {}),
   })
-  const openCode = discovery ?? (await promptOpenCode())
+  const saved = options.reusePairing ? readConfig()?.opencode : undefined
+  const openCode = discovery ?? saved ?? (await promptOpenCode())
   const identity = loadIdentity()
   const probe = await new OpenCodeGateway({
     url: openCode.url,
@@ -199,8 +203,8 @@ export async function installOpenCodeAdapter(options: InstallOptions): Promise<I
   const config: AdapterConfig = {
     ...identity,
     wsUrl: pairing.wsUrl,
-    // The enrollment grant is the only grant known before enrollment. It is
-    // replaced by the adapter grant from `adapter.enrolled` below.
+    // A fresh install starts with the enrollment grant and is replaced by the
+    // adapter grant below. A reinstall keeps the long-lived stored grant.
     grant: pairing.grant ?? '',
     opencode: openCode,
     label: 'OpenCode',
@@ -213,63 +217,66 @@ export async function installOpenCodeAdapter(options: InstallOptions): Promise<I
     actions.push(`write adapter config ${adapterConfigPath()}`)
   }
 
-  let enrolled: { connectionId: string; reconnected: boolean }
+  const enroll = pairing.enroll
+  let connection: string | undefined
   let deviceGrant: string | undefined
-  try {
-    if (options.dryRun) {
-      enrolled = { connectionId: '(dry run)', reconnected: false }
-    } else {
-      const result = await enrollAdapter({
-        wsUrl: pairing.wsUrl,
-        ...(pairing.grant ? { grant: pairing.grant } : {}),
-        enrollId: pairing.enrollId,
-        enrollToken: pairing.enrollToken,
-        harnessId: identity.harnessId,
-        kind: pairing.kind,
+  if (enroll) {
+    try {
+      if (options.dryRun) {
+        connection = '(dry run)'
+      } else {
+        const result = await enrollAdapter({
+          wsUrl: pairing.wsUrl,
+          ...(pairing.grant ? { grant: pairing.grant } : {}),
+          enrollId: enroll.enrollId,
+          enrollToken: enroll.enrollToken,
+          harnessId: identity.harnessId,
+          kind: 'opencode',
+          label: 'OpenCode',
+          adapterId: identity.adapterId,
+          key: identity.key,
+          adapterVersion: ADAPTER_VERSION,
+          ...(probe.version ? { harnessVersion: probe.version } : {}),
+          capabilities: CAPABILITIES,
+        })
+        connection = result.connectionId
+        deviceGrant = result.relayGrant?.grant
+      }
+    } catch (cause) {
+      const reason = cause instanceof Error ? cause.message : String(cause)
+      if (options.dryRun) throw new Error(reason, { cause })
+      warnings.push(reason)
+      actions.push(`pair adapter ${identity.harnessId} (enrollment response missing)`)
+      if (options.noService) {
+        actions.push(`run the adapter in the foreground: ${commands}`)
+        return { actions, warnings, configPath: adapterConfigPath(), foregroundCommand: commands }
+      }
+      const paths = openCodePaths()
+      const offset = adapterLogSize(paths)
+      const started = startAdapterProcess({
+        name: 'opencode',
         label: 'OpenCode',
-        adapterId: identity.adapterId,
-        key: identity.key,
-        adapterVersion: ADAPTER_VERSION,
-        ...(probe.version ? { harnessVersion: probe.version } : {}),
-        capabilities: CAPABILITIES,
+        entry,
+        paths,
       })
-      enrolled = result
-      deviceGrant = result.relayGrant?.grant
-    }
-  } catch (cause) {
-    const reason = cause instanceof Error ? cause.message : String(cause)
-    if (options.dryRun) throw new Error(reason, { cause })
-    warnings.push(reason)
-    actions.push(`pair adapter ${identity.harnessId} (enrollment response missing)`)
-    if (options.noService) {
-      actions.push(`run the adapter in the foreground: ${commands}`)
-      return { actions, warnings, configPath: adapterConfigPath(), foregroundCommand: commands }
-    }
-    const paths = openCodePaths()
-    const offset = adapterLogSize(paths)
-    const started = startAdapterProcess({
-      name: 'opencode',
-      label: 'OpenCode',
-      entry,
-      paths,
-    })
-    actions.push(...started.actions)
-    if (await waitForAdapterAuthentication(paths, offset)) {
-      warnings.push(
-        'The enrollment response was lost, but the adapter connected with the saved credential.'
+      actions.push(...started.actions)
+      if (await waitForAdapterAuthentication(paths, offset)) {
+        warnings.push(
+          'The enrollment response was lost, but the adapter connected with the saved credential.'
+        )
+        return { actions, warnings, configPath: adapterConfigPath(), foregroundCommand: commands }
+      }
+      throw new Error(
+        `${reason}\nThe adapter config was saved at ${adapterConfigPath()}. ` +
+          `Start it with: clara-adapter-opencode start\n` +
+          `Log: ${adapterLogPath()}`,
+        { cause }
       )
-      return { actions, warnings, configPath: adapterConfigPath(), foregroundCommand: commands }
     }
-    throw new Error(
-      `${reason}\nThe adapter config was saved at ${adapterConfigPath()}. ` +
-        `Start it with: clara-adapter-opencode start\n` +
-        `Log: ${adapterLogPath()}`,
-      { cause }
-    )
   }
   // The one-time enrollment grant cannot authenticate an adapter session.
   // Persist the adapter grant before the service starts and reconnects.
-  if (!options.dryRun) {
+  if (!options.dryRun && enroll) {
     if (deviceGrant) {
       writeConfig({ ...config, grant: deviceGrant })
       actions.push('store the adapter relay grant')
@@ -277,7 +284,11 @@ export async function installOpenCodeAdapter(options: InstallOptions): Promise<I
       throw new Error(REINSTALL_GRANT_MESSAGE)
     }
   }
-  actions.push(`pair adapter ${identity.harnessId} as connection ${enrolled.connectionId}`)
+  if (pairing.reused) {
+    actions.push(`reuse the existing pairing for ${identity.harnessId}`)
+  } else if (connection) {
+    actions.push(`pair adapter ${identity.harnessId} as connection ${connection}`)
+  }
 
   if (options.noService) {
     actions.push(`run the adapter in the foreground: ${commands}`)
@@ -304,21 +315,6 @@ export async function installOpenCodeAdapter(options: InstallOptions): Promise<I
     }
   }
   return { actions, warnings, configPath: adapterConfigPath(), foregroundCommand: commands }
-}
-
-async function pairingInput(value: string | undefined): Promise<HarnessPairingPayload> {
-  if (!value && !stdin.isTTY) {
-    throw new Error('Pass --pair <code> in a non-interactive install')
-  }
-  const code = value ?? (await prompt('Pairing code: '))
-  const parsed = parseHarnessPairingInput(code)
-  if (!parsed) throw new Error('That is not a valid Clara harness pairing code')
-  if (parsed.expiresAt <= Date.now()) {
-    throw new Error(
-      `That pairing code expired. Generate a new one in the hub panel (codes start with ${HARNESS_PAIRING_CODE_PREFIX}).`
-    )
-  }
-  return parsed
 }
 
 export async function resolveOpenCodeConfig(args: string[]): Promise<OpenCodeConfig> {

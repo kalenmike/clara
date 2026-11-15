@@ -16,6 +16,8 @@ export type PiInstallation = {
 
 export type PiInstallOptions = {
   pair?: string
+  /** Reuse the saved connection and skip enrollment. */
+  reusePairing?: boolean
   piPath?: string
   agentDir?: string
   sessionDir?: string
@@ -181,6 +183,7 @@ export function parseInstallOptions(args: string[]): PiInstallOptions {
   const maxProcesses = argValue(args, '--max-processes')
   return {
     ...(argValue(args, '--pair') ? { pair: argValue(args, '--pair') } : {}),
+    ...(hasFlag(args, '--reuse-pairing') ? { reusePairing: true } : {}),
     ...(argValue(args, '--pi-path') ? { piPath: argValue(args, '--pi-path') } : {}),
     ...(argValue(args, '--agent-dir') ? { agentDir: argValue(args, '--agent-dir') } : {}),
     ...(argValue(args, '--session-dir') ? { sessionDir: argValue(args, '--session-dir') } : {}),

@@ -59,6 +59,8 @@ export type InstallRequest = {
   force?: boolean
   /** Stage a built adapter package or `dist` directory instead of a registry archive. */
   from?: string
+  /** Reinstall with the saved pairing instead of enrolling a new adapter. */
+  reusePairing?: boolean
   /** Adapter install flags replayed when the adapter is reinstalled. */
   installArgs?: string[]
 }
@@ -68,6 +70,8 @@ export type UpgradeReport = {
   from?: string
   to?: string
   changed: boolean
+  /** The install reran at the same version. */
+  reinstalled?: boolean
   error?: string
 }
 
@@ -139,6 +143,19 @@ export async function installAdapter(
     }
     record = { ...record, pairedAt: new Date((deps.now ?? Date.now)()).toISOString() }
     saveAdapterRecord(record, paths)
+  } else if (request.reusePairing) {
+    deps.onPhase?.('pairing')
+    const result = await runAdapterCommand(
+      deps,
+      command,
+      ['install', '--reuse-pairing', ...(record.installArgs ?? [])],
+      request.kind
+    )
+    if (result.code !== 0) {
+      record = { ...record, lastError: failureText('reinstall', result) }
+      saveAdapterRecord(record, paths)
+      throw new Error(`The ${request.kind} adapter reinstall failed: ${record.lastError}`)
+    }
   }
 
   if (request.start !== false) {
@@ -237,11 +254,11 @@ function stageLocalAdapter(
   const version = request.version ?? localAdapterVersion(source.root)
   const installDir = adapterInstallDir(paths, request.kind, version)
   const staged = join(installDir, 'index.js')
-  if (!existsSync(staged) || request.force) {
-    rmSync(installDir, { recursive: true, force: true })
-    mkdirSync(installDir, { recursive: true })
-    cpSync(source.dist, installDir, { recursive: true })
-  }
+  // A local build can change without its commit changing; always refresh the
+  // staged copy so `--from` runs the code that was just built.
+  rmSync(installDir, { recursive: true, force: true })
+  mkdirSync(installDir, { recursive: true })
+  cpSync(source.dist, installDir, { recursive: true })
   if (!existsSync(staged)) {
     throw new Error(
       `The ${request.kind} build has no dist/index.js at ${source.dist}. Build the adapter first.`
@@ -292,10 +309,8 @@ export async function upgradeAdapter(
   const paths = deps.paths ?? resolvePaths()
   const record = readAdapterState(paths).adapters[kind]
   if (!record) throw new Error(`The ${kind} adapter is not installed.`)
-  const manifest = await deps.registry.manifest(kind)
-  if (record.version === manifest.version) {
-    return { kind, from: record.version, to: record.version, changed: false }
-  }
+  // Fail before stopping the adapter when the registry is unreachable.
+  await deps.registry.manifest(kind)
   const target = options.target ?? (isAdapterTarget(record.platform) ? record.platform : undefined)
   if (existsSync(adapterEntryPath(record))) {
     deps.onPhase?.('stopping')
@@ -306,12 +321,20 @@ export async function upgradeAdapter(
       kind,
       target: target ?? detectAdapterTarget(),
       force: true,
+      reusePairing: true,
       ...(record.installArgs ? { installArgs: record.installArgs } : {}),
       ...(options.start !== undefined ? { start: options.start } : {}),
     },
     deps
   )
-  return { kind, from: record.version, to: next.version, changed: true }
+  const changed = record.version !== next.version
+  return {
+    kind,
+    from: record.version,
+    to: next.version,
+    changed,
+    ...(changed ? {} : { reinstalled: true }),
+  }
 }
 
 /** Stop and uninstall an adapter, then delete its downloaded versions. */

@@ -29,7 +29,7 @@ const HELP = `${heading('Clara adapter management')}
 Usage:
   clara adapter search [--json]
   clara adapter list [--json]
-  clara adapter install <kind>[@version] [--pair <code>] [--from <path>] [--no-start]
+  clara adapter install <kind>[@version] [--pair <code>] [--from <path>] [--reuse-pairing] [--no-start]
   clara adapter upgrade [kind] [--no-start] [--json]
   clara adapter remove <kind> [--purge]
   clara adapter start|stop|status|logs <kind> [options]

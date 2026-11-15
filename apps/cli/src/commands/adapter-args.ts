@@ -6,7 +6,18 @@ export type ParsedAdapterArgs = {
   options: Map<string, string>
 }
 
-const FLAGS = new Set(['--no-start', '--json', '--purge', '--force', '--install'])
+const FLAGS = new Set([
+  '--no-start',
+  '--json',
+  '--purge',
+  '--force',
+  '--install',
+  '--reuse-pairing',
+  '--mcp',
+  '--no-runner',
+  '--no-binding',
+  '--no-service',
+])
 const OPTIONS = new Set(['--pair', '--transport', '--harness', '--version', '--from'])
 
 /** Adapter install flags that are replayed when the adapter is reinstalled. */

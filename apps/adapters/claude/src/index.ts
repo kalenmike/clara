@@ -77,6 +77,7 @@ Usage:
 
 Install options:
   --pair <code>                  Pair the adapter with the hub
+  --reuse-pairing                Reinstall with the saved pairing instead of enrolling
   --claude-path <path>           Use a system Claude Code binary
   --base-url <url>               Anthropic-compatible endpoint, such as Ollama
   --provider-id <id>             Clara provider id for that endpoint

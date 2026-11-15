@@ -68,6 +68,7 @@ Usage:
 
 Install options:
   --pair <code>            Pair the adapter with the hub
+  --reuse-pairing          Reinstall with the saved pairing instead of enrolling
   --opencode-url <url>     OpenCode URL
   --opencode-username <u>  OpenCode username (default opencode)
   --opencode-password <p>  OpenCode password

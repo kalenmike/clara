@@ -323,17 +323,58 @@ describe('adapter install', () => {
     expect(readAdapterState(paths).adapters.opencode?.version).toBe('2.0.0')
   })
 
-  it('reports an installed adapter as up to date', async () => {
+  it('reinstalls at the same version without a new pairing', async () => {
     const fixture = await registryServer()
     const paths = tempPaths()
     await installAdapter({ kind: 'opencode', target: 'linux-x64' }, deps(fixture, paths))
-    const report = await upgradeAdapter('opencode', deps(fixture, paths))
+    const calls: Calls = []
+    const report = await upgradeAdapter('opencode', deps(fixture, paths, { calls }))
     expect(report).toEqual({
       kind: 'opencode',
       from: '1.2.3',
       to: '1.2.3',
       changed: false,
+      reinstalled: true,
     })
+    expect(calls.map((call) => call.args)).toEqual([
+      ['stop'],
+      ['install', '--reuse-pairing'],
+      ['start'],
+    ])
+  })
+
+  it('reinstalls a local build with the saved pairing', async () => {
+    const fixture = await registryServer()
+    const paths = tempPaths()
+    const packageDir = mkdtempSync(join(tmpdir(), 'clara-adapter-local-'))
+    roots.push(packageDir)
+    writeFileSync(
+      join(packageDir, 'package.json'),
+      JSON.stringify({ name: '@clara/adapter-opencode', version: '0.1.0' })
+    )
+    mkdirSync(join(packageDir, 'dist'), { recursive: true })
+    writeFileSync(join(packageDir, 'dist', 'index.js'), '#!/usr/bin/env node\n')
+
+    const calls: Calls = []
+    const record = await installAdapter(
+      {
+        kind: 'opencode',
+        target: 'linux-x64',
+        version: '0.1.0-dev+local',
+        from: packageDir,
+        reusePairing: true,
+        start: false,
+      },
+      deps(fixture, paths, { calls })
+    )
+
+    expect(record.entry).toBe('index.js')
+    expect(calls).toEqual([
+      {
+        command: process.execPath,
+        args: [join(record.path, 'index.js'), 'install', '--reuse-pairing'],
+      },
+    ])
   })
 
   it('stops and uninstalls an adapter before deleting its files', async () => {

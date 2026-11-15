@@ -1,10 +1,3 @@
-import { createInterface } from 'node:readline/promises'
-import { stdin, stdout } from 'node:process'
-import {
-  HARNESS_PAIRING_CODE_PREFIX,
-  parseHarnessPairingInput,
-  type HarnessPairingPayload,
-} from '@clara/shared-types'
 import {
   REINSTALL_GRANT_MESSAGE,
   adapterLogSize,
@@ -15,6 +8,7 @@ import {
   isLocalHubUrl,
   removeAdapterService,
   removeState,
+  resolveInstallPairing,
   selfEntry,
   startAdapterProcess,
   waitForAdapterAuthentication,
@@ -59,10 +53,13 @@ export async function installPiCommand(args: string[]): Promise<InstallResult> {
 
 /** Pair the adapter and install its user service. */
 export async function installPi(options: PiInstallOptions): Promise<InstallResult> {
-  const pairing = await pairingInput(options.pair)
-  if (pairing.kind !== 'pi') {
-    throw new Error(`This pairing code is for ${pairing.kind}, not Pi`)
-  }
+  const pairing = await resolveInstallPairing({
+    name: 'pi',
+    label: 'Pi',
+    paths: piPaths(),
+    ...(options.pair ? { pair: options.pair } : {}),
+    ...(options.reusePairing ? { reuse: true } : {}),
+  })
 
   const pi = resolvePiConfigFromOptions(options)
   const installation = detectPiInstallation(pi.piPath)
@@ -111,57 +108,60 @@ export async function installPi(options: PiInstallOptions): Promise<InstallResul
     actions.push(`write adapter config ${adapterConfigPath()}`)
   }
 
-  let enrolled: { connectionId: string; reconnected: boolean }
+  const enroll = pairing.enroll
+  let connection: string | undefined
   let deviceGrant: string | undefined
-  try {
-    if (options.dryRun) {
-      enrolled = { connectionId: '(dry run)', reconnected: false }
-    } else {
-      const result = await enrollAdapter({
-        wsUrl: pairing.wsUrl,
-        ...(pairing.grant ? { grant: pairing.grant } : {}),
-        enrollId: pairing.enrollId,
-        enrollToken: pairing.enrollToken,
-        harnessId: identity.harnessId,
-        kind: pairing.kind,
-        label: 'Pi',
-        adapterId: identity.adapterId,
-        key: identity.key,
-        adapterVersion: ADAPTER_VERSION,
-        ...(probe.version ? { harnessVersion: probe.version } : {}),
-        capabilities: PI_CAPABILITIES,
-      })
-      enrolled = result
-      deviceGrant = result.relayGrant?.grant
-    }
-  } catch (cause) {
-    const reason = cause instanceof Error ? cause.message : String(cause)
-    if (options.dryRun) throw new Error(reason, { cause })
-    warnings.push(reason)
-    actions.push(`pair adapter ${identity.harnessId} (enrollment response missing)`)
-    if (options.noService) {
-      actions.push(`run the adapter in the foreground: ${commands}`)
-      return { actions, warnings, configPath: adapterConfigPath(), foregroundCommand: commands }
-    }
-    const paths = piPaths()
-    const offset = adapterLogSize(paths)
-    const started = startAdapterProcess({ name: 'pi', label: 'Pi', entry, paths })
-    actions.push(...started.actions)
-    if (await waitForAdapterAuthentication(paths, offset)) {
-      warnings.push(
-        'The enrollment response was lost, but the adapter connected with the saved credential.'
+  if (enroll) {
+    try {
+      if (options.dryRun) {
+        connection = '(dry run)'
+      } else {
+        const result = await enrollAdapter({
+          wsUrl: pairing.wsUrl,
+          ...(pairing.grant ? { grant: pairing.grant } : {}),
+          enrollId: enroll.enrollId,
+          enrollToken: enroll.enrollToken,
+          harnessId: identity.harnessId,
+          kind: 'pi',
+          label: 'Pi',
+          adapterId: identity.adapterId,
+          key: identity.key,
+          adapterVersion: ADAPTER_VERSION,
+          ...(probe.version ? { harnessVersion: probe.version } : {}),
+          capabilities: PI_CAPABILITIES,
+        })
+        connection = result.connectionId
+        deviceGrant = result.relayGrant?.grant
+      }
+    } catch (cause) {
+      const reason = cause instanceof Error ? cause.message : String(cause)
+      if (options.dryRun) throw new Error(reason, { cause })
+      warnings.push(reason)
+      actions.push(`pair adapter ${identity.harnessId} (enrollment response missing)`)
+      if (options.noService) {
+        actions.push(`run the adapter in the foreground: ${commands}`)
+        return { actions, warnings, configPath: adapterConfigPath(), foregroundCommand: commands }
+      }
+      const paths = piPaths()
+      const offset = adapterLogSize(paths)
+      const started = startAdapterProcess({ name: 'pi', label: 'Pi', entry, paths })
+      actions.push(...started.actions)
+      if (await waitForAdapterAuthentication(paths, offset)) {
+        warnings.push(
+          'The enrollment response was lost, but the adapter connected with the saved credential.'
+        )
+        return { actions, warnings, configPath: adapterConfigPath(), foregroundCommand: commands }
+      }
+      throw new Error(
+        `${reason}\nThe adapter config was saved at ${adapterConfigPath()}. ` +
+          `Start it with: clara-adapter-pi start\n` +
+          `Log: ${adapterLogPath()}`,
+        { cause }
       )
-      return { actions, warnings, configPath: adapterConfigPath(), foregroundCommand: commands }
     }
-    throw new Error(
-      `${reason}\nThe adapter config was saved at ${adapterConfigPath()}. ` +
-        `Start it with: clara-adapter-pi start\n` +
-        `Log: ${adapterLogPath()}`,
-      { cause }
-    )
   }
 
-  if (!options.dryRun) {
+  if (!options.dryRun && enroll) {
     if (deviceGrant) {
       writeConfig({ ...config, grant: deviceGrant })
       actions.push('store the adapter relay grant')
@@ -169,7 +169,11 @@ export async function installPi(options: PiInstallOptions): Promise<InstallResul
       throw new Error(REINSTALL_GRANT_MESSAGE)
     }
   }
-  actions.push(`pair adapter ${identity.harnessId} as connection ${enrolled.connectionId}`)
+  if (pairing.reused) {
+    actions.push(`reuse the existing pairing for ${identity.harnessId}`)
+  } else if (connection) {
+    actions.push(`pair adapter ${identity.harnessId} as connection ${connection}`)
+  }
 
   if (options.noService) {
     actions.push(`run the adapter in the foreground: ${commands}`)
@@ -214,28 +218,4 @@ export function uninstallPiCommand(args: string[]): void {
     if (purge) actions.push('remove harness identity and credential')
   }
   for (const action of actions) console.log(action)
-}
-
-async function pairingInput(value: string | undefined): Promise<HarnessPairingPayload> {
-  if (!value && !stdin.isTTY) {
-    throw new Error('Pass --pair <code> in a non-interactive install')
-  }
-  const code = value ?? (await prompt('Pairing code: '))
-  const parsed = parseHarnessPairingInput(code)
-  if (!parsed) throw new Error('That is not a valid Clara harness pairing code')
-  if (parsed.expiresAt <= Date.now()) {
-    throw new Error(
-      `That pairing code expired. Generate a new one in the hub panel (codes start with ${HARNESS_PAIRING_CODE_PREFIX}).`
-    )
-  }
-  return parsed
-}
-
-async function prompt(question: string): Promise<string> {
-  const rl = createInterface({ input: stdin, output: stdout })
-  try {
-    return (await rl.question(question)).trim()
-  } finally {
-    rl.close()
-  }
 }

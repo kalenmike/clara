@@ -8,7 +8,11 @@ import {
 } from '../adapters/install.ts'
 import { issueAdapterPairing, type PairingTransport } from '../adapters/pairing.ts'
 import { detectAdapterTarget } from '../adapters/platform.ts'
-import { readAdapterState, type AdapterInstallRecord } from '../adapters/state.ts'
+import {
+  adapterHasPairing,
+  readAdapterState,
+  type AdapterInstallRecord,
+} from '../adapters/state.ts'
 import { resolvePaths } from '../paths.ts'
 import { detectRole } from '../state/role.ts'
 import { adapterInstallGuard } from './role-guard.ts'
@@ -31,7 +35,11 @@ export async function runAdapterInstall(args: readonly string[]): Promise<number
   const json = parsed.flags.has('--json')
   const paths = resolvePaths()
   const pairCode = parsed.options.get('--pair')
-  const guard = pairCode ? undefined : adapterInstallGuard(detectRole(paths), spec.kind)
+  const from = parsed.options.get('--from')
+  const reuse =
+    parsed.flags.has('--reuse-pairing') ||
+    (Boolean(from) && !pairCode && adapterHasPairing(spec.kind, paths))
+  const guard = pairCode || reuse ? undefined : adapterInstallGuard(detectRole(paths), spec.kind)
   if (guard) {
     console.error(guard)
     return 1
@@ -42,15 +50,16 @@ export async function runAdapterInstall(args: readonly string[]): Promise<number
   try {
     const target = detectAdapterTarget()
     const version = spec.version ?? parsed.options.get('--version')
-    const code = pairCode ?? (await issueCode(spec.kind, transport, spinner))
+    const code = pairCode ?? (reuse ? undefined : await issueCode(spec.kind, transport, spinner))
     const record = await installAdapter(
       {
         kind: spec.kind,
         ...(version ? { version } : {}),
         target,
-        pairCode: code,
+        ...(code ? { pairCode: code } : {}),
+        ...(reuse ? { reusePairing: true } : {}),
         start: !parsed.flags.has('--no-start'),
-        ...(parsed.options.get('--from') ? { from: parsed.options.get('--from') } : {}),
+        ...(from ? { from } : {}),
         ...(parsed.flags.has('--force') ? { force: true } : {}),
         installArgs: adapterInstallArgs(parsed),
       },
@@ -118,7 +127,13 @@ export async function runAdapterUpgrade(args: readonly string[]): Promise<number
         {
           header: 'STATUS',
           value: (row) =>
-            row.error ? warn(row.error) : row.changed ? green('upgraded') : dim('up to date'),
+            row.error
+              ? warn(row.error)
+              : row.changed
+                ? green('upgraded')
+                : row.reinstalled
+                  ? green('reinstalled')
+                  : dim('up to date'),
         },
       ])
     )
