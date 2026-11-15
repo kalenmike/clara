@@ -98,8 +98,8 @@ When the hub and the lab service are on different machines:
    CLARA_LAB_TOKEN=<shared-token>
    ```
 
-3. Open Clara Desktop, connect to the hub, and choose **Clara Lab** in the
-   sidebar.
+3. Open Clara Desktop, connect to the hub, and choose **Lab** in the icon row at
+   the bottom of the sidebar.
 
 The lab service is not a public service. Keep it on a private network or behind
 a firewall, and open only the port the hub uses. The hub holds no engine token;
