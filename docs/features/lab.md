@@ -2,17 +2,25 @@
 
 ## Summary
 
-Clara Lab is a loopback developer console for the engine. It compiles a
-workspace's packages so authors can inspect every resolved step, then acts as
-the MCP harness so they can drive the same run by hand. It is for people
-writing custom pipelines, not for end users.
+Clara Lab is a developer console for the engine, opened from Clara Desktop at
+`/lab`. The desktop window is only the UI. The lab service runs on the engine
+host, next to the engine, and the desktop reaches it through the hub's
+authenticated bridge. The service owns the workspace files, compiles a
+workspace's packages so authors can inspect every resolved step, and acts as the
+MCP harness so they can drive the same run by hand. It is for people writing
+custom pipelines, not for end users.
+
+The workspace is local to the lab service, not the desktop. The standard
+packages come from the engine, so the preview and a run cannot drift. The UI is
+desktop-only: the deployed web/PWA build contains no lab code.
 
 ## User flow
 
-1. Start the lab with `clara start lab`, or run `pnpm dev:lab` while editing it.
-   The lab opens on `127.0.0.1:8791` in a full-height workbench with one
-   navigation rail: **Review**, **Runs**, **Traffic**, **Console**, and
-   **Settings**.
+1. Start the lab service with `clara start lab`, or run `pnpm dev:lab` while
+   editing it. The service opens on `127.0.0.1:8791` in a full-height workbench
+   with one navigation rail: **Review**, **Runs**, **Traffic**, **Console**, and
+   **Settings**. In Clara Desktop, open **Clara Lab** from the sidebar to use the
+   same UI at `/lab` through the hub bridge.
 2. Open **Settings**, choose **Files on this machine** — the repository as the
    lab sees it. Use **Browse…** to pick the folder or type the path. The
    engine's own workspace is reported by the service and shown read-only
@@ -59,12 +67,42 @@ writing custom pipelines, not for end users.
     Model diagnostics stay static: missing providers, missing models, and unset
     models are reported without reading a live catalog.
 
+## Desktop and remote
+
+The lab has three parts, and only the first is a window:
+
+1. **The desktop UI.** Clara Desktop compiles the lab UI into its own build and
+   opens it at `/lab`. The deployed web/PWA build contains no lab code: the
+   route is not registered, Vite replaces the lab modules with stubs, and the
+   bundle check fails if a lab chunk reaches the web artifact.
+2. **The lab service.** `@clara/lab-server` runs next to the engine, not on the
+   desktop and not inside the hub process. It owns the workspace files, the
+   preview and import graph, the engine token, run and admin calls over MCP and
+   SSE, and the engine std/default asset cache.
+3. **The hub bridge.** The hub exposes an authenticated bridge at `/v1/lab/*`
+   and forwards it to the lab service's `/api/*`. This is how a remote desktop
+   reaches a lab service on the engine host. The hub does not hold the engine
+   token; it adds only the shared bridge token.
+
+Point the hub at the service with `CLARA_LAB_URL` (default
+`http://127.0.0.1:8791`) and `CLARA_LAB_TOKEN`. On the lab host, bind with
+`CLARA_LAB_HOST` and set `CLARA_LAB_ALLOW_REMOTE=1` when the hub is remote. Keep
+the lab service on a private network or behind a firewall; it is not meant to be
+exposed publicly.
+
+The preview uses the engine's own standard packages. Before a preview, the lab
+caches the exact std/default bundle by hash from the engine's token-protected,
+read-only `GET /v1/packages/assets`, so a preview never compiles against a copy
+bundled with the lab. Deploying new custom pipelines from the lab is planned and
+not implemented; the lab previews the workspace it is pointed at and does not
+publish packages to the engine.
+
 ## Core business rules
 
-1. **Preview is local; probe is remote.** Preview uses the same loader and
-   compiler as the service against the host files. Probe talks to the running
-   engine over MCP and SSE.
-2. **One host path, one reported workspace.** Preview needs the local host path;
+1. **Preview runs on the lab service; probe is remote.** Preview uses the same
+   loader and compiler as the service against the lab service's workspace files.
+   Probe talks to the running engine over MCP and SSE.
+2. **One host path, one reported workspace.** Preview needs the lab host path;
    the service reports its own path from `CLARA_ENGINE_WORKSPACE`
    (default: its working directory) over `GET /v1/config`. Settings keeps the
    host path editable and shows the service path read-only, and the Review debug
@@ -79,8 +117,9 @@ writing custom pipelines, not for end users.
    a work token, and the operator REST endpoints for target selection and
    preflight. It does not call a model, create an agent session, or enforce real
    policy.
-5. **The engine token never reaches the browser.** The lab server keeps it
-   and every browser request stays on the same loopback origin.
+5. **The engine token never reaches the desktop.** The lab service keeps it and
+   calls the engine directly. The hub bridge carries only the shared lab token,
+   and the desktop sees only `/v1/lab` responses.
 6. **Auto-pull is the default.** After a response the next ready step is claimed
    automatically. **Pause after each step** turns the run into a manual
    step-through.
@@ -90,9 +129,10 @@ writing custom pipelines, not for end users.
 8. **Strict pipelines self-register the lab adapter.** Starting a strict target
    registers `clara-lab` once and retries. The adapter is for orchestration
    testing, not real enforcement.
-9. **Files are edited outside the browser.** The lab is a viewer and a probe; it
-   never writes YAML, Markdown, or agent prompts. The preview watches the source
-   files and reloads.
+9. **Files are local to the lab service.** The workspace belongs to the machine
+   that runs the lab service, not the desktop. Files are edited outside the
+   browser; the lab is a viewer and a probe and never writes YAML, Markdown, or
+   agent prompts. The preview watches the source files and reloads.
 10. **Pinned data is Lab-only.** The engine returns run summaries to MCP
     and REST callers without the pinned tree or full step rows. The lab reads
     `GET /v1/runs/:id/snapshot` and `GET /v1/runs/:id/steps/:path` directly with
@@ -132,6 +172,13 @@ writing custom pipelines, not for end users.
     arguments fall back to a JSON field, and the raw JSON editor stays available
     from the Form/JSON toggle. Unknown keys typed in JSON are dropped, with a
     warning, when switching back to the form.
+18. **Standard packages come from the engine.** Before a preview, the lab caches
+    the exact std/default bundle by hash from the engine's read-only
+    `GET /v1/packages/assets`. It never compiles against a copy bundled with the
+    lab, so a preview and a run cannot drift.
+19. **The UI is desktop-only.** Clara Desktop opens the lab at `/lab`; the
+    deployed web/PWA build contains no lab code. The desktop is the UI, the lab
+    service runs on the engine host, and the hub is the bridge.
 
 ## Edge cases
 
@@ -150,9 +197,9 @@ writing custom pipelines, not for end users.
   service or set `CLARA_ENGINE_TOKEN`.
 - The engine rejects the token: Settings shows the token hint; restart the
   lab with the service's token.
-- The service and Lab bundle different standard packages: the host check passes
-  but the run fails on a package the service does not have. Rebuild both the
-  engine and Lab from the same checkout.
+- The engine's std/default bundle cannot be fetched: preview still compiles the
+  workspace's own packages, but the run may use a different bundle. Check the
+  engine token and the engine's `GET /v1/packages/assets`.
 - A strict target has no adapter: the run registers one automatically; the
   adapter status changes to live in Settings on the next check.
 - There are no active runs: **Kill all runs** stays disabled, and no empty
@@ -176,6 +223,9 @@ writing custom pipelines, not for end users.
   default and can show them again with the toggle.
 - A lab server restarts: in-memory work tokens are lost. The watchdog retries the
   step after the stall threshold.
+- The hub cannot reach the lab service: the desktop reports that the lab server
+  is unavailable through the hub. Check `CLARA_LAB_URL`, the shared
+  `CLARA_LAB_TOKEN`, and that the service is listening on `CLARA_LAB_HOST`.
 - Auto-heartbeat is paused: a slow response can outlive the stall threshold and
   be retried. This is deliberate for testing.
 - A file changes during a run: the pinned snapshot stays authoritative and the
@@ -191,7 +241,10 @@ writing custom pipelines, not for end users.
 - Real policy enforcement. The lab adapter deliberately does not enforce tool,
   path, shell, turn, or token rules.
 - Editing pipelines, prompts, or policies in the browser.
-- Remote access. The lab binds loopback only.
+- Public exposure. The lab service stays on a private network or loopback behind
+  the hub bridge; it is not a public service.
+- Deploying new custom pipelines to the engine. The lab previews the workspace it
+  is pointed at; publishing packages is not implemented.
 - A visual pipeline editor or a graph-layout canvas.
 - Rewinding a run to an earlier state.
 - Starting, pulling, completing, routing, or spawning a run from **Runs**. The
@@ -219,27 +272,45 @@ writing custom pipelines, not for end users.
   strings, and nested objects. Other schema shapes (unions, references, arrays of
   objects) fall back to a JSON field, and the raw schema stays available under
   **Input schema**.
+- Deploying a workspace's packages to the engine is not implemented. The lab
+  previews and probes; it does not publish custom pipelines.
 
 ## Technical appendix
 
 <details>
 <summary>Commands, routes, data, and packages</summary>
 
-- Start: `clara start lab` (serve), `clara status lab --check` (validate).
+- Start: `clara start lab` (serve), `clara status lab --check` (validate). Clara
+  Desktop opens the same UI at `/lab` through the hub bridge.
 - Dev: `pnpm dev:lab` runs Vite on `5175` and the lab server on `8791`.
 - Default ports: lab `8791`, engine `8789`.
-- Environment: `CLARA_LAB_PORT`, `CLARA_LAB_OPEN=0`,
-  `CLARA_ENGINE_URL`, `CLARA_ENGINE_TOKEN`,
-  `CLARA_ENGINE_TOKEN_FILE`, `CLARA_ENGINE_WORKSPACE`
-  (the service workspace, also the lab host default),
+- Environment (lab service): `CLARA_LAB_PORT`, `CLARA_LAB_OPEN=0`,
+  `CLARA_LAB_HOST` (bind address), `CLARA_LAB_TOKEN` (shared bridge token),
+  `CLARA_LAB_ALLOW_REMOTE=1` (accept a remote bridge instead of loopback only),
+  `CLARA_ENGINE_URL`, `CLARA_ENGINE_TOKEN`, `CLARA_ENGINE_TOKEN_FILE`,
+  `CLARA_ENGINE_WORKSPACE` (the service workspace, also the lab host default),
   `CLARA_ENGINE_CONFIG`, and `CLARA_ENGINE_AUTOSTART`.
-- Lab routes: `GET /api/health`, `GET /api/state`, `GET /api/stream`,
-  `POST /api/preview`, `POST /api/preflight`, `POST /api/pick-directory`,
-  `POST /api/diff`, `POST /api/tools/:name`, `GET /api/runs`,
-  `GET /api/runs/:id`, `POST /api/runs/cancel-all`, `GET /api/inbox`,
-  `GET /api/source`, `POST /api/heartbeat`, `POST /api/reconnect`,
-  `POST /api/adapter/register`, `POST /api/adapter/remove`,
-  `POST /api/violation`.
+- Environment (hub): `CLARA_LAB_URL` (lab service target, default
+  `http://127.0.0.1:8791`, `off` disables the bridge) and `CLARA_LAB_TOKEN`
+  (must match the lab service). The hub holds no engine token.
+- Hub bridge: `ALL /v1/lab/*` maps to the lab service's `/api/*` on the same
+  path and query. It is device-authenticated like every `/v1` call, forwards
+  only `accept`, `content-type`, `x-clara-lab`, and `user-agent`, adds
+  `Authorization: Bearer <CLARA_LAB_TOKEN>`, rewrites `Origin` to the lab's own
+  origin, caps request bodies at 16 MiB, and returns `503 lab_unavailable` when
+  the service is unreachable or `400 invalid_path` for a path outside `/api`.
+- Lab service routes (reached directly at `/api/*` or through `/v1/lab/*`):
+  `GET /api/health`, `GET /api/state`, `GET /api/stream`, `POST /api/preview`,
+  `POST /api/preflight`, `POST /api/pick-directory`, `POST /api/diff`,
+  `POST /api/tools/:name`, `GET /api/runs`, `GET /api/runs/:id`,
+  `POST /api/runs/cancel-all`, `GET /api/inbox`, `GET /api/source`,
+  `POST /api/heartbeat`, `POST /api/reconnect`, `POST /api/adapter/register`,
+  `POST /api/adapter/remove`, `POST /api/violation`.
+- Engine assets: `GET /v1/packages/assets` on the engine returns
+  `{ hash, version, files }`. The lab caches the bundle under
+  `CLARA_CACHE_DIR/lab/assets/<hash>` (default
+  `~/.cache/clara/lab/assets/<hash>`) and points the preview loader at it with
+  `CLARA_ENGINE_ASSETS_DIR`.
 - `/api/preflight` returns `{ host, runtime, adapter }`: host compile status and
   package count, engine catalog visibility of its reported workspace, and
   whether the target is strict and has a live adapter.
@@ -264,8 +335,13 @@ writing custom pipelines, not for end users.
 - SDK package: `@clara/pipeline-preview` exports `resolveWorkspace`, `previewPipeline`,
   `listTargets`, `describePackages`, `collectSources`, `diagnoseCompiled`,
   `diagnoseCatalog`, `diffCompiled`, and `inspectSnapshot`.
-- Lab app: `tools/lab`; package: `packages/preview`; browser UI under
-  `tools/lab/src`; server under `tools/lab/server`.
+- UI package: `packages/lab` (`@clara/lab`); lab service package:
+  `packages/lab-server` (`@clara/lab-server`); preview SDK: `packages/preview`
+  (`@clara/pipeline-preview`); standalone CLI and UI entry: `tools/lab`
+  (`@clara/lab-cli`, the `clara-lab` bin) with the browser entry under
+  `tools/lab/src`. The desktop mounts `@clara/lab` from
+  `apps/web/src/pages/lab-page.tsx`; the hub bridge is
+  `apps/hub/server/src/api/routes/lab.ts`.
 - Related docs: [orchestration.md](orchestration.md),
   [capabilities.md](capabilities.md).
 

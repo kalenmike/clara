@@ -20,6 +20,12 @@ the operator can administer a remote hub without opening its loopback page. The
 app does not run the hub service, a panel listener, or a second hub process; the
 adapter host remains its only bundled service.
 
+The same window also opens Clara Lab at `/lab` on desktop builds. The lab UI is
+compiled only into the desktop artifact; the deployed web/PWA build contains no
+lab code. The lab service is not bundled: it runs next to the engine, and the
+app reaches it through the hub's `/v1/lab` bridge, so a remote hub and a remote
+engine both work.
+
 ## User flow
 
 1. Build the app for the host platform, or open an installer produced from the
@@ -41,12 +47,17 @@ adapter host remains its only bundled service.
    Sign in with the hub owner account. The overview, harness, sessions,
    connections, clients, traffic, activity, and settings views use the paired
    hub's live state over the encrypted connection; no loopback page is opened.
+10. Open **Clara Lab** from the sidebar to preview packages and drive a run by
+    hand. It needs a lab service on the engine host; the app reaches it through
+    the hub bridge, so the hub and engine can be remote.
 
 ## Core business rules
 
 1. One codebase, two artifacts. The web build writes `dist` with the service
    worker and manifest; the desktop build writes `dist-desktop` without them,
-   so a native build can never leak into a web deploy.
+   so a native build can never leak into a web deploy. The lab route is
+   desktop-only: the web build omits it and Vite stubs the lab modules, so no
+   lab code reaches the deployed artifact.
 2. The desktop app connects through the same hub and the same E2EE WebSocket as
    a browser. Its endpoint comes from the pairing payload, so remote relay and
    local-only codes both work without a desktop-specific URL.
@@ -80,6 +91,11 @@ adapter host remains its only bundled service.
     and relay target or room edits. Harness setup, device management, monitoring, sync,
     orchestration, and configuration stay available. Adapter setup offers are
     carried out by the adapter host, not by the hub service.
+11. The lab is a route, not a sidecar. `/lab` renders `@clara/lab` and calls the
+    hub bridge under `/v1/lab` through the paired session. The app runs no lab
+    process; the lab service lives next to the engine and keeps the engine
+    token. A remote hub and a remote engine work because the bridge is the only
+    path.
 
 ## Edge cases
 
@@ -117,6 +133,11 @@ adapter host remains its only bundled service.
   server-served panel on the hub. The app does not silently hide the control.
 - The app is offline from the hub. The panel shows the connection failure and
   the last snapshot is not presented as live.
+- Clara Lab reports that the lab service is unavailable. The hub could not reach
+  it at `CLARA_LAB_URL`; start the lab service next to the engine and check the
+  shared `CLARA_LAB_TOKEN`.
+- A bookmarked `/lab` is opened in the browser or PWA. The route is not
+  registered there, so the app does not show Clara Lab.
 
 ## Out of scope
 
@@ -124,6 +145,8 @@ adapter host remains its only bundled service.
 - Native notifications and notification-click routing.
 - `clara://` browser-pairing deep links and single-instance forwarding.
 - Running the hub service, a panel listener, or a relay inside the app.
+- Running the lab service inside the app or as a bundled sidecar. The lab service
+  runs next to the engine and is reached through the hub bridge.
 - Window-state persistence, tray behavior, and mobile targets.
 
 ## Known gaps
@@ -173,6 +196,14 @@ adapter host remains its only bundled service.
   offline**, the active transport switch (local or relay), and relay target/room
   edits.
   The bridge adds no listener; the app still has no hub-service process.
+- The bundled lab route is `/lab`. It renders `@clara/lab` from `packages/lab` and
+  calls the hub bridge under `/v1/lab`, which forwards to the lab service's
+  `/api/*` next to the engine. The app runs no lab process and holds no engine
+  token. The route is registered only when `CLARA_DESKTOP` is set; the web build
+  omits it and Vite aliases `@clara/lab`, its stylesheet, and the lab page to
+  stubs, so no lab code can reach `dist`. `apps/web/scripts/check-bundle.mjs`
+  fails a web bundle that contains a lab marker and a desktop bundle that lacks
+  one.
 - The adapter host lives in `apps/desktop/host` (`@clara/desktop-host`). It
   reuses `@clara/adapter-install` from `packages/adapters/install` for planning,
   target discovery, and jobs. Panel-issued adapter setup offers are the input to
@@ -183,7 +214,8 @@ adapter host remains its only bundled service.
   `adapter_take_link` commands are the only bridge, and
   `apps/web/src/lib/desktop-adapter-host.ts` calls the loopback service with the
   per-launch token. The deep-link plugin registers the `clara` scheme.
-- See [install.md](install.md) for the web/PWA lifecycle and
+- See [install.md](install.md) for the web/PWA lifecycle, [lab.md](lab.md) for
+  the lab service and bridge, and
   [../architecture/overview.md](../architecture/overview.md) for the connection
   model.
 

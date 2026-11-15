@@ -20,7 +20,8 @@ client's **Orchestrator mode** setting keeps its historical label for now.
 - A `Clara` agent in the harness that starts and checks runs. In OpenCode, the
   included adapter installs her as a primary agent.
 - Worker sessions for pipeline steps.
-- Clara Lab, a local workbench for previewing packages and driving a run by hand.
+- Clara Lab, a workbench in Clara Desktop for previewing packages and driving a
+  run by hand. Its service runs next to the engine.
 - MCP tools for callers that do not use the adapter.
 
 The hub enables the feature; each client chooses whether to use the engine
@@ -58,17 +59,54 @@ reads the service, and a greeting does not create work.
 
 ## Preview a package
 
+Clara Lab has two parts: a service that runs next to the engine, and the UI in
+Clara Desktop. Start the service on the engine host:
+
 ```bash
 clara start lab
 ```
 
-Clara Lab opens on `127.0.0.1:8791`. It compiles a package with the same loader
-and compiler as the service, shows the step tree, rendered prompts, policy,
-budget, and source files, and can drive a run manually. It also reports the
-workspace the service uses.
+By default the service listens on `127.0.0.1:8791` and owns the workspace, the
+engine token, and the engine's standard packages. The desktop app opens the UI and
+reaches the service through your hub, so the hub and engine can be on other
+machines.
+
+It compiles a package with the same loader and compiler as the service, shows
+the step tree, rendered prompts, policy, budget, and source files, and can drive
+a run manually. It also reports the workspace the service uses.
 
 `clara status lab --check --workspace . --target std:software/feature` validates a
 target for CI.
+
+### Remote desktop setup
+
+When the hub and the lab service are on different machines:
+
+1. On the engine host, start the lab service with a bind address and a shared
+   token, and allow a remote hub:
+
+   ```bash
+   CLARA_LAB_HOST=0.0.0.0 \
+   CLARA_LAB_TOKEN=<shared-token> \
+   CLARA_LAB_ALLOW_REMOTE=1 \
+   clara start lab
+   ```
+
+2. On the hub, point the bridge at that service with the same token, then
+   restart the hub:
+
+   ```bash
+   CLARA_LAB_URL=http://<engine-host>:8791 \
+   CLARA_LAB_TOKEN=<shared-token>
+   ```
+
+3. Open Clara Desktop, connect to the hub, and choose **Clara Lab** in the
+   sidebar.
+
+The lab service is not a public service. Keep it on a private network or behind
+a firewall, and open only the port the hub uses. The hub holds no engine token;
+it adds only the shared lab token. To turn the bridge off, set
+`CLARA_LAB_URL=off` on the hub.
 
 ## Pipelines
 
