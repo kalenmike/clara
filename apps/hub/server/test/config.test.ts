@@ -6,6 +6,7 @@ import {
   applyRelayCredentials,
   loadConfig,
   readRelayTarget,
+  saveLocalAccess,
   savePairingBaseUrl,
   saveRelayRoom,
   saveRelayTarget,
@@ -23,6 +24,7 @@ const ENV_KEYS = [
   'CLARA_DATA_DIR',
   'CLARA_DB_PATH',
   'CLARA_LOCAL_HOST',
+  'CLARA_LOCAL_ACCESS',
   'CLARA_LOCAL_BIND_HOST',
   'CLARA_LOCAL_PORT',
   'CLARA_RELAY_URL',
@@ -73,8 +75,11 @@ describe('loadConfig sources', () => {
     const config = loadConfig()
 
     expect(config.local).toEqual({ host: '127.0.0.1', bindHost: '127.0.0.1', port: 8788 })
+    expect(config.localAccess).toBe('loopback')
+    expect(config.localBindHosts).toEqual(['127.0.0.1'])
     expect(config.relay).toBeUndefined()
     expect(config.sources.localHost).toBe('default')
+    expect(config.sources.localAccess).toBe('default')
     expect(config.sources.localBindHost).toBe('default')
     expect(config.sources.localPort).toBe('default')
     expect(config.sources.relayUrl).toBe('none')
@@ -364,6 +369,92 @@ describe('loadConfig sources', () => {
     process.env.CLARA_PAIRING_BASE_URL = 'ftp://example.com'
 
     expect(() => loadConfig()).toThrow(/Invalid pairing Web URL/)
+  })
+})
+
+describe('local access modes', () => {
+  function configure(dir: string): void {
+    process.env.CLARA_CONFIG_DIR = dir
+    process.env.CLARA_DATA_DIR = dir
+    process.env.XDG_STATE_HOME = tempDir()
+  }
+
+  it('binds all interfaces for lan access', () => {
+    const dir = tempDir()
+    configure(dir)
+    process.env.CLARA_LOCAL_ACCESS = 'lan'
+
+    const config = loadConfig()
+
+    expect(config.localAccess).toBe('lan')
+    expect(config.localBindHosts).toEqual(['0.0.0.0'])
+    expect(config.local.bindHost).toBe('0.0.0.0')
+    expect(config.sources.localAccess).toBe('env')
+  })
+
+  it('binds loopback plus a custom address', () => {
+    const dir = tempDir()
+    configure(dir)
+    process.env.CLARA_LOCAL_ACCESS = 'custom'
+    process.env.CLARA_LOCAL_BIND_HOST = '192.168.1.20'
+
+    const config = loadConfig()
+
+    expect(config.localAccess).toBe('custom')
+    expect(config.localBindHosts).toEqual(['127.0.0.1', '192.168.1.20'])
+    expect(config.local.bindHost).toBe('192.168.1.20')
+    expect(config.localCustomHost).toBe('192.168.1.20')
+    expect(config.sources.localBindHost).toBe('env')
+  })
+
+  it('rejects custom access without a bind address', () => {
+    const dir = tempDir()
+    configure(dir)
+    process.env.CLARA_LOCAL_ACCESS = 'custom'
+
+    expect(() => loadConfig()).toThrow(/requires CLARA_LOCAL_BIND_HOST/)
+  })
+
+  it('maps the legacy bind host to an access mode', () => {
+    const dir = tempDir()
+    configure(dir)
+    process.env.CLARA_LOCAL_BIND_HOST = '0.0.0.0'
+
+    const config = loadConfig()
+
+    expect(config.localAccess).toBe('lan')
+    expect(config.localBindHosts).toEqual(['0.0.0.0'])
+    expect(config.sources.localAccess).toBe('env')
+  })
+
+  it('treats a non-loopback advertised host as a custom bind', () => {
+    const dir = tempDir()
+    configure(dir)
+    process.env.CLARA_LOCAL_HOST = '192.168.1.20'
+
+    const config = loadConfig()
+
+    expect(config.localAccess).toBe('custom')
+    expect(config.localBindHosts).toEqual(['127.0.0.1', '192.168.1.20'])
+    expect(config.sources.localAccess).toBe('env')
+  })
+
+  it('persists a panel-selected access mode', () => {
+    const dir = tempDir()
+    const path = join(dir, 'server.json')
+    writeFileSync(path, JSON.stringify({ local: { host: '127.0.0.1', port: 8788 } }), {
+      mode: 0o600,
+    })
+
+    saveLocalAccess(path, 'custom', '10.0.0.5')
+    const saved = JSON.parse(readFileSync(path, 'utf8'))
+
+    expect(saved.local).toEqual({
+      host: '127.0.0.1',
+      port: 8788,
+      access: 'custom',
+      bindHost: '10.0.0.5',
+    })
   })
 })
 

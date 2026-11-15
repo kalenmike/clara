@@ -15,6 +15,7 @@ import type {
   AdapterInstallOffer,
   AdapterInstallOfferInput,
   AgentInfo,
+  LocalAccessMode,
   PanelConfigInfo,
   PanelConfigUpdate,
   PanelControls,
@@ -25,6 +26,7 @@ import type {
   PanelHarnessSetupMode,
   PanelHarnessTestResult,
   PanelInstallManifest,
+  PanelLocalAddress,
   PanelOrchestrationControl,
   PanelPushStorage,
   PanelRelayMutationResponse,
@@ -40,11 +42,13 @@ import {
   createRelayRoom,
   DEFAULT_ADAPTER_REGISTRY_URL,
   defaultPairingBaseUrl,
+  isLocalAccessMode,
   normalizeAdapterRegistryUrl,
   normalizePairingBaseUrl,
   normalizeRelayUrl,
   readRelayTarget,
   saveAdapterRegistryUrl,
+  saveLocalAccess,
   savePairingBaseUrl,
   saveRelayRoom,
   saveRelayTarget,
@@ -80,6 +84,13 @@ import {
 import type { SecretKeyInfo } from '../store/secret-key.ts'
 import { FEATURE_NAMES, type FeatureName, type SettingsStore } from '../store/settings.ts'
 import { TrafficMeter } from '../traffic.ts'
+import {
+  buildLocalAddresses,
+  containerAddress,
+  dockerBridgeAddresses,
+  lanAddresses,
+  localBindHosts as computeLocalBindHosts,
+} from './addresses.ts'
 import {
   readOrchestrationControl,
   startOrchestration,
@@ -158,6 +169,7 @@ export class RuntimeController {
   private relayAgent?: Agent
   private relayClient?: RelayClient
   private readonly localTransport: LocalTransport
+  private readonly localCandidates: { docker: string[]; lan: string[] }
   private readonly pushMonitor?: PushMonitor
   private pushMonitorRunning = false
   private readonly errors = new Map<FeatureName, string>()
@@ -219,8 +231,14 @@ export class RuntimeController {
       else this.errors.set('relay', RELAY_TOKENS_MISSING)
     }
 
+    this.localCandidates = {
+      docker: dockerBridgeAddresses(),
+      lan: lanAddresses(),
+    }
+
     this.localTransport = new LocalTransport({
       host: config.local.bindHost,
+      hosts: config.localBindHosts ?? [config.local.bindHost],
       port: config.local.port,
       agent: this.localAgent,
       api: this.api,
@@ -336,6 +354,30 @@ export class RuntimeController {
   /** The bound port, or undefined when the local listener is not running. */
   get localPort(): number | undefined {
     return this.localTransport.active ? this.localTransport.port : undefined
+  }
+
+  /**
+   * The concrete addresses an adapter can dial. A local desktop always uses
+   * loopback; a Docker container or another machine needs a bound bridge or
+   * network address.
+   */
+  get localAddresses(): PanelLocalAddress[] {
+    if (!this.localTransport.active) return []
+    return buildLocalAddresses({
+      access: this.options.config.localAccess ?? 'loopback',
+      bindHosts: this.localTransport.hosts,
+      port: this.localTransport.port,
+      docker: this.localCandidates.docker,
+      lan: this.localCandidates.lan,
+      ...(this.options.config.localAccess === 'custom' && this.options.config.localCustomHost
+        ? { customHost: this.options.config.localCustomHost }
+        : {}),
+    })
+  }
+
+  /** The Docker bridge URL a same-host container should use, when available. */
+  get localContainerUrl(): string | undefined {
+    return containerAddress(this.localAddresses)?.url
   }
 
   get traffic(): TrafficMeter {
@@ -606,6 +648,45 @@ export class RuntimeController {
     const pairingProvided = Object.prototype.hasOwnProperty.call(update, 'pairingBaseUrl')
     const registryProvided = Object.prototype.hasOwnProperty.call(update, 'adapterRegistryUrl')
     const vapidProvided = Object.prototype.hasOwnProperty.call(update, 'vapidSubject')
+    const localAccessProvided = Object.prototype.hasOwnProperty.call(update, 'localAccess')
+    const localBindProvided = Object.prototype.hasOwnProperty.call(update, 'localBindHost')
+
+    let nextAccess = config.localAccess ?? 'loopback'
+    let nextCustomHost = config.localCustomHost ?? config.local.bindHost
+    if (localAccessProvided) {
+      if (config.sources.localAccess === 'env') {
+        throw new PanelControlError(
+          409,
+          'env_override',
+          'CLARA_LOCAL_ACCESS is set. Remove it and restart the hub service to edit direct access here.'
+        )
+      }
+      if (!isLocalAccessMode(update.localAccess)) {
+        throw new PanelControlError(
+          400,
+          'invalid_local_access',
+          'Choose loopback, docker, lan, or custom direct access.'
+        )
+      }
+      nextAccess = update.localAccess
+    }
+    if (localBindProvided) {
+      if (config.sources.localBindHost === 'env') {
+        throw new PanelControlError(
+          409,
+          'env_override',
+          'CLARA_LOCAL_BIND_HOST is set. Remove it and restart the hub service to edit the bind address here.'
+        )
+      }
+      nextCustomHost = normalizeBindHost(update.localBindHost)
+    }
+    if (nextAccess === 'custom' && !nextCustomHost.trim()) {
+      throw new PanelControlError(
+        400,
+        'local_bind_required',
+        'Enter the address the hub should bind for custom direct access.'
+      )
+    }
 
     let pairingBaseUrl: string | undefined
     if (pairingProvided) {
@@ -692,6 +773,37 @@ export class RuntimeController {
     if (writeVapidSubject) {
       saveVapidSubject(config.configDir, nextVapidSubject)
       this.options.push?.setSubject(nextVapidSubject ?? DEFAULT_VAPID_SUBJECT)
+    }
+
+    if (localAccessProvided || localBindProvided) {
+      const previous = {
+        access: config.localAccess,
+        bindHost: config.local.bindHost,
+        bindHosts: config.localBindHosts,
+        customHost: config.localCustomHost,
+        sourceAccess: config.sources.localAccess,
+        sourceBind: config.sources.localBindHost,
+      }
+      try {
+        config.localAccess = nextAccess
+        if (nextCustomHost.trim()) config.localCustomHost = nextCustomHost.trim()
+        config.localBindHosts = computeLocalBindHosts(nextAccess, config.localCustomHost)
+        config.local.bindHost = primaryBindHost(nextAccess, config.localCustomHost)
+        config.sources.localAccess = 'file'
+        if (localBindProvided) config.sources.localBindHost = 'file'
+        await this.restartLocalTransport()
+        saveLocalAccess(config.configPath, nextAccess, config.localCustomHost)
+      } catch (cause) {
+        config.localAccess = previous.access
+        config.local.bindHost = previous.bindHost
+        config.localBindHosts = previous.bindHosts
+        if (previous.customHost) config.localCustomHost = previous.customHost
+        else delete config.localCustomHost
+        config.sources.localAccess = previous.sourceAccess
+        config.sources.localBindHost = previous.sourceBind
+        await this.restartLocalTransport().catch(() => undefined)
+        throw new PanelControlError(400, 'local_bind_failed', errorMessage(cause))
+      }
     }
 
     return panelConfigInfo(config)
@@ -903,18 +1015,18 @@ export class RuntimeController {
         ? record.transport
         : 'local'
     const requestedWsUrl = typeof record.wsUrl === 'string' ? record.wsUrl.trim() : ''
-    if (requestedWsUrl && !/^wss?:\/\//i.test(requestedWsUrl)) {
-      throw new PanelControlError(
-        400,
-        'invalid_ws_url',
-        'The WebSocket URL must start with ws:// or wss://'
-      )
-    }
     if (requestedTransport === 'relay' && requestedWsUrl) {
       throw new PanelControlError(
         400,
         'relay_url_fixed',
         'A relay pairing always uses the configured relay URL.'
+      )
+    }
+    if (requestedWsUrl && !/^ws:\/\//i.test(requestedWsUrl)) {
+      throw new PanelControlError(
+        400,
+        'invalid_ws_url',
+        'A direct pairing URL must start with ws://. Configure the relay for a wss:// pairing.'
       )
     }
     const relay = relayUsable(this.options.config.relay) ? this.options.config.relay : undefined
@@ -925,29 +1037,29 @@ export class RuntimeController {
         'Save the relay hub token in the Relay card before creating a relay pairing.'
       )
     }
-    // A container cannot reach the hub's loopback listener, so a Docker target
-    // on a host-process hub needs the relay, matching transportFor().
-    const transport =
-      requestedTransport === 'docker' && !isContainerized() ? 'relay' : requestedTransport
-    if (transport === 'relay' && !relay) {
-      throw new PanelControlError(
-        400,
-        'relay_required',
-        'Configure the relay before creating a container pairing on this hub.'
-      )
-    }
+    const transport = requestedTransport
     const pairing = await harnessCall(() =>
       this.options.harness.createPairing({ kind, label: label || kind })
     )
     const localPort = this.options.config.local.port
     const room = transport === 'relay' && relay ? relay.room : 'local'
-    const override = transport === 'relay' ? '' : requestedWsUrl
-    const wsUrl =
-      transport === 'relay' && relay
-        ? relayWsUrl(relay.url, room)
-        : transport === 'docker'
-          ? override || `ws://server:${localPort}/ws`
-          : override || `ws://${this.options.config.local.host}:${localPort}/ws`
+    let wsUrl: string
+    if (transport === 'relay' && relay) {
+      wsUrl = relayWsUrl(relay.url, room)
+    } else if (transport === 'docker') {
+      wsUrl =
+        requestedWsUrl ||
+        (isContainerized() ? `ws://server:${localPort}/ws` : (this.localContainerUrl ?? ''))
+      if (!wsUrl) {
+        throw new PanelControlError(
+          400,
+          'ws_url_required',
+          'The hub has no container-reachable address. Enter the WebSocket URL the container can reach, allow Docker access, or configure the relay.'
+        )
+      }
+    } else {
+      wsUrl = requestedWsUrl || `ws://${this.options.config.local.host}:${localPort}/ws`
+    }
     const grant =
       transport === 'relay' && relay
         ? await createRelayGrant({
@@ -1001,6 +1113,13 @@ export class RuntimeController {
     const kind = validateKind(input.kind)
     const opencodeUrl = validateOpencodeUrl(input.opencodeUrl)
     const transport = input.transport ?? this.transportForMethod(input.method)
+    if (input.method === 'ssh' && transport !== 'relay' && !input.wsUrl) {
+      throw new PanelControlError(
+        400,
+        'ws_url_required',
+        'Enter the WebSocket URL the remote machine can reach, or configure the relay.'
+      )
+    }
     const resolved = await install.manifest(kind)
     const pairing = await this.createHarnessPairing({
       kind,
@@ -1028,16 +1147,7 @@ export class RuntimeController {
 
   private transportForMethod(method: AdapterInstallMethod | undefined): PanelHarnessSetupMode {
     const relay = relayUsable(this.options.config.relay) ? this.options.config.relay : undefined
-    if (method === 'ssh') {
-      if (!relay) {
-        throw new PanelControlError(
-          400,
-          'relay_required',
-          'Configure the relay before pairing an adapter on another machine.'
-        )
-      }
-      return 'relay'
-    }
+    if (method === 'ssh') return relay ? 'relay' : 'local'
     if (method === 'docker') return 'docker'
     if (method === 'local') return 'local'
     if (relay) return 'relay'
@@ -1135,10 +1245,11 @@ export class RuntimeController {
       case 'local':
         if (enabled) {
           await this.localTransport.start()
-          const host = this.options.config.local.bindHost
-          this.options.log(
-            `local WebSocket listening on ws://${formatHost(host)}:${this.localTransport.port}/ws`
-          )
+          const addresses = this.localAddresses
+          if (addresses.length === 0) this.options.log('local WebSocket listening')
+          for (const address of addresses) {
+            this.options.log(`local WebSocket listening on ${address.url}`)
+          }
         } else {
           await this.stopLocal('local transport disabled by an admin setting')
           this.localAgent.reset()
@@ -1194,6 +1305,17 @@ export class RuntimeController {
     } catch (cause) {
       this.options.log('could not stop the local transport', cause)
     }
+  }
+
+  /** Apply new bind addresses without restarting the hub process. */
+  private async restartLocalTransport(): Promise<void> {
+    const wasRunning = this.localTransport.active
+    if (wasRunning) await this.localTransport.stop('local access changed')
+    this.localTransport.setHosts(
+      this.options.config.localBindHosts ?? [this.options.config.local.bindHost]
+    )
+    if (wasRunning) await this.localTransport.start()
+    this.options.onLocalEndpointChange?.()
   }
 
   private isConfigured(feature: FeatureName): boolean {
@@ -1308,8 +1430,23 @@ function errorMessage(cause: unknown): string {
   return cause instanceof Error ? cause.message : String(cause)
 }
 
-function formatHost(host: string): string {
-  return host.includes(':') && !host.startsWith('[') ? `[${host}]` : host
+function primaryBindHost(access: LocalAccessMode, customHost?: string): string {
+  if (access === 'lan') return '0.0.0.0'
+  if (access === 'custom') return customHost?.trim() || '127.0.0.1'
+  return '127.0.0.1'
+}
+
+function normalizeBindHost(value: string | null | undefined): string {
+  const host = value?.trim() ?? ''
+  if (!host) return ''
+  if (host.includes('://') || /\s/.test(host)) {
+    throw new PanelControlError(
+      400,
+      'invalid_local_bind',
+      'Enter a bind address or hostname without a scheme or spaces.'
+    )
+  }
+  return host
 }
 
 async function harnessCall<T>(operation: () => Promise<T>): Promise<T> {

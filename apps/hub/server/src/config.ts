@@ -1,7 +1,9 @@
 import { existsSync, mkdirSync, readFileSync, writeFileSync } from 'node:fs'
 import { homedir } from 'node:os'
 import { dirname, join } from 'node:path'
+import type { LocalAccessMode } from '@clara/shared-types'
 import { bytesToBase64Url, randomBytes } from '@clara/crypto'
+import { isWildcardHost, localBindHosts as computeLocalBindHosts } from './runtime/addresses.ts'
 
 export type RelayConfig = {
   url: string
@@ -13,6 +15,7 @@ export type ConfigSource = 'env' | 'file' | 'default' | 'generated' | 'runtime' 
 
 export type ServerConfigSources = {
   localHost: ConfigSource
+  localAccess?: ConfigSource
   localBindHost: ConfigSource
   localPort: ConfigSource
   relayUrl: ConfigSource
@@ -26,10 +29,16 @@ export type ServerConfig = {
   local: {
     /** Advertised or paired host. */
     host: string
-    /** Actual listener address; may be 0.0.0.0 in a container. */
+    /** Primary listener address; may be 0.0.0.0 in a container. */
     bindHost: string
     port: number
   }
+  /** Which interfaces the local WebSocket listener binds. */
+  localAccess?: LocalAccessMode
+  /** Every listener address for the selected access mode. */
+  localBindHosts?: string[]
+  /** The stored custom bind address, even when another mode is active. */
+  localCustomHost?: string
   relay?: RelayConfig
   pairingBaseUrl: string
   /** Base URL for adapter registry manifests and install scripts. */
@@ -47,6 +56,8 @@ type ConfigFile = {
   psk?: unknown
   local?: {
     host?: string
+    access?: LocalAccessMode
+    bindHost?: string
     port?: number
   }
   relay?: {
@@ -87,9 +98,47 @@ export function loadConfig(
         ? 'file'
         : 'default'
   const localHost = process.env.CLARA_LOCAL_HOST ?? file.local?.host ?? DEFAULT_LOCAL_HOST
-  const configuredBind = process.env.CLARA_LOCAL_BIND_HOST?.trim()
-  const localBindHost = configuredBind || localHost
-  const localBindHostSource: ConfigSource = configuredBind ? 'env' : localHostSource
+  const envBind = readEnv('CLARA_LOCAL_BIND_HOST')
+  const fileBind = nonEmpty(file.local?.bindHost)
+  const envAccess = parseLocalAccess(readEnv('CLARA_LOCAL_ACCESS'), 'CLARA_LOCAL_ACCESS')
+  const fileAccess = parseLocalAccess(file.local?.access, configPath)
+
+  // `CLARA_LOCAL_HOST` was the only way to expose the listener before access
+  // modes existed. Treat a non-loopback advertised host as a custom bind so
+  // existing deployments keep working.
+  let bindValue = envBind ?? fileBind
+  let bindSource: ConfigSource = envBind ? 'env' : fileBind ? 'file' : 'none'
+  if (
+    !envAccess &&
+    !fileAccess &&
+    !bindValue &&
+    localHost !== DEFAULT_LOCAL_HOST &&
+    localHost !== 'localhost'
+  ) {
+    bindValue = localHost
+    bindSource = localHostSource
+  }
+
+  const localAccess: LocalAccessMode =
+    envAccess ??
+    fileAccess ??
+    (bindValue ? (isWildcardHost(bindValue) ? 'lan' : 'custom') : 'loopback')
+  const localAccessSource: ConfigSource = envAccess
+    ? 'env'
+    : fileAccess
+      ? 'file'
+      : bindValue
+        ? bindSource
+        : 'default'
+  if (localAccess === 'custom' && !bindValue) {
+    throw new Error(
+      'Local access mode "custom" requires CLARA_LOCAL_BIND_HOST or local.bindHost in server.json'
+    )
+  }
+  const localBindHost =
+    localAccess === 'lan' ? '0.0.0.0' : localAccess === 'custom' ? bindValue! : '127.0.0.1'
+  const localBindHosts = computeLocalBindHosts(localAccess, bindValue)
+  const localCustomHost = bindValue || undefined
   const localPortHint =
     Number.isInteger(options.localPortHint) &&
     options.localPortHint !== undefined &&
@@ -172,6 +221,9 @@ export function loadConfig(
 
   const config: ServerConfig = {
     local: { host: localHost, bindHost: localBindHost, port: localPort },
+    localAccess,
+    localBindHosts,
+    ...(localCustomHost ? { localCustomHost } : {}),
     relay,
     pairingBaseUrl,
     adapterRegistryUrl,
@@ -181,7 +233,8 @@ export function loadConfig(
     dbPath: resolveDatabasePath(dataDir),
     sources: {
       localHost: localHostSource,
-      localBindHost: localBindHostSource,
+      localAccess: localAccessSource,
+      localBindHost: bindValue ? bindSource : localHostSource,
       localPort: localPortSource,
       relayUrl: relay ? relayUrlSource : 'none',
       relayRoom: relay ? relayRoomSource : 'none',
@@ -263,6 +316,41 @@ function persistConfig(path: string, previous: ConfigFile, config: ServerConfig)
   }
 
   writeConfigFile(path, next)
+}
+
+/**
+ * Persist a panel-edited local access mode. The custom bind is kept so the
+ * panel can switch back to it without retyping the address.
+ */
+export function saveLocalAccess(
+  configPath: string,
+  access: LocalAccessMode,
+  bindHost?: string
+): void {
+  const previous = readConfig(configPath)
+  const next: ConfigFile = { ...previous }
+  delete next.opencode
+  delete next.psk
+  const local = { ...previous.local, access }
+  if (bindHost?.trim()) local.bindHost = bindHost.trim()
+  next.local = local
+  writeConfigFile(configPath, next)
+}
+
+export function isLocalAccessMode(value: unknown): value is LocalAccessMode {
+  return value === 'loopback' || value === 'docker' || value === 'lan' || value === 'custom'
+}
+
+export function parseLocalAccess(
+  value: string | undefined,
+  label: string
+): LocalAccessMode | undefined {
+  const text = value?.trim().toLowerCase()
+  if (!text) return undefined
+  if (isLocalAccessMode(text)) return text
+  throw new Error(
+    `Invalid local access mode in ${label}: ${value}. Use loopback, docker, lan, or custom.`
+  )
 }
 
 /**

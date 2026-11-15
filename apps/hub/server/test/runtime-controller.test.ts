@@ -454,6 +454,25 @@ describe('RuntimeController', () => {
     }
   })
 
+  it('updates and persists the local access mode', async () => {
+    const { controller, serverConfig, close } = await createController()
+    try {
+      const local = await controller.updateConfig({ localAccess: 'lan' })
+      expect(local.localAccess).toEqual({ value: 'lan', source: 'file' })
+      expect(serverConfig.localBindHosts).toEqual(['0.0.0.0'])
+      expect(serverConfig.local.bindHost).toBe('0.0.0.0')
+      expect(JSON.parse(readFileSync(serverConfig.configPath, 'utf8')).local.access).toBe('lan')
+
+      serverConfig.sources.localAccess = 'env'
+      await expect(controller.updateConfig({ localAccess: 'loopback' })).rejects.toMatchObject({
+        status: 409,
+        code: 'env_override',
+      })
+    } finally {
+      await close()
+    }
+  })
+
   it('refuses to edit a web URL locked by the environment', async () => {
     const { controller, serverConfig, close } = await createController()
     serverConfig.sources.pairingBaseUrl = 'env'
@@ -840,14 +859,26 @@ it('harness pairing follows the install transport and honours a URL override', a
       'ws://192.168.1.20:8788/ws'
     )
 
-    // A host-process hub cannot serve the Docker network, so the container
-    // pairing falls back to the relay.
+    // A host-process hub cannot serve the Docker network, so a container
+    // pairing needs an explicit address unless the hub exposes one.
     const dockerOnHost = await controller.createHarnessPairing({
       kind: 'opencode',
       label: 'OpenCode',
       transport: 'docker',
+      wsUrl: 'ws://172.17.0.1:8788/ws',
     })
-    expect(dockerOnHost.pairing.transport).toBe('relay')
+    expect(dockerOnHost.pairing.transport).toBe('docker')
+    expect(decodeHarnessPairingCode(dockerOnHost.pairing.code)?.wsUrl).toBe(
+      'ws://172.17.0.1:8788/ws'
+    )
+
+    await expect(
+      controller.createHarnessPairing({
+        kind: 'opencode',
+        label: 'OpenCode',
+        transport: 'docker',
+      })
+    ).rejects.toMatchObject({ status: 400, code: 'ws_url_required' })
 
     process.env.CLARA_SERVER_CONTAINER = '1'
     const docker = await controller.createHarnessPairing({
@@ -905,7 +936,7 @@ it('adapter offers carry an explicit transport and direct address', async () => 
 
     await expect(
       controller.createAdapterPairing({ kind: 'opencode', method: 'ssh' })
-    ).rejects.toMatchObject({ status: 400, code: 'relay_required' })
+    ).rejects.toMatchObject({ status: 400, code: 'ws_url_required' })
   } finally {
     await close()
   }

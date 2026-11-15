@@ -21,6 +21,7 @@ export { runProcess } from './runner.ts'
 export {
   listDockerTargets,
   listSshTargets,
+  parseDockerGateways,
   parseDockerPs,
   readSshHosts,
   type DockerTargetsOptions,

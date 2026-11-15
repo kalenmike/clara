@@ -7,13 +7,15 @@
 // `bun` from PATH is used unless BUN_BIN names one. Cross-target builds need
 // the matching Bun target: bun-linux-x64, bun-linux-arm64, bun-darwin-x64,
 // bun-darwin-arm64, or bun-windows-x64. `--check` builds the assets and runs
-// the dependency check without compiling.
+// the dependency check without compiling. A checkout build reports
+// `<package version>-dev+<7-character commit>`; set CLARA_VERSION for a release.
 
 import { spawnSync } from 'node:child_process'
 import { createHash } from 'node:crypto'
 import { existsSync, mkdirSync, readdirSync, readFileSync, writeFileSync } from 'node:fs'
 import { dirname, join, relative, resolve, sep } from 'node:path'
 import { fileURLToPath } from 'node:url'
+import { buildVersion } from '../../../tools/build/version.mjs'
 
 const here = dirname(fileURLToPath(import.meta.url))
 const packageRoot = resolve(here, '..')
@@ -43,8 +45,14 @@ const outfile = resolve(
   arg('--outfile') ?? join('dist', 'package', target, `clara${executable}`)
 )
 
+const packageVersion = readPackageVersion()
+const version = buildVersion({
+  packageVersion,
+  commit: git(['rev-parse', '--short=7', 'HEAD']) || 'local',
+})
+
 buildPanel()
-buildWeb()
+buildWeb(version)
 
 const sources = [
   ...collect(panelDist, 'panel'),
@@ -96,8 +104,11 @@ function buildPanel() {
   requireIndex(panelDist, 'hub panel', 'pnpm --filter @clara/hub-panel build')
 }
 
-function buildWeb() {
-  run('pnpm', ['--filter', '@clara/web', 'build'], repoRoot)
+function buildWeb(version) {
+  run('pnpm', ['--filter', '@clara/web', 'build'], repoRoot, {
+    ...process.env,
+    CLARA_VERSION: version,
+  })
   requireIndex(webDist, 'web client', 'pnpm --filter @clara/web build')
 }
 
@@ -167,14 +178,22 @@ function writeGenerated(entries) {
 }
 
 function buildMetadata(buildId) {
-  const manifest = JSON.parse(readFileSync(join(repoRoot, 'package.json'), 'utf8'))
   const commit = git(['rev-parse', '--short=8', 'HEAD']) || 'dev'
   const dirty = Boolean(git(['status', '--porcelain']))
   return {
-    version: typeof manifest.version === 'string' ? manifest.version : '0.0.0',
+    version,
     commit: dirty ? `${commit}-dirty` : commit,
     buildId,
     publicKey: process.env.CLARA_RELEASE_PUBLIC_KEY?.trim() || '',
+  }
+}
+
+function readPackageVersion() {
+  try {
+    const manifest = JSON.parse(readFileSync(join(repoRoot, 'package.json'), 'utf8'))
+    return typeof manifest.version === 'string' ? manifest.version : '0.0.0'
+  } catch {
+    return '0.0.0'
   }
 }
 
@@ -183,8 +202,8 @@ function git(args) {
   return result.status === 0 ? result.stdout.trim() : ''
 }
 
-function run(command, args, cwd) {
-  const result = spawnSync(command, args, { cwd, stdio: 'inherit', env: process.env })
+function run(command, args, cwd, env = process.env) {
+  const result = spawnSync(command, args, { cwd, stdio: 'inherit', env })
   if (result.error) fail(`${command} could not run: ${result.error.message}`)
   if (result.status !== 0) process.exit(result.status ?? 1)
 }
