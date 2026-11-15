@@ -203,7 +203,7 @@ describe('loadConfig sources', () => {
     process.env.CLARA_CONFIG_DIR = dir
     process.env.CLARA_DATA_DIR = dir
     process.env.XDG_STATE_HOME = tempDir()
-    // This is what infra/docker/server.compose.yml passes when a value is optional.
+    // An empty environment value means the option was not supplied.
     process.env.CLARA_RELAY_URL = ''
     process.env.CLARA_RELAY_ROOM = ''
     process.env.CLARA_AGENT_TOKEN = 'agent-token'
