@@ -1,0 +1,24 @@
+{
+  "name": "@clara/adapter-install",
+  "private": true,
+  "version": "0.1.0",
+  "type": "module",
+  "description": "Shared adapter install planning, target discovery, and job execution.",
+  "exports": {
+    ".": "./src/index.ts"
+  },
+  "scripts": {
+    "build": "tsup",
+    "typecheck": "tsc -p tsconfig.json",
+    "test": "vitest run"
+  },
+  "dependencies": {
+    "@clara/shared-types": "workspace:*"
+  },
+  "devDependencies": {
+    "@types/node": "^24.19.2",
+    "tsup": "^9.0.0",
+    "typescript": "~6.0.3",
+    "vitest": "^5.0.5"
+  }
+}

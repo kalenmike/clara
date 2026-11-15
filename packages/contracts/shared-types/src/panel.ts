@@ -243,11 +243,24 @@ export type PanelInstallInfo = {
   available: boolean
   reason?: string
   registry: PanelInstallRegistry
-  ssh: PanelInstallSshTargets
-  docker: PanelInstallDockerTargets
 }
 
-export type PanelInstallMethod = 'ssh' | 'docker'
+/**
+ * A one-time adapter pairing plus the material a browser can hand to a local
+ * installer. The hub issues this; it never runs the install itself.
+ */
+export type AdapterInstallOffer = {
+  pairing: PanelHarnessPairing
+  manifest?: PanelInstallManifest
+  command?: string
+  deepLink: string
+}
+
+/** Where an adapter install runs. `local` is the client's own machine. */
+export type AdapterInstallMethod = 'local' | 'ssh' | 'docker'
+
+/** Kept as an alias for the panel API shape. */
+export type PanelInstallMethod = AdapterInstallMethod
 
 export type PanelInstallHostInput = {
   /** Use this ~/.ssh/config alias and let ssh resolve user, host, and port. */
@@ -257,33 +270,19 @@ export type PanelInstallHostInput = {
   port?: number
 }
 
-export type PanelInstallStart = {
-  kind: string
-  method: PanelInstallMethod
-  host?: PanelInstallHostInput
-  container?: string
-  opencodeUrl?: string
-}
+export type AdapterInstallJobState = 'running' | 'succeeded' | 'failed' | 'cancelled'
 
-export type PanelInstallJobState = 'running' | 'succeeded' | 'failed' | 'cancelled'
-
-export type PanelInstallJob = {
+export type AdapterInstallJob = {
   id: string
-  pairingId: string
   kind: string
-  method: PanelInstallMethod
+  method: AdapterInstallMethod
   target: string
-  state: PanelInstallJobState
+  state: AdapterInstallJobState
   startedAt: string
   finishedAt?: string
   exitCode?: number
   lines: string[]
   error?: string
-}
-
-export type PanelInstallResponse = {
-  pairing: PanelHarnessPairing
-  job: PanelInstallJob
 }
 
 export type PanelOpenCodeInfo = {

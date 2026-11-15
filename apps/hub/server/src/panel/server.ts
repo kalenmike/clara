@@ -2,6 +2,7 @@ import { createServer, type IncomingMessage, type ServerResponse } from 'node:ht
 import { readFileSync, realpathSync, statSync } from 'node:fs'
 import { extname, join, resolve, sep } from 'node:path'
 import type { Server } from 'node:http'
+import { quoteShellArgument, validateKind, validateOpencodeUrl } from '@clara/adapter-install'
 import {
   isSyncIntervalMs,
   MAX_DEVICE_ALIAS_LENGTH,
@@ -9,7 +10,6 @@ import {
   type PanelConfigUpdate,
   type PanelFeatureName,
   type PanelMutationResponse,
-  type PanelInstallMethod,
   type PanelRelayUpdate,
   type PanelSessionsQuery,
 } from '@clara/shared-types'
@@ -19,7 +19,6 @@ import { readControlFailure, type PanelControlService } from './controls.ts'
 import { checkPanelRequest } from './security.ts'
 import type { PanelDataSource } from './runtime.ts'
 import type { PanelFeature } from './feature.ts'
-import { validateKind } from './install-command.ts'
 import type { InstallService } from './install-service.ts'
 
 const API_PATH = '/panel/api/v1/status'
@@ -38,7 +37,6 @@ const RELAY_ROOM_PATH = '/panel/api/v1/relay/room'
 const HARNESSES_PREFIX = '/panel/api/v1/harnesses'
 const DEVICES_PREFIX = '/panel/api/v1/devices'
 const INSTALL_PATH = '/panel/api/v1/install'
-const INSTALL_JOBS_PREFIX = `${INSTALL_PATH}/jobs/`
 const HEALTH_PATH = '/health'
 const ASSETS_PREFIX = '/assets/'
 const PANEL_HEADER = 'x-clara-panel'
@@ -658,7 +656,7 @@ async function handleInstall(
   const install = context.install
   if (!install) {
     sendJson(response, method, 503, {
-      error: { code: 'install_unavailable', message: 'Adapter installs are not available' },
+      error: { code: 'install_unavailable', message: 'Adapter setup is not available' },
     })
     return
   }
@@ -672,11 +670,11 @@ async function handleInstall(
       if (method !== 'POST') {
         response.setHeader('allow', 'GET, HEAD, POST')
         sendJson(response, method, 405, {
-          error: { code: 'method_not_allowed', message: 'Use GET or POST for adapter installs' },
+          error: { code: 'method_not_allowed', message: 'Use GET or POST for adapter setup' },
         })
         return
       }
-      await startInstall(request, response, context, install)
+      await startInstall(request, response, context)
       return
     }
 
@@ -711,41 +709,8 @@ async function handleInstall(
       return
     }
 
-    const id = decodeSegment(pathname.slice(INSTALL_JOBS_PREFIX.length))
-    if (!id || id.includes('/')) {
-      sendJson(response, method, 404, {
-        error: { code: 'not_found', message: 'Unknown install job' },
-      })
-      return
-    }
-
-    if (method === 'GET' || method === 'HEAD') {
-      const job = install.job(id)
-      if (!job) {
-        sendJson(response, method, 404, {
-          error: { code: 'not_found', message: 'That install job no longer exists' },
-        })
-        return
-      }
-      sendJson(response, method, 200, job)
-      return
-    }
-
-    if (method === 'DELETE') {
-      if (!requireMutationHeader(request, response, method)) return
-      if (!install.cancel(id)) {
-        sendJson(response, method, 404, {
-          error: { code: 'not_found', message: 'That install job is no longer running' },
-        })
-        return
-      }
-      sendJson(response, method, 200, { ok: true })
-      return
-    }
-
-    response.setHeader('allow', 'GET, HEAD, DELETE')
-    sendJson(response, method, 405, {
-      error: { code: 'method_not_allowed', message: 'Use GET or DELETE for an install job' },
+    sendJson(response, method, 404, {
+      error: { code: 'not_found', message: 'Unknown adapter setup endpoint' },
     })
   } catch (cause) {
     const failure = readControlFailure(cause)
@@ -755,9 +720,9 @@ async function handleInstall(
       })
       return
     }
-    context.log?.('adapter install failed', cause)
+    context.log?.('adapter setup failed', cause)
     sendJson(response, method, 500, {
-      error: { code: 'install_failed', message: 'Could not run the adapter install' },
+      error: { code: 'install_failed', message: 'Could not create the adapter setup' },
     })
   }
 }
@@ -765,8 +730,7 @@ async function handleInstall(
 async function startInstall(
   request: IncomingMessage,
   response: ServerResponse,
-  context: RequestContext,
-  install: InstallService
+  context: RequestContext
 ): Promise<void> {
   const method = request.method ?? 'POST'
   const controls = context.controls
@@ -785,82 +749,16 @@ async function startInstall(
     })
     return
   }
-  const unknown = unknownFields(body.value, ['kind', 'method', 'host', 'container', 'opencodeUrl'])
+  const unknown = unknownFields(body.value, ['kind', 'opencodeUrl'])
   if (unknown) return invalidField(response, method, unknown)
 
   const kind = validateKind(body.value.kind)
-  const installMethod = body.value.method
-  if (installMethod !== 'ssh' && installMethod !== 'docker') {
-    return invalidField(response, method, 'method')
+  const opencodeUrl = validateOpencodeUrl(body.value.opencodeUrl)
+  const offer = await controls.createAdapterPairing({ kind })
+  if (opencodeUrl && offer.command) {
+    offer.command = `${offer.command} ${quoteShellArgument('--opencode-url')} ${quoteShellArgument(opencodeUrl)}`
   }
-  const opencodeUrl = body.value.opencodeUrl === undefined ? undefined : body.value.opencodeUrl
-  if (opencodeUrl !== undefined && typeof opencodeUrl !== 'string') {
-    return invalidField(response, method, 'opencodeUrl')
-  }
-
-  let host: Record<string, unknown> | undefined
-  let container: string | undefined
-  if (installMethod === 'ssh') {
-    if (!isRecord(body.value.host)) return invalidField(response, method, 'host')
-    const hostUnknown = unknownFields(body.value.host, ['alias', 'hostname', 'user', 'port'])
-    if (hostUnknown) return invalidField(response, method, `host.${hostUnknown}`)
-    for (const field of ['alias', 'hostname', 'user'] as const) {
-      if (body.value.host[field] !== undefined && typeof body.value.host[field] !== 'string') {
-        return invalidField(response, method, `host.${field}`)
-      }
-    }
-    if (body.value.host.port !== undefined && typeof body.value.host.port !== 'number') {
-      return invalidField(response, method, 'host.port')
-    }
-    host = body.value.host
-    if (body.value.container !== undefined) {
-      return invalidField(response, method, 'container')
-    }
-  } else {
-    if (typeof body.value.container !== 'string') {
-      return invalidField(response, method, 'container')
-    }
-    container = body.value.container
-    if (body.value.host !== undefined) return invalidField(response, method, 'host')
-  }
-
-  const transport = install.transportFor(installMethod as PanelInstallMethod)
-  const pairing = await controls.createHarnessPairing({
-    kind,
-    label: installLabel(kind),
-    transport,
-  })
-
-  try {
-    const job = await install.start({
-      kind,
-      method: installMethod as PanelInstallMethod,
-      ...(host
-        ? {
-            host: {
-              ...(typeof host.alias === 'string' ? { alias: host.alias } : {}),
-              ...(typeof host.hostname === 'string' ? { hostname: host.hostname } : {}),
-              ...(typeof host.user === 'string' ? { user: host.user } : {}),
-              ...(typeof host.port === 'number' ? { port: host.port } : {}),
-            },
-          }
-        : {}),
-      ...(container ? { container } : {}),
-      ...(opencodeUrl ? { opencodeUrl } : {}),
-      pairing: pairing.pairing,
-    })
-    sendJson(response, method, 200, { pairing: pairing.pairing, job })
-  } catch (cause) {
-    await controls.cancelHarnessPairing(pairing.pairing.id).catch(() => {})
-    throw cause
-  }
-}
-
-function installLabel(kind: string): string {
-  if (kind === 'opencode') return 'OpenCode'
-  if (kind === 'claude') return 'Claude Code'
-  if (kind === 'pi') return 'Pi'
-  return kind
+  sendJson(response, method, 200, offer)
 }
 
 async function handleHarness(

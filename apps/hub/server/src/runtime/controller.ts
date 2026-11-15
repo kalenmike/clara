@@ -9,7 +9,10 @@ import {
   encodePairingCode,
   type HarnessPairingPayload,
 } from '@clara/shared-types'
+import { installLabel, validateKind } from '@clara/adapter-install'
 import type {
+  AdapterInstallMethod,
+  AdapterInstallOffer,
   AgentInfo,
   PanelConfigInfo,
   PanelConfigUpdate,
@@ -18,7 +21,9 @@ import type {
   PanelFeatureControl,
   PanelHarnessMutationResponse,
   PanelHarnessPairingMutationResponse,
+  PanelHarnessSetupMode,
   PanelHarnessTestResult,
+  PanelInstallManifest,
   PanelOrchestrationControl,
   PanelRelayMutationResponse,
   PanelRelayUpdate,
@@ -49,6 +54,7 @@ import { HarnessValidationError } from '../harness/types.ts'
 import { broadcast, LocalTransport } from '../local-server.ts'
 import { PanelControlError } from '../panel/controls.ts'
 import { harnessList, harnessState, toPanelHarnessTest } from '../panel/harness.ts'
+import type { InstallService } from '../panel/install-service.ts'
 import { createPairingPayload, pairingLinkBase, relayWsUrl } from '../pairing.ts'
 import { panelConfigInfo } from '../panel/runtime.ts'
 import { PushMonitor } from '../push/monitor.ts'
@@ -83,6 +89,7 @@ export type ControllerOptions = {
   harness: HarnessManager
   info: AgentInfo
   settings: SettingsStore
+  install?: InstallService
   sync?: ClientStorageStore
   push?: PushService
   pushError?: string
@@ -94,8 +101,6 @@ export type ControllerOptions = {
   onRelayTargetChanged?: () => void
   /** The local listener started, stopped, or bound a different port. */
   onLocalEndpointChange?: () => void
-  /** Adapter installs were turned off, so running jobs should stop. */
-  onInstallDisabled?: () => void
   log: (message: string, detail?: unknown) => void
 }
 
@@ -177,6 +182,8 @@ export class RuntimeController {
         startedAt: options.startedAt,
         canAccess: () => this.canProxy(),
         sessionCount: () => this.localAgent.sessionCount,
+        createAdapterPairing: (input) => this.createAdapterPairing(input),
+        adapterManifest: (kind) => this.adapterManifest(kind),
         log: options.log,
       },
       { token: options.apiToken }
@@ -511,8 +518,7 @@ export class RuntimeController {
   async setInstall(enabled: boolean): Promise<PanelControls> {
     if (this.options.settings.getInstall() === enabled) return this.controls()
     this.options.settings.setInstall(enabled)
-    if (!enabled) this.options.onInstallDisabled?.()
-    this.options.log(enabled ? 'adapter installs enabled' : 'adapter installs disabled')
+    this.options.log(enabled ? 'adapter setup enabled' : 'adapter setup disabled')
     return this.controls()
   }
 
@@ -923,6 +929,61 @@ export class RuntimeController {
         createdAt: new Date(pairing.createdAt).toISOString(),
       },
     }
+  }
+
+  /**
+   * Issue the pairing and the install command for one adapter kind. The caller
+   * runs the command on the machine that owns the harness; the hub only issues.
+   */
+  async createAdapterPairing(input: {
+    kind: string
+    method?: AdapterInstallMethod
+  }): Promise<AdapterInstallOffer> {
+    const install = this.options.install
+    if (!install) {
+      throw new PanelControlError(503, 'install_unavailable', 'Adapter setup is not available.')
+    }
+    const kind = validateKind(input.kind)
+    const resolved = await install.manifest(kind)
+    const pairing = await this.createHarnessPairing({
+      kind,
+      label: installLabel(kind),
+      transport: this.transportForMethod(input.method),
+    })
+    const command = install.command(resolved.manifest, pairing.pairing.code)
+    return {
+      pairing: pairing.pairing,
+      manifest: resolved.manifest,
+      command,
+      deepLink: install.deepLink(pairing.pairing.code, kind),
+    }
+  }
+
+  async adapterManifest(kind: string): Promise<PanelInstallManifest> {
+    const install = this.options.install
+    if (!install) {
+      throw new PanelControlError(503, 'install_unavailable', 'Adapter setup is not available.')
+    }
+    const resolved = await install.manifest(validateKind(kind))
+    return resolved.manifest
+  }
+
+  private transportForMethod(method: AdapterInstallMethod | undefined): PanelHarnessSetupMode {
+    const relay = relayUsable(this.options.config.relay) ? this.options.config.relay : undefined
+    if (method === 'ssh') {
+      if (!relay) {
+        throw new PanelControlError(
+          400,
+          'relay_required',
+          'Configure the relay before pairing an adapter on another machine.'
+        )
+      }
+      return 'relay'
+    }
+    if (method === 'docker') return isContainerized() ? 'docker' : 'relay'
+    if (method === 'local') return isContainerized() ? 'docker' : 'local'
+    if (relay) return 'relay'
+    return isContainerized() ? 'docker' : 'local'
   }
 
   async cancelHarnessPairing(id: string): Promise<void> {

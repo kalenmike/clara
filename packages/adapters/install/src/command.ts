@@ -1,11 +1,15 @@
 import type { PanelInstallHostInput, PanelInstallManifest } from '@clara/shared-types'
-import { PanelControlError } from './controls.ts'
+import { InstallRequestError } from './errors.ts'
+import type { AdapterInstallMethod, InstallPlan, InstallPlanInput } from './types.ts'
 
 const HOSTNAME = /^[A-Za-z0-9][A-Za-z0-9.:-]{0,252}$/
 const SSH_ALIAS = /^[A-Za-z0-9][A-Za-z0-9._-]{0,127}$/
 const SSH_USER = /^[A-Za-z0-9_][A-Za-z0-9._-]{0,63}$/
 const CONTAINER = /^[A-Za-z0-9][A-Za-z0-9_.-]{0,127}$/
 const KIND = /^[a-z0-9][a-z0-9_-]{0,31}$/
+
+/** Adapters the client can install from a registry manifest. */
+export const INSTALL_KINDS = ['opencode', 'claude', 'pi'] as const
 
 export type SshInstallTarget = {
   destination: string
@@ -29,15 +33,22 @@ export type InstallScriptInput = {
 
 export function validateKind(kind: unknown): string {
   if (typeof kind !== 'string' || !KIND.test(kind)) {
-    throw new PanelControlError(400, 'invalid_kind', 'Choose a supported harness adapter')
+    throw new InstallRequestError(400, 'invalid_kind', 'Choose a supported harness adapter')
   }
+  return kind
+}
+
+export function installLabel(kind: string): string {
+  if (kind === 'opencode') return 'OpenCode'
+  if (kind === 'claude') return 'Claude Code'
+  if (kind === 'pi') return 'Pi'
   return kind
 }
 
 export function validateOpencodeUrl(value: unknown): string | undefined {
   if (value === undefined || value === null || value === '') return undefined
   if (typeof value !== 'string') {
-    throw new PanelControlError(400, 'invalid_opencode_url', 'The OpenCode URL must be a string')
+    throw new InstallRequestError(400, 'invalid_opencode_url', 'The OpenCode URL must be a string')
   }
   const text = value.trim()
   const unsafe = [...text].some((character) => {
@@ -45,26 +56,26 @@ export function validateOpencodeUrl(value: unknown): string | undefined {
     return code <= 0x1f || code === 0x7f || /\s/.test(character)
   })
   if (!text || text.length > 2_048 || unsafe) {
-    throw new PanelControlError(400, 'invalid_opencode_url', 'The OpenCode URL is invalid')
+    throw new InstallRequestError(400, 'invalid_opencode_url', 'The OpenCode URL is invalid')
   }
   let url: URL
   try {
     url = new URL(text)
   } catch {
-    throw new PanelControlError(400, 'invalid_opencode_url', 'Enter a valid OpenCode URL')
+    throw new InstallRequestError(400, 'invalid_opencode_url', 'Enter a valid OpenCode URL')
   }
   if (url.protocol !== 'http:' && url.protocol !== 'https:') {
-    throw new PanelControlError(400, 'invalid_opencode_url', 'The OpenCode URL must use HTTP(S)')
+    throw new InstallRequestError(400, 'invalid_opencode_url', 'The OpenCode URL must use HTTP(S)')
   }
   if (url.username || url.password) {
-    throw new PanelControlError(
+    throw new InstallRequestError(
       400,
       'invalid_opencode_url',
       'The OpenCode URL must not contain credentials'
     )
   }
   if (url.search || url.hash) {
-    throw new PanelControlError(
+    throw new InstallRequestError(
       400,
       'invalid_opencode_url',
       'The OpenCode URL must not contain a query or fragment'
@@ -75,29 +86,29 @@ export function validateOpencodeUrl(value: unknown): string | undefined {
 
 export function validateSshTarget(input: PanelInstallHostInput | undefined): SshInstallTarget {
   if (!input || typeof input !== 'object') {
-    throw new PanelControlError(400, 'invalid_ssh_target', 'Choose an SSH host')
+    throw new InstallRequestError(400, 'invalid_ssh_target', 'Choose an SSH host')
   }
   if (input.alias !== undefined) {
     if (typeof input.alias !== 'string' || !SSH_ALIAS.test(input.alias)) {
-      throw new PanelControlError(400, 'invalid_ssh_target', 'The SSH host alias is invalid')
+      throw new InstallRequestError(400, 'invalid_ssh_target', 'The SSH host alias is invalid')
     }
     return { destination: input.alias, label: input.alias, alias: input.alias }
   }
 
   const hostname = typeof input.hostname === 'string' ? input.hostname.trim() : ''
   if (!hostname || !HOSTNAME.test(hostname) || hostname.startsWith('-')) {
-    throw new PanelControlError(400, 'invalid_ssh_target', 'Enter a valid SSH hostname or IP')
+    throw new InstallRequestError(400, 'invalid_ssh_target', 'Enter a valid SSH hostname or IP')
   }
   const user = input.user === undefined ? undefined : String(input.user).trim()
   if (user !== undefined && (!user || !SSH_USER.test(user))) {
-    throw new PanelControlError(400, 'invalid_ssh_target', 'Enter a valid SSH username')
+    throw new InstallRequestError(400, 'invalid_ssh_target', 'Enter a valid SSH username')
   }
   const port = input.port
   if (
     port !== undefined &&
     (typeof port !== 'number' || !Number.isInteger(port) || port < 1 || port > 65_535)
   ) {
-    throw new PanelControlError(400, 'invalid_ssh_target', 'The SSH port must be 1-65535')
+    throw new InstallRequestError(400, 'invalid_ssh_target', 'The SSH port must be 1-65535')
   }
 
   const bracketed = hostname.includes(':') && !hostname.startsWith('[') ? `[${hostname}]` : hostname
@@ -111,7 +122,7 @@ export function validateSshTarget(input: PanelInstallHostInput | undefined): Ssh
 
 export function validateDockerTarget(value: unknown): DockerInstallTarget {
   if (typeof value !== 'string' || !CONTAINER.test(value)) {
-    throw new PanelControlError(400, 'invalid_container', 'Choose a Docker container')
+    throw new InstallRequestError(400, 'invalid_container', 'Choose a Docker container')
   }
   return { container: value, label: value }
 }
@@ -173,6 +184,49 @@ export function sshInvocation(target: SshInstallTarget, script: string): string[
 
 export function dockerInvocation(target: DockerInstallTarget, script: string): string[] {
   return ['exec', target.container, 'sh', '-lc', script]
+}
+
+/**
+ * Turn a pairing code and a registry manifest into the exact command the client
+ * should run. Local installs use the same checksummed shell script so all three
+ * targets share one execution path.
+ */
+export function buildInstallPlan(input: InstallPlanInput): InstallPlan {
+  const script = buildInstallScript({
+    kind: input.kind,
+    manifest: input.manifest,
+    installUrl: input.manifest.install,
+    pairingCode: input.pairingCode,
+    ...(input.opencodeUrl ? { opencodeUrl: input.opencodeUrl } : {}),
+  })
+
+  if (input.method === 'local') {
+    return { command: 'sh', args: ['-c', script], target: 'this machine', script }
+  }
+  if (input.method === 'ssh') {
+    const host = validateSshTarget(input.host)
+    return {
+      command: 'ssh',
+      args: sshInvocation(host, script),
+      target: host.label,
+      script,
+    }
+  }
+  const docker = validateDockerTarget(input.container)
+  return {
+    command: 'docker',
+    args: dockerInvocation(docker, script),
+    target: docker.label,
+    script,
+  }
+}
+
+export function isAdapterInstallMethod(value: unknown): value is AdapterInstallMethod {
+  return value === 'local' || value === 'ssh' || value === 'docker'
+}
+
+export function quoteShellArgument(value: string): string {
+  return shellQuote(value)
 }
 
 function shellQuote(value: string): string {

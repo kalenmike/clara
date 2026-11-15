@@ -1,13 +1,14 @@
 import { describe, expect, it } from 'vitest'
 import type { PanelInstallManifest } from '@clara/shared-types'
 import {
+  buildInstallPlan,
   buildInstallScript,
   dockerInvocation,
   sshInvocation,
   validateDockerTarget,
   validateOpencodeUrl,
   validateSshTarget,
-} from '../src/panel/install-command.ts'
+} from '../src/index.ts'
 
 const manifest: PanelInstallManifest = {
   schemaVersion: 1,
@@ -102,5 +103,37 @@ describe('install command helpers', () => {
       '-lc',
       script,
     ])
+  })
+
+  it('plans local, SSH, and Docker installs from the same script', () => {
+    const local = buildInstallPlan({
+      kind: 'claude',
+      method: 'local',
+      manifest: { ...manifest, harness: 'claude' },
+      pairingCode: 'code',
+    })
+    expect(local.command).toBe('sh')
+    expect(local.args).toEqual(['-c', local.script])
+    expect(local.target).toBe('this machine')
+
+    const ssh = buildInstallPlan({
+      kind: 'claude',
+      method: 'ssh',
+      manifest: { ...manifest, harness: 'claude' },
+      pairingCode: 'code',
+      host: { alias: 'prod' },
+    })
+    expect(ssh.command).toBe('ssh')
+    expect(ssh.args.at(-2)).toBe('prod')
+
+    const docker = buildInstallPlan({
+      kind: 'claude',
+      method: 'docker',
+      manifest: { ...manifest, harness: 'claude' },
+      pairingCode: 'code',
+      container: 'harness',
+    })
+    expect(docker.command).toBe('docker')
+    expect(docker.args.slice(0, 3)).toEqual(['exec', 'harness', 'sh'])
   })
 })

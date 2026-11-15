@@ -5,10 +5,11 @@
   "type": "module",
   "description": "Tauri shell that packages the Clara web client for desktop.",
   "scripts": {
-    "dev": "tauri dev",
-    "bundle": "tauri build",
-    "bundle:app": "tauri build --no-bundle",
+    "dev": "pnpm --filter @clara/desktop-host run build && tauri dev",
+    "bundle": "pnpm --filter @clara/desktop-host run bundle && tauri build",
+    "bundle:app": "pnpm --filter @clara/desktop-host run bundle && tauri build --no-bundle",
     "build:docker": "node scripts/build-docker.mjs",
+    "host": "pnpm --filter @clara/desktop-host run build",
     "icons": "tauri icon ../web/public/clara-mark.png"
   },
   "devDependencies": {

@@ -9,18 +9,12 @@ import type {
   PanelInstallSshHost,
   PanelInstallSshTargets,
 } from '@clara/shared-types'
+import type { RunCommand } from './types.ts'
 
 const execFileAsync = promisify(execFile)
 const SSH_TIMEOUT_MS = 5_000
 const DOCKER_TIMEOUT_MS = 5_000
 const MAX_INCLUDE_DEPTH = 3
-
-export type CommandResult = { stdout: string; stderr: string }
-export type RunCommand = (
-  command: string,
-  args: string[],
-  options: { timeout: number; maxBuffer: number }
-) => Promise<CommandResult>
 
 const defaultRun: RunCommand = async (command, args, options) => {
   const result = await execFileAsync(command, args, {
@@ -47,7 +41,7 @@ export async function listSshTargets(
   } catch (cause) {
     return {
       available: false,
-      reason: commandReason(cause, 'ssh', 'SSH is not installed on the hub host.'),
+      reason: commandReason(cause, 'ssh', 'SSH is not installed on this machine.'),
       hosts,
     }
   }
@@ -71,7 +65,7 @@ export async function listDockerTargets(
   } catch (cause) {
     return {
       available: false,
-      reason: commandReason(cause, 'docker', 'Docker is not available on the hub host.'),
+      reason: commandReason(cause, 'docker', 'Docker is not available on this machine.'),
       containers: [],
     }
   }
@@ -180,7 +174,7 @@ function parseConfigFile(
       continue
     }
     if (key === 'match') {
-      // Match blocks can override connection fields, which the panel cannot
+      // Match blocks can override connection fields, which the client cannot
       // preview. Keep the preceding exact Host entry and ignore the block.
       flush()
       continue

@@ -16,9 +16,17 @@
       "csp": "default-src 'self'; script-src 'self' 'unsafe-inline'; style-src 'self' 'unsafe-inline'; img-src 'self' data:; font-src 'self'; connect-src 'self' http: https: ws: wss:; frame-ancestors 'none'; base-uri 'self'; form-action 'self'"
     }
   },
+  "plugins": {
+    "deep-link": {
+      "desktop": {
+        "schemes": ["clara"]
+      }
+    }
+  },
   "bundle": {
     "active": true,
     "targets": "all",
+    "externalBin": ["binaries/clara-adapter-host"],
     "category": "DeveloperTool",
     "shortDescription": "Clara desktop client",
     "longDescription": "A secure desktop client for your coding harness, connecting to the Clara hub over an end-to-end encrypted WebSocket.",

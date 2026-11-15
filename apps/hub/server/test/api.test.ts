@@ -87,7 +87,10 @@ function fakeHarness(): HarnessManager {
   return harness
 }
 
-function createTestApi(harness: HarnessManager = fakeHarness()) {
+function createTestApi(
+  harness: HarnessManager = fakeHarness(),
+  extra: Partial<ApiDependencies> = {}
+) {
   const deps: ApiDependencies = {
     harness,
     info: { version: '0.1.0', protocol: 1 },
@@ -95,8 +98,18 @@ function createTestApi(harness: HarnessManager = fakeHarness()) {
     canAccess: () => true,
     sessionCount: () => 2,
     log: () => undefined,
+    ...extra,
   }
   return createApiApp(deps, { token: 'secret' })
+}
+
+const adapterManifest = {
+  schemaVersion: 1 as const,
+  harness: 'opencode',
+  version: '0.1.0',
+  install: 'https://clara.example/adapters/opencode/install.sh',
+  installSha256: 'a'.repeat(64),
+  artifacts: {},
 }
 
 function request(path: string, init: RequestInit = {}): Request {
@@ -169,6 +182,50 @@ describe('hub API', () => {
       })
     )
     expect(response.status).toBe(403)
+  })
+
+  it('issues an adapter pairing and serves its manifest', async () => {
+    const api = createTestApi(fakeHarness(), {
+      createAdapterPairing: async (input) => ({
+        pairing: {
+          id: 'pair-1',
+          kind: input.kind,
+          label: 'OpenCode',
+          code: 'clara-harness1_code',
+          transport: 'relay',
+          wsUrl: 'wss://relay.example/room/room',
+          room: 'room',
+          fingerprint: 'fp',
+          expiresAt: new Date(1_000).toISOString(),
+          createdAt: new Date(0).toISOString(),
+        },
+        manifest: adapterManifest,
+        command: 'curl -fsSL https://clara.example/adapters/opencode/install.sh | sh',
+        deepLink: 'clara://adapter?code=clara-harness1_code&kind=opencode',
+      }),
+      adapterManifest: async () => adapterManifest,
+    })
+
+    const pairing = await api.fetch(
+      request('/v1/harness/pairings', {
+        method: 'POST',
+        headers: { authorization: 'Bearer secret', 'content-type': 'application/json' },
+        body: JSON.stringify({ kind: 'opencode', method: 'ssh' }),
+      })
+    )
+    expect(pairing.status).toBe(200)
+    expect(await pairing.json()).toMatchObject({
+      pairing: { kind: 'opencode' },
+      deepLink: 'clara://adapter?code=clara-harness1_code&kind=opencode',
+    })
+
+    const manifest = await api.fetch(
+      request('/v1/harness/adapters/opencode', {
+        headers: { authorization: 'Bearer secret' },
+      })
+    )
+    expect(manifest.status).toBe(200)
+    expect(await manifest.json()).toMatchObject({ manifest: { version: '0.1.0' } })
   })
 
   it('returns hub and harness status', async () => {

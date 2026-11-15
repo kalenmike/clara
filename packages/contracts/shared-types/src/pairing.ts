@@ -5,6 +5,46 @@ export const PAIRING_CODE_PREFIX = 'clara1_'
 export const HARNESS_PAIRING_CODE_PREFIX = 'clara-harness1_'
 
 /**
+ * The desktop client registers this protocol. A hub page can hand an adapter
+ * pairing code to the client without the person copying the code by hand.
+ */
+export const ADAPTER_LINK_PROTOCOL = 'clara'
+export const ADAPTER_LINK_HOST = 'adapter'
+
+export function buildAdapterInstallLink(code: string, kind?: string): string {
+  const params = new URLSearchParams({ code })
+  if (kind) params.set('kind', kind)
+  return `${ADAPTER_LINK_PROTOCOL}://${ADAPTER_LINK_HOST}?${params.toString()}`
+}
+
+/** The adapter kind carried by a link, when present. */
+export function parseAdapterInstallKind(input: string): string | null {
+  const value = input.trim()
+  if (!value.toLowerCase().startsWith(`${ADAPTER_LINK_PROTOCOL}://`)) return null
+  try {
+    const url = new URL(value)
+    if (url.hostname !== ADAPTER_LINK_HOST) return null
+    return url.searchParams.get('kind')?.trim() || null
+  } catch {
+    return null
+  }
+}
+
+/** Read the code from a `clara://adapter?code=…` link, or return null. */
+export function parseAdapterInstallLink(input: string): string | null {
+  const value = input.trim()
+  if (!value.toLowerCase().startsWith(`${ADAPTER_LINK_PROTOCOL}://`)) return null
+  try {
+    const url = new URL(value)
+    if (url.hostname !== ADAPTER_LINK_HOST) return null
+    const code = url.searchParams.get('code')?.trim()
+    return code || null
+  } catch {
+    return null
+  }
+}
+
+/**
  * A pairing link carries a one-time enrollment capability, not a long-lived
  * key. The enrollment token is used as the session key for the enrollment
  * handshake and is consumed by the hub after one device enrolls.
@@ -142,6 +182,8 @@ export function decodeHarnessPairingCode(code: string): HarnessPairingPayload | 
 export function parseHarnessPairingInput(input: string): HarnessPairingPayload | null {
   const value = input.trim()
   if (!value) return null
+  const linked = parseAdapterInstallLink(value)
+  if (linked) return decodeHarnessPairingCode(linked)
   if (value.startsWith(HARNESS_PAIRING_CODE_PREFIX)) return decodeHarnessPairingCode(value)
   if (value.startsWith(PAIRING_CODE_PREFIX)) return decodeHarnessPairingCode(value)
   if (value.startsWith('http://') || value.startsWith('https://')) {

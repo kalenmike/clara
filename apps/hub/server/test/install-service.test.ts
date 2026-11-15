@@ -1,18 +1,9 @@
 import { join } from 'node:path'
 import { tmpdir } from 'node:os'
 import { describe, expect, it } from 'vitest'
-import type {
-  PanelHarnessPairing,
-  PanelInstallDockerTargets,
-  PanelInstallSshTargets,
-} from '@clara/shared-types'
 import type { ServerConfig } from '../src/config.ts'
 import { InstallRegistry } from '../src/panel/install-registry.ts'
-import {
-  InstallService,
-  type InstallRunner,
-  type InstallRunResult,
-} from '../src/panel/install-service.ts'
+import { InstallService } from '../src/panel/install-service.ts'
 
 const SHA = 'a'.repeat(64)
 
@@ -70,29 +61,6 @@ function registry(): InstallRegistry {
   return new InstallRegistry({ config: config(), fetchImpl, kinds: ['opencode'] })
 }
 
-const pairing: PanelHarnessPairing = {
-  id: 'pair-1',
-  kind: 'opencode',
-  label: 'OpenCode',
-  code: 'clara-harness1_code',
-  transport: 'relay',
-  wsUrl: 'wss://relay.example/room/room',
-  room: 'room',
-  fingerprint: SHA,
-  expiresAt: new Date(Date.now() + 60_000).toISOString(),
-  createdAt: new Date().toISOString(),
-}
-
-const sshTargets: () => Promise<PanelInstallSshTargets> = async () => ({
-  available: true,
-  hosts: [{ alias: 'prod', hostname: 'prod.example', user: 'ubuntu', port: 2222 }],
-})
-
-const dockerTargets: () => Promise<PanelInstallDockerTargets> = async () => ({
-  available: true,
-  containers: [{ id: 'abcdef012345', name: 'harness', image: 'opencode', state: 'running' }],
-})
-
 function service(
   overrides: Partial<ConstructorParameters<typeof InstallService>[0]> = {}
 ): InstallService {
@@ -100,121 +68,36 @@ function service(
     config: config(),
     registry: registry(),
     isEnabled: () => true,
-    isContainerized: () => false,
-    allowRemote: () => false,
     log: () => {},
-    sshTargets,
-    dockerTargets,
-    runner: async () => ({ exitCode: 0 }),
     ...overrides,
   })
 }
 
-async function tick(): Promise<void> {
-  await new Promise((resolve) => setTimeout(resolve, 0))
-}
-
 describe('install service', () => {
-  it('derives the pairing transport', () => {
-    expect(service().transportFor('ssh')).toBe('relay')
-    expect(service().transportFor('docker')).toBe('relay')
-    expect(() => service({ config: config(false) }).transportFor('ssh')).toThrow(
-      /Configure the relay/
-    )
-    expect(() => service({ isContainerized: () => true }).transportFor('docker')).toThrow(
-      /runs in Docker/
-    )
-    expect(() => service({ isEnabled: () => false }).transportFor('ssh')).toThrow(
-      /Adapter installs are off/
-    )
-  })
-
-  it('rejects installs while the setting is off', async () => {
-    const install = service({ isEnabled: () => false })
-    await expect(
-      install.start({ kind: 'opencode', method: 'ssh', host: { alias: 'prod' }, pairing })
-    ).rejects.toThrow(/Adapter installs are off/)
-  })
-
-  it('runs an SSH install and records its output', async () => {
-    let finish: ((result: InstallRunResult) => void) | undefined
-    const runner: InstallRunner = async (_command, _args, onLine) => {
-      onLine('downloading adapter')
-      return new Promise((resolve) => {
-        finish = resolve
-      })
-    }
-    const install = service({ runner })
-    const job = await install.start({
-      kind: 'opencode',
-      method: 'ssh',
-      host: { alias: 'prod' },
-      pairing,
-    })
-    expect(job.state).toBe('running')
-    expect(job.lines.join('\n')).toContain('Installing opencode')
-
-    finish?.({ exitCode: 0 })
-    await tick()
-    const done = install.job(job.id)
-    expect(done?.state).toBe('succeeded')
-    expect(done?.lines).toContain('downloading adapter')
-    expect(done?.lines.join('\n')).toContain('Waiting for it to connect')
-  })
-
-  it('runs a Docker install and rejects an unknown container', async () => {
-    const install = service()
-    const job = await install.start({
-      kind: 'opencode',
-      method: 'docker',
-      container: 'harness',
-      pairing,
-    })
-    expect(job.target).toBe('harness')
-
-    await expect(
-      install.start({ kind: 'opencode', method: 'docker', container: 'other', pairing })
-    ).rejects.toThrow(/not running/)
-  })
-
-  it('cancels a running install', async () => {
-    const runner: InstallRunner = (_command, _args, _onLine, signal) =>
-      new Promise((resolve) => {
-        signal.addEventListener('abort', () => resolve({ exitCode: null, signal: 'SIGTERM' }))
-      })
-    const install = service({ runner })
-    const job = await install.start({
-      kind: 'opencode',
-      method: 'ssh',
-      host: { alias: 'prod' },
-      pairing,
-    })
-    expect(install.cancel(job.id)).toBe(true)
-    await tick()
-    expect(install.job(job.id)?.state).toBe('cancelled')
-  })
-
-  it('reports a containerized hub before remote exposure', async () => {
-    const containerized = await service({
-      isContainerized: () => true,
-      allowRemote: () => true,
-    }).info()
-    expect(containerized.reason).toMatch(/runs in Docker/)
-    expect(containerized.reason).toContain('run it inside the container')
-
-    const remote = await service({ allowRemote: () => true }).info()
-    expect(remote.reason).toMatch(/beyond loopback/)
-  })
-
   it('reports availability and registry entries', async () => {
-    const disabled = await service({ isEnabled: () => false }).info()
-    expect(disabled.available).toBe(false)
-    expect(disabled.ssh.hosts).toEqual([])
-    expect(disabled.registry.entries[0]?.ok).toBe(true)
-
     const available = await service().info()
     expect(available.available).toBe(true)
-    expect(available.ssh.hosts[0]?.alias).toBe('prod')
-    expect(available.docker.containers[0]?.name).toBe('harness')
+    expect(available.registry.entries[0]?.ok).toBe(true)
+
+    const disabled = await service({ isEnabled: () => false }).info()
+    expect(disabled.available).toBe(false)
+    expect(disabled.reason).toMatch(/Adapter setup is off/)
+    expect(disabled.registry.entries[0]?.ok).toBe(true)
+  })
+
+  it('resolves a manifest and builds the one-line command', async () => {
+    const install = service()
+    const resolved = await install.manifest('opencode')
+    expect(resolved.manifest.version).toBe(manifest.version)
+    expect(install.command(resolved.manifest, 'clara-harness1_code')).toBe(
+      'curl -fsSL https://clara.example/adapters/opencode/install.sh | sh -s -- --pair clara-harness1_code --no-runner'
+    )
+    expect(install.deepLink('clara-harness1_code')).toBe('clara://adapter?code=clara-harness1_code')
+  })
+
+  it('does not hand out manifests while the setting is off', async () => {
+    await expect(service({ isEnabled: () => false }).manifest('opencode')).rejects.toThrow(
+      /Adapter setup is off/
+    )
   })
 })

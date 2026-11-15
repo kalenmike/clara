@@ -299,8 +299,6 @@ async function runServe(
     config,
     registry: installRegistry,
     isEnabled: () => settings.getInstall(),
-    isContainerized,
-    allowRemote: () => readBooleanEnv('CLARA_PANEL_ALLOW_REMOTE'),
     log,
   })
 
@@ -309,6 +307,7 @@ async function runServe(
     harness,
     info,
     settings,
+    install,
     sync: clientStorage,
     push,
     pushError,
@@ -318,7 +317,6 @@ async function runServe(
     secretKey,
     onRelayTargetChanged: () => cloudflare?.forgetDeployment(),
     onLocalEndpointChange: publishRuntime,
-    onInstallDisabled: () => install.cancelAll(),
     log,
   })
   controllerRef.current = controller

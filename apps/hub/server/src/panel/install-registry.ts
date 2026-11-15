@@ -1,3 +1,4 @@
+import { INSTALL_KINDS } from '@clara/adapter-install'
 import type {
   PanelInstallArtifact,
   PanelInstallManifest,
@@ -8,8 +9,7 @@ import type { ServerConfig } from '../config.ts'
 import { SERVER_VERSION } from '../version.ts'
 import { PanelControlError } from './controls.ts'
 
-/** Adapters the panel can install from a registry. */
-export const INSTALL_KINDS = ['opencode', 'claude', 'pi'] as const
+export { INSTALL_KINDS }
 
 const CACHE_MS = 5 * 60_000
 const ERROR_CACHE_MS = 30_000

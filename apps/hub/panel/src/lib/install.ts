@@ -1,26 +1,20 @@
 import type {
+  AdapterInstallOffer,
   PanelInstallInfo,
-  PanelInstallJob,
   PanelInstallManifest,
-  PanelInstallResponse,
-  PanelInstallStart,
 } from '@clara/shared-types'
-import { deletePanel, getPanel, postPanel } from './panel-api.ts'
+import { getPanel, postPanel } from './panel-api.ts'
 
 export async function fetchInstallInfo(): Promise<PanelInstallInfo> {
   return getPanel<PanelInstallInfo>('/panel/api/v1/install')
 }
 
-export async function startInstall(input: PanelInstallStart): Promise<PanelInstallResponse> {
-  return postPanel<PanelInstallResponse>('/panel/api/v1/install', input)
-}
-
-export async function fetchInstallJob(id: string): Promise<PanelInstallJob> {
-  return getPanel<PanelInstallJob>(`/panel/api/v1/install/jobs/${encodeURIComponent(id)}`)
-}
-
-export async function cancelInstallJob(id: string): Promise<void> {
-  await deletePanel(`/panel/api/v1/install/jobs/${encodeURIComponent(id)}`)
+/** Issue a one-time adapter pairing plus the command and desktop deep link. */
+export async function createAdapterOffer(input: {
+  kind: string
+  opencodeUrl?: string
+}): Promise<AdapterInstallOffer> {
+  return postPanel<AdapterInstallOffer>('/panel/api/v1/install', input)
 }
 
 export function installManifest(
@@ -49,10 +43,7 @@ export function registryCommand(
   return `curl -fsSL ${manifest.install} | sh -s -- --pair ${code}${noRunner}`
 }
 
-/**
- * Whether the hub can run adapter installs at all. A disabled switch, a
- * containerized hub, or a remote-exposed panel keeps the manual copy path.
- */
+/** Whether the hub can issue an adapter setup offer. */
 export function installOffered(info: PanelInstallInfo | undefined): boolean {
   return info?.enabled !== false && info?.available === true
 }
