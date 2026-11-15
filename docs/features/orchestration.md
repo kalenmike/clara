@@ -23,7 +23,7 @@ step reference.
    `clara start engine`, or let the MCP bridge start it on first
    use.
 2. Install the harness adapter and the shared runner with
-   `clara-adapter-opencode install --pair <code>` (or `clara start adapter --harness opencode --pair <code>` in the repository). The command installs the
+   `clara-adapter-opencode install --pair <code>` (or `clara adapter install opencode --pair <code>` in the repository). The command installs the
    hub-facing adapter, links the plugin,
    installs the `clara` agent, disables the plugin's embedded runner, writes the
    shared runner config, and installs a user service where the platform
@@ -857,9 +857,8 @@ they can run while the adapter or setup is degraded. See
   the hub uses `infra/docker/server.compose.yml` on the same `clara` network.
 - Commands:
   `clara start|stop|restart|status|logs engine`,
-  `clara start adapter --harness <name> [--pair] [--mcp]`,
-  `clara stop adapter [--harness <name>] [--purge]`,
-  `clara status adapter [--harness <name>] [--verify]`,
+  `clara adapter install|upgrade|verify|remove <kind> [--mcp]`,
+  `clara adapter start|stop|status|logs <kind>`,
   `clara start runner [--workspace <path>] [--label <name>]`,
   `clara rebuild status|build|adapters|restart|health`,
   `clara start lab`, `clara status lab --check`.

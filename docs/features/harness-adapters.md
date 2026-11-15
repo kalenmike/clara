@@ -49,9 +49,9 @@ contacts the harness directly.
 5. The install script detects the target platform, downloads the matching
    Bun-compiled adapter archive, verifies its SHA-256, installs it under the
    adapter data directory, and runs the adapter installer. The manual commands
-   are `clara start adapter --harness opencode --pair <code>`,
-   `clara start adapter --harness claude --pair <code>`, and
-   `clara start adapter --harness pi --pair <code>`.
+   are `clara adapter install opencode --pair <code>`,
+   `clara adapter install claude --pair <code>`, and
+   `clara adapter install pi --pair <code>`.
 6. The OpenCode installer discovers OpenCode from flags, environment, or
    `~/.local/state/opencode/service.json`. The Claude Code installer uses the
    machine's existing Claude Code login and accepts `--claude-path`, `--model`,
@@ -108,12 +108,12 @@ contacts the harness directly.
 8. The OpenCode installer installs the daemon, the OpenCode binding, and the
    shared runner. `--no-runner` and `--no-service` split those pieces. The
    Claude Code installer installs only the adapter and its service; it does not
-   install an orchestration binding. Inside the repository,
-   `clara start adapter --harness opencode --pair` and
-   `clara start adapter --harness claude --pair` dispatch to the same
-   adapter binaries. The hub never executes an install. A browser copies the
-   command; Clara Desktop runs it through its loopback adapter-host sidecar,
-   which uses the user's SSH agent and Docker socket.
+   install an orchestration binding. The packaged command,
+   `clara adapter install opencode` and `clara adapter install claude`, runs the
+   same adapter binaries. Pass `--from <package|dist>` to install a checkout
+   build instead of a registry release. The hub never executes an install. A
+   browser copies the command; Clara Desktop runs it through its loopback
+   adapter-host sidecar, which uses the user's SSH agent and Docker socket.
 9. The Claude Code adapter speaks to the Agent SDK inside the adapter process.
    The SDK is pinned with the adapter and never imported by the hub, web client,
    or shared packages.
@@ -409,13 +409,18 @@ ask for confirmation run without one, exactly as in the Pi TUI.
 - Commands: `clara-adapter-opencode install --pair <code>`,
   `clara-adapter-claude install --pair <code>`,
   `clara-adapter-pi install --pair <code>`,
-  `clara start adapter --harness claude --pair <code>`,
-  `clara start adapter --harness pi --pair <code>`,
-  `clara status adapter [--harness claude|--harness pi]`,
-  `clara status adapter --verify [--harness <name>] [--directory <path>] [--write] [--json]`,
+  `clara adapter install <kind> [--pair <code>] [--from <path>] [--reuse-pairing]`,
+  `clara adapter list [--json]`,
+  `clara adapter status|start|stop|logs <kind>`,
+  `clara adapter verify <kind> [--directory <path>] [--write] [--json]`,
+  `clara adapter upgrade [kind]`,
+  `clara adapter remove <kind> [--purge]`,
   `clara-adapter-<kind> verify [--directory <path>] [--write] [--json]`,
   `clara-adapter-claude uninstall [--purge]`,
   `clara-adapter-pi uninstall [--purge]`.
+  `install --reuse-pairing` reruns discovery, the config write, the binding,
+  the service, and the runner from the saved config; `upgrade` calls it with the
+  saved install flags and does not enroll a new adapter.
 - Registry: `<registry>/<kind>/manifest.json` and
   `<registry>/<kind>/v<version>-install.sh`; the default registry is
   `https://clara.kalenmichael.com/adapters`. The `adapter-releases` workflow
@@ -427,7 +432,13 @@ ask for confirmation run without one, exactly as in the Pi TUI.
   `pnpm adapters:build --from-release <tag> --repo <owner/repo> [--api-url URL]`
   regenerates the same files from archives already attached to a release,
   reading asset names, sizes, and SHA-256 digests from the GitHub API without
-  downloading them.
+  downloading them. A local build writes relative artifact URLs, so
+  `pnpm adapters:serve` (or `adapters:build --serve`) exposes
+  `dist/adapters` on loopback and `CLARA_ADAPTER_REGISTRY_URL` points the
+  packaged command or hub at it. A served or mirrored build instead writes
+  `/kind/file` URLs; a release keeps the flat GitHub asset URL.
+  `--from <package|dist>` stages the checkout's `dist/index.js` under the
+  adapter data directory and runs it with Node, without Bun or a registry.
 - Panel routes: `GET /panel/api/v1/install`, `POST /panel/api/v1/install`, and
   `POST /panel/api/v1/install/settings`. The desktop adapter host exposes
   `/targets`, `/install`, `/install/:id`, and `DELETE /install/:id` on its own

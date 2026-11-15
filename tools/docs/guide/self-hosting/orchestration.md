@@ -45,7 +45,7 @@ clara status engine --json
 ## Install the adapter
 
 ```bash
-clara-adapter-opencode install  # or: clara start adapter --harness opencode --pair
+clara-adapter-opencode install  # or: clara adapter install opencode
 ```
 
 The command links the OpenCode plugin, installs the `Clara` agent, and installs
@@ -124,8 +124,8 @@ includes the complete package and step reference.
 ## MCP
 
 ```bash
-clara start adapter --harness opencode --mcp
-clara status adapter
+clara adapter install opencode --reuse-pairing --mcp
+clara adapter status opencode
 ```
 
 The MCP bridge is a stdio process that talks to the local service. It is useful

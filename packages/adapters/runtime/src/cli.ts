@@ -523,6 +523,56 @@ function uninstallAdapter<THarness>(
   return [...actions, `remove adapter config ${definition.paths.configPath}`]
 }
 
+export type AdapterInstallPairing = {
+  /** The hub WebSocket URL the adapter connects to. */
+  wsUrl: string
+  /** The existing or enrollment grant; the installer stores the long-lived one. */
+  grant?: string
+  /** Present when the adapter must enroll a new identity. */
+  enroll?: { enrollId: string; enrollToken: string }
+  /** True when an existing config supplied the connection instead of a code. */
+  reused: boolean
+}
+
+/**
+ * Resolve the connection for an adapter install. A reinstall reuses the saved
+ * config and skips enrollment; a fresh install consumes a pairing code.
+ */
+export async function resolveInstallPairing(input: {
+  name: string
+  label: string
+  paths: AdapterPaths
+  pair?: string
+  reuse?: boolean
+}): Promise<AdapterInstallPairing> {
+  if (input.reuse) {
+    const config = readAdapterConfig<unknown>(input.paths)
+    if (!config?.wsUrl) {
+      throw new Error(
+        `No existing ${input.label} pairing. Run: clara-adapter-${input.name} install --pair <code>`
+      )
+    }
+    return {
+      wsUrl: config.wsUrl,
+      ...(config.grant ? { grant: config.grant } : {}),
+      reused: true,
+    }
+  }
+  if (!input.pair && !stdin.isTTY) {
+    throw new Error('Pass --pair <code> in a non-interactive install')
+  }
+  const pairing = await pairingInput(input.pair ? ['--pair', input.pair] : [])
+  if (pairing.kind !== input.name) {
+    throw new Error(`This pairing code is for ${pairing.kind}, not ${input.label}`)
+  }
+  return {
+    wsUrl: pairing.wsUrl,
+    ...(pairing.grant ? { grant: pairing.grant } : {}),
+    enroll: { enrollId: pairing.enrollId, enrollToken: pairing.enrollToken },
+    reused: false,
+  }
+}
+
 export async function pairingInput(args: string[]): Promise<HarnessPairingPayload> {
   const value = argValue(args, '--pair') ?? (await prompt('Pairing code: '))
   const parsed = parseHarnessPairingInput(value)

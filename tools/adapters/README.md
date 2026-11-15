@@ -108,6 +108,8 @@ pnpm adapters:build
 pnpm adapters:build --print-targets
 pnpm adapters:build --kind opencode --targets linux-x64,darwin-arm64
 pnpm adapters:build --all-targets   # deliberate full local build
+pnpm adapters:build --kind opencode --serve   # build and serve on 127.0.0.1:8799
+pnpm adapters:serve                           # serve an existing dist/adapters
 ```
 
 Outputs:
@@ -115,6 +117,24 @@ Outputs:
 - `dist/adapters/<harness>/clara-adapter-<harness>-v<version>-<platform>.tar.gz`
 - `dist/adapters/<harness>/manifest.json`
 - `dist/adapters/<harness>/v<version>-install.sh`
+
+A local manifest writes relative artifact URLs, so the directory works as a
+registry at any mount point:
+
+```bash
+export CLARA_ADAPTER_REGISTRY_URL=http://127.0.0.1:8799
+clara adapter install opencode
+```
+
+`--serve` (or `adapters:serve`) prints that line. A served or mirrored build
+writes `<base>/<kind>/<file>` URLs instead; a release keeps the flat GitHub
+asset URL. You can also skip the registry and stage the checkout's Node build:
+
+```bash
+pnpm --filter @clara/adapter-opencode build
+clara adapter install opencode --from apps/adapters/opencode
+clara adapter upgrade opencode
+```
 
 The local manifest covers only the targets you built. Do not copy it to
 `apps/web/public/adapters` unless it includes every platform you want to serve;

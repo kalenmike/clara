@@ -53,6 +53,7 @@ Usage:
 
 Install options:
   --pair <code>                  Pair the adapter with the hub
+  --reuse-pairing                Reinstall with the saved pairing instead of enrolling
   --pi-path <path>               Use a specific Pi binary
   --agent-dir <path>             Pi agent directory (default ~/.pi/agent)
   --session-dir <path>           Override Pi session storage

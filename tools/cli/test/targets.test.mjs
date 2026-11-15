@@ -32,16 +32,20 @@ test('maps the public hub target to the internal server service', () => {
   assert.equal(serviceKey('engine'), 'engine')
 })
 
-test('rejects the removed orchestrator target', () => {
+test('rejects the removed orchestrator and adapter targets', () => {
   assert.deepEqual(takeTarget(['orchestrator', '--json']), {
     target: 'default',
     args: ['orchestrator', '--json'],
+  })
+  assert.deepEqual(takeTarget(['adapter', '--json']), {
+    target: 'default',
+    args: ['adapter', '--json'],
   })
 })
 
 test('limits backup and pairing targets', () => {
   assert.deepEqual(BACKUP_TARGETS, ['default', 'hub', 'engine'])
-  assert.deepEqual(PAIR_TARGETS, ['default', 'hub', 'adapter'])
+  assert.deepEqual(PAIR_TARGETS, ['default', 'hub'])
   assert.equal(takeTarget(['hub', 'archive.tar.gz'], BACKUP_TARGETS).target, 'hub')
   assert.equal(takeTarget(['archive.tar.gz'], BACKUP_TARGETS).target, 'default')
 })

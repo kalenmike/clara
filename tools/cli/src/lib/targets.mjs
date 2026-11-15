@@ -3,27 +3,18 @@
 // A lifecycle command accepts one target before its options:
 //
 //   clara start hub --local
-//   clara status adapter --json
+//   clara status runner --json
 //
 // Targets are intentionally a fixed list. Unknown words are rejected instead of
 // being forwarded, so a typo cannot silently become a service name.
 
-export const LIFECYCLE_TARGETS = [
-  'default',
-  'hub',
-  'web',
-  'engine',
-  'adapter',
-  'runner',
-  'lab',
-  'docs',
-]
+export const LIFECYCLE_TARGETS = ['default', 'hub', 'web', 'engine', 'runner', 'lab', 'docs']
 
 export const CORE_TARGETS = ['hub', 'web', 'engine']
 
 export const BACKUP_TARGETS = ['default', 'hub', 'engine']
 
-export const PAIR_TARGETS = ['default', 'hub', 'adapter']
+export const PAIR_TARGETS = ['default', 'hub']
 
 /** Target names that map to the internal `server` service key. */
 export function serviceKey(target) {

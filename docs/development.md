@@ -159,48 +159,61 @@ remains the surface that runs local, SSH, and Docker adapter installs.
 
 ## Developer commands
 
+`clara` below is the packaged command (`pnpm cli` from source or
+`pnpm cli:install` for the built binary). `clara-dev` is the checkout lifecycle
+command (`pnpm clara:link` installs the shim).
+
 ```bash
-# Lifecycle
-clara start [default|hub|web|engine|adapter|runner|lab|docs] [--docker|--local] [--build]
-clara stop [default|hub|web|engine|adapter|runner|lab|docs] [--docker|--local]
-clara restart [default|hub|web|engine|adapter|runner|lab|docs] [--docker|--local] [--build]
-clara status [default|hub|web|engine|adapter|runner|lab|docs] [--json]
-clara logs [default|hub|web|engine|adapter|runner|lab|docs] [--local|--docker]
-clara start hub --open
-clara status hub --open
-clara backup [default|hub|engine] [--output <path>]
-clara restore [default|hub|engine] <archive> [--force]
+# Lifecycle (clara-dev)
+clara-dev start [default|hub|web|engine|runner|lab|docs] [--docker|--local] [--build]
+clara-dev stop [default|hub|web|engine|runner|lab|docs] [--docker|--local]
+clara-dev restart [default|hub|web|engine|runner|lab|docs] [--docker|--local] [--build]
+clara-dev status [default|hub|web|engine|runner|lab|docs] [--json]
+clara-dev logs [default|hub|web|engine|runner|lab|docs] [--local|--docker]
+clara-dev start hub --open
+clara-dev status hub --open
+clara-dev backup [default|hub|engine] [--output <path>]
+clara-dev restore [default|hub|engine] <archive> [--force]
 
-# Adapters
-clara start adapter [--harness <name>]
-clara start adapter --harness opencode --pair [<code>]
-clara stop adapter [--harness <name>] [--mcp] [--purge]
-clara status adapter [--harness <name>] [--json] [--verify]
-clara logs adapter [--harness <name>]
-clara pair adapter --harness <name>
+# Adapters (packaged command)
+clara adapter search [--json]
+clara adapter list [--json]
+clara adapter install <kind>[@version] [--pair <code>] [--from <path>] [--reuse-pairing]
+clara adapter upgrade [kind] [--no-start]
+clara adapter verify <kind> [--directory <path>] [--write] [--json]
+clara adapter start|stop|status|logs <kind>
+clara adapter remove <kind> [--purge]
+clara pair adapter --harness <kind> [--install]
 
-# Runner
-clara start runner [--workspace <path>]
-clara stop runner [--purge]
-clara status runner [--json]
+# Adapter development from this checkout
+pnpm adapters:build --kind opencode --serve   # loopback registry on 127.0.0.1:8799
+export CLARA_ADAPTER_REGISTRY_URL=http://127.0.0.1:8799
+pnpm cli adapter install opencode             # or: --from apps/adapters/opencode
+pnpm --filter @clara/adapter-opencode build   # rebuild before --from or --serve
+clara-dev mcp install [--api]                 # checkout-only MCP bridge
 
-# Setup
-clara pair [hub] [--no-relay] [--no-qr] [--no-panel] [--revoke-all] [--revoke <id>]
+# Runner (clara-dev)
+clara-dev start runner [--workspace <path>]
+clara-dev stop runner [--purge]
+clara-dev status runner [--json]
 
-# Sites
-clara start lab [--workspace <path>]
-clara status lab --check
-clara start docs [--build]
-clara status docs --check
-clara status docs --typecheck
+# Setup (clara-dev)
+clara-dev pair [hub] [--no-relay] [--no-qr] [--no-panel] [--revoke-all] [--revoke <id>]
 
-# Maintenance
-clara rebuild <status|build|adapters|restart|health|inspect|recover> [--docker|--local|--all]
+# Sites (clara-dev)
+clara-dev start lab [--workspace <path>]
+clara-dev status lab --check
+clara-dev start docs [--build]
+clara-dev status docs --check
+clara-dev status docs --typecheck
+
+# Maintenance (clara-dev)
+clara-dev rebuild <status|build|adapters|restart|health|inspect|recover> [--docker|--local|--all]
 pnpm check:boundaries
 ```
 
-Run `clara --help` for the command list and `clara <command> --help`
-for one command.
+Run `clara --help` or `clara-dev --help` for the command list and
+`<command> --help` for one command.
 
 ## Hub API
 
@@ -217,20 +230,21 @@ and `pnpm check:boundaries` enforces that split.
 Install the read-only API MCP for live frontend testing:
 
 ```bash
-clara start adapter --harness opencode --mcp-api
+clara-dev mcp install --api
 ```
 
 The bridge reads `CLARA_API_URL` (default `http://127.0.0.1:8788`) and
 `CLARA_API_TOKEN_FILE` (default `<hub config dir>/api.token`). See
 [architecture/api.md](architecture/api.md).
 
-`pnpm clara:link` installs a thin `clara` shim under `~/.local/bin`. It runs the
-checkout's Node entry, so it does not need pnpm at invocation time; `--build`,
-Docker Compose, local service scripts, and the MCP bridge still use the
-checkout. The `pnpm clara …` script in the checkout remains an alias for the same
-entry point.
+`pnpm clara:link` installs a thin `clara-dev` shim under `~/.local/bin`. It
+runs the checkout's Node entry, so it does not need pnpm at invocation time;
+`--build`, Docker Compose, local service scripts, and the MCP bridge still use
+the checkout. The `pnpm clara …` script in the checkout remains an alias for the
+same entry point. Adapters belong to the packaged command; `pnpm cli` runs it
+from source and `pnpm cli:install` installs that build.
 
-`clara start` starts Docker by default: it creates the `clara` network,
+`clara-dev start` starts Docker by default: it creates the `clara` network,
 bootstraps `infra/docker/.env` and the engine token on first run, then
 starts the selected targets in engine, hub, web order. Pass `--local` to
 run the same targets as detached local processes. `--build` rebuilds before
@@ -240,12 +254,12 @@ starting. Select one target with `start hub`, `start web`, or
 `hub` is the public target name for the hub service. Docker resources keep their
 `clara-server` names so existing volumes and containers keep working.
 
-`clara start hub --open` starts the hub and opens the panel;
-`clara status hub --open` opens a panel that is already running. Headless
+`clara-dev start hub --open` starts the hub and opens the panel;
+`clara-dev status hub --open` opens a panel that is already running. Headless
 hub maintenance uses `clara-server setup` and `clara-server admin` directly.
 
 Local processes keep a PID and log under `~/.local/share/clara`, so
-`clara stop --local`, `restart --local`, and `logs --local` work the same
+`clara-dev stop --local`, `restart --local`, and `logs --local` work the same
 way as the Docker stack. Stop also resolves a service that was restarted
 outside the PID files: the hub through its runtime file, and the web client
 through the pid in its `/healthz` response. Discovered processes are checked
@@ -255,26 +269,46 @@ by the documented `clara` user systemd unit is reported but never signalled;
 stop it with `systemctl --user stop clara`. Local web serves the built
 `apps/web/dist` on `CLARA_WEB_PORT`.
 
-`clara status` renders one table for the selected targets, using the same
+`clara-dev status` renders one table for the selected targets, using the same
 record shape for `hub`, `web`, and `engine`. The hub row uses its local
 listener URL; Details names the panel URL. Add `--json` for a machine-readable
 record or a `{ "ok": true, "services": [...] }` envelope.
 
-`clara status adapter` reports every supported harness, including ones that
-are not installed. `--harness opencode` narrows the table. `--verify` runs the
-adapter's native-store verification. `clara start adapter` starts every
-paired adapter; `--harness <name> --pair` installs and pairs one. `--pair`
-without a code asks the hub for a fresh code and fails with a clear hint when no
-hub is reachable. The MCP bridge is registered with `--mcp` and removed with
-`stop adapter --mcp`; it is a stdio process, not a service.
+`clara adapter list` shows every installed adapter and its runtime state.
+`clara adapter status <kind>` prints the hub link and harness health;
+`clara adapter verify <kind>` runs the native-store checks, with `--directory`
+and `--write` for a scratch session. `clara adapter install <kind>` issues a
+fresh code from the hub when `--pair` is omitted. Pass `--from <package|dist>`
+to install a build from a checkout instead of a registry release; an existing
+pairing is reused unless `--pair` is also given. `clara adapter upgrade` reruns
+the whole install with the saved pairing and replays the original install flags,
+so a rebuild refreshes the binding, service, and runner without a new code.
+`--mcp` registers the OpenCode MCP bridge during install; the bridge is a stdio
+process, not a service.
 
-`clara start runner` installs and starts the shared script runner;
-`--foreground` runs it in the foreground. `clara start lab` and
-`clara start docs` run the host-only development sites. Their one-shot
+For adapter development, either serve a local registry:
+
+```bash
+pnpm adapters:build --kind opencode --serve
+export CLARA_ADAPTER_REGISTRY_URL=http://127.0.0.1:8799
+pnpm cli adapter install opencode
+```
+
+or install the checkout's Node build directly:
+
+```bash
+pnpm --filter @clara/adapter-opencode build
+pnpm cli adapter install opencode --from apps/adapters/opencode
+pnpm cli adapter upgrade opencode   # reruns install without a new pairing
+```
+
+`clara-dev start runner` installs and starts the shared script runner;
+`--foreground` runs it in the foreground. `clara-dev start lab` and
+`clara-dev start docs` run the host-only development sites. Their one-shot
 checks are `status lab --check`, `status docs --check`, and
 `status docs --typecheck`.
 
-`clara rebuild` snapshots the running services, rebuilds the primary
+`clara-dev rebuild` snapshots the running services, rebuilds the primary
 checkout, installs the adapters, restarts only the captured services, and
 verifies their health. It manages Docker services by default; pass `--local`
 for local services or `--all` for a mixed setup. The standard

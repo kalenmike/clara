@@ -8,6 +8,7 @@
 //     [--artifact-base https://github.com/<owner>/<repo>/releases/download/<tag>]
 //     [--from-release <tag> --repo <owner/repo> [--api-url https://api.github.com]]
 //     [--build dist/adapters] [--out dist/adapters]
+//     [--serve [--port 8799] [--host 127.0.0.1]]
 //     [--artifacts-only] [--skip-build] [--no-adapter-build]
 //     [--print-targets]
 //
@@ -20,6 +21,7 @@
 // the GitHub API; no archive is downloaded.
 //
 //   pnpm adapters:build                       # host target, local registry
+//   pnpm adapters:build --serve               # build and serve on 127.0.0.1:8799
 //   pnpm adapters:build --print-targets       # show the host target
 //   pnpm adapters:build --all-targets         # deliberate full local build
 //   pnpm adapters:build --from-release adapters-v0.1.0 --version 0.1.0 \
@@ -41,6 +43,7 @@ import {
 import { tmpdir } from 'node:os'
 import { dirname, join, resolve } from 'node:path'
 import { fileURLToPath } from 'node:url'
+import { artifactUrls } from './lib/urls.mjs'
 
 const SUPPORTED_TARGETS = [
   'linux-x64',
@@ -67,11 +70,16 @@ const kinds = parseKinds(args.kind)
 const targets = parseTargets(args)
 const buildRoot = resolve(repoRoot, readString(args.build, 'dist/adapters'))
 const outRoot = resolve(repoRoot, readString(args.out, buildRoot))
-const artifactBaseOverride = args['artifact-base'] !== undefined
-const artifactBase = readString(
-  args['artifact-base'],
-  `https://github.com/kalenmichael/clara/releases/download/${encodeURIComponent(tag)}`
-)
+const serve = Boolean(args['serve'])
+const serveHost = readString(args.host, '127.0.0.1')
+const servePort = Number(readString(args.port, '8799'))
+const artifactBaseOverride = args['artifact-base'] !== undefined || serve
+const artifactBase = serve
+  ? `http://${serveHost}:${servePort}`
+  : readString(
+      args['artifact-base'],
+      `https://github.com/kalenmichael/clara/releases/download/${encodeURIComponent(tag)}`
+    )
 const repo = readString(args.repo, process.env.GITHUB_REPOSITORY?.trim() || 'kalenmichael/clara')
 const apiUrl = readString(
   args['api-url'],
@@ -82,6 +90,18 @@ const bun = process.env.BUN_BIN?.trim() || 'bun'
 
 if (fromRelease && artifactsOnly) {
   fail('--from-release cannot be combined with --artifacts-only')
+}
+
+if (serve && fromRelease) {
+  fail('--serve is for a local build; it cannot be combined with --from-release')
+}
+
+if (serve && outRoot !== buildRoot) {
+  fail('--serve needs the manifest and artifacts in one directory; omit --out or make it --build')
+}
+
+if (serve && (!Number.isInteger(servePort) || servePort <= 0)) {
+  fail('--port must be a positive integer')
 }
 
 if (args['print-targets']) {
@@ -103,6 +123,7 @@ for (const kind of kinds) {
   if (!artifactsOnly) mkdirSync(registryDir, { recursive: true })
 
   const artifacts = {}
+  const scriptArtifacts = {}
   for (const target of targets) {
     const file = artifactName(kind, target)
     if (fromRelease) {
@@ -112,12 +133,16 @@ for (const kind of kinds) {
         fail(`Release ${fromRelease} in ${repo} has no asset named ${file}. Assets: ${available}`)
       }
       const metadata = releaseArtifact(asset)
-      artifacts[target] = {
-        url: artifactBaseOverride
-          ? `${artifactBase}/${encodeURIComponent(file)}`
-          : asset.browser_download_url,
-        ...metadata,
-      }
+      const urls = artifactUrls({
+        fromRelease: true,
+        artifactBase,
+        artifactBaseExplicit: artifactBaseOverride,
+        kind,
+        file,
+        releaseUrl: asset.browser_download_url,
+      })
+      artifacts[target] = { url: urls.manifest, ...metadata }
+      scriptArtifacts[target] = { url: urls.script, ...metadata }
       const size = metadata.size === undefined ? '' : ` (${formatSize(metadata.size)})`
       console.log(`using ${kind} ${target}${size}`)
       continue
@@ -127,19 +152,24 @@ for (const kind of kinds) {
     if (!existsSync(path)) {
       fail(`Missing ${path}. Run without --skip-build first.`)
     }
-    artifacts[target] = {
-      url: `${artifactBase}/${encodeURIComponent(file)}`,
-      sha256: sha256(path),
-      size: statSync(path).size,
-    }
+    const urls = artifactUrls({
+      fromRelease: false,
+      artifactBase,
+      artifactBaseExplicit: artifactBaseOverride,
+      kind,
+      file,
+    })
+    const metadata = { sha256: sha256(path), size: statSync(path).size }
+    artifacts[target] = { url: urls.manifest, ...metadata }
+    scriptArtifacts[target] = { url: urls.script, ...metadata }
     built.push(path)
-    console.log(`built ${kind} ${target} (${formatSize(artifacts[target].size)})`)
+    console.log(`built ${kind} ${target} (${formatSize(metadata.size)})`)
   }
 
   if (artifactsOnly) continue
 
   const scriptName = `v${version}-install.sh`
-  const script = installScript(kind, artifacts)
+  const script = installScript(kind, scriptArtifacts)
   const scriptPath = join(registryDir, scriptName)
   writeFileSync(scriptPath, script, { mode: 0o755 })
   if (process.platform !== 'win32') chmodSync(scriptPath, 0o755)
@@ -184,7 +214,7 @@ if (fromRelease) {
     console.log(
       `Local builds cover ${targets.join(', ')} only. Use the adapter release workflow for a complete release.`
     )
-  } else {
+  } else if (!serve) {
     console.log('Publish the artifacts and deploy the registry:')
     console.log(`  gh release create ${tag} ${built.map((path) => quote(path)).join(' ')}`)
     console.log('  # or, when the release already exists:')
@@ -197,9 +227,16 @@ if (fromRelease) {
     }
   }
   console.log('')
-  console.log(
-    `The manifest points at ${artifactBase}. Override it with --artifact-base if the release lives elsewhere.`
-  )
+  if (!serve) {
+    console.log(
+      `The manifest points at ${artifactBase}. Override it with --artifact-base if the release lives elsewhere.`
+    )
+  }
+}
+
+if (serve) {
+  const { serveRegistry } = await import('./serve.mjs')
+  await serveRegistry({ dir: outRoot, host: serveHost, port: servePort })
 }
 
 function buildArtifact(kind, target, path) {

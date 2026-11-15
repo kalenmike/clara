@@ -12,6 +12,12 @@ export type AdapterInstallRecord = {
   platform: string
   /** The versioned install directory that holds the adapter binary. */
   path: string
+  /** A JavaScript entry run with Node instead of a native binary. */
+  entry?: string
+  /** The Node executable that runs `entry`; defaults to the current runtime. */
+  node?: string
+  /** Adapter install flags replayed when the adapter is reinstalled. */
+  installArgs?: string[]
   installedAt: string
   pairedAt?: string
   lastError?: string
@@ -125,7 +131,21 @@ export function adapterEnv(
   kind: AdapterKind,
   env = process.env
 ): NodeJS.ProcessEnv {
-  return { ...env, CLARA_ADAPTER_DATA_DIR: join(paths.dataDir, 'adapters', kind) }
+  return {
+    ...env,
+    CLARA_ADAPTER_CONFIG_DIR: join(paths.configDir, 'adapters', kind),
+    CLARA_ADAPTER_DATA_DIR: join(paths.dataDir, 'adapters', kind),
+  }
+}
+
+/** `<configDir>/adapters/<kind>/config.json`, the adapter's own pairing config. */
+export function adapterConfigPath(kind: AdapterKind, paths: ClaraPaths = resolvePaths()): string {
+  return join(paths.configDir, 'adapters', kind, 'config.json')
+}
+
+/** Whether the adapter has a stored pairing to reuse on a reinstall. */
+export function adapterHasPairing(kind: AdapterKind, paths: ClaraPaths = resolvePaths()): boolean {
+  return existsSync(adapterConfigPath(kind, paths))
 }
 
 /** The data directory the adapter runtime uses for its pid, log, and state. */
@@ -157,6 +177,11 @@ function isRecordEntry(
     typeof value.platform === 'string' &&
     typeof value.path === 'string' &&
     typeof value.installedAt === 'string' &&
+    (value.entry === undefined || typeof value.entry === 'string') &&
+    (value.node === undefined || typeof value.node === 'string') &&
+    (value.installArgs === undefined ||
+      (Array.isArray(value.installArgs) &&
+        value.installArgs.every((arg) => typeof arg === 'string'))) &&
     (value.pairedAt === undefined || typeof value.pairedAt === 'string') &&
     (value.lastError === undefined || typeof value.lastError === 'string')
   )

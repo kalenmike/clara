@@ -1,11 +1,6 @@
 import { createInterface } from 'node:readline/promises'
 import { stdin, stdout } from 'node:process'
 import {
-  HARNESS_PAIRING_CODE_PREFIX,
-  parseHarnessPairingInput,
-  type HarnessPairingPayload,
-} from '@clara/shared-types'
-import {
   REINSTALL_GRANT_MESSAGE,
   adapterLogSize,
   argValue,
@@ -16,6 +11,7 @@ import {
   isLocalHubUrl,
   removeAdapterService,
   removeState,
+  resolveInstallPairing,
   selfEntry,
   startAdapterProcess,
   waitForAdapterAuthentication,
@@ -50,6 +46,8 @@ const PERMISSION_MODES: ClaudePermissionMode[] = [
 
 export type InstallOptions = {
   pair?: string
+  /** Reuse the saved connection and skip enrollment. */
+  reusePairing?: boolean
   claudePath?: string
   baseUrl?: string
   provider?: ClaudeProviderConfig
@@ -97,6 +95,7 @@ export function parseInstallOptions(args: string[]): InstallOptions {
   }
   return {
     ...(argValue(args, '--pair') ? { pair: argValue(args, '--pair') } : {}),
+    ...(hasFlag(args, '--reuse-pairing') ? { reusePairing: true } : {}),
     ...(argValue(args, '--claude-path') ? { claudePath: argValue(args, '--claude-path') } : {}),
     ...(argValue(args, '--base-url') ? { baseUrl: argValue(args, '--base-url') } : {}),
     ...(providerId
@@ -125,10 +124,13 @@ export function parseInstallOptions(args: string[]): InstallOptions {
 
 /** Pair the adapter and install its user service. */
 export async function installClaude(options: InstallOptions): Promise<InstallResult> {
-  const pairing = await pairingInput(options.pair)
-  if (pairing.kind !== 'claude') {
-    throw new Error(`This pairing code is for ${pairing.kind}, not Claude Code`)
-  }
+  const pairing = await resolveInstallPairing({
+    name: 'claude',
+    label: 'Claude Code',
+    paths: claudePaths(),
+    ...(options.pair ? { pair: options.pair } : {}),
+    ...(options.reusePairing ? { reuse: true } : {}),
+  })
 
   const claude = await resolveClaudeConfigFromOptions(options)
   const identity = loadIdentity()
@@ -164,8 +166,8 @@ export async function installClaude(options: InstallOptions): Promise<InstallRes
   const config: AdapterConfig = {
     ...identity,
     wsUrl: pairing.wsUrl,
-    // The enrollment grant is the only grant known before enrollment. It is
-    // replaced by the adapter grant from `adapter.enrolled` below.
+    // A fresh install starts with the enrollment grant and is replaced by the
+    // adapter grant below. A reinstall keeps the long-lived stored grant.
     grant: pairing.grant ?? '',
     claude,
     label: 'Claude Code',
@@ -175,63 +177,66 @@ export async function installClaude(options: InstallOptions): Promise<InstallRes
     actions.push(`write adapter config ${adapterConfigPath()}`)
   }
 
-  let enrolled: { connectionId: string; reconnected: boolean }
+  const enroll = pairing.enroll
+  let connection: string | undefined
   let deviceGrant: string | undefined
-  try {
-    if (options.dryRun) {
-      enrolled = { connectionId: '(dry run)', reconnected: false }
-    } else {
-      const result = await enrollAdapter({
-        wsUrl: pairing.wsUrl,
-        ...(pairing.grant ? { grant: pairing.grant } : {}),
-        enrollId: pairing.enrollId,
-        enrollToken: pairing.enrollToken,
-        harnessId: identity.harnessId,
-        kind: pairing.kind,
+  if (enroll) {
+    try {
+      if (options.dryRun) {
+        connection = '(dry run)'
+      } else {
+        const result = await enrollAdapter({
+          wsUrl: pairing.wsUrl,
+          ...(pairing.grant ? { grant: pairing.grant } : {}),
+          enrollId: enroll.enrollId,
+          enrollToken: enroll.enrollToken,
+          harnessId: identity.harnessId,
+          kind: 'claude',
+          label: 'Claude Code',
+          adapterId: identity.adapterId,
+          key: identity.key,
+          adapterVersion: ADAPTER_VERSION,
+          ...(probe.version ? { harnessVersion: probe.version } : {}),
+          capabilities: CLAUDE_CAPABILITIES,
+        })
+        connection = result.connectionId
+        deviceGrant = result.relayGrant?.grant
+      }
+    } catch (cause) {
+      const reason = cause instanceof Error ? cause.message : String(cause)
+      if (options.dryRun) throw new Error(reason, { cause })
+      warnings.push(reason)
+      actions.push(`pair adapter ${identity.harnessId} (enrollment response missing)`)
+      if (options.noService) {
+        actions.push(`run the adapter in the foreground: ${commands}`)
+        return { actions, warnings, configPath: adapterConfigPath(), foregroundCommand: commands }
+      }
+      const paths = claudePaths()
+      const offset = adapterLogSize(paths)
+      const started = startAdapterProcess({
+        name: 'claude',
         label: 'Claude Code',
-        adapterId: identity.adapterId,
-        key: identity.key,
-        adapterVersion: ADAPTER_VERSION,
-        ...(probe.version ? { harnessVersion: probe.version } : {}),
-        capabilities: CLAUDE_CAPABILITIES,
+        entry,
+        paths,
       })
-      enrolled = result
-      deviceGrant = result.relayGrant?.grant
-    }
-  } catch (cause) {
-    const reason = cause instanceof Error ? cause.message : String(cause)
-    if (options.dryRun) throw new Error(reason, { cause })
-    warnings.push(reason)
-    actions.push(`pair adapter ${identity.harnessId} (enrollment response missing)`)
-    if (options.noService) {
-      actions.push(`run the adapter in the foreground: ${commands}`)
-      return { actions, warnings, configPath: adapterConfigPath(), foregroundCommand: commands }
-    }
-    const paths = claudePaths()
-    const offset = adapterLogSize(paths)
-    const started = startAdapterProcess({
-      name: 'claude',
-      label: 'Claude Code',
-      entry,
-      paths,
-    })
-    actions.push(...started.actions)
-    if (await waitForAdapterAuthentication(paths, offset)) {
-      warnings.push(
-        'The enrollment response was lost, but the adapter connected with the saved credential.'
+      actions.push(...started.actions)
+      if (await waitForAdapterAuthentication(paths, offset)) {
+        warnings.push(
+          'The enrollment response was lost, but the adapter connected with the saved credential.'
+        )
+        return { actions, warnings, configPath: adapterConfigPath(), foregroundCommand: commands }
+      }
+      throw new Error(
+        `${reason}\nThe adapter config was saved at ${adapterConfigPath()}. ` +
+          `Start it with: clara-adapter-claude start\n` +
+          `Log: ${adapterLogPath()}`,
+        { cause }
       )
-      return { actions, warnings, configPath: adapterConfigPath(), foregroundCommand: commands }
     }
-    throw new Error(
-      `${reason}\nThe adapter config was saved at ${adapterConfigPath()}. ` +
-        `Start it with: clara-adapter-claude start\n` +
-        `Log: ${adapterLogPath()}`,
-      { cause }
-    )
   }
   // The one-time enrollment grant cannot authenticate an adapter session.
   // Persist the adapter grant before the service starts and reconnects.
-  if (!options.dryRun) {
+  if (!options.dryRun && enroll) {
     if (deviceGrant) {
       writeConfig({ ...config, grant: deviceGrant })
       actions.push('store the adapter relay grant')
@@ -239,7 +244,11 @@ export async function installClaude(options: InstallOptions): Promise<InstallRes
       throw new Error(REINSTALL_GRANT_MESSAGE)
     }
   }
-  actions.push(`pair adapter ${identity.harnessId} as connection ${enrolled.connectionId}`)
+  if (pairing.reused) {
+    actions.push(`reuse the existing pairing for ${identity.harnessId}`)
+  } else if (connection) {
+    actions.push(`pair adapter ${identity.harnessId} as connection ${connection}`)
+  }
 
   if (options.noService) {
     actions.push(`run the adapter in the foreground: ${commands}`)
@@ -341,21 +350,6 @@ export function uninstallClaudeCommand(args: string[]): void {
     if (purge) actions.push('remove harness identity and credential')
   }
   for (const action of actions) console.log(action)
-}
-
-async function pairingInput(value: string | undefined): Promise<HarnessPairingPayload> {
-  if (!value && !stdin.isTTY) {
-    throw new Error('Pass --pair <code> in a non-interactive install')
-  }
-  const code = value ?? (await prompt('Pairing code: '))
-  const parsed = parseHarnessPairingInput(code)
-  if (!parsed) throw new Error('That is not a valid Clara harness pairing code')
-  if (parsed.expiresAt <= Date.now()) {
-    throw new Error(
-      `That pairing code expired. Generate a new one in the hub panel (codes start with ${HARNESS_PAIRING_CODE_PREFIX}).`
-    )
-  }
-  return parsed
 }
 
 async function prompt(question: string): Promise<string> {

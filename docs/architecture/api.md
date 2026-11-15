@@ -268,7 +268,7 @@ tools, sends `x-clara-readonly: 1`, and is intended for agents testing frontend
 code against live data.
 
 ```bash
-clara start adapter --harness opencode --mcp-api
+clara-dev mcp install --api
 ```
 
 The installer adds `mcp.clara-api` to the OpenCode config. The bridge reads the

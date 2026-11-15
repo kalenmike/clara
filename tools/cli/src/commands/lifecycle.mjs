@@ -10,24 +10,13 @@
 //   clara restore [target] <archive> [options]
 //   clara pair [target] [options]
 //
-// `hub`, `web`, and `engine` are the core services. `adapter`, `runner`,
-// `lab`, and `docs` are host-side targets. `default` means the core stack.
+// `hub`, `web`, and `engine` are the core services. `runner`, `lab`, and `docs`
+// are host-side targets. `default` means the core stack. Adapters are managed by
+// the packaged `clara` command.
 
 import { spawnSync } from 'node:child_process'
 import { existsSync, mkdirSync, writeFileSync } from 'node:fs'
 import { join } from 'node:path'
-import {
-  HARNESSES,
-  HARNESS_LABELS,
-  adapterPaths,
-  adapterRecord,
-  adapterStatusExitCode,
-  installedHarnesses,
-  renderAdapterStatus,
-  resolveAdapterEntry,
-  runAdapter,
-  selectHarnesses,
-} from '../lib/adapters.mjs'
 import {
   buildDocs,
   buildLab,
@@ -45,7 +34,6 @@ import {
   typecheckDocs,
 } from '../lib/dev-services.mjs'
 import { clara } from '../clara.mjs'
-import { adapterInstallCommand, createAdapterPairing } from '../lib/hub-pairing.mjs'
 import { logPath, stateDir } from '../lib/local-runtime.mjs'
 import { followCommands, followFiles } from '../lib/multi-log.mjs'
 import { openPanel } from '../lib/panel.mjs'
@@ -120,7 +108,6 @@ async function lifecycle(name, argv) {
   if (target === 'default' || CORE_TARGETS.includes(target)) {
     return coreLifecycle(name, target, rest)
   }
-  if (target === 'adapter') return adapterLifecycle(name, rest)
   if (target === 'runner') return runnerLifecycle(name, rest)
   if (target === 'lab') return labLifecycle(name, rest)
   if (target === 'docs') return docsLifecycle(name, rest)
@@ -308,285 +295,6 @@ function printCoreSummary(keys, options) {
 function displayName(key) {
   if (key === 'server') return 'hub'
   return key
-}
-
-// ---------------------------------------------------------------------------
-// Adapters
-
-function parseAdapterOptions(commandName, argv) {
-  const options = {
-    requested: [],
-    pair: undefined,
-    pairRequested: false,
-    mcp: false,
-    mcpApi: false,
-    noRunner: false,
-    purge: false,
-    verify: false,
-    directory: undefined,
-    write: false,
-    json: false,
-    lines: 80,
-    follow: true,
-    docker: false,
-    local: false,
-    forwarded: [],
-  }
-  for (let index = 0; index < argv.length; index++) {
-    const arg = argv[index]
-    if (arg === '--harness') {
-      const value = argv[++index]
-      if (!value) throw new Error('--harness requires a value')
-      options.requested.push(value)
-    } else if (arg.startsWith('--harness=')) {
-      options.requested.push(arg.slice('--harness='.length))
-    } else if (arg === '--pair') {
-      options.pairRequested = true
-      const next = argv[index + 1]
-      if (next && !next.startsWith('-')) {
-        options.pair = next
-        index += 1
-      }
-    } else if (arg.startsWith('--pair=')) {
-      options.pairRequested = true
-      options.pair = arg.slice('--pair='.length)
-    } else if (arg === '--mcp') options.mcp = true
-    else if (arg === '--mcp-api') options.mcpApi = true
-    else if (arg === '--no-runner') options.noRunner = true
-    else if (arg === '--purge') options.purge = true
-    else if (arg === '--verify') options.verify = true
-    else if (arg === '--directory') options.directory = valueOf(argv, ++index, '--directory')
-    else if (arg === '--write') options.write = true
-    else if (arg === '--json') options.json = true
-    else if (arg === '--docker') options.docker = true
-    else if (arg === '--local') options.local = true
-    else if (arg === '--no-follow') options.follow = false
-    else if (arg === '--lines') options.lines = positiveNumber(argv[++index], '--lines')
-    else if (arg.startsWith('--lines=')) {
-      options.lines = positiveNumber(arg.slice('--lines='.length), '--lines')
-    } else if (options.pairRequested && ['start', 'restart'].includes(commandName)) {
-      options.forwarded.push(arg)
-    } else {
-      throw new Error(`unknown option for ${commandName} adapter: ${arg}`)
-    }
-  }
-  if (options.docker && options.local) throw new Error('--local and --docker cannot be combined')
-  if (options.pairRequested && !['start', 'restart'].includes(commandName)) {
-    throw new Error('--pair is only valid for start and restart')
-  }
-  if (options.verify && commandName !== 'status') {
-    throw new Error('--verify is only valid for status')
-  }
-  if ((options.directory || options.write) && commandName !== 'status') {
-    throw new Error('--directory and --write are only valid for status')
-  }
-  if (options.purge && commandName !== 'stop') {
-    throw new Error('--purge is only valid for stop')
-  }
-  return options
-}
-
-async function adapterLifecycle(name, argv) {
-  const options = parseAdapterOptions(name, argv)
-  if (name === 'status') return adapterStatus(options)
-  if (name === 'logs') return adapterLogs(options)
-  if (name === 'start') return adapterStart(options)
-  if (name === 'stop') return adapterStop(options)
-  if (name === 'restart') {
-    const stopCode = adapterStop(options)
-    if (stopCode !== 0) return stopCode
-    return adapterStart(options)
-  }
-  throw new Error(`unknown adapter command: ${name}`)
-}
-
-function adapterStatus(options) {
-  const names = selectHarnesses({ requested: options.requested, installedOnly: false })
-  const records = names.map((name) => adapterRecord(name))
-  if (!options.verify) {
-    renderAdapterStatus(records, { json: options.json })
-    process.exitCode = adapterStatusExitCode(records)
-    return
-  }
-  if (options.json) {
-    const verification = adapterVerifyCapture(names, options)
-    console.log(
-      JSON.stringify(
-        {
-          ok:
-            records.every((record) => record.ok || (!record.installed && !record.running)) &&
-            !verification.failed,
-          target: 'adapter',
-          adapters: records,
-          verification: verification.reports,
-        },
-        null,
-        2
-      )
-    )
-    process.exitCode = verification.failed ? 1 : adapterStatusExitCode(records)
-    return
-  }
-  renderAdapterStatus(records)
-  let failed = false
-  for (const name of names) {
-    if (!adapterRecord(name).installed) continue
-    if (runAdapter(name, verifyArgs(options)) !== 0) failed = true
-  }
-  process.exitCode = failed || adapterStatusExitCode(records) ? 1 : 0
-}
-
-function requestedHarnesses(values) {
-  return values
-    .flatMap((value) => String(value).split(','))
-    .map((value) => value.trim())
-    .filter((value) => value && value !== 'all')
-}
-
-function verifyArgs(options) {
-  const args = ['verify']
-  if (options.directory) args.push('--directory', options.directory)
-  if (options.write) args.push('--write')
-  return args
-}
-
-function adapterVerifyCapture(names, options) {
-  const reports = []
-  let failed = false
-  for (const name of names) {
-    if (!adapterRecord(name).installed) continue
-    const entry = resolveAdapterEntry(name)
-    if (!entry) {
-      reports.push({ adapter: name, error: 'adapter command is not installed' })
-      failed = true
-      continue
-    }
-    const result = spawnSync(entry.command, [...entry.args, ...verifyArgs(options), '--json'], {
-      cwd: root,
-      encoding: 'utf8',
-      timeout: 120_000,
-    })
-    if (result.error || result.status !== 0) failed = true
-    const text = String(result.stdout ?? '').trim()
-    if (!text) {
-      reports.push({ adapter: name, error: String(result.stderr ?? '').trim() || 'no report' })
-      continue
-    }
-    try {
-      reports.push(JSON.parse(text))
-    } catch {
-      reports.push({ adapter: name, error: 'could not parse the verification report' })
-      failed = true
-    }
-  }
-  return { reports, failed }
-}
-
-function adapterLogs(options) {
-  const requested = options.requested.length > 0
-  const names = selectHarnesses({ requested: options.requested, installedOnly: true })
-  if (requested) {
-    const missing = requestedHarnesses(options.requested).filter((name) => !names.includes(name))
-    if (missing.length > 0) throw new Error(`adapter is not paired: ${missing.join(', ')}`)
-  }
-  if (names.length === 0) {
-    console.error(
-      'No paired adapters have logs yet. Use `clara start adapter --harness <name> --pair`.'
-    )
-    return 1
-  }
-  return followFiles(
-    names.map((name) => ({ name, path: adapterPaths(name).logPath })),
-    { lines: options.lines, follow: options.follow }
-  )
-}
-
-async function adapterStart(options) {
-  const requested = options.requested.length > 0
-  if (
-    (options.mcp || options.mcpApi) &&
-    requestedHarnesses(options.requested).some((name) => name !== 'opencode')
-  ) {
-    throw new Error('--mcp and --mcp-api are only supported for the opencode adapter')
-  }
-  if (options.pairRequested) {
-    if (!requested) throw new Error('choose a harness: --harness opencode|claude|pi')
-    const names = selectHarnesses({ requested: options.requested, installedOnly: false })
-    if (options.pair && names.length > 1) {
-      throw new Error('an explicit --pair code can only install one harness at a time')
-    }
-    for (const name of names) {
-      const code =
-        options.pair ??
-        (
-          await createAdapterPairing({
-            kind: name,
-            label: HARNESS_LABELS[name],
-            docker: options.docker,
-            local: options.local,
-          })
-        ).code
-      console.log(`\n==> installing ${HARNESS_LABELS[name]}`)
-      const installArgs = ['install', '--pair', code]
-      if (options.mcp) installArgs.push('--mcp')
-      if (options.noRunner) installArgs.push('--no-runner')
-      installArgs.push(...options.forwarded)
-      const installCode = runAdapter(name, installArgs)
-      if (installCode !== 0) return installCode
-      if (options.mcpApi) {
-        if (name !== 'opencode') throw new Error('--mcp-api is only supported for opencode')
-        const mcpCode = runNode(join(root, 'tools/cli/src/commands/install-mcp.mjs'), [
-          'install',
-          '--api',
-          '--no-start',
-        ])
-        if (mcpCode !== 0) return mcpCode
-      }
-    }
-  } else if (options.mcp || options.mcpApi) {
-    const code = runNode(join(root, 'tools/cli/src/commands/install-mcp.mjs'), [
-      'install',
-      ...(options.mcpApi ? ['--api'] : []),
-      '--no-start',
-    ])
-    if (code !== 0) return code
-  }
-
-  const names = selectHarnesses({ requested: options.requested, installedOnly: true })
-  if (names.length === 0) {
-    console.error('No paired adapters. Use `clara start adapter --harness <name> --pair`.')
-    return 1
-  }
-  if (requested) {
-    const missing = requestedHarnesses(options.requested).filter((name) => !names.includes(name))
-    if (missing.length > 0) {
-      throw new Error(
-        `adapter is not paired: ${missing.join(', ')}. Use \`clara start adapter --harness ${missing[0]} --pair\`.`
-      )
-    }
-  }
-  for (const name of names) {
-    const code = runAdapter(name, ['start'])
-    if (code !== 0) return code
-  }
-  return 0
-}
-
-function adapterStop(options) {
-  if (options.mcp || options.mcpApi) {
-    const code = runNode(join(root, 'tools/cli/src/commands/install-mcp.mjs'), [
-      'uninstall',
-      ...(options.mcpApi ? ['--api'] : []),
-    ])
-    if (code !== 0) return code
-    if (!options.requested.length && !options.purge) return 0
-  }
-  const names = selectHarnesses({ requested: options.requested, installedOnly: true })
-  for (const name of names) {
-    const code = runAdapter(name, options.purge ? ['uninstall', '--purge'] : ['stop'])
-    if (code !== 0) return code
-  }
-  return 0
 }
 
 // ---------------------------------------------------------------------------
@@ -974,56 +682,13 @@ function refuseRunning(target, action) {
 // Pairing
 
 async function pair(argv) {
-  const { target, args: rest } = takeTarget(argv, ['default', 'hub', 'adapter'])
-  if (target === 'adapter') return pairAdapter(rest)
+  const { args: rest } = takeTarget(argv, ['default', 'hub'])
   return pairHub(rest)
 }
 
 function pairHub(argv) {
   const forwarded = argv
   return runNode(join(root, 'tools/cli/src/commands/server.mjs'), ['pair', ...forwarded])
-}
-
-async function pairAdapter(argv) {
-  const options = {
-    requested: [],
-    transport: 'local',
-    wsUrl: undefined,
-    docker: false,
-    local: false,
-  }
-  for (let index = 0; index < argv.length; index++) {
-    const arg = argv[index]
-    if (arg === '--harness') options.requested.push(valueOf(argv, ++index, '--harness'))
-    else if (arg === '--transport') options.transport = valueOf(argv, ++index, '--transport')
-    else if (arg === '--ws-url') options.wsUrl = valueOf(argv, ++index, '--ws-url')
-    else if (arg === '--docker') options.docker = true
-    else if (arg === '--local') options.local = true
-    else throw new Error(`unknown option for pair adapter: ${arg}`)
-  }
-  if (options.docker && options.local) throw new Error('--local and --docker cannot be combined')
-  if (!['local', 'relay', 'docker'].includes(options.transport)) {
-    throw new Error('--transport must be local, relay, or docker')
-  }
-  const names = selectHarnesses({ requested: options.requested, installedOnly: false })
-  if (names.length !== 1) throw new Error('choose one harness: --harness opencode|claude|pi')
-  const kind = names[0]
-  const pairing = await createAdapterPairing({
-    kind,
-    label: HARNESS_LABELS[kind],
-    transport: options.transport,
-    wsUrl: options.wsUrl,
-    docker: options.docker,
-    local: options.local,
-  })
-  console.log(pairing.code)
-  console.log('')
-  console.log(`harness:  ${kind}`)
-  console.log(`expires:  ${pairing.expiresAt}`)
-  console.log('')
-  console.log('Install on the harness machine:')
-  console.log(`  ${adapterInstallCommand(kind, pairing.code)}`)
-  return 0
 }
 
 // ---------------------------------------------------------------------------

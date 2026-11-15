@@ -34,6 +34,7 @@
     "hub:binary": "pnpm --filter @clara/hub-server build:bun",
     "hub:headless": "pnpm --filter @clara/hub-server headless",
     "adapters:build": "node tools/adapters/build.mjs",
+    "adapters:serve": "node tools/adapters/serve.mjs",
     "clara": "node tools/cli/src/main.mjs",
     "clara:link": "node tools/cli/scripts/link.mjs",
     "cli": "pnpm --filter @clara/cli dev",

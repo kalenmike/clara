@@ -22,23 +22,25 @@ import { parseAdapterArgs } from './adapter-args.ts'
 import { runAdapterInstall, runAdapterRemove, runAdapterUpgrade } from './adapter-install.ts'
 import { runAdapterControl, type AdapterControlAction } from './adapter-control.ts'
 
-const CONTROL = new Set<AdapterControlAction>(['start', 'stop', 'status', 'logs'])
+const CONTROL = new Set<AdapterControlAction>(['start', 'stop', 'status', 'logs', 'verify'])
 
 const HELP = `${heading('Clara adapter management')}
 
 Usage:
   clara adapter search [--json]
   clara adapter list [--json]
-  clara adapter install <kind>[@version] [--pair <code>] [--transport local|relay|docker] [--ws-url <url>] [--no-start]
+  clara adapter install <kind>[@version] [--pair <code>] [--transport local|relay|docker] [--ws-url <url>] [--from <path>] [--reuse-pairing] [--no-start]
   clara adapter upgrade [kind] [--no-start] [--json]
   clara adapter remove <kind> [--purge]
   clara adapter start|stop|status|logs <kind> [options]
+  clara adapter verify <kind> [--directory <path>] [--write] [--json]
   clara pair adapter --harness <kind> [--transport local|relay|docker] [--ws-url <url>] [--install]
 
 Kinds: ${ADAPTER_KINDS.join(', ')}
 
 Adapter binaries are downloaded from the release registry only when you ask for
-one. ${muted('Run `clara adapter search` to see published versions.')}`
+one. ${muted('Run `clara adapter search` to see published versions.')}
+Pass ${muted('--from')} to install a package or dist directory built in a checkout.`
 
 export async function runAdapters(args: readonly string[]): Promise<number> {
   const [sub = '', ...rest] = args

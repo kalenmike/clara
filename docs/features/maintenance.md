@@ -242,9 +242,10 @@ clara`. A manually started hub is restarted from the captured root with its
 - Recovery: `recover` probes health, selects only `expected && !healthy`
   services, restarts them in the same order, and re-runs health. It never
   restarts a healthy service or starts one that was stopped at capture.
-- Adapter install: `clara-adapter-opencode install` or `clara start adapter --harness opencode --pair`; MCP refresh:
-  `clara start adapter --harness opencode --pair --mcp` or
-  `clara start adapter --harness opencode --mcp`.
+- Adapter install: `clara-adapter-opencode install` or
+  `clara adapter install opencode`; MCP refresh: `clara adapter install opencode
+--reuse-pairing --mcp`. `rebuild adapters` runs `clara adapter upgrade`, which
+  reinstalls from the saved pairing.
 - Adapter release: run the `adapter-releases` workflow from
   **Actions → adapter-releases → Run workflow**. It builds each OS on its own
   runner, uploads kind-prefixed archives to the `adapters-v<version>` GitHub
@@ -255,9 +256,10 @@ clara`. A manually started hub is restarted from the captured root with its
   `pnpm adapters:build --from-release <tag> --repo <owner/repo> --out apps/web/public/adapters`
   regenerates the manifest and install script from the release asset digests
   without downloading archives. A local `pnpm adapters:build` builds only the
-  host target under `dist/adapters` and is not the canonical registry. The hub
-  reads `CLARA_ADAPTER_REGISTRY_URL` or the panel setting; it never embeds an
-  adapter.
+  host target under `dist/adapters` and is not the canonical registry; pair it
+  with `pnpm adapters:serve` and `CLARA_ADAPTER_REGISTRY_URL` to test a build.
+  The hub reads `CLARA_ADAPTER_REGISTRY_URL` or the panel setting; it never
+  embeds an adapter.
 - Default ports: engine `8789`, panel `8790`, local hub `8788`, Lab
   `8791`, web `8080`. `CLARA_LAB_PORT`, `CLARA_PANEL_PORT`,
   `CLARA_LOCAL_PORT`, `CLARA_WEB_PORT`, and `CLARA_ENGINE_URL` override

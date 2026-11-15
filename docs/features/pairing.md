@@ -22,8 +22,8 @@ action runs the registry install script on the target over SSH or Docker, while
 **Copy code** and **Copy command** install by hand. For the included adapters
 the manual command is `clara-adapter-opencode install --pair <code>` or
 `clara-adapter-claude install --pair <code>` (or
-`clara start adapter --harness opencode --pair <code>` /
-`clara start adapter --harness claude --pair <code>` in the repository). It
+`clara adapter install opencode --pair <code>` /
+`clara adapter install claude --pair <code>` in the repository). It
 discovers the harness, enrolls the adapter
 over the local or relay WebSocket, and stores its long-lived credential. The
 adapter reconnects with that credential and never exposes an inbound port.

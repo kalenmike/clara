@@ -62,9 +62,6 @@ importers:
       '@clara/api-contract':
         specifier: workspace:*
         version: link:../../../packages/contracts/api-contract
-      '@clara/shared-types':
-        specifier: workspace:*
-        version: link:../../../packages/contracts/shared-types
       hono:
         specifier: ^4.13.17
         version: 4.13.17
@@ -105,9 +102,6 @@ importers:
       '@clara/runner':
         specifier: workspace:*
         version: link:../../../packages/adapters/runner
-      '@clara/shared-types':
-        specifier: workspace:*
-        version: link:../../../packages/contracts/shared-types
       '@opencode/client':
         specifier: 2.1.1
         version: 2.1.1(effect@4.0.1)
@@ -142,9 +136,6 @@ importers:
       '@clara/api-contract':
         specifier: workspace:*
         version: link:../../../packages/contracts/api-contract
-      '@clara/shared-types':
-        specifier: workspace:*
-        version: link:../../../packages/contracts/shared-types
       hono:
         specifier: ^4.13.17
         version: 4.13.17
