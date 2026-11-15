@@ -36,6 +36,7 @@
     "clara:link": "node tools/cli/scripts/link.mjs",
     "cli": "pnpm --filter @clara/cli dev",
     "package:build": "pnpm --filter @clara/cli build:binary",
+    "package:smoke": "pnpm --filter @clara/cli smoke",
     "package:test": "pnpm --filter @clara/cli test",
     "task": "node tools/cli/src/task.mjs",
     "docs": "node tools/cli/src/main.mjs start docs",
