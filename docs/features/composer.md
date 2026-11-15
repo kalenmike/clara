@@ -10,9 +10,9 @@ model and agent selection, waiting question forms, and the plan-ready handoff.
 
 ## User flow
 
-1. Open a session. The composer is pinned above the usage bar with a tab for the
-   current session. Drag its top edge, use the arrow keys on the handle, or
-   double-click the handle to change its height.
+1. Open a session. The composer is docked at the bottom of the thread with a tab
+   for the current session. Drag its top edge, use the arrow keys on the handle,
+   or double-click the handle to change its height.
 2. Type a prompt. Press Enter to steer the active run or Shift+Enter for a new
    line; on touch devices Enter adds a line and Send submits. Type `/` for
    commands and `@` for files, agents, skills, and references. Attach files with
@@ -44,8 +44,8 @@ model and agent selection, waiting question forms, and the plan-ready handoff.
 
 ## Core business rules
 
-1. The composer has exactly three shapes. **Pinned** is the default dock above
-   the usage bar and is resizable from 220px to 720px. **Maximized** is a
+1. The composer has exactly three shapes. **Pinned** is the default dock at the
+   bottom of the thread and is resizable from 220px to 720px. **Maximized** is a
    fullscreen panel with no margin or corner radius. **Minimized** shows only the
    tab strip and controls. The leading chevron collapses an expanded composer and
    restores a minimized one to its last expanded shape; the expand control only

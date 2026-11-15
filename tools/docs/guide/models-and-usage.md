@@ -41,7 +41,7 @@ change the stored session history.
 
 ## Read usage
 
-The bar along the bottom of a chat shows:
+The bar just below a chat's header shows:
 
 - Input, output, reasoning, and cache tokens.
 - Cost in the selected display mode.

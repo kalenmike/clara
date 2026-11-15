@@ -90,7 +90,7 @@ paragraph, list, code block, table, quote, or heading section before forwarding.
 
 ## Usage
 
-The bar along the bottom of the pane shows the whole session's input, output,
+The bar just below the chat header shows the whole session's input, output,
 reasoning, and cache tokens, its cost, and how long ago the session started. See
 [Models and usage](models-and-usage.md) for the cost display modes.
 
