@@ -105,10 +105,13 @@ contacts the harness directly.
    add or hide a Clara project.
 7. A harness version bump changes only that adapter. The hub and web branch on
    capability flags, not harness kind.
-8. The OpenCode installer installs the daemon, the OpenCode binding, and the
-   shared runner. `--no-runner` and `--no-service` split those pieces. The
-   Claude Code installer installs only the adapter and its service; it does not
-   install an orchestration binding. The packaged command,
+8. The OpenCode installer installs the daemon, the OpenCode binding, and writes
+   the shared-runner config. A checkout build can install the runner service
+   itself; a downloaded adapter build does not bundle the runner command, so
+   `clara adapter install` starts it through Clara on a hub host, or the hub host
+   starts it with `clara runner start`. `--no-runner` and `--no-service` split
+   those pieces. The Claude Code installer installs only the adapter and its
+   service; it does not install an orchestration binding. The packaged command,
    `clara adapter install opencode` and `clara adapter install claude`, runs the
    same adapter binaries. Pass `--from <package|dist>` to install a checkout
    build instead of a registry release. The hub never executes an install. A

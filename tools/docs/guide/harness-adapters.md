@@ -100,9 +100,12 @@ adapter machine too.
 
 If the installer cannot find OpenCode, it asks for the OpenCode URL, username,
 and password, then retests before saving. The same command also installs the
-Clara orchestration binding and the shared script runner. Use `--no-runner` to
-skip the shared runner, or `--no-service` to write the config without installing
-a user service.
+Clara orchestration binding and writes the shared runner configuration. A
+downloaded adapter build does not include the runner command: on a hub host,
+`clara adapter install opencode` starts the runner after pairing, or you can run
+`clara runner start` once the engine is running. Use `--no-runner` to skip the
+runner configuration, or `--no-service` to write the config without installing a
+user service.
 
 ### Claude Code
 
@@ -145,8 +148,8 @@ becomes the default. On Docker, use `host.docker.internal` instead of
 If the panel shows **Paired · Offline**, start the adapter with:
 
 ```bash
-clara-adapter-claude start
-clara-adapter-claude logs
+clara adapter start claude
+clara adapter logs claude
 ```
 
 ### Pi
@@ -177,8 +180,8 @@ Pi has one built-in agent and does not move sessions between directories. If the
 panel shows **Paired · Offline**, start the adapter with:
 
 ```bash
-clara-adapter-pi start
-clara-adapter-pi logs
+clara adapter start pi
+clara adapter logs pi
 ```
 
 ## Pair more than one harness
@@ -261,7 +264,7 @@ connection keeps that state; use **Forget** only when you want to discard it.
   interactively.
 - **The browser rejects a panel code** — adapter codes install the adapter, not
   the browser. Use a browser code from **Clients → Pair Client** or
-  `clara pair`, then paste that link or code in Clara.
+  `clara pair hub`, then paste that link or code in Clara.
 - **The adapter is offline** — **Paired harnesses** says **Paired · Offline**.
   Start the adapter service, then use **Test** in the panel. The hub keeps the
   connection and reconnects automatically. Clara stays connected and shows a
