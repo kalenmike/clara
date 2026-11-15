@@ -81,7 +81,7 @@ describe('lab server', () => {
     expect(health.value).toMatchObject({
       service: 'clara-lab',
       connected: true,
-      orchestratorWorkspace: workspace,
+      engineWorkspace: workspace,
       pid: expect.any(Number),
       port: expect.any(Number),
       root: expect.any(String),
@@ -89,7 +89,7 @@ describe('lab server', () => {
     })
 
     const state = await get('/api/state')
-    expect(state.value).toMatchObject({ orchestratorWorkspace: workspace })
+    expect(state.value).toMatchObject({ engineWorkspace: workspace })
 
     const preview = await post('/api/preview', { workspace, target: 'std:maintenance/rebuild' })
     expect(preview.response.status).toBe(200)

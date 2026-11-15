@@ -429,7 +429,7 @@ export function Runs({
 
               <div className="grid three">
                 <Field label="Host files" value={hostWorkspace || '—'} />
-                <Field label="Orchestrator workspace" value={selectedRun.workspace} />
+                <Field label="Engine workspace" value={selectedRun.workspace} />
                 <Field label="Origin" value={originText(selectedRun)} />
                 <Field label="Created" value={dateTime(selectedRun.created_at)} />
                 <Field

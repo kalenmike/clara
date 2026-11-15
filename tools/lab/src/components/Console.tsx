@@ -186,7 +186,7 @@ export function Console({ stream }: { stream: LabStream }) {
           <div className="view-kicker">Probe</div>
           <h1>Tool console</h1>
           <p className="muted">
-            Call the orchestrator MCP surface directly. Every request is recorded in Traffic.
+            Call the engine MCP surface directly. Every request is recorded in Traffic.
           </p>
         </div>
         <div className="view-head-actions">

@@ -72,7 +72,7 @@ export function WorkOrderCard({
     try {
       const response = await callTool(tool, args)
       if (response.isError) {
-        setMessage(`The orchestrator rejected the action: ${short(response.value)}`)
+        setMessage(`The engine rejected the action: ${short(response.value)}`)
         return false
       }
       if (autoRun) {

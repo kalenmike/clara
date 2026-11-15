@@ -58,7 +58,7 @@ export function Traffic({ stream }: { stream: LabStream }) {
           <div className="view-kicker">Transport</div>
           <h1>Traffic</h1>
           <p className="muted">
-            Every MCP call and orchestrator event the lab has seen this session.
+            Every MCP call and engine event the lab has seen this session.
           </p>
         </div>
         <div className="view-head-actions">

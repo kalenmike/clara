@@ -26,9 +26,9 @@ export class LabState {
   connected = false
   heartbeat = true
   tokenPresent = false
-  orchestrator = ''
+  engine = ''
   workspace = ''
-  orchestratorWorkspace = ''
+  engineWorkspace = ''
   instructions = ''
   tools: ToolInfo[] = []
   adapters: AdapterRow[] = []
@@ -44,10 +44,10 @@ export class LabState {
     this.tokenPresent = present
   }
 
-  setOrchestratorWorkspace(workspace: string): void {
-    if (workspace === this.orchestratorWorkspace) return
-    this.orchestratorWorkspace = workspace
-    this.emit('state', { orchestratorWorkspace: workspace })
+  setEngineWorkspace(workspace: string): void {
+    if (workspace === this.engineWorkspace) return
+    this.engineWorkspace = workspace
+    this.emit('state', { engineWorkspace: workspace })
   }
 
   setHeartbeat(enabled: boolean): void {
@@ -170,8 +170,8 @@ export class LabState {
   snapshot(): LabSnapshot {
     return {
       workspace: this.workspace,
-      orchestratorWorkspace: this.orchestratorWorkspace,
-      orchestrator: this.orchestrator,
+      engineWorkspace: this.engineWorkspace,
+      engine: this.engine,
       connected: this.connected,
       tokenPresent: this.tokenPresent,
       heartbeat: this.heartbeat,

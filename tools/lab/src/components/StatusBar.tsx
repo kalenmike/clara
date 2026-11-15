@@ -31,7 +31,7 @@ export function StatusBar({
           onClick={() => onTab('settings')}
         >
           <span className="status-dot" />
-          {snapshot.connected ? 'Orchestrator' : 'Orchestrator offline'}
+          {snapshot.connected ? 'Engine' : 'Engine offline'}
         </button>
         <button
           type="button"

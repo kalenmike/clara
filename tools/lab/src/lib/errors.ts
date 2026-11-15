@@ -16,31 +16,31 @@ export function friendlyError(message: string, context: ErrorContext = 'general'
     lower.includes('no index.yml')
   ) {
     return {
-      title: 'The orchestrator cannot find the config file',
+      title: 'The engine cannot find the config file',
       detail: text,
       hint:
         context === 'host'
           ? 'Check the custom config path. Without one, Clara uses the config bundled with the engine.'
-          : 'Check CLARA_ORCHESTRATION_CONFIG on the service, or remove it to use the bundled default.',
+          : 'Check CLARA_ENGINE_CONFIG on the service, or remove it to use the bundled default.',
     }
   }
 
   if (lower.includes('workspace_missing')) {
     return {
-      title: 'The orchestrator cannot see this workspace',
+      title: 'The engine cannot see this workspace',
       detail: text,
       hint:
         context === 'host'
           ? 'Choose a directory that exists on this machine.'
-          : 'Set CLARA_ORCHESTRATION_WORKSPACE to a path that exists inside the service, or fix the volume mount.',
+          : 'Set CLARA_ENGINE_WORKSPACE to a path that exists inside the service, or fix the volume mount.',
     }
   }
 
   if (lower.includes('enotdir') || (lower.includes('enoent') && lower.includes('std'))) {
     return {
-      title: 'The orchestrator standard packages are missing',
+      title: 'The engine standard packages are missing',
       detail: text,
-      hint: 'Rebuild the orchestrator and Lab so each bundles the current standard packages.',
+      hint: 'Rebuild the engine and Lab so each bundles the current standard packages.',
     }
   }
 
@@ -50,9 +50,9 @@ export function friendlyError(message: string, context: ErrorContext = 'general'
     /\b401\b/.test(text)
   ) {
     return {
-      title: 'The orchestrator rejected the token',
+      title: 'The engine rejected the token',
       detail: text,
-      hint: 'Restart Clara Lab with the same CLARA_ORCHESTRATION_TOKEN or CLARA_ORCHESTRATION_TOKEN_FILE as the running orchestrator.',
+      hint: 'Restart Clara Lab with the same CLARA_ENGINE_TOKEN or CLARA_ENGINE_TOKEN_FILE as the running engine.',
     }
   }
 
@@ -85,17 +85,17 @@ export function friendlyError(message: string, context: ErrorContext = 'general'
     lower.includes('unavailable')
   ) {
     return {
-      title: 'The orchestrator is offline',
+      title: 'The engine is offline',
       detail: text,
-      hint: 'Check CLARA_ORCHESTRATION_URL, start the orchestration service, then use Reconnect in Setup.',
+      hint: 'Check CLARA_ENGINE_URL, start the orchestration service, then use Reconnect in Setup.',
     }
   }
 
   if (lower.includes('workspace') && lower.includes('no such file')) {
     return {
-      title: 'The orchestrator cannot read this path',
+      title: 'The engine cannot read this path',
       detail: text,
-      hint: 'The orchestrator reports the path inside its own filesystem or container. Set CLARA_ORCHESTRATION_WORKSPACE on the service to match its mount.',
+      hint: 'The engine reports the path inside its own filesystem or container. Set CLARA_ENGINE_WORKSPACE on the service to match its mount.',
     }
   }
 
