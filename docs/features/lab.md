@@ -324,6 +324,9 @@ publish packages to the engine.
   `POST /api/runs/cancel-all`, `GET /api/inbox`, `GET /api/source`,
   `POST /api/heartbeat`, `POST /api/reconnect`, `POST /api/adapter/register`,
   `POST /api/adapter/remove`, `POST /api/violation`.
+- `GET /api/health` reports the service `version` (including a checkout's
+  `-dev+<commit>` tag), pid, port, workspace, engine workspace, and connection
+  state, so `clara status lab` matches the rest of the stack.
 - Engine assets: `GET /v1/packages/assets` on the engine returns
   `{ hash, version, files }`. The lab caches the bundle under
   `CLARA_CACHE_DIR/lab/assets/<hash>` (default
