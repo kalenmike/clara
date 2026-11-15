@@ -4,7 +4,7 @@
 declare const __CLARA_CLOUDFLARE_DEPLOYMENT__: boolean
 
 interface ImportMetaEnv {
-  /** Injected from package.json by Vite. */
+  /** Injected by Vite: a release version or the checkout's dev version. */
   readonly CLARA_VERSION: string
   /** Injected by Vite at dev-server start or build time. */
   readonly CLARA_BUILD: {

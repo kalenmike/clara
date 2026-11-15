@@ -5,6 +5,7 @@ import tailwindcss from '@tailwindcss/vite'
 import react from '@vitejs/plugin-react'
 import { defineConfig } from 'vite'
 import { featureEnabled } from '../../../tools/build/feature-flags.mjs'
+import { buildVersion } from '../../../tools/build/version.mjs'
 
 // The agent only accepts mutations from its own origin, so the dev proxy must
 // present both Host and Origin as the panel listener rather than the Vite one.
@@ -35,11 +36,15 @@ const dirty =
     ? Boolean(git(['status', '--porcelain']))
     : dirtyFromEnv === '1' || dirtyFromEnv === 'true'
 const builtAt = new Date().toISOString()
+const version = buildVersion({
+  packageVersion,
+  commit: process.env.CLARA_COMMIT?.trim().slice(0, 7) || git(['rev-parse', '--short=7', 'HEAD']),
+})
 
 export default defineConfig(({ command }) => ({
   plugins: [react(), tailwindcss()],
   define: {
-    'import.meta.env.CLARA_VERSION': JSON.stringify(packageVersion),
+    'import.meta.env.CLARA_VERSION': JSON.stringify(version),
     'import.meta.env.CLARA_BUILD': JSON.stringify({
       mode: command === 'serve' ? 'dev' : 'build',
       commit,
