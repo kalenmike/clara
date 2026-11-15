@@ -12,8 +12,8 @@ policy, and carries results back to the human-facing Clara agent.
 **Naming:** the service is the **Clara Engine** (formerly the orchestrator).
 **Orchestration** is the feature, package domain, and pipeline vocabulary, not a
 process. The engine is deterministic and is never an LLM or an agent.
-`apps/orchestrator`, `clara-orchestrator`, and `CLARA_ORCHESTRATION_*` remain
-compatibility names for one release.
+`apps/orchestrator` and `CLARA_ORCHESTRATION_*` remain compatibility names for
+one release.
 
 See [orchestration-dsl.md](orchestration-dsl.md) for the complete package and
 step reference.

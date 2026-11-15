@@ -21,7 +21,6 @@ const TARGETS = [
   { name: 'hub', description: 'Clara hub' },
   { name: 'web', description: 'web client' },
   { name: 'engine', description: 'pipeline engine' },
-  { name: 'orchestrator', description: 'alias for engine (deprecated)' },
   { name: 'adapter', description: 'paired harness adapters' },
   { name: 'runner', description: 'shared script runner' },
   { name: 'lab', description: 'Clara Lab' },
@@ -193,7 +192,7 @@ const commands = [
     name: 'backup',
     group: 'State',
     summary: 'Archive the selected Docker state volumes',
-    usage: '[default|hub|orchestrator] [options]',
+    usage: '[default|hub|engine] [options]',
     passthroughHelp: true,
     options: [
       {
@@ -208,7 +207,7 @@ const commands = [
     name: 'restore',
     group: 'State',
     summary: 'Replace Docker state volumes from a backup',
-    usage: '[default|hub|orchestrator] <archive> [options]',
+    usage: '[default|hub|engine] <archive> [options]',
     passthroughHelp: true,
     options: [{ flags: '--force', description: 'replace existing volume contents' }],
     examples: ['clara restore clara-backup.tar.gz', 'clara restore hub backup.tar.gz --force'],
@@ -272,12 +271,12 @@ const commands = [
       { flags: '--dry-run', description: 'show the restart plan without changing services' },
       {
         flags: '--manage-external',
-        description: 'restart an orchestrator managed outside this checkout',
+        description: 'restart an engine managed outside this checkout',
       },
       { flags: '--force', description: 'ignore a stale snapshot or completed restart journal' },
       {
         flags: '--skip <service>',
-        description: 'skip web, lab, hub, or orchestrator (repeatable)',
+        description: 'skip web, lab, hub, or engine (repeatable)',
       },
       { flags: '--mcp / --no-mcp', description: 'install or skip the MCP entry' },
       { flags: '--lines <n>', description: 'inspect: log tail length' },

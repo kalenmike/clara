@@ -78,19 +78,16 @@ export function displayState(record) {
     : record.state
 }
 
-async function collectOrchestratorStatus() {
-  const service = await probeService(`${engineURL()}/health`, [
-    'clara-engine',
-    'clara-orchestrator',
-  ])
-  const container = containerState(CONTAINERS.orchestrator)
+async function collectEngineStatus() {
+  const service = await probeService(`${engineURL()}/health`, 'clara-engine')
+  const container = containerState(CONTAINERS.engine)
   const mode =
     service.body?.mode ??
     (container.state === 'running' ? 'container' : service.health === 'ok' ? 'external' : 'unknown')
   const resolved = resolveState({ health: service.health, container, mode })
   return {
     service: 'engine',
-    container: CONTAINERS.orchestrator,
+    container: CONTAINERS.engine,
     state: resolved.state,
     mode: resolved.mode,
     healthy: resolved.state === 'running',
@@ -244,8 +241,7 @@ async function collectDocsStatus() {
 }
 
 const collectors = {
-  engine: collectOrchestratorStatus,
-  orchestrator: collectOrchestratorStatus,
+  engine: collectEngineStatus,
   server: collectServerStatus,
   hub: collectServerStatus,
   web: collectWebStatus,

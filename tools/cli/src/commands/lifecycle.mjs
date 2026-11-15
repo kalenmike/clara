@@ -77,11 +77,11 @@ import {
   targetVolumes,
 } from '../lib/stack-backup.mjs'
 import { collectStatus, renderJSON, renderStatus, statusExitCode } from '../lib/status.mjs'
-import { CORE_TARGETS, normalizeTarget, serviceKey, takeTarget } from '../lib/targets.mjs'
+import { CORE_TARGETS, serviceKey, takeTarget } from '../lib/targets.mjs'
 import { webURL } from '../lib/web-control.mjs'
 
-const CORE_START_ORDER = ['orchestrator', 'server', 'web']
-const CORE_STOP_ORDER = ['web', 'server', 'orchestrator']
+const CORE_START_ORDER = ['engine', 'server', 'web']
+const CORE_STOP_ORDER = ['web', 'server', 'engine']
 
 const command = process.argv[2] ?? 'help'
 const args = process.argv.slice(3)
@@ -116,8 +116,7 @@ try {
 }
 
 async function lifecycle(name, argv) {
-  const { target: requested, args: rest } = takeTarget(argv)
-  const target = normalizeTarget(requested)
+  const { target, args: rest } = takeTarget(argv)
   if (target === 'default' || CORE_TARGETS.includes(target)) {
     return coreLifecycle(name, target, rest)
   }
@@ -174,7 +173,7 @@ function parseCoreOptions(commandName, target, argv) {
   if (commandName === 'stop' && options.build) throw new Error('--build is not valid for stop')
   if (commandName === 'status' && options.build) throw new Error('--build is not valid for status')
   if (commandName === 'logs' && options.build) throw new Error('--build is not valid for logs')
-  if (options.foreground && (commandName !== 'start' || target !== 'orchestrator')) {
+  if (options.foreground && (commandName !== 'start' || target !== 'engine')) {
     throw new Error('--foreground is only valid for `start engine`')
   }
   if (options.open && !['start', 'restart', 'status'].includes(commandName)) {
@@ -195,8 +194,8 @@ function runCore(name, args) {
 }
 
 function coreStart(keys, options, target) {
-  if (keys.includes('orchestrator') && options.foreground) {
-    return runCore('orchestrator', ['serve'])
+  if (keys.includes('engine') && options.foreground) {
+    return runCore('engine', ['serve'])
   }
   const buildWholeStack = options.local && options.build && target === 'default'
   if (buildWholeStack) {
@@ -207,7 +206,7 @@ function coreStart(keys, options, target) {
       return code
     }
   }
-  if (!options.local && keys.includes('orchestrator')) {
+  if (!options.local && keys.includes('engine')) {
     try {
       ensureEngineEnv()
     } catch (error) {
@@ -278,7 +277,7 @@ async function coreLogs(keys, options) {
 
 function dockerLogsCommand(key, lines, follow) {
   const composeArgs = []
-  if (key === 'server' || key === 'orchestrator') {
+  if (key === 'server' || key === 'engine') {
     const env = envFile()
     if (existsSync(env)) composeArgs.push('--env-file', env)
   }
@@ -290,7 +289,7 @@ function dockerLogsCommand(key, lines, follow) {
         : join(root, 'infra', 'docker', 'engine.compose.yml')
   const args = ['compose', ...composeArgs, '-f', file, 'logs', '--tail', String(lines)]
   if (follow) args.push('-f')
-  args.push(key === 'server' ? 'server' : key === 'orchestrator' ? 'engine' : key)
+  args.push(key === 'server' ? 'server' : key)
   return { command: 'docker', args }
 }
 
@@ -298,7 +297,7 @@ function printCoreSummary(keys, options) {
   console.log(`\nClara stack (${options.local ? 'local' : 'docker'})`)
   if (keys.includes('server')) console.log(`  panel:        ${panelURL()}/`)
   if (keys.includes('web')) console.log(`  web:          ${webURL()}/`)
-  if (keys.includes('orchestrator')) console.log(`  engine:       ${engineURL()}/`)
+  if (keys.includes('engine')) console.log(`  engine:       ${engineURL()}/`)
   if (keys.includes('server')) {
     console.log('')
     console.log('Open the panel with `clara status hub --open`.')
@@ -308,7 +307,6 @@ function printCoreSummary(keys, options) {
 
 function displayName(key) {
   if (key === 'server') return 'hub'
-  if (key === 'orchestrator') return 'engine'
   return key
 }
 
@@ -899,7 +897,7 @@ function writePort(name, port) {
 // Backup and restore
 
 function backup(argv) {
-  const { target, args: rest } = takeTarget(argv, ['default', 'hub', 'engine', 'orchestrator'])
+  const { target, args: rest } = takeTarget(argv, ['default', 'hub', 'engine'])
   const options = parseBackupArgs(rest)
   if (refuseRunning(target, 'back up')) return
   const volumes = targetVolumes(target).filter((name) => existingVolumes([name]).length > 0)
@@ -923,7 +921,7 @@ function restore(argv) {
   const first = argv.find((arg) => !arg.startsWith('-'))
   let target = 'default'
   let rest = [...argv]
-  if (first && ['default', 'hub', 'engine', 'orchestrator'].includes(first)) {
+  if (first && ['default', 'hub', 'engine'].includes(first)) {
     target = first
     rest.splice(rest.indexOf(first), 1)
   }

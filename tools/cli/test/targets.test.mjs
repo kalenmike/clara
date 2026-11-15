@@ -29,10 +29,18 @@ test('leaves unknown words in place for the caller to reject', () => {
 test('maps the public hub target to the internal server service', () => {
   assert.equal(serviceKey('hub'), 'server')
   assert.equal(serviceKey('web'), 'web')
+  assert.equal(serviceKey('engine'), 'engine')
+})
+
+test('rejects the removed orchestrator target', () => {
+  assert.deepEqual(takeTarget(['orchestrator', '--json']), {
+    target: 'default',
+    args: ['orchestrator', '--json'],
+  })
 })
 
 test('limits backup and pairing targets', () => {
-  assert.deepEqual(BACKUP_TARGETS, ['default', 'hub', 'engine', 'orchestrator'])
+  assert.deepEqual(BACKUP_TARGETS, ['default', 'hub', 'engine'])
   assert.deepEqual(PAIR_TARGETS, ['default', 'hub', 'adapter'])
   assert.equal(takeTarget(['hub', 'archive.tar.gz'], BACKUP_TARGETS).target, 'hub')
   assert.equal(takeTarget(['archive.tar.gz'], BACKUP_TARGETS).target, 'default')

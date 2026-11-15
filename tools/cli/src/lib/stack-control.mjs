@@ -7,10 +7,10 @@ import { root } from './router.mjs'
 
 export const NETWORK = 'clara'
 
-export const SERVICES = ['orchestrator', 'server', 'web']
+export const SERVICES = ['engine', 'server', 'web']
 
 export const CONTAINERS = {
-  orchestrator: 'clara-engine',
+  engine: 'clara-engine',
   server: 'clara-server',
   web: 'clara-web',
 }
@@ -18,7 +18,7 @@ export const CONTAINERS = {
 export const VOLUMES = ['clara-server-config', 'clara-server-data', 'clara-orchestrator-data']
 
 export const SCRIPTS = {
-  orchestrator: join(root, 'tools', 'cli', 'src', 'commands', 'engine.mjs'),
+  engine: join(root, 'tools', 'cli', 'src', 'commands', 'engine.mjs'),
   server: join(root, 'tools', 'cli', 'src', 'commands', 'server.mjs'),
   web: join(root, 'tools', 'cli', 'src', 'commands', 'web.mjs'),
 }
@@ -203,14 +203,12 @@ export function readEngineToken(repoRoot = root, env = process.env) {
 }
 
 export function engineContainerRunning() {
-  for (const name of [CONTAINERS.orchestrator, 'clara-orchestrator']) {
-    const result = spawnSync('docker', ['inspect', '--format', '{{.State.Running}}', name], {
-      encoding: 'utf8',
-      timeout: 3_000,
-    })
-    if (!result.error && result.status === 0 && result.stdout.trim() === 'true') return true
-  }
-  return false
+  const result = spawnSync(
+    'docker',
+    ['inspect', '--format', '{{.State.Running}}', CONTAINERS.engine],
+    { encoding: 'utf8', timeout: 3_000 }
+  )
+  return !result.error && result.status === 0 && result.stdout.trim() === 'true'
 }
 
 /**
