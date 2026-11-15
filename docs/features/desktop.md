@@ -34,11 +34,10 @@ adapter host remains its only bundled service.
 6. Install a newer build to update. There is no in-app updater yet.
 7. Settings → App identifies the desktop app and shows the same version and
    build stamp as the web client.
-8. Settings → Harness → Pair harness opens the hub panel's Harness view, which
-   installs an adapter on **This computer**, an **SSH host** from
-   `~/.ssh/config`, or a local **Docker container**. A
-   `clara://adapter?code=…` link opens the same panel flow with the code filled
-   in.
+8. Open **Hub** and use **Harness → Pair Harness** to install an adapter on
+   **This computer**, an **SSH host** from `~/.ssh/config`, or a local **Docker
+   container**. A `clara://adapter?code=…` link opens the same panel flow with
+   the code filled in.
 9. Open **Hub** from the connected app to use the hub panel in the same window.
    Sign in with the hub owner account. The overview, harness, sessions,
    connections, clients, traffic, activity, and settings views use the paired

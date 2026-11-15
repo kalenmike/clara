@@ -22,9 +22,8 @@ contacts the harness directly.
 
 ## User flow
 
-1. Open the hub panel's **Harness** view and choose **Pair Harness**. The
-   client's **Settings → Harness → Pair harness** action opens the same view.
-   Choose OpenCode, Claude Code, or Pi.
+1. Open the hub panel's **Harness** view and choose **Pair Harness**. Choose
+   OpenCode, Claude Code, or Pi.
 2. The hub fetches the adapter manifest from the configured registry and returns
    a one-time code, a one-line install command, and a `clara://adapter` link. It
    never runs the install. Adapter codes start with `clara-harness1_` and only
