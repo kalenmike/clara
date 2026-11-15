@@ -31,6 +31,7 @@
     "desktop:build": "turbo run bundle --filter @clara/desktop",
     "desktop:build:app": "turbo run bundle:app --filter @clara/desktop",
     "desktop:build:docker": "pnpm --filter @clara/desktop build:docker",
+    "desktop:build:release": "node apps/desktop/scripts/build-release.mjs",
     "desktop:install": "node apps/desktop/scripts/install.mjs",
     "desktop:uninstall": "node apps/desktop/scripts/install.mjs --uninstall",
     "desktop:icons": "pnpm --filter @clara/desktop icons",
