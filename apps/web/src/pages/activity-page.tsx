@@ -4,6 +4,7 @@ import { Activity, FolderGit2, Loader2, RefreshCw } from 'lucide-react'
 import type { ClaraActivityHarness, ClaraProject } from '@clara/api-contract'
 import { ActivityHarnessSection } from '@/components/activity/activity-harness-section'
 import { PageShell } from '@/components/layout/page-shell'
+import { FullWindowShell } from '@/components/layout/full-window-shell'
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
 import { Card, CardContent } from '@/components/ui/card'
@@ -19,8 +20,21 @@ import { findProject, useArchivedProjects, useProjects } from '@/features/projec
 import { errorMessage } from '@/lib/errors'
 import { formatCost, formatCount, formatRelativeTime, formatTokens } from '@/lib/format'
 import { readLastProject } from '@/lib/storage'
+import { ConnectedProviders } from '@/providers/connected-providers'
 
 export function ActivityPage() {
+  return (
+    <FullWindowShell>
+      <ConnectedProviders>
+        <div className="min-h-0 flex-1">
+          <ActivityScreen />
+        </div>
+      </ConnectedProviders>
+    </FullWindowShell>
+  )
+}
+
+function ActivityScreen() {
   const projectsQuery = useProjects()
   const archivedQuery = useArchivedProjects()
   const projects = useMemo(() => projectsQuery.data ?? [], [projectsQuery.data])
@@ -217,7 +231,7 @@ function ActivityNoProject() {
       <FolderGit2 className="size-8 text-muted-foreground" />
       <p className="mt-3 text-sm font-medium">No project selected</p>
       <p className="mt-1 max-w-sm text-xs text-muted-foreground">
-        Choose a project in the sidebar to see its Inbox and Outbox sessions.
+        Open a project from Chat before checking its activity.
       </p>
       <Button asChild className="mt-4" size="sm" variant="outline">
         <Link to="/projects">Browse projects</Link>
