@@ -50,6 +50,7 @@ infra/docker                         Compose files, Dockerfiles, and the stack .
 ## Tech stack
 
 - Node 22 (`.nvmrc`), pnpm 11 workspaces
+- Turborepo 2 for cached workspace builds and dependency-aware rebuilds
 - Vite 8, TypeScript 6, React 19, React Router 8
 - Tailwind CSS 4 + shadcn/ui (`radix-nova` preset)
 - TanStack Query 5 + a small external chat store
@@ -72,7 +73,9 @@ pnpm dev:panel      # Hub panel only
 pnpm dev:lab        # Clara Lab (Vite :5175, lab server :8791)
 pnpm dev:server     # Hub service only
 pnpm dev:relay      # Local wrangler dev for the Worker/DO
-pnpm build          # Build every workspace package
+pnpm build          # Build stale workspace packages (Turborepo)
+pnpm build:force    # Rebuild every workspace package with a fresh cache entry
+pnpm build:changed  # Build packages affected by the current branch
 ENABLE_CLOUDFLARE_DEPLOYMENT=true pnpm build # Include the optional Cloudflare relay deployment
 pnpm clara:link     # Install a thin `clara-dev` shim on ~/.local/bin
 pnpm cli            # Run the packaged command from source
