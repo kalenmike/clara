@@ -19,8 +19,8 @@ not change:
 
 - Notifications shows one Inbox sounds switch instead of four state switches and
   a volume slider.
-- Advanced shows only Reconnect, Disconnect, the app version with its build
-  commit, update state, and the cache reset.
+- Advanced shows only Reconnect, Disconnect, the surface label and app version
+  with its build commit, update state, and the cache reset.
 - Other tabs keep their main controls.
 
 Simplification is only a view filter. Turning it on or off never clears a
@@ -80,8 +80,8 @@ touch-first devices. See [Shortcuts](shortcuts.md).
 
 ## Advanced
 
-The Advanced tab contains the server connection, the app version with its build
-commit and update state, and recovery actions:
+The Advanced tab contains the server connection, the surface label and app
+version with its build commit and update state, and recovery actions:
 
 - **Reconnect** proves the transport again without forgetting the device.
 - **Disconnect** forgets the device in this browser.
