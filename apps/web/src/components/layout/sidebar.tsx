@@ -43,6 +43,7 @@ import { resolveAttentionKind } from '@/features/notifications/attention'
 import {
   filterVisibleProjects,
   projectLabel,
+  projectSwitcherWorkspaceLabel,
   recentProjects,
 } from '@/features/projects/project-list'
 import { useProjectSessionPresence } from '@/features/projects/use-project-presence'
@@ -50,7 +51,6 @@ import { useShowEmptyProjects } from '@/features/projects/use-show-empty-project
 import {
   isWorkspaceStartable,
   projectSessionWorkspaces,
-  projectSpansHarnesses,
   resolveProjectWorkspaceTarget,
   workspaceHarnessLabels,
 } from '@/features/projects/project-workspaces'
@@ -217,7 +217,6 @@ export function SidebarContent({
     [lastWorkspaceID, selectedProject]
   )
   const sessionWorkspace = workspaceTarget.workspace
-  const spansHarnesses = projectSpansHarnesses(selectedProject)
 
   const recentProjectOptions = useMemo(() => {
     const options =
@@ -692,11 +691,7 @@ export function SidebarContent({
                   </span>
                   <span className="block truncate text-[11px] text-muted-foreground md:text-[10px]">
                     {selectedProject
-                      ? sessionWorkspace
-                        ? spansHarnesses
-                          ? `${harnessLabels.get(sessionWorkspace.id) ?? sessionWorkspace.harnessLabel} · ${sessionWorkspace.directory}`
-                          : sessionWorkspace.directory
-                        : 'No workspace'
+                      ? projectSwitcherWorkspaceLabel(selectedProject)
                       : 'No project selected'}
                   </span>
                 </span>
@@ -721,11 +716,7 @@ export function SidebarContent({
                   <span className="min-w-0 flex-1">
                     <span className="block truncate text-xs">{projectLabel(project)}</span>
                     <span className="block truncate text-[10px] text-muted-foreground">
-                      {project.workspaces[0]
-                        ? projectSpansHarnesses(project)
-                          ? `${project.workspaces[0].harnessLabel} · ${project.workspaces[0].directory}`
-                          : project.workspaces[0].directory
-                        : 'No workspaces'}
+                      {projectSwitcherWorkspaceLabel(project)}
                     </span>
                   </span>
                 </DropdownMenuItem>

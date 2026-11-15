@@ -4,9 +4,25 @@ import {
   filterVisibleProjects,
   projectLabel,
   projectRecency,
+  projectSwitcherWorkspaceLabel,
   recentProjects,
   sortProjectsByRecency,
 } from './project-list'
+
+function makeWorkspace(id: string, directory: string): ClaraProject['workspaces'][number] {
+  return {
+    id,
+    harnessID: 'harness-1',
+    harnessKind: 'test',
+    harnessLabel: 'Test harness',
+    online: true,
+    active: true,
+    directory,
+    canonical: directory,
+    projectIDs: ['harness-project-1'],
+    linked: true,
+  }
+}
 
 function makeProject(input: {
   id: string
@@ -24,20 +40,7 @@ function makeProject(input: {
       active: input.active,
     },
     defaultWorkspaceID: 'workspace-1',
-    workspaces: [
-      {
-        id: 'workspace-1',
-        harnessID: 'harness-1',
-        harnessKind: 'test',
-        harnessLabel: 'Test harness',
-        online: true,
-        active: true,
-        directory: input.canonical,
-        canonical: input.canonical,
-        projectIDs: ['harness-project-1'],
-        linked: true,
-      },
-    ],
+    workspaces: [makeWorkspace('workspace-1', input.canonical)],
   }
 }
 
@@ -52,6 +55,29 @@ describe('projectLabel', () => {
     expect(projectLabel(makeProject({ id: 'root', canonical: '/', active: 1 }))).toBe(
       'Untitled project'
     )
+  })
+})
+
+describe('projectSwitcherWorkspaceLabel', () => {
+  it('names the directory when a project has one workspace', () => {
+    expect(
+      projectSwitcherWorkspaceLabel(
+        makeProject({ id: '1', canonical: '/home/jet/clara', active: 1 })
+      )
+    ).toBe('/home/jet/clara')
+  })
+
+  it('counts the workspaces when a project has several', () => {
+    const project = makeProject({ id: '1', canonical: '/home/jet/clara', active: 1 })
+    const workspaces = [...project.workspaces, makeWorkspace('workspace-2', '/home/jet/other')]
+
+    expect(projectSwitcherWorkspaceLabel({ ...project, workspaces })).toBe('2 workspaces')
+  })
+
+  it('handles a project without workspaces', () => {
+    const project = makeProject({ id: '1', canonical: '/home/jet/clara', active: 1 })
+
+    expect(projectSwitcherWorkspaceLabel({ ...project, workspaces: [] })).toBe('No workspaces')
   })
 })
 
