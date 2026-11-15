@@ -79,7 +79,7 @@ export function AuthScreen({ session }: { session: SessionController }) {
         : 'Sign in'
 
   return (
-    <div className="flex min-h-screen items-center justify-center bg-background px-4">
+    <div className="panel-auth flex min-h-screen items-center justify-center bg-background px-4">
       <main className="panel-card w-full max-w-md p-6">
         <div className="mb-6 flex items-start gap-3">
           <div className="flex size-10 shrink-0 items-center justify-center rounded-md bg-primary text-primary-foreground">
