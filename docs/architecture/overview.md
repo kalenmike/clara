@@ -207,11 +207,11 @@ ConnectionProvider
 - The same panel UI ships in the web and desktop clients at `/hub`. It calls a
   typed bridge under `/v1/hub-panel` on the paired E2EE session, and the hub
   forwards those panel API requests to its loopback listener. A login over the
-  bridge returns a session bearer token for that connection; the served page
-  keeps its HttpOnly cookie. The route adds no listener or exposed port, still
-  requires the hub owner's credentials, and disables **Go offline**, the local
-  transport switch carrying the session, and relay target/room edits because
-  they would cut or retarget the panel's own connection. A local hub is set up
+  bridge returns a panel session bearer token that the app holds; the served
+  page keeps its HttpOnly cookie. The route adds no listener or exposed port,
+  still requires the hub owner's credentials, and disables **Go offline**, the
+  transport switch carrying the session (local or relay), and relay target/room
+  edits because they would cut or retarget the panel's own connection. A local hub is set up
   once on the served page; a remote hub is provisioned with `CLARA_ADMIN_*`
   before a client pairs.
 - Harness adapters live in SQLite. Any number can be paired and online at once;

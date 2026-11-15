@@ -92,7 +92,7 @@ loopback page or exposing a new port.
 11. Panel control is one more typed surface on the same session. Requests under
     `/v1/hub-panel` reach the hub's loopback panel listener through the bridge;
     the client does not open a second socket, learn the panel port, or expose
-    one. A login returns a session bearer token scoped to this connection, while
+    one. A login returns a panel session bearer token that the app holds, while
     the server-served page keeps its HttpOnly cookie.
 12. The panel surface needs the hub owner's credentials. Pairing a device grants
     harness access through the hub, not panel administration. The bridge forwards
@@ -217,8 +217,8 @@ loopback page or exposing a new port.
   page keeps `clara_panel_session` as an HttpOnly cookie. Both use the hub's
   superadmin session policy and are revoked with it.
 - Bundled panel controls: `PanelCapabilitiesProvider` disables **Go offline**,
-  the local transport switch in use, and relay target/room edits, because each
-  would cut or retarget the connection carrying the panel. Harness, device,
+  the transport switch in use (local or relay), and relay target/room edits,
+  because each would cut or retarget the connection carrying the panel. Harness, device,
   monitoring, sync, orchestration, and configuration controls stay available.
 - Adapter installs from the bundled panel: the hub issues the one-time code,
   registry manifest, copy command, and `clara://adapter` link. Clara Desktop's

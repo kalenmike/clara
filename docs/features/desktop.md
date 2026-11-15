@@ -73,11 +73,11 @@ adapter host remains its only bundled service.
 9. The app is a client, not a hub host. It never starts the hub service, a
    panel listener, or a relay. `/hub` uses the same E2EE session as chat and
    reaches the hub's loopback panel through the typed `/v1/hub-panel` bridge.
-   The app holds a session bearer token for that connection; it does not receive
-   the served panel's HttpOnly cookie or the hub's harness credentials.
+   The app holds a panel session bearer token for that connection; it does not
+   receive the served panel's HttpOnly cookie or the hub's harness credentials.
 10. The bundled panel disables controls that would cut its own connection:
-    **Go offline**, the local transport switch carrying the session, and relay
-    target or room edits. Harness setup, device management, monitoring, sync,
+    **Go offline**, the transport switch carrying the session (local or relay),
+    and relay target or room edits. Harness setup, device management, monitoring, sync,
     orchestration, and configuration stay available. Adapter setup offers are
     carried out by the adapter host, not by the hub service.
 
@@ -105,9 +105,10 @@ adapter host remains its only bundled service.
   A remote client that cannot read the file keeps its relay URL.
 - Several app windows can run at once. Each opens its own hub connection from
   the same paired device.
-- A remote hub with no owner account cannot be set up from `/hub`. The host
-  creates the owner with `CLARA_ADMIN_*` or the headless setup command, then
-  pairs the app; the bundled panel says setup must be finished on the hub.
+- A remote hub with no owner account cannot be set up from `/hub`. The hub
+  starts no transport until the owner exists, so the app cannot connect. Create
+  the owner with `CLARA_ADMIN_*` or the headless setup command, then pair the
+  app. The bundled panel never renders the local setup form.
 - The panel session expires while the app stays connected to chat. The panel
   asks for the owner credentials again; the chat connection is unaffected.
 - The hub has no panel because it was built or started with the panel disabled.
@@ -169,7 +170,8 @@ adapter host remains its only bundled service.
 - The bundled panel route is `/hub`. It renders `@clara/panel` from
   `packages/panel` and calls the hub bridge under `/v1/hub-panel` through the
   paired E2EE session. It passes the house capability set that disables **Go
-  offline**, the active local transport switch, and relay target/room edits.
+  offline**, the active transport switch (local or relay), and relay target/room
+  edits.
   The bridge adds no listener; the app still has no hub-service sidecar.
 - The adapter host lives in `apps/desktop/host` (`@clara/desktop-host`). It
   reuses `@clara/adapter-install` from `packages/adapters/install` for planning,

@@ -342,21 +342,22 @@ server-served page remains the first-run, headless, and emergency surface.
     capability set. The served panel allows every control and keeps its
     HttpOnly session cookie. The bundled panel allows every control except the
     ones that would cut its own connection or move its own target: **Go
-    offline**, the local transport switch carrying the session, and relay
-    target or room edits. Harness, device, monitoring, sync, orchestration, and
+    offline**, the transport switch carrying the session (local or relay), and
+    relay target or room edits. Harness, device, monitoring, sync, orchestration, and
     configuration controls remain available.
 12. **Bundled control uses the tunnel.** `/hub` calls the typed bridge under
     `/v1/hub-panel`; the bridge forwards panel API requests to the loopback
     listener and does not proxy arbitrary hub URLs. A login over the bridge
-    returns a session bearer token for the E2EE connection; the server-served
+    returns a panel session bearer token that the app holds; the server-served
     panel keeps its HttpOnly cookie and its existing Host/Origin and fetch
     metadata checks. The route adds no listener, no published port, and no relay
     surface. It still requires the hub owner's credentials, so pairing a device
     does not grant panel access. First run is unchanged: a local hub uses the
     server-served setup screen once; a remote hub is provisioned with
     `CLARA_ADMIN_USERNAME` and `CLARA_ADMIN_PASSWORD` or
-    `CLARA_ADMIN_PASSWORD_FILE` before the client pairs, and the bundled panel
-    reports that setup must be finished on the hub instead of showing a form.
+    `CLARA_ADMIN_PASSWORD_FILE` before the client pairs; the hub starts no
+    transport until that owner exists, so the app cannot connect and the bundled
+    panel never renders the local setup form.
 
 ## Edge cases
 
@@ -523,9 +524,10 @@ server-served page remains the first-run, headless, and emergency surface.
 - **Panel port is busy** — the hub service logs `panel unavailable` and continues.
 - **`/hub` is opened without a connection** — the route sends the client to the
   connect screen. The bundled panel has no loopback fallback of its own.
-- **A remote hub has no owner account** — the bridge reports setup required and
-  the bundled panel explains that an administrator must create the owner on the
-  hub or restart it with `CLARA_ADMIN_*`. It never renders the local setup form.
+- **A remote hub has no owner account** — the hub starts no transport until the
+  owner exists, so the client cannot connect and the bundled panel is unavailable.
+  Create the owner on the hub with `CLARA_ADMIN_*` or the headless setup command.
+  The bundled panel never renders the local setup form.
 - **The panel session token expires or is revoked** — the next bridge request
   returns unauthorized, the panel returns to its sign-in view, and cached
   snapshot data is dropped.
@@ -538,7 +540,7 @@ server-served page remains the first-run, headless, and emergency surface.
 - **The hub service is down** — the server-served page is unavailable too; the
   bundled panel reports the connection failure instead of showing stale controls.
 - **The app or its panel session ends** — the bearer token is not a browser
-  cookie and is scoped to the connection; sign in again with the owner account.
+  cookie and is held only by the app; sign in again with the owner account.
 
 ## Out of scope
 
@@ -650,14 +652,14 @@ server-served page remains the first-run, headless, and emergency surface.
 - Hub bridge: `/v1/hub-panel` on the paired E2EE session forwards the typed panel
   API to the loopback listener; it is not a general loopback proxy and adds no
   listener or published port
-- Bundled auth: a panel login over the bridge returns a session bearer token for
-  that E2EE connection. The served page keeps its HttpOnly
+- Bundled auth: a panel login over the bridge returns a panel session bearer
+  token that the app holds. The served page keeps its HttpOnly
   `clara_panel_session` cookie. Both use the hub's superadmin session policy and
   are revoked with it
 - Bundled capabilities: `PanelCapabilitiesProvider` in
   `packages/panel/src/lib/capabilities-provider.tsx` gives the bundled host a
-  reduced capability set. **Go offline**, the active local transport switch, and
-  relay target/room edits are unavailable; harness, device, monitoring, sync,
+  reduced capability set. **Go offline**, the active transport switch (local or
+  relay), and relay target/room edits are unavailable; harness, device, monitoring, sync,
   orchestration, and configuration controls remain available
 - Desktop adapter host: `apps/desktop/host` accepts panel-issued setup offers and
   runs local, SSH, and Docker installs through `packages/adapters/install`
