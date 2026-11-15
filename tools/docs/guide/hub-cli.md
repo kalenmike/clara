@@ -84,8 +84,9 @@ The hub chooses its panel and local ports instead of relying on fixed ones.
 - The Docker installation keeps fixed ports because pairing links need the
   published host port.
 
-The live panel URL is written to the hub runtime file. Use `clara status hub` or
-`clara status hub --open` to inspect or open it.
+The live panel URL is written to the hub runtime file. Use `clara status hub` to
+inspect it, including the version and protocol the running hub reports, or
+`clara status hub --open` to open it.
 
 ## Remote clients
 

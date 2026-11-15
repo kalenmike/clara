@@ -609,8 +609,8 @@ first-run, headless, and emergency surface.
 - Panel listener: `127.0.0.1:8790` by default; `CLARA_PANEL_BIND_HOST=0.0.0.0`
   inside the container with host-loopback publishing
 - Page: `GET /`
-- Health: `GET /health` (unauthenticated, no secrets; includes
-  `setupRequired` and `setupTokenRequired`)
+- Health: `GET /health` (unauthenticated, no secrets; includes `version`,
+  `protocol`, `setupRequired`, and `setupTokenRequired`)
 - Session: `GET|POST|DELETE /panel/api/v1/session`
 - Setup: `POST /panel/api/v1/setup` with `{ "username": "...", "password": "..." }`,
   plus `"token"` only when the host supplied one
