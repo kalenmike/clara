@@ -253,9 +253,15 @@ clara`. A manually started hub is restarted from the captured root with its
   as the `adapter-registry` workflow artifact. The maintainer copies that
   artifact into `apps/web/public/adapters` and runs `pnpm deploy:web`. When the
   archives already exist on a release,
-  `pnpm adapters:build --from-release <tag> --repo <owner/repo> --out apps/web/public/adapters`
+  `pnpm adapters:build --from-release <tag|latest> --repo <owner/repo> --out apps/web/public/adapters`
   regenerates the manifest and install script from the release asset digests
-  without downloading archives. A local `pnpm adapters:build` builds only the
+  without downloading archives. `pnpm deploy:web:registry` does the whole
+  publish step in one command: it pins the newest `adapters-v*` release,
+  regenerates the registry, verifies every manifest, target, and artifact digest
+  against that release, and then deploys the web app. `pnpm adapters:check` is
+  the same verification without the deploy, and `pnpm deploy:web` runs the
+  structural check before `wrangler` so an empty, partial, or host-only registry
+  cannot be published. A local `pnpm adapters:build` builds only the
   host target under `dist/adapters` and is not the canonical registry; pair it
   with `pnpm adapters:serve` and `CLARA_ADAPTER_REGISTRY_URL` to test a build.
   The hub reads `CLARA_ADAPTER_REGISTRY_URL` or the panel setting; it never

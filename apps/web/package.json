@@ -10,6 +10,7 @@
     "build:desktop": "tsc -b && vite build --mode desktop && node scripts/check-bundle.mjs --dir dist-desktop --surface desktop",
     "preview": "vite preview",
     "test": "vitest run",
+    "predeploy": "node ../../tools/adapters/check-registry.mjs --offline",
     "deploy": "pnpm build && wrangler pages deploy dist --project-name clara"
   },
   "dependencies": {
