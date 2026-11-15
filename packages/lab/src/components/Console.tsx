@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useState } from 'react'
-import { Empty } from './Badge'
+import { Badge, Empty } from './Badge'
 import { Card } from '@clara/ui/components/card'
 import { Textarea } from '@clara/ui/components/textarea'
 import { Notice } from '@clara/ui/patterns/notice'
@@ -16,7 +16,6 @@ import {
   valuesFromArgs,
   type FieldValues,
 } from '../lib/schema'
-import { Badge } from './Badge'
 import { Icon } from './Icon'
 import { CopyButton, JsonView } from './Json'
 import { ToolForm } from './ToolForm'

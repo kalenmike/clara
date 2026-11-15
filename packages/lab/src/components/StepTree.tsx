@@ -1,8 +1,7 @@
 import { useState } from 'react'
-import { Empty } from './Badge'
+import { Badge, Empty } from './Badge'
 import type { CompiledNode, StepSummary } from '../types'
 import { ago, formatTokens, modelLabel, statusTone } from '../lib/format'
-import { Badge } from './Badge'
 
 function kindTone(kind: string): 'ok' | 'bad' | 'live' | 'idle' | 'warn' {
   if (kind === 'agent') return 'live'

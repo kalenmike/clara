@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useRef, useState } from 'react'
-import { Empty } from './Badge'
+import { Badge, Empty } from './Badge'
 import {
   Select,
   SelectContent,
@@ -23,7 +23,6 @@ import {
   latestActiveRun,
   sortRuns,
 } from '../lib/runs'
-import { Badge } from './Badge'
 import { Icon } from './Icon'
 import { WorkOrderCard } from './WorkOrderCard'
 

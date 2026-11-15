@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useState } from 'react'
-import { Empty } from './Badge'
+import { Badge, Empty, Field } from './Badge'
 import { Card } from '@clara/ui/components/card'
 import { SectionCard } from '@clara/ui/patterns/section-card'
 import { Checkbox } from '@clara/ui/components/checkbox'
@@ -17,7 +17,6 @@ import {
   sortRuns,
   visibleRuns,
 } from '../lib/runs'
-import { Badge, Field } from './Badge'
 import { Icon } from './Icon'
 import { totalUsage } from '../lib/usage'
 import { RunEvents, RunStepDetail } from './RunDetail'

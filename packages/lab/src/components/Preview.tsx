@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useRef, useState } from 'react'
-import { Empty } from './Badge'
+import { Badge, Empty } from './Badge'
 import { Card } from '@clara/ui/components/card'
 import {
   Select,
@@ -13,7 +13,6 @@ import { Button } from '@clara/ui/components/button'
 import { ApiError, getDiff, getRuns, preview, type DiffResponse } from '../api'
 import type { CompiledNode, LabPreviewResult, PreflightResult, RunRow } from '../types'
 import type { LabStream } from '../useLab'
-import { Badge } from './Badge'
 import { DebugDock } from './DebugDock'
 import { Diagnostics } from './Diagnostics'
 import { Icon } from './Icon'

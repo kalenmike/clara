@@ -1,5 +1,5 @@
 import { useState } from 'react'
-import { Empty } from './Badge'
+import { Badge, Empty, Field } from './Badge'
 import { SectionCard } from '@clara/ui/patterns/section-card'
 import { Notice } from '@clara/ui/patterns/notice'
 import type { OrcEvent, StepDetail } from '../types'
@@ -12,7 +12,6 @@ import {
   short,
   statusTone,
 } from '../lib/format'
-import { Badge, Field } from './Badge'
 import { InputList } from './Inputs'
 import { CopyButton, JsonView } from './Json'
 import { Markdown } from './Markdown'

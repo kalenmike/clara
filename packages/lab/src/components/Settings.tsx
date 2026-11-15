@@ -1,11 +1,10 @@
 import type { ReactNode } from 'react'
-import { Empty } from './Badge'
+import { Badge, Empty } from './Badge'
 import { Input } from '@clara/ui/components/input'
 import { Notice } from '@clara/ui/patterns/notice'
 import { Button } from '@clara/ui/components/button'
 import type { LabSnapshot, PreflightResult } from '../types'
 import { friendlyError } from '../lib/errors'
-import { Badge } from './Badge'
 import { Icon } from './Icon'
 
 export function SettingsView({

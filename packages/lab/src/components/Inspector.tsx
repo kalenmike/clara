@@ -1,11 +1,10 @@
 import { useMemo, useState } from 'react'
-import { Empty } from './Badge'
+import { Badge, Empty, Field } from './Badge'
 import { computeBudget } from '@clara/policy'
 import type { CompiledNode } from '../types'
 import { modelLabel } from '../lib/format'
 import { findCompiledNode } from '../lib/tree'
 import { JsonView, CopyButton } from './Json'
-import { Badge, Field } from './Badge'
 import { SourceView } from './SourceView'
 
 const TABS = ['prompt', 'inputs', 'policy', 'limits', 'routes', 'source', 'raw'] as const

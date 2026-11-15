@@ -1,273 +1,130 @@
 {
   "workspaces": {
     "tools/cli": {
-      "entry": [
-        "src/commands/*.mjs",
-        "test/*.test.mjs"
-      ],
-      "project": [
-        "src/**/*.mjs",
-        "test/**/*.mjs"
-      ]
+      "entry": ["src/commands/*.mjs", "test/*.test.mjs"],
+      "project": ["src/**/*.mjs", "test/**/*.mjs"]
     },
     "apps/web": {
-      "entry": [
-        "index.html"
-      ],
-      "project": [
-        "src/**/*.{ts,tsx}"
-      ]
+      "entry": ["index.html"],
+      "project": ["src/**/*.{ts,tsx}"]
     },
     "apps/desktop": {
-      "ignoreBinaries": [
-        "vite"
-      ]
+      "ignoreBinaries": ["vite"]
     },
     "apps/desktop/host": {
-      "entry": [
-        "scripts/*.mjs"
-      ],
-      "project": [
-        "src/**/*.ts",
-        "test/**/*.ts"
-      ]
+      "entry": ["scripts/*.mjs"],
+      "project": ["src/**/*.ts", "test/**/*.ts"]
     },
     "apps/hub/panel": {
-      "entry": [
-        "index.html"
-      ],
-      "project": [
-        "src/**/*.{ts,tsx,css}"
-      ]
+      "entry": ["index.html"],
+      "project": ["src/**/*.{ts,tsx,css}"]
     },
     "apps/cli": {
-      "project": [
-        "src/**/*.ts",
-        "test/**/*.ts"
-      ]
+      "project": ["src/**/*.ts", "test/**/*.ts"]
     },
     "packages/panel": {
-      "project": [
-        "src/**/*.{ts,tsx,css}"
-      ]
+      "project": ["src/**/*.{ts,tsx,css}"]
     },
     "packages/theme": {
-      "project": [
-        "src/**/*.css"
-      ]
+      "project": ["src/**/*.css"]
     },
     "packages/ui": {
-      "project": [
-        "src/**/*.{ts,tsx}"
-      ]
+      "project": ["src/**/*.{ts,tsx}"]
     },
     "tools/docs": {
-      "entry": [
-        "src/clientModules/**/*.ts",
-        "src/pages/**/*.tsx",
-        "src/theme/**/*.tsx"
-      ],
-      "project": [
-        "*.ts",
-        "src/**/*.{ts,tsx}"
-      ],
+      "entry": ["src/clientModules/**/*.ts", "src/pages/**/*.tsx", "src/theme/**/*.tsx"],
+      "project": ["*.ts", "src/**/*.{ts,tsx}"],
       "ignoreDependencies": [
         "@easyops-cn/docusaurus-search-local",
         "@easyops-cn/docusaurus-theme-docusaurus-search-local"
       ]
     },
     "tools/lab": {
-      "entry": [
-        "index.html"
-      ],
-      "project": [
-        "src/**/*.{ts,tsx}",
-        "server/**/*.ts"
-      ],
-      "ignoreDependencies": [
-        "@modelcontextprotocol/sdk",
-        "zod"
-      ]
+      "entry": ["index.html"],
+      "project": ["src/**/*.{ts,tsx}", "server/**/*.ts"],
+      "ignoreDependencies": ["@modelcontextprotocol/sdk", "zod"]
     },
     "packages/lab": {
-      "project": [
-        "src/**/*.{ts,tsx}",
-        "test/**/*.ts"
-      ]
+      "project": ["src/**/*.{ts,tsx}", "test/**/*.ts"]
     },
     "packages/lab-server": {
-      "project": [
-        "src/**/*.ts",
-        "test/**/*.ts"
-      ]
+      "project": ["src/**/*.ts", "test/**/*.ts"]
     },
     "apps/hub/server": {
-      "entry": [
-        "src/bun.ts",
-        "scripts/*.mjs"
-      ],
-      "project": [
-        "src/**/*.ts",
-        "test/**/*.ts",
-        "scripts/**/*.mjs"
-      ]
+      "entry": ["src/bun.ts", "scripts/*.mjs"],
+      "project": ["src/**/*.ts", "test/**/*.ts", "scripts/**/*.mjs"]
     },
     "packages/contracts/shared-types": {
-      "project": [
-        "src/**/*.ts",
-        "test/**/*.ts"
-      ]
+      "project": ["src/**/*.ts", "test/**/*.ts"]
     },
     "packages/runtime-state": {
-      "project": [
-        "src/**/*.{mjs,d.ts}",
-        "test/**/*.mjs"
-      ]
+      "project": ["src/**/*.{mjs,d.ts}", "test/**/*.mjs"]
     },
     "packages/sqlite": {
-      "project": [
-        "src/**/*.ts"
-      ]
+      "project": ["src/**/*.ts"]
     },
     "packages/contracts/api-contract": {
-      "project": [
-        "src/**/*.ts",
-        "test/**/*.ts"
-      ]
+      "project": ["src/**/*.ts", "test/**/*.ts"]
     },
     "packages/api/api-client": {
-      "project": [
-        "src/**/*.ts",
-        "test/**/*.ts"
-      ]
+      "project": ["src/**/*.ts", "test/**/*.ts"]
     },
     "packages/api/mcp": {
-      "project": [
-        "src/**/*.ts",
-        "test/**/*.ts"
-      ]
+      "project": ["src/**/*.ts", "test/**/*.ts"]
     },
     "packages/crypto": {
-      "project": [
-        "src/**/*.ts",
-        "test/**/*.ts"
-      ]
+      "project": ["src/**/*.ts", "test/**/*.ts"]
     },
     "infra/relay": {
-      "project": [
-        "src/**/*.ts",
-        "test/**/*.ts"
-      ]
+      "project": ["src/**/*.ts", "test/**/*.ts"]
     },
     "packages/orchestration/policy": {
-      "project": [
-        "src/**/*.ts",
-        "test/**/*.ts"
-      ]
+      "project": ["src/**/*.ts", "test/**/*.ts"]
     },
     "packages/orchestration/engine": {
-      "project": [
-        "src/**/*.ts",
-        "test/**/*.ts"
-      ]
+      "project": ["src/**/*.ts", "test/**/*.ts"]
     },
     "packages/adapters/runner": {
-      "project": [
-        "src/**/*.ts",
-        "test/**/*.ts"
-      ]
+      "project": ["src/**/*.ts", "test/**/*.ts"]
     },
     "packages/adapters/binding": {
-      "project": [
-        "src/**/*.ts",
-        "test/**/*.ts"
-      ]
+      "project": ["src/**/*.ts", "test/**/*.ts"]
     },
     "packages/adapters/runtime": {
-      "project": [
-        "src/**/*.ts",
-        "test/**/*.ts"
-      ]
+      "project": ["src/**/*.ts", "test/**/*.ts"]
     },
     "packages/adapters/install": {
-      "project": [
-        "src/**/*.ts",
-        "test/**/*.ts"
-      ]
+      "project": ["src/**/*.ts", "test/**/*.ts"]
     },
     "packages/orchestration/control": {
-      "project": [
-        "src/**/*.ts",
-        "test/**/*.ts"
-      ]
+      "project": ["src/**/*.ts", "test/**/*.ts"]
     },
     "packages/preview": {
-      "project": [
-        "src/**/*.ts",
-        "test/**/*.ts"
-      ]
+      "project": ["src/**/*.ts", "test/**/*.ts"]
     },
     "packages/orchestration/mcp": {
-      "project": [
-        "src/**/*.ts",
-        "test/**/*.ts"
-      ]
+      "project": ["src/**/*.ts", "test/**/*.ts"]
     },
     "apps/engine": {
-      "entry": [
-        "src/bun.ts",
-        "scripts/*.mjs"
-      ],
-      "project": [
-        "src/**/*.ts",
-        "scripts/**/*.mjs",
-        "test/**/*.ts"
-      ]
+      "entry": ["src/bun.ts", "scripts/*.mjs"],
+      "project": ["src/**/*.ts", "scripts/**/*.mjs", "test/**/*.ts"]
     },
     "apps/adapters/opencode": {
-      "project": [
-        "src/**/*.ts",
-        "test/**/*.ts",
-        "plugin/**/*.ts"
-      ],
-      "ignoreDependencies": [
-        "@clara/mcp",
-        "ws"
-      ]
+      "project": ["src/**/*.ts", "test/**/*.ts", "plugin/**/*.ts"],
+      "ignoreDependencies": ["@clara/mcp", "ws"]
     },
     "apps/adapters/claude": {
-      "project": [
-        "src/**/*.ts",
-        "test/**/*.ts"
-      ],
-      "ignoreDependencies": [
-        "ws"
-      ]
+      "project": ["src/**/*.ts", "test/**/*.ts"],
+      "ignoreDependencies": ["ws"]
     },
     "apps/adapters/pi": {
-      "project": [
-        "src/**/*.ts",
-        "test/**/*.ts"
-      ],
-      "ignoreDependencies": [
-        "ws"
-      ]
+      "project": ["src/**/*.ts", "test/**/*.ts"],
+      "ignoreDependencies": ["ws"]
     }
   },
-  "ignore": [
-    "tools/build/feature-flags.d.mts",
-    "tools/build/version.d.mts"
-  ],
-  "ignoreBinaries": [
-    "ss",
-    "rustc",
-    "ldd"
-  ],
-  "ignoreDependencies": [
-    "yaml",
-    "cloudflare",
-    "better-sqlite3"
-  ],
+  "ignore": ["tools/build/feature-flags.d.mts", "tools/build/version.d.mts"],
+  "ignoreBinaries": ["ss", "rustc", "ldd"],
+  "ignoreDependencies": ["yaml", "cloudflare", "better-sqlite3"],
   "rules": {
     "exports": "off",
     "types": "off"

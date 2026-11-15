@@ -3,7 +3,13 @@ import { Check, ChevronDown } from 'lucide-react'
 import { PageShell } from '@/components/layout/page-shell'
 import { FullWindowShell } from '@/components/layout/full-window-shell'
 import { Button } from '@clara/ui/components/button'
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@clara/ui/components/card'
+import {
+  Card,
+  CardContent,
+  CardDescription,
+  CardHeader,
+  CardTitle,
+} from '@clara/ui/components/card'
 import {
   DropdownMenu,
   DropdownMenuContent,
