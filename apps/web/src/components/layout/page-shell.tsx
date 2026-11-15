@@ -1,6 +1,4 @@
 import type { ReactNode } from 'react'
-import { Link } from 'react-router'
-import { ArrowLeft } from 'lucide-react'
 import { cn } from '@/lib/utils'
 
 type PageShellProps = {
@@ -16,13 +14,6 @@ export function PageShell({ title, description, eyebrow, actions, children }: Pa
     <div className="h-full overflow-auto">
       <div className="mx-auto max-w-5xl space-y-6 p-6">
         <header>
-          <Link
-            to="/"
-            className="mb-3 inline-flex items-center gap-1.5 text-sm text-muted-foreground transition-colors hover:text-foreground"
-          >
-            <ArrowLeft className="size-4" />
-            Back to home
-          </Link>
           <div className="flex items-start justify-between gap-4">
             <div className="min-w-0">
               {eyebrow && (

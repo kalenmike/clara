@@ -670,11 +670,12 @@ first-run, headless, and emergency surface.
 - Assets: `GET /assets/<hashed file>` and `GET /favicon.svg`
 - Bundled panel: `/hub` in the web and desktop router, rendered from
   `packages/panel` (`@clara/panel`) inside the connected client shell
-- Bundled layout: the `/hub` route mounts `.panel-root` as a flex slot under its
-  app bar, and the shell, boot, and auth screens fill that slot with `flex: 1`
-  and `min-height: 0`. The panel never uses a viewport or percentage height when
-  embedded, so the host's bar cannot push the status bar off screen. The served
-  page is the only host that sizes the shell against the viewport
+- Bundled layout: the `/hub` route mounts `.panel-root` as a flex slot under the
+  fixed app header, and the shell, boot, and auth screens fill that slot with
+  `flex: 1` and `min-height: 0`. The panel never uses a viewport or percentage
+  height when embedded, so the host's header cannot push the status bar off
+  screen. The served page is the only host that sizes the shell against the
+  viewport
 - Hub bridge: `/v1/hub-panel` on the paired E2EE session forwards the typed panel
   API to the loopback listener; it is not a general loopback proxy and adds no
   listener or published port

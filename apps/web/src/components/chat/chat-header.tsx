@@ -1,6 +1,5 @@
 import { useRef, useState } from 'react'
 import { createPortal } from 'react-dom'
-import { Link } from 'react-router'
 import {
   AlarmClock,
   AlarmClockOff,
@@ -12,7 +11,6 @@ import {
   Eye,
   EyeOff,
   GitFork,
-  Home,
   MoreHorizontal,
   PanelRight,
   Pencil,
@@ -252,13 +250,6 @@ export function ChatHeader({
 
   return (
     <header className="flex h-14 shrink-0 items-center gap-1.5 border-b px-2 md:px-3">
-      <Button asChild variant="ghost" size="icon" className="size-8 max-md:size-11">
-        <Link to="/" title="Back to start">
-          <Home className="size-4 max-md:size-5" />
-          <span className="sr-only">Back to start</span>
-        </Link>
-      </Button>
-
       <div className="min-w-0 flex-1">
         <button
           type="button"

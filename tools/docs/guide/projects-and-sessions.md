@@ -143,7 +143,7 @@ The switch reports how many agents are working in the project's Outbox.
 
 ## See agent activity
 
-Choose **Activity** in the icon row at the bottom of the sidebar to open it. It
+Choose **Activity** in the app header to open it. It
 shows every session in the Inbox or Outbox for the project currently shown in
 the sidebar, across all of that project's workspaces and harnesses. Archived and
 snoozed sessions stay hidden.

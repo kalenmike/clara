@@ -1,10 +1,9 @@
 import { useEffect, useState } from 'react'
-import { ArrowLeft } from 'lucide-react'
-import { Link, Navigate, useLocation } from 'react-router'
+import { Navigate, useLocation } from 'react-router'
 import { LabApp, configureLabApi } from '@clara/lab'
 import '@clara/lab/styles.css'
 import { ConnectionSplash } from '@/components/connect/connection-splash'
-import { Button } from '@/components/ui/button'
+import { AppHeader } from '@/components/layout/app-header'
 import { labAvailable, readLabHealth } from '@/lib/desktop-lab'
 import { useConnection } from '@/providers/connection-provider'
 
@@ -56,16 +55,8 @@ export function LabPage() {
 
   return (
     <div className="flex h-dvh flex-col bg-background text-foreground">
-      <header className="flex h-11 shrink-0 items-center gap-2 border-b px-2">
-        <Button asChild variant="ghost" size="sm">
-          <Link to="/">
-            <ArrowLeft className="size-4" aria-hidden="true" />
-            Back to Clara
-          </Link>
-        </Button>
-        <span className="truncate text-xs text-muted-foreground">Clara Lab</span>
-      </header>
-      <div className="lab-root flex-1" data-embedded data-clara-lab-surface>
+      <AppHeader />
+      <div className="lab-root min-h-0 flex-1" data-embedded data-clara-lab-surface>
         {!ready && !error ? (
           <ConnectionSplash label="Opening Clara Lab…" />
         ) : error ? (
