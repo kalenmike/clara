@@ -1,12 +1,6 @@
 import assert from 'node:assert/strict'
 import test from 'node:test'
-import {
-  BACKUP_TARGETS,
-  LIFECYCLE_TARGETS,
-  PAIR_TARGETS,
-  serviceKey,
-  takeTarget,
-} from '../src/lib/targets.mjs'
+import { LIFECYCLE_TARGETS, PAIR_TARGETS, serviceKey, takeTarget } from '../src/lib/targets.mjs'
 
 test('accepts every lifecycle target', () => {
   for (const target of LIFECYCLE_TARGETS) {
@@ -15,7 +9,7 @@ test('accepts every lifecycle target', () => {
 })
 
 test('defaults to the core stack when no target is given', () => {
-  assert.deepEqual(takeTarget(['--local']), { target: 'default', args: ['--local'] })
+  assert.deepEqual(takeTarget(['--json']), { target: 'default', args: ['--json'] })
   assert.deepEqual(takeTarget([]), { target: 'default', args: [] })
 })
 
@@ -43,9 +37,6 @@ test('rejects the removed orchestrator and adapter targets', () => {
   })
 })
 
-test('limits backup and pairing targets', () => {
-  assert.deepEqual(BACKUP_TARGETS, ['default', 'hub', 'engine'])
+test('limits pairing targets', () => {
   assert.deepEqual(PAIR_TARGETS, ['default', 'hub'])
-  assert.equal(takeTarget(['hub', 'archive.tar.gz'], BACKUP_TARGETS).target, 'hub')
-  assert.equal(takeTarget(['archive.tar.gz'], BACKUP_TARGETS).target, 'default')
 })

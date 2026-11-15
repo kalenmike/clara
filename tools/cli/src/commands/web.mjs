@@ -1,20 +1,19 @@
 #!/usr/bin/env node
-// Docker and local controls for the Clara web client.
+// Host controls for the Clara web client.
 //
-//   clara start web [--local|--docker] [--build]
-//   clara stop web [--local|--docker]
-//   clara restart web [--local|--docker] [--build]
+//   clara start web [--build]
+//   clara stop web
+//   clara restart web [--build]
 //   clara status web
-//   clara logs web [--local|--docker]
+//   clara logs web
 
 import { existsSync } from 'node:fs'
 import { join } from 'node:path'
 import { logPath } from '../lib/local-runtime.mjs'
-import { WEB_DIST } from '../lib/local-web.mjs'
+import { WEB_DIST, webPort, webURL } from '../lib/local-web.mjs'
 import { renderCommandHelp, root } from '../lib/router.mjs'
 import { probe } from '../lib/server-control.mjs'
 import { readServiceArgs, runServiceLifecycle } from '../lib/service-cli.mjs'
-import { compose, waitForWeb, webPort, webURL } from '../lib/web-control.mjs'
 
 async function webHealthy() {
   const health = await probe(`${webURL()}/healthz`)
@@ -46,19 +45,7 @@ const webService = {
     onStarted: () => {
       console.log(`web: ${webURL()}/`)
       console.log(`  logs:  ${logPath('web')}`)
-      console.log('Stop it with `clara stop web --local`.')
-    },
-  },
-  docker: {
-    compose,
-    service: 'web',
-    healthy: () => waitForWeb(90_000),
-    unhealthy: () => `The web container did not become healthy at ${webURL()}/healthz`,
-    onStarted: () => {
-      console.log(`web: ${webURL()}/`)
-      console.log('Run `clara pair` for the hub pairing mode, or add --local')
-      console.log('to force a local code.')
-      console.log('An HTTPS page cannot open a ws:// socket; remote clients need the relay.')
+      console.log('Stop it with `clara stop web`.')
     },
   },
 }
@@ -81,21 +68,17 @@ function printHelp() {
     renderCommandHelp({
       summary: 'Manage the Clara web client',
       usage: [
-        'start web [--docker|--local] [--build]',
-        'stop web [--docker|--local]',
-        'restart web [--docker|--local] [--build]',
+        'start web [--build]',
+        'stop web',
+        'restart web [--build]',
         'status web [--json]',
-        'logs web [--docker|--local] [--lines <n>] [--no-follow]',
+        'logs web',
       ],
       options: [
-        { flags: '--docker', description: 'use the clara-web container (default)' },
-        { flags: '--local', description: 'serve the built SPA from apps/web/dist' },
         { flags: '--build', description: 'build before starting' },
         { flags: '--json', description: 'machine-readable status' },
-        { flags: '--lines <n>', description: 'tail length (default 80)' },
-        { flags: '--no-follow', description: 'print the tail and exit' },
       ],
-      examples: ['clara start web --local', 'clara status web', 'clara logs web --local'],
+      examples: ['clara start web', 'clara status web', 'clara logs web'],
     })
   )
 }

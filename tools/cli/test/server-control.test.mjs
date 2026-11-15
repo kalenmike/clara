@@ -3,74 +3,7 @@ import { mkdirSync, mkdtempSync, rmSync, writeFileSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import test from 'node:test'
-import { resolveServerTarget, serverLocalState } from '../src/lib/server-control.mjs'
-
-test('explicit flags win over detection', () => {
-  assert.deepEqual(
-    resolveServerTarget({ docker: true, health: 'local', localState: { present: true } }),
-    { target: 'container', reason: '--docker' }
-  )
-  assert.deepEqual(
-    resolveServerTarget({ local: true, health: 'container', dockerState: { running: true } }),
-    { target: 'local', reason: '--local' }
-  )
-})
-
-test('passing both explicit flags is ambiguous', () => {
-  const result = resolveServerTarget({ docker: true, local: true })
-  assert.equal(result.target, 'ambiguous')
-  assert.match(result.reason, /--docker and --local/)
-})
-
-test('the panel health mode selects the target', () => {
-  assert.equal(resolveServerTarget({ health: 'container' }).target, 'container')
-  assert.equal(resolveServerTarget({ health: 'local' }).target, 'local')
-})
-
-test('a running container wins over leftover local state', () => {
-  const result = resolveServerTarget({
-    dockerState: { running: true, present: true },
-    localState: { present: true },
-  })
-  assert.equal(result.target, 'container')
-  assert.match(result.reason, /container is running/)
-})
-
-test('stopped Docker state alone selects the container', () => {
-  const result = resolveServerTarget({
-    dockerState: { running: false, present: true },
-    localState: { present: false },
-  })
-  assert.equal(result.target, 'container')
-})
-
-test('a local install alone selects the host', () => {
-  const result = resolveServerTarget({
-    dockerState: { running: false, present: false },
-    localState: { present: true },
-  })
-  assert.equal(result.target, 'local')
-})
-
-test('both stopped deployments are ambiguous', () => {
-  const result = resolveServerTarget({
-    dockerState: { running: false, present: true },
-    localState: { present: true },
-  })
-  assert.equal(result.target, 'ambiguous')
-  assert.match(result.reason, /both a local install and Docker state/)
-})
-
-test('no state defaults to the host', () => {
-  assert.equal(resolveServerTarget({}).target, 'local')
-  assert.equal(
-    resolveServerTarget({
-      dockerState: { running: false, present: false },
-      localState: { present: false },
-    }).target,
-    'local'
-  )
-})
+import { serverLocalState } from '../src/lib/server-control.mjs'
 
 test('serverLocalState finds a local database', (t) => {
   const root = mkdtempSync(join(tmpdir(), 'clara-server-state-'))

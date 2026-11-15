@@ -135,8 +135,8 @@ pairing payload:
 VITE_CLARA_WS_URL=wss://relay.example pnpm --filter @clara/web build
 ```
 
-For the web container, put the same value in `infra/docker/.env` and rebuild with
-`--build`. The value is baked into the web build.
+The value is baked into the web build, so rebuild the web package and restart
+the local web client with `clara restart web --build` after changing it.
 
 ## Configure the hub
 
@@ -158,7 +158,7 @@ Environment variables are the fallback for CI or headless bootstrap:
 ```bash
 CLARA_RELAY_URL=wss://relay.example \
 CLARA_AGENT_TOKEN=... \
-clara start hub --local
+clara start hub
 ```
 
 Each variable wins over the matching panel value when it is set. Values supplied

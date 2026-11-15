@@ -5,8 +5,8 @@
 Clara ships as one `clara` executable for Linux, macOS, and Windows. It contains
 the hub service, the authenticated panel, the engine, the Clara Lab service, the
 web client, and the command that runs them. People install it from a signed
-release, run `clara setup`, and control the local stack without Docker, Node, or
-a checkout.
+release, run `clara setup`, and control the local stack without Node or a
+checkout.
 
 ## User flow
 

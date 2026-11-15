@@ -250,7 +250,7 @@ connection keeps that state; use **Forget** only when you want to discard it.
 - **The code expired** — create a new code in the panel.
 - **Adapter setup is off** — turn on **Settings → Adapter downloads**. That
   switch only lets the hub read the registry and issue a code.
-- **The hub runs in Docker or is hosted** — copy the command and run it on the
+- **The hub is hosted on another machine** — copy the command and run it on the
   harness machine, or open the link with Clara Desktop. The hub never runs the
   installer itself.
 - **The host is missing from the SSH list** — it is not in the laptop's
@@ -287,7 +287,8 @@ connection keeps that state; use **Forget** only when you want to discard it.
 - **The adapter was moved** — pair it again; the stable identity keeps the same
   sessions if the session directory moved with it.
 
-For relay and container deployments, see [Remote access](self-hosting/relay.md)
-and [Docker](self-hosting/docker.md). Clara does not ship a Claude Code
-container image; install the adapter inside the container that runs Claude Code
-and give it the Claude config directory and workspace mounts.
+For relay and container adapter installs, see
+[Remote access](self-hosting/relay.md) and
+[Configuration](self-hosting/configuration.md). Clara does not ship a Claude
+Code container image; install the adapter inside the container that runs Claude
+Code and give it the Claude config directory and workspace mounts.

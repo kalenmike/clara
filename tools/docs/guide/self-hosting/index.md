@@ -8,9 +8,9 @@ sidebar_position: 13
 
 Clara has two halves: the **hub** on the machine that runs the hub service, and
 the **web client** that devices open. You can run both from one checkout with
-Docker or Node, and add the Cloudflare relay only when devices need to connect
-from outside your network. A harness adapter connects the harness machine to the
-hub.
+Node or from the packaged command, and add the Cloudflare relay only when
+devices need to connect from outside your network. A harness adapter connects
+the harness machine to the hub.
 
 ```mermaid
 flowchart LR
@@ -25,22 +25,22 @@ flowchart LR
 
 - A machine that can run a harness and its adapter. This release includes the
   OpenCode 2.1.x adapter.
-- Node 22 and pnpm 11 for a local install, or Docker with Compose.
+- Node 22 and pnpm 11 for a checkout install, or the packaged `clara` command.
 - A checkout of this repository.
 - Optional: a Cloudflare account and a domain for remote access.
 
 ## Choose how to run it
 
-|          | Docker                    | Local                                        |
-| -------- | ------------------------- | -------------------------------------------- |
-| Best for | A clean, repeatable stack | Development and existing Node setups         |
-| Command  | `clara start --build`     | `clara start --local --build`                |
-| Hub data | Docker volumes            | `~/.config/clara` and `~/.local/share/clara` |
-| Web      | nginx on `127.0.0.1:8080` | Static build on `127.0.0.1:8080`             |
+|          | Packaged command                             | Checkout                                     |
+| -------- | -------------------------------------------- | -------------------------------------------- |
+| Best for | A normal install on one machine              | Development and existing Node setups         |
+| Command  | `clara setup`                                | `clara start --build`                        |
+| Hub data | `~/.config/clara` and `~/.local/share/clara` | `~/.config/clara` and `~/.local/share/clara` |
+| Web      | Served by `clara start` on `127.0.0.1:8080`  | Static build on `127.0.0.1:8080`             |
 
-Both modes use the same hub panel, pairing command, and data model.
+Both use the same hub panel, pairing command, and data model.
 
-If you do not want Docker or a checkout, install the packaged command and run
+If you do not want a checkout, install the packaged command and run
 `clara setup`. It contains the hub, panel, engine, and web client, creates the
 owner account, and can install a per-user login service. See
 [Install the Clara command](../get-clara.md).
@@ -48,7 +48,8 @@ owner account, and can install a per-user login service. See
 ## The short path
 
 1. Install dependencies with `pnpm install`.
-2. Start the stack. Docker is the default; add `--local` for host processes.
+2. Start the stack with `clara start --build`, or run `clara setup` for the
+   packaged command.
 3. Open the hub panel and create the owner account. No other hub service starts
    until that account exists. For a headless local install, run
    `node apps/hub/server/dist/index.js setup --password-stdin` instead.
@@ -61,8 +62,7 @@ owner account, and can install a per-user login service. See
    `clara pair` for a terminal code.
 6. Add the web app to your Home Screen or install it.
 
-The detailed steps are in [Docker](docker.md) and
-[Local install](local.md).
+The detailed steps are in [Local install](local.md).
 
 ## Reach the panel
 
@@ -97,14 +97,12 @@ The hub panel page is loopback-only. Do not expose it to the internet. Clara
 Desktop reaches the same panel through the hub's encrypted connection; that does
 not publish the panel port.
 
-The Docker stack keeps fixed container ports. The Hub CLI reuses its previous
-panel and local ports and falls back to a free port when one is busy; the desktop
-client follows the local port through the hub's runtime file. See
-[Hub CLI](../hub-cli.md).
+The Hub CLI reuses its previous panel and local ports and falls back to a free
+port when one is busy; the desktop client follows the local port through the
+hub's runtime file. See [Hub CLI](../hub-cli.md).
 
 ## Where to go next
 
-- [Docker](docker.md)
 - [Local install](local.md)
 - [Headless server](headless.md)
 - [Hub CLI](../hub-cli.md)

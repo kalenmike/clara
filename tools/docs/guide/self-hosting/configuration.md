@@ -24,8 +24,8 @@ For an unattended start, set `CLARA_ADMIN_USERNAME` and
 environment owner is created before any transport starts and the setup screen is
 skipped. The password must be at least 12 characters. A configured hub ignores
 the environment values rather than overwriting its password. Prefer
-`CLARA_ADMIN_PASSWORD_FILE` for Docker or CI because a plain environment value
-is visible to `docker inspect` and process listings.
+`CLARA_ADMIN_PASSWORD_FILE` for CI because a plain environment value is
+visible to process listings.
 
 `CLARA_ADMIN_SETUP_TOKEN` or `CLARA_ADMIN_SETUP_TOKEN_FILE` is the explicit
 remote setup path. When set, the setup form also asks for that token.
@@ -76,7 +76,7 @@ contacts the harness and does not read OpenCode's `service.json`. Adapter
 credentials live in the hub's SQLite database, encrypted at rest. The harness URL
 and password stay in the adapter's own config on the harness machine.
 
-In Docker, the adapter connects to `ws://server:8788/ws` on the `clara`
+In a container, the adapter connects to `ws://server:8788/ws` on the `clara`
 network. `127.0.0.1` means the adapter container itself.
 
 ## Adapter downloads
@@ -89,9 +89,8 @@ the install script, and runs it on the target. It never downloads the adapter
 itself, and the panel lets the target download the platform build.
 
 `CLARA_ADAPTER_REGISTRY_URL` overrides the panel value. Installs are off by
-default and are available only when the panel is loopback-only and the hub runs
-as a local process. A containerized hub or a remote-exposed panel uses the
-manual command instead.
+default and are available only when the panel is loopback-only. A
+remote-exposed panel uses the manual command instead.
 
 ## Set the Web URL
 
@@ -178,8 +177,8 @@ values.
 The relay variables are covered in [Remote access](relay.md). The relay token
 must be 32 to 512 characters and cannot contain spaces or commas. Each variable
 wins over the matching panel value when it is set; otherwise the panel is used.
-In Docker, setting `CLARA_RELAY_URL` without the environment token is allowed
-when the panel has saved it, so `clara start` warns instead of blocking.
+Setting `CLARA_RELAY_URL` without the environment token is allowed when the
+panel has saved it, so startup warns instead of blocking.
 
 ## Files worth backing up
 
@@ -189,12 +188,11 @@ when the panel has saved it, so `clara start` warns instead of blocking.
 - `relay-credentials.json` when the relay is configured in the panel.
 - `subscriptions.json`.
 
-The Docker volumes already group these. For a local install, back up the config
-and data directories. See [Updates and backups](updates.md).
+Back up the config and data directories. See
+[Updates and backups](updates.md).
 
 ## Related
 
-- [Docker](docker.md)
 - [Local install](local.md)
 - [Remote access](relay.md)
 - [Security and privacy](../security.md)

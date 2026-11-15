@@ -1,8 +1,8 @@
 // Follow several logs at once.
 //
-// Core service logs can come from local files or `docker compose logs`
-// children. Adapter and runner logs are files. Both paths share the same line
-// prefixing so a combined view is readable.
+// Core service, adapter, and runner logs are files. The runner can also follow
+// a systemd journal child. Both paths share the same line prefixing so a
+// combined view is readable.
 
 import { spawn } from 'node:child_process'
 import { closeSync, existsSync, openSync, readSync, statSync } from 'node:fs'

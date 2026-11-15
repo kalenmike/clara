@@ -102,110 +102,42 @@ decision and waits.
 The origin session stays the one actionable conversation while workers remain
 hidden automation.
 
-## Container deployment
+## Local deployment
 
-The engine can run as a container on the same Docker network as the harness
-and the hub. That is the preferred setup when the hub itself is
-containerized. `clara start` brings up the engine, hub, and
-web client together; the steps below cover the engine-only path.
+The engine runs as a local host process beside the hub. `clara start` brings up
+the engine, hub, and web client together; the steps below cover the engine-only
+path.
 
-The hub uses `infra/docker/server.compose.yml`, joins the same external `clara`
-network, and reaches the engine at `http://engine:8789`. The
-engine container is named `clara-engine`.
-
-1. Copy `infra/docker/.env.example` and set:
-   - `CLARA_ENGINE_TOKEN` to a long random token,
-   - `CLARA_WORKSPACE` to the absolute path of the repository or workspace.
-     The database and token default to the `clara-orchestrator-data` volume. Set
-     `CLARA_ORCHESTRATOR_DATA_DIR` to an absolute host path only when you want a
-     bind mount instead.
-2. Start the service:
+1. Build and start the service:
 
    ```sh
-   docker compose -f infra/docker/engine.compose.yml up -d --build engine
+   clara start engine --build
    ```
 
-   `clara stop engine --docker` does not need the token or workspace
-   exported in the shell: `down` fills the required compose variables with
-   absolute placeholders before Compose interpolates the file.
+   `clara start engine` starts the built service as a detached process with a
+   PID and log under `~/.local/share/clara`. `clara start engine --foreground`
+   runs it in the foreground, and `clara status engine` and `clara stop engine`
+   control the same instance.
 
-3. Join the harness container to the `clara` network and set:
+2. Point the harness adapter at the engine:
 
    ```sh
-   CLARA_ENGINE_URL=http://engine:8789
-   CLARA_ENGINE_TOKEN=<same token>
-   CLARA_ENGINE_WORKSPACE=/workspace/clara
+   CLARA_ENGINE_URL=http://127.0.0.1:8789
+   CLARA_ENGINE_TOKEN=<token from ~/.local/share/clara/engine.token>
+   CLARA_ENGINE_WORKSPACE=/absolute/path/to/clara
    ```
 
-4. Mount the workspace at the same absolute path in both containers:
+   The adapter and Clara Lab read the token file by default, so the environment
+   variables are only needed for a remote engine.
 
-   ```text
-   -v /absolute/path/to/clara:/workspace/clara
-   ```
+3. The panel can start and stop the local engine from the Orchestration card.
+   It reports an externally managed engine without trying to control it.
 
-5. Start the hub container on the same network:
-
-   ```sh
-   clara start hub --docker --build
-   node apps/hub/server/dist/index.js setup --password-stdin
-   ```
-
-   In its panel, use `http://opencode:4096` when the harness is a container on the
-   `clara` network. The engine URL is set with
-   `CLARA_ENGINE_HOST=engine` and port `8789`.
-
-   `clara start hub --docker` loads `infra/docker/.env` when the file exists.
-   If the hub uses the relay, set `CLARA_RELAY_ROOM` to a fixed value: pairing
-   codes are scoped to the room, and a changed room makes clients connect to an
-   empty room (`hub offline`) until they pair again.
-
-6. Optionally serve the web client from the same Docker host:
-
-   ```sh
-   clara start web --docker --build
-   ```
-
-   Open `http://127.0.0.1:8080`. The pairing code decides local vs relay; the
-   panel Web URL defaults to this container. Set **Web URL** in the hub panel
-   for a remote deployment (`CLARA_PAIRING_BASE_URL` overrides it), and set
-   `VITE_CLARA_WS_URL` in `infra/docker/.env` and rebuild only when the browser must
-   use a different relay endpoint than the hub. The web container is static
-   and does not proxy harness traffic.
-
-The compose service sets `CLARA_ENGINE_WORKSPACE=/workspace/clara`, which
-is the path the service reports to Clara Lab. Change it only if you move the
-workspace mount. The engine image bundles the standard packages inside the
-built service, so the container does not mount or copy the standard packages
-separately. Compose publishes the port on host loopback only
-(`127.0.0.1:8789:8789`) so host tools such as
-`clara status engine` and Clara Lab can reach the container. The
-database and container token live in the `clara-orchestrator-data` volume.
-`clara start` writes a host copy of the token to
-`~/.local/share/clara/docker/engine.token` for Lab, the MCP bridge, and
-`clara rebuild`. That Docker control directory is separate from the local
-install token at `~/.local/share/clara/engine.token`.
-
-The container writes no host PID file. `clara status engine` reports
-`running (docker container)`, and `clara stop engine` does not
-signal anything; stop the container with
-`clara stop engine --docker`. Stopping does not require the
-`CLARA_ENGINE_TOKEN` or `CLARA_WORKSPACE` variables: compose still parses
-them for `down`, so the command supplies inert values when they are not
-exported. It also runs `docker compose down` when the container is unhealthy or
-already stopped, so a crashed container can be cleaned up.
-
-Start it from the host with `clara start engine --docker`. That runs
-`docker compose -f infra/docker/engine.compose.yml up -d engine` and waits for
-`/health` to report a container. Add `--build` to rebuild the image first. If a
-local instance is already running, the command refuses and asks you to stop it
-first.
-
-Archive the Docker state with `clara stop` followed by
-`clara backup`; restore with `clara restore <archive> --force` while
-the stack is stopped. These commands only touch the named volumes, never a local
-install's host directories. See
-[development.md](../development.md#local-and-docker-state) for the state map and
-the one-time migration.
+The engine serves REST, SSE, and MCP on host loopback (`127.0.0.1:8789`) with a
+bearer token. Its database and token live under `CLARA_DATA_DIR` (default
+`~/.local/share/clara`). The bundled standard packages ship with the service, so
+no separate package mount is needed. See
+[development.md](../development.md#local-state) for the state map.
 
 ## Core business rules
 
@@ -241,8 +173,8 @@ the one-time migration.
    endpoints.
 7. **The panel controls the local service.** The **Orchestration** switch keeps
    `orchestration.enabled` in the hub database and starts or stops a local
-   instance. A service started from the CLI, MCP bridge, or Docker is detected
-   but left under its own management. Clients receive the effective health state
+   instance. A service started from the CLI or MCP bridge is detected but left under its
+   own management. Clients receive the effective health state
    as `orchestration`; each client then chooses whether to use the engine
    surface, and only opted-in devices hold worker alerts.
 8. **Diagnosis is evidence-first.** The `std:diagnostics` package runs a
@@ -853,15 +785,14 @@ they can run while the adapter or setup is degraded. See
   engine. Set `CLARA_ENGINE_CONFIG` to a custom `index.yml` to replace
   it. The default imports the five standard packages and routes to them.
 - Data: local installs use
-  `${CLARA_DATA_DIR:-~/.local/share/clara}/orchestration.db`,
+  `${CLARA_DATA_DIR:-~/.local/share/clara}/engine.db`,
   `engine.token`, and `policy-delivery.json` (adapter delivery cursor).
-  The Docker stack keeps them in the `clara-orchestrator-data` volume.
 - Workspace: `GET /v1/config` reports the service workspace from
   `CLARA_ENGINE_WORKSPACE` (default: the service's working directory),
   the active `configSource` (`bundled` or `file`), and `configPath` when a
   custom file is configured.
-- Container: `docker compose -f infra/docker/engine.compose.yml up -d --build engine`;
-  the hub uses `infra/docker/server.compose.yml` on the same `clara` network.
+- Local process: `clara start engine --build` starts the engine and waits for
+  its health endpoint.
 - Commands:
   `clara start|stop|restart|status|logs engine`,
   `clara adapter install|upgrade|verify|remove <kind> [--mcp]`,

@@ -9,7 +9,6 @@ import { join } from 'node:path'
 import { setTimeout as delay } from 'node:timers/promises'
 import { isRuntimeLive, readRuntimeState } from '@clara/runtime-state'
 import { findListenerPid, systemdUnitActive } from '../local-runtime.mjs'
-import { engineContainerRunning, readEngineToken } from '../stack-control.mjs'
 import { dataDir } from './state.mjs'
 
 export {
@@ -73,13 +72,6 @@ export function readToken(env = process.env) {
     } catch {
       return ''
     }
-  }
-
-  // The Docker stack keeps its own control token so a local install and a
-  // containerised stack never share credentials.
-  if (engineContainerRunning()) {
-    const dockerToken = readEngineToken(undefined, env)
-    if (dockerToken) return dockerToken
   }
 
   for (const name of ['engine.token', 'orchestrator.token']) {
@@ -235,10 +227,10 @@ export function webPort(env = process.env) {
   return positiveInt(env.CLARA_WEB_PORT, 8080)
 }
 
-export async function probeWeb({ port = webPort(), timeoutMs = 1500, container = false } = {}) {
+export async function probeWeb({ port = webPort(), timeoutMs = 1500 } = {}) {
   const url = `http://127.0.0.1:${port}`
   const health = await fetchJson(`${url}/healthz`, { timeoutMs })
-  const mode = container ? 'container' : 'local'
+  const mode = health.body?.mode === 'container' ? 'container' : 'local'
   if (!health.ok || !health.body || health.body.service !== 'clara-web') {
     return {
       expected: false,

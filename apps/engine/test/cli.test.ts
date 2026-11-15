@@ -110,23 +110,16 @@ describe('engine CLI', () => {
     }
   })
 
-  it('prints command options for start', () => {
+  it('prints usage for start', () => {
     const result = run(['start', '--help'])
     expect(result.status).toBe(0)
-    expect(result.stdout).toContain('Usage:\n  clara-engine start [--docker] [--build]')
-    expect(result.stdout).toMatch(
-      /^ {2}--docker {2,}Start the compose-managed container instead of a local process$/m
-    )
-    expect(result.stdout).toMatch(
-      /^ {2}--build {2,}Rebuild the image before starting \(requires --docker\)$/m
-    )
+    expect(result.stdout).toContain('Usage:\n  clara-engine start')
   })
 
-  it('prints command options for stop', () => {
+  it('prints usage for stop', () => {
     const result = run(['stop', '--help'])
     expect(result.status).toBe(0)
-    expect(result.stdout).toContain('Usage:\n  clara-engine stop [--docker]')
-    expect(result.stdout).toMatch(/^ {2}--docker {2,}Stop the compose-managed container$/m)
+    expect(result.stdout).toContain('Usage:\n  clara-engine stop')
   })
 
   it('prints per-command help from the help subcommand', () => {

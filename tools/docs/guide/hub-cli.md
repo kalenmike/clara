@@ -8,8 +8,8 @@ sidebar_position: 10.5
 
 The Clara hub can run as a single command-line executable named `clara-server`.
 It contains the hub service and the authenticated panel. This is an alternative
-to the Docker stack or a local Node install; the web client and desktop client
-are separate downloads.
+to running the stack from a checkout or a local Node install; the web client and
+desktop client are separate downloads.
 
 ## Build the executable
 
@@ -81,8 +81,6 @@ The hub chooses its panel and local ports instead of relying on fixed ones.
 - The desktop client reads the current local port and reconnects. Devices and
   adapters that use the local connection may need a new pairing after a port
   change. Devices connected through the Cloudflare relay are unaffected.
-- The Docker installation keeps fixed ports because pairing links need the
-  published host port.
 
 The live panel URL is written to the hub runtime file. Use `clara status hub` to
 inspect it, including the version and protocol the running hub reports, or
@@ -90,8 +88,8 @@ inspect it, including the version and protocol the running hub reports, or
 
 ## Remote clients
 
-Pairing through the Cloudflare relay works the same as in Docker. The hub does
-not serve the web client; run the web app where you host it today and pair it
+Pairing through the Cloudflare relay works the same as the local transport. The
+hub does not serve the web client; run the web app where you host it and pair it
 with the hub panel.
 
 ## Logs and troubleshooting
@@ -111,7 +109,6 @@ connect the relay; no restart is needed.
 
 - [Self-hosting overview](self-hosting/index.md)
 - [Headless server](self-hosting/headless.md)
-- [Docker](self-hosting/docker.md)
 - [Configuration](self-hosting/configuration.md)
 - [Remote access](self-hosting/relay.md)
 - [Desktop client](desktop.md)

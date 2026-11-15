@@ -1,27 +1,9 @@
-import { spawnSync } from 'node:child_process'
-import { CONTAINERS, SERVICES, engineURL } from './stack-control.mjs'
-import { localURL, panelURL, probe } from './server-control.mjs'
-import { webURL } from './web-control.mjs'
+import { engineURL, localURL, panelURL, probe } from './server-control.mjs'
+import { webURL } from './local-web.mjs'
 import { docsPort, docsURL, labPort, labURL, labHealthy } from './dev-services.mjs'
 import { readPid } from './local-runtime.mjs'
 
-const UNKNOWN_CONTAINER = { available: false, state: 'unknown' }
-
-export function containerState(name) {
-  const result = spawnSync('docker', ['inspect', '--format', '{{.State.Status}}', name], {
-    encoding: 'utf8',
-    timeout: 2_000,
-  })
-  if (result.error) return UNKNOWN_CONTAINER
-  if (result.status !== 0) {
-    const stderr = String(result.stderr ?? '')
-    if (stderr.includes('No such object') || stderr.includes('No such container')) {
-      return { available: true, state: 'missing' }
-    }
-    return UNKNOWN_CONTAINER
-  }
-  return { available: true, state: result.stdout.trim() || 'unknown' }
-}
+const SERVICES = ['engine', 'server', 'web']
 
 function probeError(result) {
   if (result.error) {
@@ -50,25 +32,11 @@ async function probeService(url, service) {
   return { health: 'ok', body }
 }
 
-export function resolveState({ health, container = UNKNOWN_CONTAINER, mode = 'unknown' }) {
+export function resolveState({ health, mode = 'unknown' }) {
   if (health === 'foreign') return { state: 'unavailable', mode: 'unknown' }
   if (health === 'ok') {
-    if (mode !== 'unknown') return { state: 'running', mode }
-    if (container.state === 'running') return { state: 'running', mode: 'container' }
-    return { state: 'running', mode: 'external' }
+    return { state: 'running', mode: mode === 'unknown' ? 'external' : mode }
   }
-  if (container.state === 'running' || container.state === 'restarting') {
-    return { state: 'unhealthy', mode: 'container' }
-  }
-  if (
-    container.state === 'exited' ||
-    container.state === 'created' ||
-    container.state === 'dead' ||
-    container.state === 'paused'
-  ) {
-    return { state: 'stopped', mode: 'container' }
-  }
-  if (!container.available) return { state: 'unknown', mode: 'unknown' }
   return { state: 'stopped', mode }
 }
 
@@ -80,29 +48,17 @@ export function displayState(record) {
 
 async function collectEngineStatus() {
   const service = await probeService(`${engineURL()}/health`, 'clara-engine')
-  const container = containerState(CONTAINERS.engine)
-  const mode =
-    service.body?.mode ??
-    (container.state === 'running' ? 'container' : service.health === 'ok' ? 'external' : 'unknown')
-  const resolved = resolveState({ health: service.health, container, mode })
+  const mode = service.body?.mode ?? (service.health === 'ok' ? 'external' : 'unknown')
+  const resolved = resolveState({ health: service.health, mode })
   return {
     service: 'engine',
-    container: CONTAINERS.engine,
     state: resolved.state,
     mode: resolved.mode,
     healthy: resolved.state === 'running',
     url: engineURL(),
     error: service.error ?? null,
     details: {
-      database:
-        resolved.mode === 'container'
-          ? process.env.CLARA_ENGINE_DATA_DIR?.trim() ||
-            process.env.CLARA_ORCHESTRATOR_DATA_DIR?.trim()
-            ? 'host bind from CLARA_ENGINE_DATA_DIR'
-            : 'Docker volume clara-orchestrator-data'
-          : resolved.mode === 'local'
-            ? 'local data directory'
-            : 'unknown',
+      database: resolved.mode === 'local' ? 'local data directory' : 'unknown',
       pid: service.body?.pid ? String(service.body.pid) : 'none',
     },
   }
@@ -113,26 +69,18 @@ async function collectServerStatus() {
     probeService(`${panelURL()}/health`, 'clara-server'),
     probe(`${localURL()}/health`),
   ])
-  const container = containerState(CONTAINERS.server)
-  const panelMode = panel.body?.mode
-  const mode =
-    panelMode ??
-    (container.state === 'running'
-      ? 'container'
-      : local.ok || panel.health === 'ok'
-        ? 'local'
-        : 'unknown')
+  const mode = panel.body?.mode ?? (local.ok || panel.health === 'ok' ? 'local' : 'unknown')
 
   let resolved
   const setupRequired = panel.health === 'ok' && panel.body?.setupRequired === true
   if (panel.health === 'foreign') {
     resolved = { state: 'unavailable', mode: 'unknown' }
   } else if (panel.health === 'ok' && (local.ok || setupRequired)) {
-    resolved = resolveState({ health: 'ok', container, mode })
+    resolved = resolveState({ health: 'ok', mode })
   } else if (panel.health === 'ok' || local.ok) {
     resolved = { state: 'degraded', mode }
   } else {
-    resolved = resolveState({ health: 'fail', container, mode })
+    resolved = resolveState({ health: 'fail', mode })
   }
 
   const session =
@@ -163,7 +111,6 @@ async function collectServerStatus() {
 
   return {
     service: 'hub',
-    container: CONTAINERS.server,
     state: resolved.state,
     mode: resolved.mode,
     healthy: resolved.state === 'running',
@@ -175,13 +122,10 @@ async function collectServerStatus() {
 
 async function collectWebStatus() {
   const service = await probeService(`${webURL()}/healthz`, 'clara-web')
-  const container = containerState(CONTAINERS.web)
-  const mode =
-    container.state === 'running' ? 'container' : service.health === 'ok' ? 'external' : 'unknown'
-  const resolved = resolveState({ health: service.health, container, mode })
+  const mode = service.body?.mode ?? (service.health === 'ok' ? 'external' : 'unknown')
+  const resolved = resolveState({ health: service.health, mode })
   return {
     service: 'web',
-    container: CONTAINERS.web,
     state: resolved.state,
     mode: resolved.mode,
     healthy: resolved.state === 'running',
@@ -198,7 +142,6 @@ async function collectLabStatus() {
   const state = healthy ? 'running' : pidState.alive ? 'unhealthy' : 'stopped'
   return {
     service: 'lab',
-    container: 'local process',
     state,
     mode: 'local',
     healthy,
@@ -227,7 +170,6 @@ async function collectDocsStatus() {
   const state = reachable ? 'running' : pidState.alive ? 'unhealthy' : 'stopped'
   return {
     service: 'docs',
-    container: 'local process',
     state,
     mode: 'local',
     healthy: reachable,
@@ -262,13 +204,8 @@ function detailLine(details) {
 }
 
 export function renderStatus(records, { title = 'Clara stack', write = console.log } = {}) {
-  const headers = ['SERVICE', 'CONTAINER', 'STATE', 'URL']
-  const rows = records.map((record) => [
-    record.service,
-    record.container,
-    displayState(record),
-    record.url,
-  ])
+  const headers = ['SERVICE', 'STATE', 'URL']
+  const rows = records.map((record) => [record.service, displayState(record), record.url])
   const widths = headers.map((header, index) =>
     Math.max(header.length, ...rows.map((row) => row[index].length))
   )

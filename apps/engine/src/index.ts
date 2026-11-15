@@ -22,9 +22,7 @@ import {
   ensureToken,
   formatStatus,
   logPath,
-  readComposeLogs,
   readPidState,
-  startDockerService,
   startLocalService,
   statusExitCode,
   stopService,
@@ -42,61 +40,7 @@ function selfCommand(): string[] {
   return [process.execPath, entry]
 }
 
-async function startDocker(build: boolean): Promise<void> {
-  console.log(`checking the engine container at ${baseURL()}/health`)
-  const result = await startDockerService({ build })
-  if (result.kind === 'container-started') {
-    console.log(`started docker container at ${baseURL()}`)
-    return
-  }
-  if (result.kind === 'container-running') {
-    console.log(`already running in a container at ${baseURL()}`)
-    return
-  }
-  if (result.kind === 'local-running') {
-    const pid = result.pid === null ? '' : ` (pid ${result.pid})`
-    console.log(`a local engine is running at ${baseURL()}${pid}`)
-    console.log('stop it with `pnpm clara stop engine` before starting the container')
-    process.exitCode = 1
-    return
-  }
-  if (result.kind === 'external') {
-    console.log(`an engine is already running at ${baseURL()} from another data directory`)
-    console.log('stop it before starting the container')
-    process.exitCode = 1
-    return
-  }
-  if (result.kind === 'foreign') {
-    console.log(`another service is using ${baseURL()}; not starting the container`)
-    process.exitCode = 1
-    return
-  }
-  if (result.kind === 'compose-failed') {
-    if (result.result.error) console.error(`could not run docker: ${result.result.error}`)
-    else console.error(`docker compose up failed (exit ${result.result.code ?? 'unknown'})`)
-    process.exitCode = 1
-    return
-  }
-  console.error(`the docker container did not become healthy at ${baseURL()}`)
-  const logs = readComposeLogs()
-  if (logs) {
-    console.error('recent container logs:')
-    for (const line of logs.split('\n')) console.error(`  ${line}`)
-  }
-  console.error('check `docker compose -f infra/docker/engine.compose.yml logs engine`')
-  process.exitCode = 1
-}
-
-async function start(args: string[]): Promise<void> {
-  const docker = args.includes('--docker')
-  const build = args.includes('--build')
-  if (build && !docker) {
-    console.error('--build requires --docker')
-    process.exitCode = 1
-    return
-  }
-  if (docker) return startDocker(build)
-
+async function start(): Promise<void> {
   const result = await startLocalService({ command: selfCommand() })
   if (result.kind === 'started') {
     console.log(`started at ${baseURL()}`)
@@ -105,7 +49,7 @@ async function start(args: string[]): Promise<void> {
   if (result.kind === 'already-running') {
     if (result.mode === 'container') {
       console.log(`already running in a container at ${baseURL()}`)
-      console.log('stop it with `pnpm clara stop engine --docker`')
+      console.log('that container is managed outside Clara; stop it where it was started')
       return
     }
     const pid = readPidState()
@@ -127,8 +71,8 @@ async function start(args: string[]): Promise<void> {
   throw new Error(`service did not become healthy; see ${logPath()}`)
 }
 
-async function stop(args: string[]): Promise<void> {
-  const result = await stopService({ docker: args.includes('--docker') })
+async function stop(): Promise<void> {
+  const result = await stopService()
   if (result.kind === 'stopped') {
     console.log(`stopped pid ${result.pid}`)
     return
@@ -147,22 +91,8 @@ async function stop(args: string[]): Promise<void> {
     return
   }
   if (result.kind === 'container') {
-    console.log(`the engine is running in a Docker container at ${baseURL()}`)
-    console.log('stop it with `pnpm clara stop engine --docker`')
-    process.exitCode = 1
-    return
-  }
-  if (result.kind === 'container-down') {
-    if (result.result.ok) {
-      console.log(
-        result.detected
-          ? 'stopped the docker container'
-          : 'docker compose down completed (no running container was detected)'
-      )
-      return
-    }
-    if (result.result.error) console.error(`could not run docker: ${result.result.error}`)
-    else console.error(`docker compose down failed (exit ${result.result.code ?? 'unknown'})`)
+    console.log(`the engine is running in a container at ${baseURL()}`)
+    console.log('that container is managed outside Clara; stop it where it was started')
     process.exitCode = 1
     return
   }
@@ -170,9 +100,7 @@ async function stop(args: string[]): Promise<void> {
     console.log(
       `the engine is running at ${baseURL()} but was not started from this data directory`
     )
-    console.log(
-      'stop it where it was started, or use `pnpm clara stop engine --docker` for the compose service'
-    )
+    console.log('stop it where it was started')
     process.exitCode = 1
     return
   }
@@ -543,23 +471,12 @@ const commandHelp: CommandHelp[] = [
   {
     name: 'start',
     summary: 'Start the service in the background',
-    usage: 'start [--docker] [--build]',
-    options: [
-      {
-        flags: '--docker',
-        description: 'Start the compose-managed container instead of a local process',
-      },
-      {
-        flags: '--build',
-        description: 'Rebuild the image before starting (requires --docker)',
-      },
-    ],
+    usage: 'start',
   },
   {
     name: 'stop',
     summary: 'Stop the running service',
-    usage: 'stop [--docker]',
-    options: [{ flags: '--docker', description: 'Stop the compose-managed container' }],
+    usage: 'stop',
   },
   {
     name: 'status',
@@ -683,8 +600,8 @@ export async function main(argv: readonly string[] = process.argv.slice(2)): Pro
   }
 
   if (command === 'serve') return serveEngine()
-  if (command === 'start') return start(args)
-  if (command === 'stop') return stop(args)
+  if (command === 'start') return start()
+  if (command === 'stop') return stop()
   if (command === 'status') return status()
   if (command === 'analyze') return analyze(args)
   if (command === 'inspect') return inspect(args)

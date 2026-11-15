@@ -6,7 +6,6 @@ import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import test from 'node:test'
 import {
-  parseMode,
   pidPath,
   processAlive,
   readPid,
@@ -21,13 +20,6 @@ function spawnFixture(args = []) {
     stdio: 'ignore',
   })
 }
-
-test('defaults to docker and parses explicit modes', () => {
-  assert.equal(parseMode([]), 'docker')
-  assert.equal(parseMode(['--docker']), 'docker')
-  assert.equal(parseMode(['--local']), 'local')
-  assert.throws(() => parseMode(['--local', '--docker']), /cannot be combined/)
-})
 
 test('uses CLARA_DATA_DIR for local pid and log paths', () => {
   const previous = process.env.CLARA_DATA_DIR

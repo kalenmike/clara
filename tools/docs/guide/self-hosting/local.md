@@ -20,7 +20,7 @@ It is the fastest path when Node and the harness already run on the machine.
 
 ```bash
 pnpm install
-clara start --local --build
+clara start --build
 clara status hub --open
 ```
 
@@ -53,7 +53,7 @@ Or set `CLARA_ADMIN_USERNAME` and `CLARA_ADMIN_PASSWORD` before starting the hub
 Then pair from **Clients → Pair Client** in the panel, or run:
 
 ```bash
-clara pair --local --no-relay
+clara pair --no-relay
 ```
 
 Open the link, or open `http://127.0.0.1:8080` and paste the code.
@@ -74,13 +74,13 @@ idle work across every paired harness.
 
 ```bash
 clara status
-clara logs hub --local
-clara restart --local --build
-clara stop --local
+clara logs hub
+clara restart --build
+clara stop
 ```
 
 Local processes keep a PID and log under `~/.local/share/clara`, so the same
-stop, restart, status, and logs commands work without Docker. Stop also finds a
+stop, restart, status, and logs commands find each service. Stop also finds a
 service restarted by `clara rebuild`, or a web client whose PID file is
 missing, and forces a process that ignores the normal stop signal. If the hub
 runs under the `clara` systemd unit, use `systemctl --user stop clara`; Clara
@@ -102,7 +102,7 @@ clara rebuild
 
 The rebuild installs dependencies, builds the checkout, restarts only the
 services that were running, and verifies their health. For a quick restart after
-pulling changes, use `clara restart --local --build`.
+pulling changes, use `clara restart --build`.
 
 ## Run it as a service
 

@@ -1,7 +1,7 @@
 #!/usr/bin/env node
 // Clara lifecycle and maintenance tools.
 //
-//   clara start hub --local
+//   clara start hub
 //   clara status adapter
 //   clara pair adapter --harness opencode
 

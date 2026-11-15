@@ -109,8 +109,7 @@ async function run(command, options) {
 }
 
 function parseArgs(argv) {
-  const options = { json: false, skip: [], mode: 'docker' }
-  const modes = new Set()
+  const options = { json: false, skip: [] }
   let command
   let help = false
 
@@ -120,8 +119,6 @@ function parseArgs(argv) {
       help = true
     } else if (arg === '--json') {
       options.json = true
-    } else if (arg === '--local' || arg === '--docker' || arg === '--all') {
-      modes.add(arg.slice(2))
     } else if (arg === '--dry-run') {
       options.dryRun = true
     } else if (arg === '--manage-external') {
@@ -159,9 +156,6 @@ function parseArgs(argv) {
       throw new Error(`Unexpected argument ${arg}`)
     }
   }
-
-  if (modes.size > 1) throw new Error('--local, --docker, and --all cannot be combined')
-  if (modes.size === 1) options.mode = [...modes][0]
 
   return { command, options, help }
 }
