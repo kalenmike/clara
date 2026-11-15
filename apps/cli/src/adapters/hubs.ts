@@ -22,8 +22,8 @@ export function adapterHubLinks(entries: readonly AdapterListEntry[]): AdapterHu
   for (const entry of entries) {
     const live = entry.live
     if (!live) continue
-    // A stopped adapter keeps its last state; do not report that link as live.
-    const active = entry.state !== 'stopped'
+    // An adapter keeps its last state; only a running process is a live link.
+    const active = entry.state === 'running'
     const status = active ? live.hub.status : 'stopped'
     const connected = active && live.hub.connected
     const authenticated = active && live.hub.authenticated

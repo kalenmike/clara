@@ -130,11 +130,13 @@ describe('hub links', () => {
     expect(links[0]?.updatedAt).toBe(1_950)
   })
 
-  it('does not report a stopped adapter link as connected', () => {
-    const links = adapterHubLinks([{ ...entry('opencode', live()), state: 'stopped' }])
-    expect(links[0]?.status).toBe('stopped')
-    expect(links[0]?.authenticated).toBe(false)
-    expect(links[0]?.connected).toBe(false)
+  it('does not report a stopped or unknown adapter link as connected', () => {
+    for (const state of ['stopped', 'unknown'] as const) {
+      const links = adapterHubLinks([{ ...entry('opencode', live()), state }])
+      expect(links[0]?.status).toBe('stopped')
+      expect(links[0]?.authenticated).toBe(false)
+      expect(links[0]?.connected).toBe(false)
+    }
   })
 
   it('keeps distinct hubs apart and clears errors once authenticated', () => {
