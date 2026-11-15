@@ -9,6 +9,7 @@ import type {
   PanelHarnessMutationResponse,
   PanelHarnessPairingMutationResponse,
   PanelHarnessTestResult,
+  PanelPushStorage,
   PanelRelayMutationResponse,
   PanelRelayUpdate,
   PanelSyncUpdate,
@@ -27,6 +28,8 @@ export type PanelControlService = {
   setSync: (update: PanelSyncUpdate) => Promise<PanelControls>
   setOrchestration: (enabled: boolean) => Promise<PanelControls>
   setInstall: (enabled: boolean) => Promise<PanelControls>
+  reloadPushStorage: () => PanelPushStorage
+  resetPushStorage: () => PanelPushStorage
   updateConfig: (update: PanelConfigUpdate) => Promise<PanelConfigInfo>
   updateRelay: (update: PanelRelayUpdate) => Promise<PanelRelayMutationResponse>
   clearRelay: () => Promise<PanelRelayMutationResponse>
