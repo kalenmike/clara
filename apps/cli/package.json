@@ -19,7 +19,9 @@
   "dependencies": {
     "@clara/engine": "workspace:*",
     "@clara/hub-server": "workspace:*",
-    "@clara/runtime-state": "workspace:*"
+    "@clara/runner": "workspace:*",
+    "@clara/runtime-state": "workspace:*",
+    "@clara/shared-types": "workspace:*"
   },
   "devDependencies": {
     "@types/node": "^24.19.2",
