@@ -616,11 +616,12 @@ export class AdapterTransport {
     const base = Math.min(1_000 * 2 ** Math.min(this.retry, 5), RECONNECT_MAX_MS)
     const delay = Math.round(base * (0.8 + Math.random() * 0.4))
     this.retry += 1
+    // A closed socket references nothing. Keep this timer referenced or the
+    // process can exit during backoff and never attempt the reconnect.
     this.reconnectTimer = setTimeout(() => {
       this.reconnectTimer = null
       this.connect()
     }, delay)
-    this.reconnectTimer.unref()
   }
 
   private startHeartbeat(socket: WebSocket): void {

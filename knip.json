@@ -91,6 +91,7 @@
       "project": ["src/**/*.ts", "test/**/*.ts"]
     },
     "packages/adapters/runtime": {
+      "entry": ["test/fixtures/*.ts"],
       "project": ["src/**/*.ts", "test/**/*.ts"]
     },
     "packages/adapters/install": {

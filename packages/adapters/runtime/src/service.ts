@@ -196,7 +196,7 @@ export function installAdapterService(input: AdapterServiceInput): ServiceResult
       unitPath,
       `[Unit]\nDescription=Clara ${input.label} adapter\nAfter=default.target\n\n[Service]\nType=simple\nExecStart=${args
         .map(quote)
-        .join(' ')}\nRestart=on-failure\nRestartSec=5\n\n[Install]\nWantedBy=default.target\n`,
+        .join(' ')}\nRestart=always\nRestartSec=5\n\n[Install]\nWantedBy=default.target\n`,
       { mode: 0o600 }
     )
     const loaded =
