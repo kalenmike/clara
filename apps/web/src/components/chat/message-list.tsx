@@ -302,6 +302,10 @@ export function MessageList({
             const entry = items[item.index]
             if (!entry) return null
             const isLast = item.index === items.length - 1
+            // Position rows with `top`, never `transform`: a transform on an
+            // ancestor shifts the painted position of a sticky descendant away
+            // from the offset the browser pins it to, so the message action rail
+            // would stick in the wrong place.
             return (
               <div
                 key={item.key}
@@ -311,7 +315,7 @@ export function MessageList({
                   'absolute left-0 top-0 w-full',
                   !isLast && 'border-b border-border/60 dark:border-white/15'
                 )}
-                style={{ transform: `translateY(${item.start}px)` }}
+                style={{ top: item.start }}
               >
                 {entry.type === 'message' ? (
                   <MessageItem

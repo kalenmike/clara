@@ -32,53 +32,61 @@ export function MessageActions({
 
   return (
     <>
-      <div className="hidden shrink-0 items-center gap-0.5 opacity-0 transition-opacity group-hover/row:opacity-100 focus-within:opacity-100 md:flex">
-        {canSelect ? (
-          <Button
-            type="button"
-            variant={selecting ? 'secondary' : 'ghost'}
-            size="icon"
-            onClick={onSelect}
-            disabled={disabled}
-            title={selecting ? 'Stop selecting parts' : 'Select part of this reply'}
-            aria-pressed={selecting}
-            className="size-8"
-          >
-            <TextSelect className="size-3.5" />
-            <span className="sr-only">
-              {selecting ? 'Stop selecting parts' : 'Select part of this reply'}
-            </span>
-          </Button>
-        ) : null}
-        {canFork && (
+      {/*
+        The rail floats over the message rather than taking a column, so the
+        reply keeps its full width. It is sticky inside a box that spans this
+        message only: the controls stay just below the page header while the
+        message scrolls, then travel out with its bottom edge.
+      */}
+      <div className="pointer-events-none absolute inset-y-0 right-2 z-10 hidden w-8 md:block sm:right-4">
+        <div className="sticky top-2 flex flex-col items-center gap-px rounded-lg bg-background/95 opacity-0 shadow-sm backdrop-blur-sm transition-opacity group-hover/row:pointer-events-auto group-hover/row:opacity-100 focus-within:pointer-events-auto focus-within:opacity-100">
+          {canSelect ? (
+            <Button
+              type="button"
+              variant={selecting ? 'secondary' : 'ghost'}
+              size="icon"
+              onClick={onSelect}
+              disabled={disabled}
+              title={selecting ? 'Stop selecting parts' : 'Select part of this reply'}
+              aria-pressed={selecting}
+              className="size-8"
+            >
+              <TextSelect className="size-3.5" />
+              <span className="sr-only">
+                {selecting ? 'Stop selecting parts' : 'Select part of this reply'}
+              </span>
+            </Button>
+          ) : null}
+          {canFork && (
+            <Button
+              type="button"
+              variant="ghost"
+              size="icon"
+              onClick={onFork}
+              disabled={disabled}
+              title="Fork from this message"
+              className="size-8"
+            >
+              <GitFork className="size-3.5" />
+              <span className="sr-only">Fork from this message</span>
+            </Button>
+          )}
           <Button
             type="button"
             variant="ghost"
             size="icon"
-            onClick={onFork}
-            disabled={disabled}
-            title="Fork from this message"
+            onClick={onForward}
+            disabled={forwardDisabled}
+            title={`Forward this message to a new ${lowerSingular}`}
             className="size-8"
           >
-            <GitFork className="size-3.5" />
-            <span className="sr-only">Fork from this message</span>
+            <Forward className="size-3.5" />
+            <span className="sr-only">Forward this message to a new {lowerSingular}</span>
           </Button>
-        )}
-        <Button
-          type="button"
-          variant="ghost"
-          size="icon"
-          onClick={onForward}
-          disabled={forwardDisabled}
-          title={`Forward this message to a new ${lowerSingular}`}
-          className="size-8"
-        >
-          <Forward className="size-3.5" />
-          <span className="sr-only">Forward this message to a new {lowerSingular}</span>
-        </Button>
+        </div>
       </div>
 
-      <div className="shrink-0 md:hidden">
+      <div className="absolute top-1 right-2 z-10 md:hidden sm:right-4">
         <DropdownMenu>
           <DropdownMenuTrigger asChild>
             <Button
