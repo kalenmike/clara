@@ -74,7 +74,8 @@ Sessions are grouped into five collapsible sections:
 - **Archived** — finished.
 
 The search box filters by title and expands every section while it is active.
-The toggle beside it opens or closes all sections.
+The toggle beside it opens or closes all sections. Archived loads 20 sessions
+at a time; **Load more** at the bottom of the section fetches older ones.
 
 ## Start a session
 
