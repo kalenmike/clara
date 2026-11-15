@@ -65,9 +65,9 @@ cancels a part selection, and only then interrupts the run.
 
 ## Finish or continue
 
-- **Reply** opens the composer for another turn.
-- **Done** archives the session and returns to the start view.
-- **Reopen** clears an archive or snooze.
+- Type in the composer to continue the session.
+- The send menu's **Done** archives the session and returns to the start view.
+- **Reopen** in the send menu clears an archive or snooze.
 - **Snooze** moves the session to the Snoozed section.
 
 ## Plan handoff

@@ -16,16 +16,13 @@ import { DraftSessionView } from '@/components/chat/draft-session-view'
 import { EmptySessionView } from '@/components/chat/empty-session-view'
 import { MessageList } from '@/components/chat/message-list'
 import { PermissionPanel } from '@/components/chat/permission-panel'
-import { ReplyActions } from '@/components/chat/reply-actions'
-import { ReplyDock } from '@/components/chat/reply-dock'
+import { ComposerPanel } from '@/components/chat/composer-panel'
 import { SessionStatsBar } from '@/components/chat/session-stats-bar'
 import { SidePanel } from '@/components/layout/side-panel'
 import { useDefaultAgent } from '@/features/agents/use-default-agent'
 import { primaryAgents } from '@/features/agents/default-agent'
 import { useAgents, useModels } from '@/features/catalog/use-catalog'
 import { ComposerProvider, useComposer } from '@/features/chat/composer-provider'
-import { composerDocked } from '@/features/chat/composer-layout'
-import { findPlanReadyReply } from '@/features/chat/plan-ready'
 import { inboxDraftToMessage, mergeSessionMessages } from '@/features/chat/session-messages'
 import { buildTimeline } from '@/features/chat/timeline'
 import { useDiscardEmptyDraft } from '@/features/chat/use-discard-empty-draft'
@@ -119,14 +116,7 @@ function ChatPageContent() {
   const busy = snapshot.status.type !== 'idle'
   const [showInternal, setShowInternal] = useState(readShowInternal)
   const [scrollToEndRequest, setScrollToEndRequest] = useState(0)
-  const {
-    mode: composerMode,
-    pinned: composerPinned,
-    open: openComposer,
-    draftState,
-    lastSent,
-  } = useComposer()
-  const composerIsDocked = composerDocked({ mode: composerMode, pinned: composerPinned })
+  const { open: openComposer, draftState, lastSent } = useComposer()
   const storedHasLocalDraft = useMemo(
     () => (sessionId ? readDraft(sessionId).trim().length > 0 : false),
     [sessionId]
@@ -181,15 +171,7 @@ function ChatPageContent() {
     session != null &&
     !isArchivedSession(session) &&
     !isSnoozedSession(session)
-  const planReady = useMemo(
-    () =>
-      session && !isArchivedSession(session)
-        ? findPlanReadyReply(allMessages, session.agent, busy)
-        : undefined,
-    [allMessages, busy, session]
-  )
   const formCount = formsQuery.data?.length ?? 0
-  const pendingRequestCount = formCount + (planReady !== undefined ? 1 : 0)
   useDiscardEmptyDraft({
     sessionID: sessionId,
     session,
@@ -274,8 +256,6 @@ function ChatPageContent() {
     navigate(location.pathname, { replace: true })
   }, [location.pathname, navigate])
   const handledCompose = useRef<string | null>(null)
-  const autoOpenedSession = useRef<string | null>(null)
-  const autoOpenVisit = useRef<string | null>(null)
 
   useEffect(() => {
     if (!composeState?.compose || !sessionId) return
@@ -289,31 +269,17 @@ function ChatPageContent() {
     clearComposeState()
   }, [clearComposeState, composeState, location.key, openComposer, projectId, sessionId])
 
-  useEffect(() => {
-    if (!sessionId) return
-    if (autoOpenVisit.current !== sessionId) {
-      autoOpenVisit.current = sessionId
-      autoOpenedSession.current = null
-    }
-    if (composeState?.compose) return
-    if (!isDraftSession || !storedHasLocalDraft) return
-    if (autoOpenedSession.current === sessionId) return
-    autoOpenedSession.current = sessionId
-    if (composerMode !== 'closed') return
-    openComposer({ target: { sessionID: sessionId, projectID: projectId } })
-  }, [
-    composeState?.compose,
-    composerMode,
-    isDraftSession,
-    openComposer,
-    projectId,
-    sessionId,
-    storedHasLocalDraft,
-  ])
-
   const advanceInbox = useCallback(() => {
     if (inboxMonitor.active) inboxMonitor.advance(sessionId)
   }, [inboxMonitor, sessionId])
+
+  const handleComposerDone = useCallback(() => {
+    if (inboxMonitor.active) {
+      inboxMonitor.advance(sessionId)
+      return
+    }
+    navigate('/')
+  }, [inboxMonitor, navigate, sessionId])
   const handledSent = useRef(0)
 
   useEffect(() => {
@@ -536,31 +502,12 @@ function ChatPageContent() {
                     canActOnMessage={canActOnMessage}
                     canFork
                     actionsDisabled={forkPending || forwardPending}
-                    composerDocked={composerIsDocked}
                   />
                 )}
-
-                <ReplyActions
-                  session={session}
-                  sessionID={sessionId}
-                  projectID={projectId}
-                  busy={busy}
-                  ready={messagesReady}
-                  empty={emptySession}
-                  hasDraft={hasLocalDraft}
-                  requests={pendingRequestCount}
-                  onDone={() => {
-                    if (inboxMonitor.active) {
-                      inboxMonitor.advance(sessionId)
-                      return
-                    }
-                    navigate('/')
-                  }}
-                />
               </>
             )}
 
-            <ReplyDock harnessID={harnessID} />
+            <ComposerPanel harnessID={harnessID} onDone={handleComposerDone} />
           </div>
 
           {session && (

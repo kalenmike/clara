@@ -45,17 +45,16 @@ list has no checkbox column or bulk toolbar.
    and temporarily expands every section so matching titles are visible. A
    toggle button beside the search box opens or closes every section at once;
    it is disabled while a search is active.
-7. **New session** creates a session in the selected project and opens the reply
-   composer in the last-used size (expanded by default), ready for the first
-   prompt; the empty session appears in Drafts. When the project has more than
-   one workspace, the button opens a menu that lists every linked workspace
-   across harnesses, disables the offline and unlinked ones, and starts the
-   session where the person chose. Otherwise it starts in the workspace the
-   project last used. Creating the session re-targets the composer even when it
-   is already open or minimized on another session. Opening an empty draft with
-   locally saved text opens the composer too. Leaving the brief with no user or
-   assistant message, no composer text or attachments, no saved draft, and no
-   waiting request removes the empty session instead of keeping it in Drafts.
+7. **New session** creates a session in the selected project and opens the
+   composer pinned at the bottom of the new session, ready for the first prompt;
+   the empty session appears in Drafts. When the project has more than one
+   workspace, the button opens a menu that lists every linked workspace across
+   harnesses, disables the offline and unlinked ones, and starts the session
+   where the person chose. Otherwise it starts in the workspace the project last
+   used. Creating the session selects and focuses its composer tab. Leaving the
+   brief with no user or assistant message, no composer text or attachments, no
+   saved draft, and no waiting request removes the empty session instead of
+   keeping it in Drafts.
 8. The All projects page shows one card per non-empty project with its
    workspace summary, last activity, and active/archived session counts, plus a
    **New project** action. A filter icon at the far right of the header opens
@@ -86,11 +85,11 @@ list has no checkbox column or bulk toolbar.
     the project's Outbox with a pulsing dot while any run is active.
 12. The chat header can rename, snooze, archive, or delete the current session. A
     home button to the left of the title returns to the start view.
-13. The Done button in the reply dock archives the session without renaming it,
-    briefly celebrates, and returns to the start view (or opens the next Inbox
-    session while Monitor Inbox is active). An empty draft shows a simple
-    **Delete** action instead, which removes the session immediately.
-14. Opening an archived or snoozed session shows a Reopen button next to Reply.
+13. The composer's send menu archives the session without renaming it through
+    **Done**, and returns to the start view (or opens the next Inbox session
+    while Monitor Inbox is active). An empty draft offers **Delete empty draft**
+    instead, which removes the session immediately.
+14. Opening an archived or snoozed session offers **Reopen** in the send menu.
     Reopening clears the server's archived and snoozed flags as applicable and
     leaves the title untouched.
 15. A normal click opens the session and makes its row the selection anchor.
@@ -183,18 +182,16 @@ list has no checkbox column or bulk toolbar.
     state only from `metadata.snoozed === true`. Title text, including any legacy
     `[DONE]` or `(DONE)` suffix, never moves a session out of Inbox on its own.
 11. Done sets the server's archived flag without changing the title, and returns
-    to the start view after a short celebration delay, or opens the next Inbox
-    session when Monitor Inbox is active. An empty, non-archived draft shows
-    **Delete** instead; it removes the session immediately. Done is hidden while
-    the agent is running and on snoozed sessions.
+    to the start view, or opens the next Inbox session when Monitor Inbox is
+    active. An empty, non-archived draft offers **Delete empty draft** instead;
+    it removes the session immediately. Done is hidden while the agent is
+    running and on snoozed sessions.
 12. Reopening clears the archived flag and any snooze metadata, and does not
-    rename the session. Reopen is available only while the reply window is closed
-    and the agent is idle.
+    rename the session. Reopen is available while the composer is idle and the
+    session is archived or snoozed.
 13. A session without projected messages and without a pending draft shows a
-    dedicated New message view instead of the chat. **New** replaces Reply and
-    opens the composer in the last-used size; opening the draft with locally
-    saved text opens the composer automatically. A new session skips this step
-    and opens the composer immediately.
+    dedicated New message view instead of the chat. The composer stays pinned
+    below it with that session's tab. A new session focuses that tab immediately.
 14. Each section header shows its session count whether the section is expanded
     or collapsed. Sections collapse independently; the toggle beside the search
     box opens or closes all of them at once, and both actions are remembered in
@@ -435,10 +432,10 @@ list has no checkbox column or bulk toolbar.
   archived, and the start view returns.
 - **Leave an empty draft** — leaving an untitled brief with no user or assistant
   message, no saved draft, no composer text or attachments, and no waiting
-  request deletes it. A composer window bound to that brief closes and follows
-  the view that replaced it. Titled, running, worker, archived, and snoozed
-  briefs are kept. Old untitled empty briefs are also swept from the session
-  list when the chat view is closed; selection and idle notes do not keep them.
+  request deletes it. Its composer tab is removed and the composer follows the
+  view that replaced it. Titled, running, worker, archived, and snoozed briefs
+  are kept. Old untitled empty briefs are also swept from the session list when
+  the chat view is closed; selection and idle notes do not keep them.
 - **Shift-click with no anchor** — the clicked session becomes the anchor and the
   only selected row.
 - **Shift-click across collapsed sections** — rows in a collapsed section are
@@ -462,9 +459,9 @@ list has no checkbox column or bulk toolbar.
 - **Open session deleted in a batch** — Clara closes the dialog, shows the
   result, and routes to the project page; if that session failed, the chat stays
   open.
-- **New session** — creates the session and opens the reply composer in the
-  last-used size so the first prompt can be typed immediately. An already-open
-  composer follows the new session; plain session navigation does not move it.
+- **New session** — creates the session and focuses its composer tab so the
+  first prompt can be typed immediately. The composer follows the new session;
+  plain session navigation also selects the session's tab.
 - **Messages fail to load** — the chat reports the failure and hides Done so a
   real session is not mistaken for an empty one.
 
@@ -579,7 +576,7 @@ metadata, delivery: 'steer' })`
   `client.message.list({ sessionID, order: 'desc', limit: 1, type: 'user' })`,
   the same call with `type: 'assistant'`, and
   `client.session.inbox.list({ sessionID })`, then removes the session and
-  closes a composer bound to it
+  closes its composer tab
 - Session-list sweep: `usePruneEmptyDrafts` in
   `src/features/chat/use-prune-empty-drafts.ts` runs from the sidebar only
   outside the chat view. It uses the mailbox signals, skips running or
@@ -587,6 +584,8 @@ metadata, delivery: 'steer' })`
   period, and re-confirms each candidate with the same harness calls before
   removing it
 - Local composer draft: `clara.draft.<sessionID>` in `localStorage`
+- Composer tabs: `clara.composerTabs` in `localStorage`, validated and pruned by
+  `src/features/chat/composer-tabs.ts`
 - Delete: `client.session.remove({ sessionID })`
 - Sidebar selection: `selectRange` and `pruneSelection` in
   `src/features/sessions/session-selection.ts`; state is local to the sidebar

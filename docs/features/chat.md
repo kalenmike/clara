@@ -47,11 +47,8 @@ one paragraph, list, or section. See [fork.md](fork.md).
    session title, whether it is busy or idle, the active agent, and the harness
    that owns the session. A session
    with no messages and no saved draft shows a dedicated New message view
-   instead of the message list. Creating a new session opens the composer
-   automatically in the
-   last-used size (expanded by default) and binds it to the new session. Opening
-   an empty draft with locally saved text opens the composer too; otherwise
-   press **New** to reopen it bound to that session.
+   instead of the message list. The composer sits pinned below the thread with a
+   tab for the session on screen; creating a new session focuses that tab.
 2. Clara loads the newest messages and opens the thread at its newest output,
    directly below the header and any permission or saved-draft panel above the
    thread, without any scroll movement on screen. The view then stays where the
@@ -60,23 +57,20 @@ one paragraph, list, or section. See [fork.md](fork.md).
    single press puts the top of the next or previous message at the top of the
    view, and a double press jumps to the newest output or the top of the loaded
    history.
-3. Click **Reply**, type in the reply window, and press Enter; the prompt appears
-   immediately and the header switches to "busy". If the composer was already
-   open or minimized on another session, it stays connected there instead; close
-   it to reply to the session on screen, or use its return button to go back.
+3. Type in the composer at the bottom of the session and press Enter; the prompt
+   appears immediately and the header switches to "busy". The composer is always
+   present; switching sessions follows the session on screen, and a session you
+   leave keeps its tab when the composer still has text or attachments.
 4. Assistant text streams in. Turn on internal output in the header to see
    reasoning, tool calls, shell commands, and untagged system notices. Open the
    **Terminal** tab in the right panel, or press `ctrl+x` then `` ` ``, to watch
    commands and their streamed output separately.
-5. When the run is idle, a bright **Done** button appears next to the floating
-   Reply button. Clicking it plays an optional completion chime, briefly
-   celebrates, archives the session without changing its title, and returns to
-   the start view. On an empty draft, a simple **Delete** button replaces Done
-   and **New** replaces Reply; Delete removes the session immediately without
-   the celebration or chime.
-6. On an archived or snoozed session, **Reopen** replaces Done next to Reply.
-   Clicking it clears the archive and snooze state as applicable and leaves the
-   title untouched.
+5. When the run is idle, the send menu offers **Done**. Choosing it plays an
+   optional completion chime, archives the session without changing its title,
+   and returns to the start view. On an empty draft, **Delete empty draft**
+   replaces Done and removes the session immediately.
+6. On an archived or snoozed session, the send menu offers **Reopen**. It clears
+   the archive and snooze state as applicable and leaves the title untouched.
 7. Tool calls appear as cards that expand to show input, output, duration, and
    status when internal output is on.
 8. If a tool needs approval, a permission panel appears above the message list
@@ -89,15 +83,14 @@ one paragraph, list, or section. See [fork.md](fork.md).
 10. When the run finishes the header returns to "idle" and usage settles.
 11. Read the usage bar along the bottom of the pane at any time: whole-session
     input, output, reasoning, and cache tokens, the cost in the selected display
-    mode, and how long ago the session started. It sits below the thread, while
-    the floating Done and Reply actions and the reply window stay above it.
-12. When a Plan run ends with a final reply, Reply and New carry a request
-    badge. Open the composer to see the plan-ready card above the editor. With
-    an empty editor, the secondary **Start** button switches to the working
-    agent and sends a short synthetic handoff, which appears as a **User
-    confirmed. Starting work.** system row. Typing a message disables Start;
-    Send sends that message to the Plan agent as an adjustment instead. Click
-    the card header to fold it to its title until you are ready to act.
+    mode, and how long ago the session started. It sits below the composer.
+12. When a Plan run ends with a final reply, the composer tab carries a request
+    badge. The plan-ready card sits above the editor. With an empty
+    editor, the secondary **Start** button switches to the working agent and
+    sends a short synthetic handoff, which appears as a **User confirmed.
+    Starting work.** system row. Typing a message disables Start; Send sends
+    that message to the Plan agent as an adjustment instead. Click the card
+    header to fold it to its title until you are ready to act.
 13. Open a session with a saved draft. The queued user message appears in the
     thread and a Start card appears above it. Click **Start** to send a short
     synthetic approval, deliver the draft, and begin the run; the handoff
@@ -127,10 +120,10 @@ one paragraph, list, or section. See [fork.md](fork.md).
     moves one level out, **Forward selection** opens the new draft with that
     markdown, and Escape cancels.
 18. The header's more menu can **Snooze session** or **Remove from Snoozed**.
-    Snoozing moves the session to the sidebar's Snoozed bucket and replaces Done
-    with Reopen. Replying, starting work, saving a draft, or answering the agent
-    on a snoozed session clears the snooze first and returns it to its mailbox
-    section.
+    Snoozing moves the session to the sidebar's Snoozed bucket and swaps the
+    send menu's Done for Reopen. Replying, starting work, saving a draft, or
+    answering the agent on a snoozed session clears the snooze first and returns
+    it to its mailbox section.
 
 ## Core business rules
 
@@ -205,24 +198,19 @@ one paragraph, list, or section. See [fork.md](fork.md).
     Other untagged synthetic messages stay behind the internal-output toggle.
     Clara's one-click actions write synthetic input with a human-facing
     description, so they appear as system events instead of fake user prompts.
-12. Done is available only while the composer is closed, the agent is idle, and
-    the session has a message. It archives the session on the server without
-    changing its title and returns to the start view. An empty, non-archived
-    draft shows a simple **Delete** action instead: it removes the session
-    immediately without the celebration, chime, or redirect delay. Empty drafts
-    show **New** in place of Reply; New opens the composer in the last-used
-    size, binding it to the current session, and opening an empty draft with
-    locally saved composer text opens it automatically. The New message view
-    itself has no action button. The Done button plays the UI completion chime
-    when **UI sounds** is on; its animation and success toast do not depend on
-    sound settings. The start view returns after a short celebration delay.
-13. Archived or snoozed sessions show Reopen instead of Done next to Reply.
-    Reopen clears the server's archived flag and any snooze metadata without
-    renaming the session, so the session returns to its mailbox section with its
-    title intact. Archived wins when both flags are present. Any reply that
-    engages the agent — a prompt, Start, a plan start or a plan request, a command,
-    a saved draft, a permission decision, or a question answer — clears the
-    snooze marker first, so the session leaves Snoozed without a manual Reopen.
+12. Done is available from the send menu while the agent is idle and the session
+    has a message. It archives the session on the server without changing its
+    title and returns to the start view. An empty, non-archived draft offers
+    **Delete empty draft** instead: it removes the session immediately. The Done
+    action plays the UI completion chime when **UI sounds** is on; its success
+    toast does not depend on sound settings.
+13. Archived or snoozed sessions offer **Reopen** in the send menu. Reopen
+    clears the server's archived flag and any snooze metadata without renaming
+    the session, so the session returns to its mailbox section with its title
+    intact. Archived wins when both flags are present. Any reply that engages
+    the agent — a prompt, Start, a plan start or a plan request, a command, a
+    saved draft, a permission decision, or a question answer — clears the snooze
+    marker first, so the session leaves Snoozed without a manual Reopen.
 14. The plan-ready handoff is part of the composer. It appears only while the
     session is idle, the session agent is Plan, and the newest user or assistant
     message is a Plan reply that finished with `stop` and no error. It is absent
@@ -276,9 +264,8 @@ one paragraph, list, or section. See [fork.md](fork.md).
     output, reasoning, and cache-read plus cache-write tokens, the cost in the
     selected display mode, and how long ago the session started. It reads the
     server's session totals rather than the loaded pages, so long conversations
-    stay complete. The floating Done, Reply, step, and reply-window controls
-    sit above it, and it scrolls horizontally on narrow screens instead of
-    wrapping.
+    stay complete. The composer sits above it, and it scrolls horizontally on
+    narrow screens instead of wrapping.
 20. The header's second line shows the run state (`busy`, `retry N`, or `idle`)
     and the active agent. The state is seeded from the server's active-session
     map when the thread opens, then kept live by status, execution, and step
@@ -300,11 +287,10 @@ one paragraph, list, or section. See [fork.md](fork.md).
   provider reconnects with backoff, and a successful reconnect refetches the
   queries that missed events would have invalidated.
 - **Session missing** — a "Session not found" state offers the project page.
-- **Empty draft** — the New message view replaces the message list, **New**
-  replaces Reply, and **Delete** replaces Done. The composer opens
-  automatically when locally saved text exists.
-- **Draft restored** — reopening an empty draft with locally saved text opens
-  the composer with that text; after closing, the New button shows a draft dot.
+- **Empty draft** — the New message view replaces the message list. The composer
+  stays open and the send menu offers **Delete empty draft**.
+- **Draft restored** — opening an empty draft with locally saved text shows that
+  text in the composer and its session tab.
 - **Running session opened mid-run** — the header seeds `busy` from the active
   session map even though the event stream does not replay the current status,
   then returns to `idle` when the run ends.
@@ -497,7 +483,7 @@ one paragraph, list, or section. See [fork.md](fork.md).
   avatar and Automation sender through `src/components/chat/message-item.tsx`
 - Worker mode: `session.metadata.automation === true` combined with the agent-info
   orchestration flag; it gates
-  `src/pages/chat-page.tsx`, `reply-dock.tsx`, `chat-header.tsx`,
+  `src/pages/chat-page.tsx`, `composer-panel.tsx`, `chat-header.tsx`,
   `message-list.tsx`, and `message-actions.tsx`
 - Pending drafts: `client.session.inbox.list({ sessionID })`, merged into the
   thread by message ID
@@ -505,8 +491,8 @@ one paragraph, list, or section. See [fork.md](fork.md).
 metadata, delivery: 'steer' })`
 - Start card: `src/components/chat/draft-start-panel.tsx`
 - New message view: `src/components/chat/draft-session-view.tsx`
-- Done: `client.session.update({ sessionID, title, archived: true })`; the
-  button is `src/components/chat/done-button.tsx` and the chime is
+- Done: `client.session.update({ sessionID, archived: true })`; the
+  action lives in the composer send menu and the chime is
   `playDoneSound` in `src/features/notifications/sounds.ts`
 - Snooze: `client.session.update({ sessionID, metadata: { ...existing, snoozed: true } })`
 - Reopen: `client.session.update({ sessionID, archived: false, metadata? })` —
@@ -514,8 +500,8 @@ metadata, delivery: 'steer' })`
 - Unsnooze on engage: every prompt, command, draft save, permission decision,
   and question answer clears the snooze marker first through
   `unsnoozeSessionOnEngage` in `src/features/sessions/unsnooze.ts`
-- Delete empty draft: `client.session.remove({ sessionID })`; the button is
-  rendered by `src/components/chat/reply-actions.tsx`
+- Delete empty draft: `client.session.remove({ sessionID })`; the action is
+  rendered by the composer send menu
 - Leave an empty draft: `useDiscardEmptyDraft` in
   `src/features/chat/use-discard-empty-draft.ts` confirms through
   `client.message.list({ sessionID, limit: 1, type: 'user' })`, the same call
@@ -552,12 +538,11 @@ delivery: 'steer' })` for Start. Send with a typed message calls
   `src/features/chat/questions.ts` derives Q&A events from the completed
   `question` tool, and `src/features/chat/timeline.ts` assembles rows
 - System event UI: `src/components/chat/system-event-row.tsx`
-- Reply event: `clara:open-reply` opens the reply window when it is closed,
-  restores a minimized window, and focuses an open one
-- Composer connection: `src/features/chat/composer-provider.tsx`,
-  `src/features/chat/composer-session.ts`, and
-  `src/features/chat/use-composer-target.ts` keep the open or minimized window
-  connected to its session across route changes
+- Composer tabs: `src/features/chat/composer-provider.tsx`,
+  `src/features/chat/composer-tabs.ts`,
+  `src/features/chat/composer-layout.ts`, and
+  `src/features/chat/use-composer-target.ts` keep one tab per session, restore
+  persisted tabs, and read the selected session independently of the route
 - Pair terminal: `src/features/chat/terminal-log.ts`,
   `src/components/chat/pair-terminal.tsx`, and the `session.tool.progress`
   event. See [pair terminal](pair-terminal.md).

@@ -10,11 +10,11 @@ actions; direct keys handle interruption and switching.
 
 1. Press `ctrl+x` (the leader) with focus outside a text field. Clara waits two
    seconds for the next key.
-2. Press `n` to create a session and open its draft composer in the last-used
-   reply size, `l` for the project session list, `s` to toggle the panel on its
-   Info tab, `g` to open the Git tab, or `` ` `` to open the pair terminal.
-3. Press `m` for the model picker or `a` for the agent picker. Both open the
-   reply window first if it is closed.
+2. Press `n` to create a session and focus its composer tab, `l` for the project
+   session list, `s` to toggle the panel on its Info tab, `g` to open the Git
+   tab, or `` ` `` to open the pair terminal.
+3. Press `m` for the model picker or `a` for the agent picker. Both restore the
+   composer first if it is minimized.
 4. Press `c` to compact the context, `y` to copy the last reply, `h` to fold or
    open every message, or `t` to toggle light and dark mode without changing the
    selected color theme.
@@ -61,7 +61,7 @@ actions; direct keys handle interruption and switching.
 - **No project selected** — `n` and `l` are no-ops.
 - **No model variants** — `ctrl+t` is a no-op.
 - **Running agent** — Escape interrupts; when idle it does nothing.
-- **Menu open in the reply window** — Escape closes the menu first, and Tab
+- **Menu open in the composer** — Escape closes the menu first, and Tab
   selects the highlighted item instead of cycling agents.
 - **Browser-reserved keys** — the browser may intercept combinations such as
   `ctrl+t` before Clara sees them, depending on platform and focus. Clara leaves
@@ -92,7 +92,7 @@ actions; direct keys handle interruption and switching.
 - `ctrl+t` is also the browser's "new tab" shortcut and may not reach Clara in
   some browsers.
 - Escape can both close a menu and interrupt a run when focus is outside the
-  reply window; the global handler is intentionally permissive.
+  composer; the global handler is intentionally permissive.
 - The theme shortcut toggles between light and dark, keeps the selected color
   theme, and does not cycle through "system".
 - Tab and Shift+Tab cycle agents inside the message box, so the textarea cannot

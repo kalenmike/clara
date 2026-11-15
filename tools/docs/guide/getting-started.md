@@ -43,8 +43,8 @@ The full flow, including local and relay pairings, is in
 1. Pick a project in the sidebar. Clara remembers the last one.
 2. Choose **New session** and type a prompt.
 3. Press Enter to send. The reply streams into the thread.
-4. When the agent stops, use **Reply** to continue or **Done** to archive the
-   session.
+4. When the agent stops, type in the composer to continue, or choose **Done**
+   from its send menu to archive the session.
 
 A session is called a **Brief** by default. You can rename the noun in
 **Settings → Preferences**.

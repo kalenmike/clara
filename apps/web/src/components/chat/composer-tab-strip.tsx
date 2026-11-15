@@ -1,0 +1,197 @@
+import { useNavigate } from 'react-router'
+import { CornerUpLeft, Maximize2, Minimize2, Minus, X } from 'lucide-react'
+import { Button } from '@/components/ui/button'
+import { Tooltip, TooltipContent, TooltipTrigger } from '@/components/ui/tooltip'
+import type { ComposerMode } from '@/features/chat/composer-session'
+import { composerReturnPath, composerSessionTitle } from '@/features/chat/composer-session'
+import type { ComposerTab } from '@/features/chat/composer-tabs'
+import { useSessionForms } from '@/features/chat/use-forms'
+import { useSessionWording } from '@/features/sessions/use-wording'
+import { useSession } from '@/features/sessions/use-sessions'
+import { cn } from '@/lib/utils'
+
+export function ComposerTabStrip({
+  tabs,
+  mode,
+  currentSessionID,
+  selectedSessionID,
+  selectedPlanReady,
+  onSelect,
+  onClose,
+  onToggleExpand,
+  onMinimize,
+}: {
+  tabs: readonly ComposerTab[]
+  mode: ComposerMode
+  currentSessionID: string | undefined
+  selectedSessionID: string | null
+  /** The selected tab's live plan-ready state, counted beside its forms. */
+  selectedPlanReady: boolean
+  onSelect: (sessionID: string) => void
+  onClose: (sessionID: string) => void
+  onToggleExpand: () => void
+  onMinimize: () => void
+}) {
+  const fullscreen = mode === 'maximized'
+  const minimized = mode === 'minimized'
+
+  return (
+    <div className="flex shrink-0 items-stretch border-b bg-popover text-popover-foreground">
+      <div
+        role="tablist"
+        aria-label="Open composer sessions"
+        className="flex min-w-0 flex-1 items-center gap-0.5 overflow-x-auto px-1 py-1 [scrollbar-width:none] [&::-webkit-scrollbar]:hidden"
+      >
+        {tabs.map((tab) => (
+          <ComposerTabButton
+            key={tab.sessionID}
+            tab={tab}
+            current={tab.sessionID === currentSessionID}
+            selected={tab.sessionID === selectedSessionID}
+            planReady={tab.sessionID === selectedSessionID && selectedPlanReady}
+            onSelect={onSelect}
+            onClose={onClose}
+          />
+        ))}
+      </div>
+
+      <div className="flex shrink-0 items-center gap-0.5 border-l px-1.5 py-1">
+        <Tooltip>
+          <TooltipTrigger asChild>
+            <Button
+              type="button"
+              variant="ghost"
+              size="icon-sm"
+              className="max-md:size-11"
+              onClick={onToggleExpand}
+              aria-label={
+                minimized
+                  ? 'Restore the composer'
+                  : fullscreen
+                    ? 'Dock the composer'
+                    : 'Expand composer'
+              }
+            >
+              {fullscreen && !minimized ? (
+                <Minimize2 className="size-3.5 max-md:size-5" />
+              ) : (
+                <Maximize2 className="size-3.5 max-md:size-5" />
+              )}
+            </Button>
+          </TooltipTrigger>
+          <TooltipContent>
+            {minimized ? 'Restore' : fullscreen ? 'Return to the dock' : 'Expand'}
+          </TooltipContent>
+        </Tooltip>
+
+        <Tooltip>
+          <TooltipTrigger asChild>
+            <Button
+              type="button"
+              variant="ghost"
+              size="icon-sm"
+              className="max-md:size-11"
+              onClick={onMinimize}
+              disabled={minimized}
+              aria-label="Minimize composer"
+            >
+              <Minus className="size-3.5 max-md:size-5" />
+            </Button>
+          </TooltipTrigger>
+          <TooltipContent>Minimize</TooltipContent>
+        </Tooltip>
+      </div>
+    </div>
+  )
+}
+
+function ComposerTabButton({
+  tab,
+  current,
+  selected,
+  planReady,
+  onSelect,
+  onClose,
+}: {
+  tab: ComposerTab
+  current: boolean
+  selected: boolean
+  planReady: boolean
+  onSelect: (sessionID: string) => void
+  onClose: (sessionID: string) => void
+}) {
+  const navigate = useNavigate()
+  const { lowerSingular } = useSessionWording()
+  const session = useSession(tab.sessionID).data
+  const formsQuery = useSessionForms(tab.sessionID)
+  const forms = formsQuery.data ?? []
+  const requestCount = forms.length + (planReady ? 1 : 0)
+  const title = composerSessionTitle(session?.title, lowerSingular)
+  const returnPath = composerReturnPath(tab)
+
+  return (
+    <div
+      className={cn(
+        'group flex min-w-0 max-w-56 shrink-0 items-center rounded-md border transition-colors',
+        current
+          ? 'border-border bg-accent text-accent-foreground'
+          : selected
+            ? 'border-primary/40 bg-accent/50'
+            : 'border-transparent text-muted-foreground hover:bg-accent/40 hover:text-foreground'
+      )}
+    >
+      <button
+        type="button"
+        role="tab"
+        aria-selected={selected}
+        onClick={() => onSelect(tab.sessionID)}
+        title={title}
+        className="flex min-w-0 flex-1 items-center gap-1.5 rounded-md px-2 py-1.5 text-left outline-none focus-visible:ring-2 focus-visible:ring-ring"
+      >
+        {current && <span className="size-1.5 shrink-0 rounded-full bg-emerald-500" aria-hidden />}
+        <span className="min-w-0 truncate text-xs font-medium">{title}</span>
+        {requestCount > 0 && (
+          <span
+            className="flex h-4 min-w-4 shrink-0 items-center justify-center rounded-full bg-sky-500 px-1 text-[10px] font-semibold text-white"
+            title={requestCount === 1 ? '1 request waiting' : `${requestCount} requests waiting`}
+          >
+            {requestCount > 9 ? '9+' : requestCount}
+          </span>
+        )}
+      </button>
+
+      {!current && (
+        <>
+          {returnPath && (
+            <Tooltip>
+              <TooltipTrigger asChild>
+                <button
+                  type="button"
+                  onClick={() => navigate(returnPath)}
+                  className="shrink-0 rounded-md p-1 text-muted-foreground outline-none hover:bg-background/60 hover:text-foreground focus-visible:ring-2 focus-visible:ring-ring max-md:p-2"
+                  aria-label={`Go to ${title}`}
+                >
+                  <CornerUpLeft className="size-3 max-md:size-4" />
+                </button>
+              </TooltipTrigger>
+              <TooltipContent>Go to {title}</TooltipContent>
+            </Tooltip>
+          )}
+          <Tooltip>
+            <TooltipTrigger asChild>
+              <button
+                type="button"
+                onClick={() => onClose(tab.sessionID)}
+                className="mr-0.5 shrink-0 rounded-md p-1 text-muted-foreground outline-none hover:bg-background/60 hover:text-foreground focus-visible:ring-2 focus-visible:ring-ring max-md:p-2"
+                aria-label={`Close ${title}`}
+              >
+                <X className="size-3 max-md:size-4" />
+              </button>
+            </TooltipTrigger>
+            <TooltipContent>Close {title}</TooltipContent>
+          </Tooltip>
+        </>
+      )}
+    </div>
+  )
+}

@@ -1,42 +1,53 @@
 ---
-title: The reply composer
+title: The composer
 description: Send prompts, commands, mentions, attachments, and queued messages.
 sidebar_position: 6
 ---
 
-# The reply composer
+# The composer
 
-The composer is a Gmail-style window docked to the bottom right of a chat. It
-opens from **Reply**, **New**, or when a new session is created.
+The composer is the panel at the bottom of every chat. It is always open and
+carries the draft, commands, mentions, attachments, and any question or plan
+waiting for you.
 
 ## Write and send
 
 - Enter sends.
 - Shift+Enter adds a line.
 - On a touch device, Enter adds a line; tap Send.
-- The window stays open while you scroll the thread behind it.
 
-The composer remembers its size. **Expanded** is the default; the smaller dock is
-restored the next time it opens if you chose it before.
+## Three shapes
 
-## Pin the composer
+The composer has three shapes, controlled from the right side of its header:
 
-Use the pin button in the composer title bar to dock it as a full-width block at
-the bottom of the chat. The thread ends at the top of the dock, so the composer
-never covers a message.
+- **Pinned** is the default. It sits above the usage bar, spans the chat, and
+  the thread ends at its top edge, so it never covers a message.
+- **Expand** fills the screen. Expand again to return to the pinned dock.
+- **Minimize** collapses the composer to its header. Expanding a minimized
+  composer returns it to the shape it had before.
 
-- Drag the dock's top edge to make it taller or shorter.
-- With the resize handle focused, use Up/Down, Home/End, or double-click to
-  reset the height.
-- **Minimize** and **Maximize** leave the dock and use the usual floating
-  window. Restoring returns to the floating size.
-- Pin and dock height are remembered across sessions and reloads.
+Drag the pinned composer's top edge to make it taller or shorter. With the
+resize handle focused, use Up/Down, Home/End, or double-click to reset the
+height. The height is remembered; a reload starts pinned.
+
+## Tabs
+
+The header is a tab strip with one tab per session. The session you are viewing
+has a highlighted tab with a green dot and cannot be closed.
+
+- Leave a session while its composer still has text or attachments, and its tab
+  stays so you can come back to the draft.
+- Select another tab to edit that draft without leaving the chat you are reading.
+- The arrow on a tab opens that session.
+- Close a tab to remove the shortcut. Its saved draft stays, so opening the
+  session again restores the text.
+- Tabs and their text drafts survive a reload. Attachments are kept for the visit
+  only.
 
 ## Keep the draft
 
-Unsent text is stored per session in local storage, so switching sessions or
-reloading does not lose it. Attachments stay with the open window and are not
-kept across a reload.
+Unsent text is stored per session in local storage. Attachments stay with the
+open tab and are not kept across a reload.
 
 ## Commands and mentions
 
@@ -62,18 +73,21 @@ read-only under **Subagents** instead of offering them as the main agent.
 Models hidden in **Settings → Models** do not appear, and the variant menu is
 hidden when the model has no variants.
 
-## Save, queue, or steer
+## Save, queue, finish, or steer
 
-The send button's chevron menu changes with the run:
+The send button's chevron menu holds everything that is not the primary send:
 
 - **Save as draft** before the first reply stores the prompt without starting.
 - **Send as queued** while the agent works waits for the current run to settle.
+- **Done** archives an idle session and returns to the start view.
+- **Delete empty draft** removes an empty draft.
+- **Reopen** brings an archived or snoozed session back.
 - **Steer** is the normal send while a run is active.
 
 ## Answer requests in the composer
 
-The **Reply** and **New** buttons show a badge when a question form or a finished
-plan is waiting. Opening the composer stacks those cards above the editor.
+A session tab shows a badge when a question form or a finished plan is waiting.
+Select the tab to see those cards stacked above the editor.
 
 - A question card can be answered alone, with a message, or skipped.
 - A plan-ready card offers **Start** when the editor is empty. A typed message
@@ -81,10 +95,10 @@ plan is waiting. Opening the composer stacks those cards above the editor.
 
 ## Work across sessions
 
-While the window is open or minimized it stays connected to the session it was
-opened for. The title bar says which session it is for. Opening another session
-does not move the draft; use the return control to jump back, or close the window
-to rebind it to the session on screen.
+Each tab keeps its own draft. The composer follows the session you open, and a
+tab you leave behind keeps its text and attachments until you send or clear it.
+Selecting a tab only changes what the composer is editing; use the tab's arrow to
+open that session in the chat.
 
 ## Related
 

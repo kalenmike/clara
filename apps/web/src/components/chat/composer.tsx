@@ -1,9 +1,11 @@
 import { useDeferredValue, useEffect, useMemo, useRef, useState } from 'react'
 import { useQuery } from '@tanstack/react-query'
 import {
+  ArchiveRestore,
   AtSign,
   BookOpen,
   Bot,
+  Check,
   ChevronDown,
   FileText,
   ListEnd,
@@ -14,6 +16,7 @@ import {
   SkipForward,
   Slash,
   Sparkles,
+  Trash2,
   X,
 } from 'lucide-react'
 import type { ClaraSessionInboxUser, ClaraSession } from '@clara/api-contract'
@@ -32,7 +35,16 @@ import { ComposerRequestList } from '@/components/chat/composer-request-list'
 import { ModelPicker, VariantPicker } from '@/components/chat/model-picker'
 import { useAgents, useCommands, useReferences, useSkills } from '@/features/catalog/use-catalog'
 import { primaryAgents } from '@/features/agents/default-agent'
+import { composerActions, type ComposerAction } from '@/features/chat/composer-actions'
 import type { ComposerMenuMode } from '@/features/chat/composer-menu'
+import { useNotificationSettings } from '@/features/notifications/use-notification-settings'
+import { playDoneSound } from '@/features/notifications/sounds'
+import { isArchivedSession } from '@/features/sessions/session-archive'
+import { isSnoozedSession } from '@/features/sessions/session-snooze'
+import { useDoneSession } from '@/features/sessions/use-session-archive'
+import { useReopenSession } from '@/features/sessions/use-sessions'
+import { useSessionWording } from '@/features/sessions/use-wording'
+import type { ComposerDraft } from '@/features/chat/composer-tabs'
 import {
   composerCanSend,
   composerSecondaryAction,
@@ -60,7 +72,7 @@ import { useStartWork } from '@/features/chat/use-start-work'
 import { draftTitleFromText } from '@/features/sessions/draft-title'
 import { useIsTouchDevice } from '@/hooks/use-is-touch-device'
 import { describeConnectionError } from '@/lib/client'
-import { readDraft, saveDraft } from '@/lib/storage'
+import { saveDraft } from '@/lib/storage'
 import { useConnection } from '@/providers/connection-provider'
 import { cn } from '@/lib/utils'
 
@@ -77,18 +89,20 @@ export function Composer({
   directory,
   harnessID,
   busy,
+  ready,
   disabled,
-  active,
   focusSignal,
   modelRequest,
   agentRequest,
   menuMode,
   draft = false,
   planReady,
+  initialDraft,
   startText,
   startFiles,
   onDraftChange,
   onSent,
+  onDone,
   onCycleAgent,
 }: {
   session: ClaraSession | undefined
@@ -97,25 +111,30 @@ export function Composer({
   /** The harness that owns the session's catalog and file lookups. */
   harnessID?: string
   busy: boolean
+  /** The session's messages are known, so session actions are available. */
+  ready: boolean
   disabled?: boolean
-  active: boolean
   focusSignal: number
   modelRequest: number
   agentRequest: number
   menuMode: ComposerMenuMode
   draft?: boolean
   planReady: boolean
+  /** The tab's unsent text and attachments. */
+  initialDraft: ComposerDraft
   /** Text handed over by a forward action; local storage is the fallback. */
   startText?: string
   /** Attachments handed over by a forward action. */
   startFiles?: PromptFile[]
-  onDraftChange: (hasDraft: boolean) => void
+  onDraftChange: (draft: ComposerDraft) => void
   onSent: () => void
+  /** Archives or deletes the session and closes its tab. */
+  onDone: (sessionID: string) => void
   onCycleAgent: (direction: 1 | -1) => void
 }) {
   const { client } = useConnection()
-  const [text, setText] = useState(() => startText ?? readDraft(sessionID))
-  const [files, setFiles] = useState<PromptFile[]>(() => startFiles ?? [])
+  const [text, setText] = useState(() => startText ?? initialDraft.text)
+  const [files, setFiles] = useState<PromptFile[]>(() => startFiles ?? initialDraft.files)
   const [submittingForms, setSubmittingForms] = useState(false)
   const [selection, setSelection] = useState<ComposerRequestSelection>(null)
   const [formAnswers, setFormAnswers] = useState<ComposerRequestAnswers>({})
@@ -138,6 +157,10 @@ export function Composer({
   const sendPrompt = useSendPrompt(sessionID)
   const runCommand = useRunCommand(sessionID)
   const saveAsDraft = useSaveDraft(sessionID)
+  const done = useDoneSession()
+  const reopenSession = useReopenSession()
+  const { settings } = useNotificationSettings()
+  const { singular, lowerSingular } = useSessionWording()
   const replyForm = useReplyForm(sessionID)
   const rejectForm = useRejectForm(sessionID)
   const cancelInbox = useCancelInbox(sessionID)
@@ -215,7 +238,7 @@ export function Composer({
         limit: 8,
       }),
     enabled: Boolean(
-      active && client && directory && token?.kind === 'mention' && deferredMention.length > 0
+      client && directory && token?.kind === 'mention' && deferredMention.length > 0
     ),
     select: (result) => result.data,
     staleTime: 10_000,
@@ -302,8 +325,8 @@ export function Composer({
   )
 
   useEffect(() => {
-    onDraftChange(text.trim().length > 0 || files.length > 0)
-  }, [text, files, onDraftChange])
+    onDraftChange({ text, files })
+  }, [files, onDraftChange, text])
 
   useEffect(() => {
     if (modelRequest > 0) setModelOpen(true)
@@ -314,17 +337,10 @@ export function Composer({
   }, [agentRequest])
 
   useEffect(() => {
-    if (active) return
-    setModelOpen(false)
-    setAgentOpen(false)
-    setDismissed(true)
-  }, [active])
-
-  useEffect(() => {
-    if (!active || focusSignal === 0) return
+    if (focusSignal === 0) return
     const frame = requestAnimationFrame(() => textareaRef.current?.focus())
     return () => cancelAnimationFrame(frame)
-  }, [active, focusSignal])
+  }, [focusSignal])
 
   const selectItem = (item: MenuItem) => {
     if (!token) return
@@ -338,7 +354,7 @@ export function Composer({
     textRef.current = ''
     setFiles([])
     saveDraft(sessionID, '')
-    onDraftChange(false)
+    onDraftChange({ text: '', files: [] })
     onSent()
   }
 
@@ -596,6 +612,65 @@ export function Composer({
     setTouchedForms((current) => (current[formID] ? current : { ...current, [formID]: true }))
   }
 
+  const archived = session ? isArchivedSession(session) : false
+  const snoozed = session ? isSnoozedSession(session) : false
+  const actions = composerActions({
+    ready,
+    hasSession: session != null,
+    busy,
+    empty: draft,
+    archived,
+    snoozed,
+    hasText,
+    canSaveDraft: menuMode === 'draft',
+  })
+
+  const finishSession = () => {
+    if (!session || done.isPending) return
+    if (settings.uiSounds) playDoneSound(settings.volume)
+    done.mutate(
+      { session, empty: false },
+      {
+        onSuccess: () => {
+          toast.success(`${singular} complete`, {
+            description: 'Nice work. On to the next one.',
+          })
+          saveDraft(session.id, '')
+          onDraftChange({ text: '', files: [] })
+          onDone(session.id)
+        },
+        onError: () => toast.error(`Could not mark the ${lowerSingular} done`),
+      }
+    )
+  }
+
+  const deleteEmptyDraft = () => {
+    if (!session || done.isPending) return
+    done.mutate(
+      { session, empty: true },
+      {
+        onSuccess: () => {
+          saveDraft(session.id, '')
+          onDraftChange({ text: '', files: [] })
+          toast.success('Empty draft deleted')
+          onDone(session.id)
+        },
+        onError: () => toast.error('Could not delete the empty draft'),
+      }
+    )
+  }
+
+  const reopen = () => {
+    if (!session) return
+    reopenSession.mutate(
+      { session },
+      {
+        onSuccess: () => toast.success(`${singular} reopened`),
+        onError: () => toast.error(`Could not reopen the ${lowerSingular}`),
+      }
+    )
+  }
+
   const onKeyDown = (event: React.KeyboardEvent<HTMLTextAreaElement>) => {
     if (items.length > 0 && !dismissed) {
       if (event.key === 'ArrowDown') {
@@ -658,6 +733,8 @@ export function Composer({
     replyForm.isPending ||
     rejectForm.isPending ||
     startWork.pending ||
+    done.isPending ||
+    reopenSession.isPending ||
     submittingForms
   const sendPending =
     sendPrompt.isPending ||
@@ -901,7 +978,7 @@ export function Composer({
                 <Button
                   type="button"
                   size="sm"
-                  className={cn('h-8 gap-1 max-md:h-11', menuMode && hasText && 'rounded-r-none')}
+                  className={cn('h-8 gap-1 max-md:h-11', actions.length > 0 && 'rounded-r-none')}
                   onClick={submit}
                   disabled={!canSend}
                 >
@@ -916,7 +993,7 @@ export function Composer({
               <TooltipContent>{sendHint}</TooltipContent>
             </Tooltip>
 
-            {menuMode && hasText && (
+            {actions.length > 0 && (
               <DropdownMenu>
                 <Tooltip>
                   <TooltipTrigger asChild>
@@ -925,33 +1002,27 @@ export function Composer({
                         type="button"
                         size="icon-sm"
                         className="h-8 rounded-l-none border-l border-primary-foreground/25 max-md:size-11"
-                        disabled={!canSend}
+                        disabled={pending}
                       >
                         <ChevronDown className="size-3.5 max-md:size-5" />
                         <span className="sr-only">Message options</span>
                       </Button>
                     </DropdownMenuTrigger>
                   </TooltipTrigger>
-                  <TooltipContent>
-                    {menuMode === 'draft'
-                      ? 'Save this message as a draft'
-                      : 'Send this message as queued'}
-                  </TooltipContent>
+                  <TooltipContent>More send options</TooltipContent>
                 </Tooltip>
                 <DropdownMenuContent side="top" align="end" className="w-56">
-                  {menuMode === 'draft' ? (
-                    <DropdownMenuItem onSelect={saveDraftMessage}>
-                      <Save className="size-3.5" />
-                      <span className="flex-1">Save as draft</span>
-                      <span className="text-[10px] text-muted-foreground">no reply</span>
-                    </DropdownMenuItem>
-                  ) : (
-                    <DropdownMenuItem onSelect={queueMessage}>
-                      <ListEnd className="size-3.5" />
-                      <span className="flex-1">Send as queued</span>
-                      <span className="text-[10px] text-muted-foreground">after this run</span>
-                    </DropdownMenuItem>
-                  )}
+                  {actions.map((action) => (
+                    <ComposerActionItem
+                      key={action}
+                      action={action}
+                      onDone={finishSession}
+                      onSaveDraft={saveDraftMessage}
+                      onQueue={queueMessage}
+                      onDelete={deleteEmptyDraft}
+                      onReopen={reopen}
+                    />
+                  ))}
                 </DropdownMenuContent>
               </DropdownMenu>
             )}
@@ -959,6 +1030,64 @@ export function Composer({
         </div>
       </div>
     </div>
+  )
+}
+
+function ComposerActionItem({
+  action,
+  onDone,
+  onSaveDraft,
+  onQueue,
+  onDelete,
+  onReopen,
+}: {
+  action: ComposerAction
+  onDone: () => void
+  onSaveDraft: () => void
+  onQueue: () => void
+  onDelete: () => void
+  onReopen: () => void
+}) {
+  if (action === 'save-draft') {
+    return (
+      <DropdownMenuItem onSelect={onSaveDraft}>
+        <Save className="size-3.5" />
+        <span className="flex-1">Save as draft</span>
+        <span className="text-[10px] text-muted-foreground">no reply</span>
+      </DropdownMenuItem>
+    )
+  }
+  if (action === 'queue') {
+    return (
+      <DropdownMenuItem onSelect={onQueue}>
+        <ListEnd className="size-3.5" />
+        <span className="flex-1">Send as queued</span>
+        <span className="text-[10px] text-muted-foreground">after this run</span>
+      </DropdownMenuItem>
+    )
+  }
+  if (action === 'done') {
+    return (
+      <DropdownMenuItem onSelect={onDone}>
+        <Check className="size-3.5" />
+        <span className="flex-1">Done</span>
+        <span className="text-[10px] text-muted-foreground">archive</span>
+      </DropdownMenuItem>
+    )
+  }
+  if (action === 'delete-empty') {
+    return (
+      <DropdownMenuItem variant="destructive" onSelect={onDelete}>
+        <Trash2 className="size-3.5" />
+        <span className="flex-1">Delete empty draft</span>
+      </DropdownMenuItem>
+    )
+  }
+  return (
+    <DropdownMenuItem onSelect={onReopen}>
+      <ArchiveRestore className="size-3.5" />
+      <span className="flex-1">Reopen</span>
+    </DropdownMenuItem>
   )
 }
 

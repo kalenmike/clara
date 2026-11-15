@@ -1,42 +1,37 @@
 import type { ComposerMode } from '@/features/chat/composer-session'
 
-/** The composer's window mode plus whether it is docked to the chat bottom. */
-export type ComposerWindow = {
+/**
+ * The composer has three shapes: the pinned dock at the bottom of the chat, a
+ * fullscreen panel, and a minimized header. Pinned and maximized remember which
+ * one to return to after minimizing.
+ */
+export type ExpandedComposerMode = Exclude<ComposerMode, 'minimized'>
+
+export type ComposerLayout = {
   mode: ComposerMode
-  pinned: boolean
+  expanded: ExpandedComposerMode
 }
 
-/** Pinning is a normal-size placement; it leaves a closed window closed. */
-export function pinComposer(window: ComposerWindow): ComposerWindow {
-  return { mode: window.mode === 'closed' ? 'closed' : 'normal', pinned: true }
+export const COMPOSER_LAYOUT_DEFAULT: ComposerLayout = {
+  mode: 'pinned',
+  expanded: 'pinned',
 }
 
-/** Unpinning returns to the remembered floating window size. */
-export function unpinComposer(size: 'normal' | 'maximized'): ComposerWindow {
-  return { mode: size, pinned: false }
+/** Maximize from pinned, return to pinned from maximized, restore from minimized. */
+export function expandComposer(layout: ComposerLayout): ComposerLayout {
+  if (layout.mode === 'minimized') {
+    return { mode: layout.expanded, expanded: layout.expanded }
+  }
+  const mode: ExpandedComposerMode = layout.mode === 'maximized' ? 'pinned' : 'maximized'
+  return { mode, expanded: mode }
 }
 
-/** Minimizing leaves the dock and returns to the floating window states. */
-export function minimizeComposer(): ComposerWindow {
-  return { mode: 'minimized', pinned: false }
+export function minimizeComposer(layout: ComposerLayout): ComposerLayout {
+  return { mode: 'minimized', expanded: layout.expanded }
 }
 
-/** Maximizing leaves the dock and opens the existing overlay. */
-export function maximizeComposer(): ComposerWindow {
-  return { mode: 'maximized', pinned: false }
-}
-
-/** Restoring a minimized or maximized window returns to the floating size. */
-export function restoreComposer(size: 'normal' | 'maximized'): ComposerWindow {
-  return { mode: size, pinned: false }
-}
-
-/** Opening uses the dock when it was pinned, otherwise the saved float size. */
-export function openComposerWindow(pinned: boolean, size: 'normal' | 'maximized'): ComposerWindow {
-  return { mode: pinned ? 'normal' : size, pinned }
-}
-
-/** Docking only exists at normal size; min and max always float. */
-export function composerDocked(window: ComposerWindow): boolean {
-  return window.pinned && window.mode === 'normal'
+/** Restoring a minimized header uses the last expanded shape. */
+export function restoreComposer(layout: ComposerLayout): ComposerLayout {
+  if (layout.mode !== 'minimized') return layout
+  return { mode: layout.expanded, expanded: layout.expanded }
 }

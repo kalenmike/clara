@@ -1,9 +1,9 @@
 /**
- * The composer is a window of its own: while it is open or minimized it keeps
- * the session it was opened for, even when the route moves to another session.
- * Closing it makes the current route's session the next target.
+ * The composer lives inside a chat and keeps one tab per session the person
+ * has worked in. A tab stays only when its composer has input; closing it keeps
+ * the local draft but removes the shortcut back to it.
  */
-export type ComposerMode = 'closed' | 'normal' | 'minimized' | 'maximized'
+export type ComposerMode = 'pinned' | 'maximized' | 'minimized'
 
 export type ComposerTarget = {
   sessionID: string
@@ -18,24 +18,6 @@ export function routeComposerTarget(
   return { sessionID, projectID }
 }
 
-export function composerOpenTarget(input: {
-  mode: ComposerMode
-  route: ComposerTarget | null
-  current: ComposerTarget | null
-  explicit?: ComposerTarget | null
-}): ComposerTarget | null {
-  if (input.explicit) return input.explicit
-  if (input.mode === 'closed') return input.route
-  return input.current ?? input.route
-}
-
-export function isComposerDetached(
-  target: ComposerTarget | null,
-  routeSessionID: string | undefined
-): boolean {
-  return target != null && target.sessionID !== routeSessionID
-}
-
 export function composerReturnPath(target: ComposerTarget | null): string | null {
   if (!target?.projectID) return null
   return `/p/${target.projectID}/s/${target.sessionID}`
@@ -44,8 +26,4 @@ export function composerReturnPath(target: ComposerTarget | null): string | null
 export function composerSessionTitle(title: string | undefined, lowerSingular: string): string {
   const trimmed = title?.trim()
   return trimmed && trimmed.length > 0 ? trimmed : `Untitled ${lowerSingular}`
-}
-
-export function composerConnectionLabel(detached: boolean, lowerSingular: string): string {
-  return detached ? `Draft for another ${lowerSingular}` : `Draft for this ${lowerSingular}`
 }

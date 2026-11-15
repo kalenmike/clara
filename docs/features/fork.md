@@ -4,7 +4,7 @@
 
 Forking branches a session without disturbing the original. Clara supports
 forking the whole conversation, forking from a specific message, and forwarding
-one message into a new draft with the reply window prefilled. A long reply can
+one message into a new draft with the composer tab prefilled. A long reply can
 also be forwarded one section at a time: **Select part** turns the rendered
 markdown into pickable blocks, and **Forward selection** sends only that slice
 into a new draft. The source session keeps running in its current direction in
@@ -20,7 +20,7 @@ every case.
 3. On a phone, open the message's overflow menu to reach the same two actions.
 4. To start a new conversation from one message, choose **Forward to new
    brief**. Clara creates an empty draft in the same project, switches to it,
-   and opens the reply window with the message text and attachments already
+   and selects its composer tab with the message text and attachments already
    filled in.
 5. To carry only part of a long reply, choose **Select part** on that message.
    Hovering a block outlines the paragraph, list, code fence, table, quote, or
@@ -120,9 +120,9 @@ every case.
   title falls back to the first attachment name.
 - **Fork or forward fails** — a toast explains the failure and the source stays
   open and untouched.
-- **Attachments in a forwarded draft** — they live in the reply window until the
-  message is sent; closing the window before sending drops them, as with any
-  composer attachment.
+- **Attachments in a forwarded draft** — they live in the composer tab until the
+  message is sent; clearing or closing the tab before sending drops them, as
+  with any composer attachment.
 
 ## Out of scope
 
@@ -174,7 +174,7 @@ every case.
 - Header action: `src/components/chat/chat-header.tsx`
 - Message actions: `src/components/chat/message-actions.tsx`
 - Composer prefill: `src/components/chat/composer.tsx`,
-  `src/components/chat/reply-dock.tsx`, and `ChatComposeState`
+  `src/components/chat/composer-panel.tsx`, and `ChatComposeState`
 - Related: [chat.md](chat.md), [sessions.md](sessions.md),
   [capabilities.md](capabilities.md)
 

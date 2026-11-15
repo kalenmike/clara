@@ -240,8 +240,8 @@ ConnectionProvider
 | `/settings`                  | Appearance, preferences, notifications, sync, shortcuts    |
 
 The start view is reused inside `/p/:projectId/s/:sessionId` when the session has
-no messages. Its action opens the reply window in the last-used size (expanded by
-default) instead of creating another session.
+no messages. Its action opens the composer pinned below the thread instead of
+creating another session.
 
 ## Project and directory scoping
 

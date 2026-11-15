@@ -104,16 +104,15 @@ export function saveSidebarSections(sections: Record<SidebarSection, boolean>): 
   window.localStorage.setItem(SIDEBAR_SECTIONS_KEY, JSON.stringify(sections))
 }
 
-export type ComposerSize = 'maximized' | 'normal'
+const COMPOSER_TABS_KEY = 'clara.composerTabs'
 
-const COMPOSER_SIZE_KEY = 'clara.composerSize'
-
-export function readComposerSize(): ComposerSize {
-  return window.localStorage.getItem(COMPOSER_SIZE_KEY) === 'normal' ? 'normal' : 'maximized'
+/** Stored as JSON; `composer-tabs` owns the validation. */
+export function readComposerTabsRaw(): string | null {
+  return window.localStorage.getItem(COMPOSER_TABS_KEY)
 }
 
-export function saveComposerSize(size: ComposerSize): void {
-  window.localStorage.setItem(COMPOSER_SIZE_KEY, size)
+export function saveComposerTabsRaw(value: string): void {
+  window.localStorage.setItem(COMPOSER_TABS_KEY, value)
 }
 
 export const COMPOSER_HEIGHT_MIN = 220
@@ -124,7 +123,6 @@ export const COMPOSER_HEIGHT_MAX = 720
 const COMPOSER_HEIGHT_RESERVED = 200
 
 const COMPOSER_HEIGHT_KEY = 'clara.composerHeight'
-const COMPOSER_PINNED_KEY = 'clara.composerPinned'
 
 /** The tallest the dock may grow without covering the whole thread. */
 export function composerHeightMax(viewportHeight: number): number {
@@ -155,14 +153,6 @@ export function saveComposerHeight(height: number): void {
     COMPOSER_HEIGHT_KEY,
     String(clampComposerHeight(height, window.innerHeight))
   )
-}
-
-export function readComposerPinned(): boolean {
-  return window.localStorage.getItem(COMPOSER_PINNED_KEY) === 'on'
-}
-
-export function saveComposerPinned(pinned: boolean): void {
-  window.localStorage.setItem(COMPOSER_PINNED_KEY, pinned ? 'on' : 'off')
 }
 
 export const THEME_KEY = 'clara.theme'

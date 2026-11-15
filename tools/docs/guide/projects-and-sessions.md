@@ -84,7 +84,8 @@ The toggle beside it opens or closes all sections.
    opens the composer.
 2. Type a prompt and send it. The session moves to Outbox while the agent works.
 3. When the reply arrives, the session moves to Inbox if it needs review.
-4. Use **Reply** to continue, or **Done** to archive it.
+4. Continue in the composer, or choose **Done** from its send menu to archive
+   the session.
 
 Clara remembers the workspace you chose for each project, so the next session
 starts in the same place. That remembered workspace wins even when its harness is
@@ -115,8 +116,9 @@ the run.
 ## Snooze, archive, and reopen
 
 - The session header's more menu can **Snooze session**.
-- **Done** archives the session without renaming it.
-- **Reopen** appears on an archived or snoozed session and clears that state.
+- **Done** in the composer's send menu archives the session without renaming it.
+- **Reopen** appears in the send menu on an archived or snoozed session and
+  clears that state.
 - Replying, starting work, saving a draft, or answering a question clears a
   snooze automatically.
 
