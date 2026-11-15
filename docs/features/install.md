@@ -3,9 +3,9 @@
 ## Summary
 
 Clara installs as a PWA on desktop and iPhone and keeps itself current without
-asking anyone to delete and re-add the home-screen icon. The same app can be
-served from the local stack instead of Cloudflare Pages. A native desktop app
-can be built from the same client; see [desktop.md](desktop.md).
+asking anyone to delete and re-add the home-screen icon. The same client can be
+served by the local stack instead of Cloudflare Pages. A native desktop app is
+the other build target; see [desktop.md](desktop.md).
 
 ## User flow
 
@@ -22,66 +22,47 @@ can be built from the same client; see [desktop.md](desktop.md).
    window installs the update for the next launch.
 6. Settings → App shows the surface label, running version, and build, reports
    whether an update is ready, and offers **Clear cached app data**.
-7. Before pairing, and on every boot splash, the bottom of the screen shows the
-   surface label and app version, the wire protocol version, and a reload
-   control. On the web the control unregisters the worker, drops every cache,
-   and reloads, so a stale install recovers without reaching Settings; on
-   desktop it reloads the bundled app.
+7. Before pairing, and on every boot splash, a footer shows the surface label,
+   app version, the wire protocol version, and a reload control. On the web the
+   control unregisters the worker, drops every cache, and reloads; on desktop it
+   reloads the bundled app.
 8. Offline, a navigation falls back to the cached app shell instead of failing.
 
 ### Self-hosted web client
 
-Cloudflare Pages is optional. To serve the SPA from the checkout:
+Cloudflare Pages is optional: `clara start web --build` serves the same built
+bundle on `http://127.0.0.1:8080`. Service lifecycle and ports belong to
+[hub-service.md](hub-service.md); `clara rebuild` restarts the local web client
+with a fresh build.
 
-```bash
-clara start web --build
-```
-
-Open [127.0.0.1:8080](http://127.0.0.1:8080). The local server serves the same
-`apps/web/dist` bundle as `pnpm --filter @clara/web build`. `clara rebuild`
-stops and restarts the local web client with a fresh build.
-
-Local pairing works from `http://127.0.0.1:8080` or an SSH tunnel. The default
-Web URL is `http://127.0.0.1:8080`, so local codes print a link to this server.
-A remote HTTPS page cannot open a `ws://` socket, so remote browsers need a
-relay pairing. Set **Web URL** in the hub panel for a remote deployment
+Local pairing works from that address or an SSH tunnel, and local codes print a
+link to it. A remote HTTPS page cannot open a `ws://` socket, so remote browsers
+need a relay pairing: set **Web URL** in the hub panel for the deployment
 (`CLARA_PAIRING_BASE_URL` overrides it), and set `VITE_CLARA_WS_URL` only when
-the browser must use a different relay endpoint than the hub, then rebuild the
-web package.
-
-Browsers share cookies across every port on the same host, so other local apps
-can make the `127.0.0.1` cookie jar much larger than a default header buffer.
-The hub service raises Node's limit, so the page and the local WebSocket
-handshake tolerate a large jar. If a browser still rejects it, open
-`http://localhost:8080` instead; it uses a separate cookie jar.
+the browser must use a different relay endpoint than the hub. Pairing rules live
+in [connection.md](connection.md).
 
 ## Core business rules
 
 1. App documents come from the network first and fall back to the cached shell
    after three seconds or when the device is offline. The cached shell is never
-   the preferred answer while the network works.
-2. The worker script and the app shell are never HTTP-cached: every launch
-   revalidates them, so a deploy is visible on the next check rather than four
-   hours later.
+   the preferred answer while the network works, and only app documents are
+   cached: API reads, streams, and push payloads never are.
+2. The worker script and app shell are never HTTP-cached, so a deploy is visible
+   on the next check rather than hours later. Every emitted script chunk is
+   precached, so an installed app opens a screen offline even if it was never
+   opened before.
 3. An update is never applied under a running page. The new worker waits until
-   someone taps Update, or until every Clara window has closed.
-4. A first install is not an update. A newly installed worker only prompts when
-   a worker already controls the page.
-5. A waiting worker is offered only when it reports a **different, newer build**
-   than the running page. A rebuild of the same commit, a worker built before
-   the page, and a same-build copy are ignored.
-6. The page never reloads on a timer. It reloads after the waiting worker takes
-   control; if that does not happen, the banner stays for another attempt
-   instead of reloading onto the build that is already running. The explicit
-   reload control on the pairing screen and boot splash is the only unasked
-   reset, and it clears the worker and caches before reloading.
-7. Every window watches the controller. When one window applies the update, the
-   others drop the stale offer instead of showing it again.
-8. API reads, streams, and push payloads never enter a cache. Only app
-   documents are cached.
-9. Every emitted script is precached, not just the entry. Screens load as
-   separate chunks, and an installed app opens a screen offline even if that
-   screen was never opened before.
+   someone taps **Update**, or until every Clara window has closed. A first
+   install is not an update: a new worker prompts only when a worker already
+   controls the page.
+4. A waiting worker is offered only when it reports a different, newer build. A
+   rebuild of the same commit, a worker built before the page, a same-build copy,
+   and a build applied on this page in the last five minutes are ignored.
+5. The page never reloads on a timer. It reloads after the waiting worker takes
+   control; otherwise the banner stays for another attempt. The footer reload
+   control and **Clear cached app data** are the only unasked resets, and only
+   they clear the worker and caches before reloading.
 
 ## Edge cases
 
@@ -89,38 +70,27 @@ handshake tolerate a large jar. If a browser still rejects it, open
   route; a route that was never visited still gets the shell.
 - **Flaky network**: a navigation waits up to three seconds before the cached
   shell is used.
-- **Update ignored**: the banner stays dismissed until the app is relaunched;
-  a newer deploy asks again.
-- **Update offered again after Update**: no. The same build is ignored, a
-  recently applied build is ignored for five minutes, and a worker that never
-  took control leaves the banner up for a retry instead of reloading.
+- **Update ignored**: the banner stays dismissed until the app is relaunched; a
+  newer deploy asks again.
 - **Rebuild of the same commit**: the worker is byte-different but not a new
-  version; it is ignored and installs on the next launch.
+  version, so it is ignored and installs on the next launch.
 - **Older deploy served out of order**: a waiting worker built before the page
   is ignored, so the app never offers a downgrade.
 - **Two Clara windows**: the window that applies the update reloads; the others
   drop the offer and pick up the new build on their next navigation.
-- **App closed mid-install**: the install is discarded and retried on the next
-  launch.
-- **Deploy during install**: a precache entry can 404 on hashed files, the
-  install fails quietly, and the next check retries.
-- **Deploy between page load and navigation**: the page can ask for a chunk the
-  new deploy no longer serves. The controlling worker answers from the precache
-  of the build the page came from, so navigation keeps working until the update
-  is applied; a plain browser tab without worker control recovers with one
-  reload.
-- **Wedged app**: Settings → App clears the worker registration and every cache,
-  then reloads from the network. Pairing, settings, and drafts are untouched. A
-  device that is not paired yet does the same from the reload control beside the
-  version at the bottom of the pairing screen or boot splash.
-- **Notifications after clearing**: the push subscription can be dropped; the
-  notifications card offers to subscribe again.
-- **Browser tab**: everything works except standalone display and Web Push on
-  iOS.
-- **Installed-app top edge**: an installed phone app draws behind the status
-  bar. The app header, drawers, and the expanded composer keep a 44px minimum
-  top inset so their controls stay below the iOS status bar and Control Center;
-  a browser tab and desktop use only the platform inset.
+- **Deploy between page load and navigation**: the controlling worker answers
+  from the precache of the build the page came from, so navigation keeps
+  working; a plain browser tab without worker control recovers with one reload.
+- **Install interrupted**: closing the app mid-install or deploying during it
+  discards the install or fails it quietly, and the next check retries.
+- **Wedged app**: Settings → App or the footer reload control clears the worker
+  and every cache, then reloads from the network; pairing, settings, and drafts
+  are untouched. Push may need subscribing again, and the notifications card
+  offers it.
+- **Large shared cookie jar**: browsers share cookies across every port on the
+  same host, so a `127.0.0.1` jar can grow past the header buffer; open
+  `http://localhost:8080` for a separate jar. A browser tab does everything
+  except standalone display and Web Push on iOS.
 
 ## Out of scope
 
@@ -130,54 +100,41 @@ handshake tolerate a large jar. If a browser still rejects it, open
 
 ## Known gaps
 
-- A client already stuck on a worker cached before the reload control shipped
-  cannot be repaired remotely. It recovers when its cached worker script expires
-  (at most four hours after a deploy) and the next launch installs the new
-  worker.
-- The worker is built as a classic script, so `importScripts` keeps working and
-  iOS does not need module service worker support.
+- A client stuck on a worker cached before the reload control shipped cannot be
+  repaired remotely. It recovers when its worker script expires (at most four
+  hours after a deploy) and the next launch installs the new worker.
+- The worker is a classic script, so `importScripts` keeps working and iOS does
+  not need module service worker support.
 
 ## Technical appendix
 
 <details>
 <summary>Routes, data, and references</summary>
 
-- Worker: `apps/web/src/sw.ts`. Built with `strategies: 'injectManifest'` and
-  `rollupFormat: 'iife'`; navigations match by `request.mode === 'navigate'`,
-  which keeps `/api` out of the cache.
+- Worker: `apps/web/src/sw.ts` (`strategies: 'injectManifest'`,
+  `rollupFormat: 'iife'`). Navigations match `request.mode === 'navigate'`, which
+  keeps `/api` out of the cache.
 - Registration and update state: `apps/web/src/features/pwa/update-store.ts`
-  (`updateViaCache: 'none'`). Checks run on `visibilitychange`, `focus`, and a
+  (`updateViaCache: 'none'`); checks run on `visibilitychange`, `focus`, and a
   restored `pageshow`.
-- Build identity: Vite defines `__CLARA_BUILD_ID__` and `__CLARA_BUILD_AT__` in
+- Build identity: `__CLARA_BUILD_ID__` and `__CLARA_BUILD_AT__` are defined in
   both the app and the worker (`apps/web/vite.config.ts`). A clean checkout uses
   its commit; a dirty tree or a checkout without git uses the build time.
-- Offer rules: `apps/web/src/features/pwa/update-check.ts` compares the waiting
-  build with the running build (`shouldOfferUpdate`) and ignores a build applied
-  on this page for five minutes (`isRecentlyApplied`).
-- Update handover: the page asks the waiting worker for its build over a
-  `MessageChannel`, posts `SKIP_WAITING`, and waits for `registration.active` or
-  `controllerchange` before reloading (`waitForActivation`, ten-second bound).
-- Throttle: `apps/web/src/features/pwa/update-check.ts` (`dueForUpdateCheck`).
-- Banner: `apps/web/src/components/pwa/update-banner.tsx`, rendered under the
-  app header in the app shell.
-- Standalone footer: `apps/web/src/components/pwa/app-footer.tsx` shows the
-  surface label and version, the wire protocol stamp, and the reload control,
-  and is rendered by the connect screen and `connection-splash.tsx`. `reloadApp`
-  in `apps/web/src/features/updates/app-update.ts` picks the reset for the
-  surface.
-- Status bar: `apps/web/src/components/layout/app-status-bar.tsx` sits at the
-  bottom of the app shell and renders `Clara Web`, `Clara PWA`, or
-  `Clara Desktop` with the build version at the far right.
+- Offer rules: `apps/web/src/features/pwa/update-check.ts` (`shouldOfferUpdate`,
+  `isRecentlyApplied`, `dueForUpdateCheck`). Handover posts `SKIP_WAITING` over a
+  `MessageChannel` and waits for `controllerchange` before reloading
+  (`waitForActivation`, ten-second bound).
+- Banner: `apps/web/src/components/pwa/update-banner.tsx`. Footer:
+  `apps/web/src/components/pwa/app-footer.tsx`, with `reloadApp` in
+  `apps/web/src/features/updates/app-update.ts` picking the surface reset.
 - Reset action and build stamp: `apps/web/src/components/settings/app-card.tsx`.
+  Status bar: `apps/web/src/components/layout/app-status-bar.tsx`.
 - Cache headers: `apps/web/public/_headers` revalidates `/sw.js`,
-  `/index.html`, and `/manifest.webmanifest`.
-- Push handlers: `apps/web/public/push-sw.js`, loaded with `importScripts`.
-- Vite: `apps/web/vite.config.ts` (`registerType: 'prompt'`,
-  `injectRegister: false`, `srcDir: 'src'`, `filename: 'sw.ts'`).
-- Route chunks: `apps/web/src/router.tsx` loads every screen except the shell,
-  the landing view, and `/connect` with route-level `lazy`, so a deploy only
-  re-downloads the screens that changed. `apps/web/scripts/check-bundle.mjs`
-  scans each emitted chunk against the harness markers and a 500 kB budget.
-- Related: [capabilities](capabilities.md), [notifications](notifications.md).
+  `/index.html`, and `/manifest.webmanifest`. Push handlers:
+  `apps/web/public/push-sw.js`.
+- Route chunks: `apps/web/src/router.tsx` lazy-loads every screen; the build
+  fails a chunk that carries harness SDK markers or exceeds the size budget.
+- Related: [capabilities](capabilities.md), [desktop](desktop.md),
+  [hub service](hub-service.md), [connection](connection.md).
 
 </details>

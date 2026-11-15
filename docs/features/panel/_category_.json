@@ -1,0 +1,8 @@
+{
+  "label": "Hub panel",
+  "position": 30,
+  "link": {
+    "type": "doc",
+    "id": "features/panel/index"
+  }
+}

@@ -112,8 +112,8 @@ prices, and variants so people can decide what to keep.
   `src/features/sessions/use-forward-message.ts`
 - Sync field: Models in `src/features/sync/fields.ts`
 - Catalog queries: `client.model.list()` and `client.provider.list()`
-- Related: [settings](settings.md), [composer](composer.md),
-  [sessions](sessions.md), [sync](sync.md),
+- Related: [settings](settings.md), [composer](chat/composer.md),
+  [sessions](sessions/index.md), [sync](sync.md),
   [capabilities](capabilities.md)
 
 </details>

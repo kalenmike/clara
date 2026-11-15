@@ -155,7 +155,7 @@ Clara supports two transports, both through the hub:
 The connect screen first proves any pairing link or stored device behind a
 branded splash. If none connects, it shows the pairing form. There is no direct
 HTTP option: every browser connection goes through the hub. Pairing is
-described in [pairing.md](../features/pairing.md).
+described in [connection.md](../features/connection.md).
 
 The harness password never reaches the browser. The adapter adds harness
 authentication and is the only process that talks to the harness. The browser
@@ -205,8 +205,8 @@ ConnectionProvider
   pairing starts until the owner account exists. After that, a dismissible setup
   modal chooses the connection path, pairs a harness and a client, and derives
   its progress from the snapshot; it never auto-opens once complete. See
-  [panel.md](../features/panel.md) and
-  [hub-controls.md](../features/hub-controls.md).
+  [panel/index.md](../features/panel/index.md) and
+  [panel/controls.md](../features/panel/controls.md).
 - Harness adapters live in SQLite. Any number can be paired and online at once;
   one is **active**, the default backend for requests that name neither a
   session nor a workspace. Each adapter connects out to the hub over the same
@@ -298,7 +298,7 @@ Clara runs, and it runs on the workspace's harness rather than on the hub host:
 `/v1/git/log` builds a fixed `git log -n 10` with a machine-readable `--format`
 from validated timestamps and the session directory, resolves the harness that
 owns that directory, and sends it through that adapter's shell capability. The
-hub returns parsed commits. See [git.md](../features/git.md).
+hub returns parsed commits. See [session-panel.md](../features/session-panel.md).
 
 ## Streaming model
 
@@ -365,7 +365,7 @@ guaranteed to be connected, so alerts still reach a closed app.
 
 - [Relay](relay.md)
 - [E2EE](e2ee.md)
-- [Pairing](../features/pairing.md)
+- [Connection](../features/connection.md)
 - [Feature guide](../features/GUIDE.md)
 - [Capabilities](../features/capabilities.md)
 - [Connection](../features/connection.md)

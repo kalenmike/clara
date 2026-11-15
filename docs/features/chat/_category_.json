@@ -1,0 +1,8 @@
+{
+  "label": "Chat",
+  "position": 10,
+  "link": {
+    "type": "doc",
+    "id": "features/chat/index"
+  }
+}

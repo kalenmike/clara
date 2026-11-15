@@ -164,8 +164,8 @@ alive. Settings and harness connections are stored at `CLARA_DB_PATH` or
 with `secrets.key`. The harness password stays in the adapter's own config on the
 adapter host. The panel never returns device keys, adapter credentials, relay
 tokens, push endpoints, sync values, or file contents. See
-[docs/features/panel.md](docs/features/panel.md) and
-[docs/features/hub-controls.md](docs/features/hub-controls.md).
+[docs/features/panel/index.md](docs/features/panel/index.md) and
+[docs/features/panel/controls.md](docs/features/panel/controls.md).
 
 ### Hub API
 
@@ -244,7 +244,7 @@ clara pair
 Its panel and local WebSocket listen on host loopback. Use an SSH tunnel for
 remote panel access; the panel's `Host`/`Origin` guard still expects a loopback
 origin. See [docs/features/connection.md](docs/features/connection.md) and
-[docs/features/panel.md](docs/features/panel.md).
+[docs/features/panel/index.md](docs/features/panel/index.md).
 
 ### Web
 
@@ -295,7 +295,7 @@ only a run workspace plus a harness adapter to execute work orders. The bundled
 default config routes to the standard packages; set `CLARA_ENGINE_CONFIG` to an
 `index.yml` to supply your own routing. The included OpenCode adapter and Clara
 Lab talk to it directly; the web client is not required. See
-[docs/features/orchestration.md](docs/features/orchestration.md).
+[docs/features/orchestration/index.md](docs/features/orchestration/index.md).
 
 ### Local WebSocket mode
 

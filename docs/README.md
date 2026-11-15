@@ -17,9 +17,13 @@ Clara works; the guide describes how to use it.
 ## Rules
 
 1. **One canonical doc per topic.** Extend the existing document; never fork a
-   second version of the same subject.
-2. **Every document is listed here.** A new document is not merged until it has a
-   row in the index below.
+   second version of the same subject. A topic that outgrows one page becomes a
+   folder with an `index.md`, and that index is the canonical entry for the
+   topic.
+2. **Every document is listed in an index.** This root index lists every flat
+   page and every topic folder's `index.md`. A folder index lists its own
+   children; do not repeat those children here. A new document is not merged
+   until it has a row in the right index.
 3. **Write docs only for what code cannot answer.** No meeting notes, no per-task
    plans, no research dumps.
 4. **Delete superseded content.** Git history is the record.
@@ -45,53 +49,40 @@ Clara works; the guide describes how to use it.
 
 ### Architecture
 
-| Document                                | Read when…                                                      |
-| --------------------------------------- | --------------------------------------------------------------- |
-| [overview.md](architecture/overview.md) | You need the workspace, modes, auth model, or event flow        |
-| [api.md](architecture/api.md)           | You are working on the hub API, OpenAPI, or read-only MCP       |
-| [relay.md](architecture/relay.md)       | You are working on the Worker, Durable Object, or remote access |
-| [e2ee.md](architecture/e2ee.md)         | You are working on pairing, key derivation, or encrypted frames |
+| Document                                                | Read when…                                                      |
+| ------------------------------------------------------- | --------------------------------------------------------------- |
+| [overview.md](architecture/overview.md)                 | You need the workspace, modes, auth model, or event flow        |
+| [api.md](architecture/api.md)                           | You are working on the hub API, OpenAPI, or read-only MCP       |
+| [relay.md](architecture/relay.md)                       | You are working on the Worker, Durable Object, or remote access |
+| [e2ee.md](architecture/e2ee.md)                         | You are working on pairing, key derivation, or encrypted frames |
+| [harness-protocol.md](architecture/harness-protocol.md) | You are working on the harness protocol frames or transport     |
 
 ### Standards
 
 | Document                               | Read when…                                        |
 | -------------------------------------- | ------------------------------------------------- |
 | [development.md](development.md)       | You are developing Clara or running its dev tools |
+| [ui.md](ui.md)                         | You are adding or changing a shared component     |
 | [features/GUIDE.md](features/GUIDE.md) | You are writing or updating a feature spec        |
 
 ### Features
 
-| Document                                                                | Read when…                                                               |
-| ----------------------------------------------------------------------- | ------------------------------------------------------------------------ |
-| [capabilities.md](features/capabilities.md)                             | You need to know what ships, what is partial, or what is missing         |
-| [install.md](features/install.md)                                       | You are working on install, updates, caching, or offline behavior        |
-| [desktop.md](features/desktop.md)                                       | You are working on the native desktop shell or its build                 |
-| [hub-cli.md](features/hub-cli.md)                                       | You are working on the hub CLI, Bun executable, or dynamic ports         |
-| [package.md](features/package.md)                                       | You are working on the packaged `clara` command, releases, or autostart  |
-| [connection.md](features/connection.md)                                 | You are working on connecting Clara to a harness                         |
-| [harness-adapters.md](features/harness-adapters.md)                     | You are working on harness adapters, pairing, or protocol transport      |
-| [pairing.md](features/pairing.md)                                       | You are working on QR/code pairing, device storage, or key rotation      |
-| [panel.md](features/panel.md)                                           | You are working on the hub panel                                         |
-| [relay-preview-verification.md](features/relay-preview-verification.md) | You are verifying that a panel deploy disabled Worker preview URLs       |
-| [handshake-v4.md](features/handshake-v4.md)                             | You are working on relay grants, the v4 handshake, or forward secrecy    |
-| [hub-controls.md](features/hub-controls.md)                             | You are working on feature toggles or the Go offline control             |
-| [sync.md](features/sync.md)                                             | You are working on client settings sync, its protocol, or the Sync tab   |
-| [sessions.md](features/sessions.md)                                     | You are working on the project/session browser                           |
-| [activity.md](features/activity.md)                                     | You are working on the project-scoped Inbox and Outbox activity view     |
-| [chat.md](features/chat.md)                                             | You are working on messages, streaming, tools, or permissions            |
-| [fork.md](features/fork.md)                                             | You are working on forking a session or forwarding a message             |
-| [pair-terminal.md](features/pair-terminal.md)                           | You are working on the read-only terminal that follows a running session |
-| [composer.md](features/composer.md)                                     | You are working on the composer, tabs, or attachments                    |
-| [models.md](features/models.md)                                         | You are working on model visibility, the Models tab, or model details    |
-| [session-info.md](features/session-info.md)                             | You are working on cost, tokens, context, or message counts              |
-| [notifications.md](features/notifications.md)                           | You are working on Inbox alerts, desktop notifications, or alert sounds  |
-| [theme.md](features/theme.md)                                           | You are working on appearance, color themes, or light/dark mode          |
-| [ui.md](features/ui.md)                                                 | You are adding or changing a shared component or pattern                 |
-| [settings.md](features/settings.md)                                     | You are working on the Settings page, tabs, or simplified view           |
-| [git.md](features/git.md)                                               | You are working on the branch and change summary in the right panel      |
-| [orchestration.md](features/orchestration.md)                           | You are working on the engine service, packages, or MCP adapter          |
-| [orchestration-dsl.md](features/orchestration-dsl.md)                   | You are writing or changing a package, pipeline, step, or router         |
-| [diagnostics.md](features/diagnostics.md)                               | You are auditing run history, failures, alerts, or pipeline setup        |
-| [maintenance.md](features/maintenance.md)                               | You are rebuilding Clara or restarting its local services                |
-| [lab.md](features/lab.md)                                               | You are writing or debugging a custom orchestration package              |
-| [shortcuts.md](features/shortcuts.md)                                   | You are working on keyboard behavior                                     |
+| Document                                                  | Read when…                                                              |
+| --------------------------------------------------------- | ----------------------------------------------------------------------- |
+| [capabilities.md](features/capabilities.md)               | You need to know what ships, what is partial, or what is missing        |
+| [connection.md](features/connection.md)                   | You are working on pairing a client or the encrypted connection         |
+| [hub-service.md](features/hub-service.md)                 | You are working on the hub executable, ports, or service lifecycle      |
+| [harness-adapters.md](features/harness-adapters.md)       | You are working on harness adapters, install, or adapter transport      |
+| [session-panel.md](features/session-panel.md)             | You are working on the Info, Git, Terminal, or Plan side panel          |
+| [chat/index.md](features/chat/index.md)                   | You are working on chat, approvals, the composer, or fork/forward       |
+| [sessions/index.md](features/sessions/index.md)           | You are working on the project browser or session lifecycle             |
+| [panel/index.md](features/panel/index.md)                 | You are working on the hub panel, its controls, or its network view     |
+| [orchestration/index.md](features/orchestration/index.md) | You are working on the engine, packages, runs, or Clara Lab             |
+| [install.md](features/install.md)                         | You are working on install, updates, caching, or offline behavior       |
+| [desktop.md](features/desktop.md)                         | You are working on the native desktop shell or its build                |
+| [settings.md](features/settings.md)                       | You are working on the Settings page, tabs, or simplified view          |
+| [sync.md](features/sync.md)                               | You are working on client settings sync, its protocol, or the Sync tab  |
+| [theme.md](features/theme.md)                             | You are working on appearance, color themes, or light/dark mode         |
+| [models.md](features/models.md)                           | You are working on model visibility, the Models tab, or model details   |
+| [notifications.md](features/notifications.md)             | You are working on Inbox alerts, desktop notifications, or alert sounds |
+| [shortcuts.md](features/shortcuts.md)                     | You are working on keyboard behavior                                    |

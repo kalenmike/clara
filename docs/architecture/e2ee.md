@@ -43,15 +43,43 @@ client ── sealed ready.ack ──▶ hub
   enrollment session only.
 - Every session generates fresh P-256 ephemeral key pairs. Both sides derive
   the shared secret with ECDH; the static device key (or enrollment token) is
-  the HKDF base, the ECDH secret enters the salt, and the directional info
-  strings are `clara/v4/c2s` and `clara/v4/s2c`. The full transcript, key
-  schedule, and MAC are in [Handshake v4](../features/handshake-v4.md).
+  the HKDF base, and the ECDH secret enters the salt. See
+  [Forward secrecy](#forward-secrecy) for the key schedule and its limits.
 - The hub MACs the transcript with the static key. The client verifies it
   before sending any sealed frame, so a forged hub hello cannot start a session.
 - A fresh nonce and ephemeral key per connection prevent replaying an old
   handshake and keep recorded sessions unreadable after a later static-key leak.
 - A replayed or out-of-order frame is rejected by a strict sequence guard before
   decryption.
+
+### Forward secrecy
+
+```text
+base    = importSessionKey(staticKey)                  // HKDF base, non-extractable
+ecdh    = ECDH(ephPriv, peerEphPub)                    // 32 bytes
+transcript = utf8("clara/v4|" + sid + "|" + nonceC + "|" + nonceS + "|" + ephC + "|" + ephS)
+salt    = SHA-256(transcript || ecdh)
+c2s/s2c = HKDF(base, salt, "clara/v4/c2s" | "clara/v4/s2c") -> AES-GCM-256
+macKey  = HKDF(base, salt, "clara/v4/mac") -> HMAC-SHA-256
+mac     = HMAC(macKey, transcript)
+```
+
+- `ephC` and `ephS` are the exact base64url strings sent on the wire, and the
+  nonces are the exact frame values. `||` is byte concatenation with no
+  separator; the frame guards reject `|` inside `sid` and `nonce`, so every
+  transcript field is unambiguous.
+- The static key stays the HKDF base so a browser can hold it as a
+  non-extractable `CryptoKey`. The ECDH secret goes into the salt because
+  HKDF-Extract keys the PRK with that salt: only the ephemeral private keys can
+  rebuild it. An attacker who records a session and later steals the static key
+  still lacks the discarded ephemeral private key, so the salt and session keys
+  cannot be rebuilt.
+- Both sides derive the same `c2s`, `s2c`, and `mac`. A client with the wrong
+  static key derives a different MAC and aborts; the hub only accepts sealed
+  frames that decrypt. `verifyV4HelloMac` runs before `ready.ack` or any action.
+- The guarantee covers recorded sessions only. A live endpoint or a compromised
+  hub holds the static keys and the current ephemeral private keys, and there is
+  no post-compromise security. See [Limitations](#limitations).
 
 ## Enrollment
 
@@ -174,5 +202,5 @@ service cannot read the payload, but it sees the endpoint and delivery metadata.
 ## Related
 
 - [Relay](relay.md)
-- [Pairing](../features/pairing.md)
+- [Connection](../features/connection.md)
 - [Connection](../features/connection.md)

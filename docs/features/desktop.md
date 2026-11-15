@@ -2,148 +2,100 @@
 
 ## Summary
 
-Clara can run as a native desktop app as well as a web PWA. The desktop app is
-the same web client in a Tauri window, so projects, sessions, chat, approvals,
-and settings behave the same. It is a second build target, not a replacement:
-the web deploy keeps its service worker and continues to ship unchanged. The
-app is built on its host, for Linux in a container that extracts the bundles
-into the checkout, or on every supported platform by the `desktop-releases`
-workflow.
+Clara runs as a native desktop app as well as a web PWA: the same web client in
+a Tauri window, so projects, sessions, chat, approvals, and settings behave the
+same. It is a second build target, not a replacement — the web deploy keeps its
+service worker and ships unchanged. See [install.md](install.md).
 
-The desktop app also bundles the **adapter host**: a loopback sidecar that runs
-adapter installs on this computer, on an SSH host, or in a local Docker
-container. It uses the laptop's SSH agent and Docker socket, so a hosted hub
-never needs either. The browser keeps the copy-command path.
-
-The same window carries the hub panel at `/hub` for the hub it is paired with.
-It is the shared `@clara/panel` UI reached over the existing E2EE session, so
-the operator can administer a remote hub without opening its loopback page. The
-app does not run the hub service, a panel listener, or a second hub process; the
-adapter host remains its only bundled service.
-
-The same window also opens Clara Lab at `/lab` on desktop builds. The lab UI is
-compiled only into the desktop artifact; the deployed web/PWA build contains no
-lab code. The lab service is not bundled: it runs next to the engine, and the
-app reaches it through the hub's `/v1/lab` bridge, so a remote hub and a remote
-engine both work.
+The app also bundles the **adapter host**, a loopback sidecar that runs adapter
+installs on this computer, on an SSH host, or in a local Docker container, using
+the laptop's SSH agent and Docker socket so a hosted hub needs neither. The same
+window carries the hub panel at `/hub` and Clara Lab at `/lab`, both over the
+paired hub's bridge; the app runs neither service.
 
 ## User flow
 
 1. Download an installer from a desktop release, or build the app for the host
    platform from the checkout.
 2. Launch Clara. The window opens on the same connect screen as the web client.
-3. Paste a browser pairing code from the hub panel (or from `clara pair`)
-   and connect.
+3. Paste a browser pairing code from the hub panel (or from `clara pair`) and
+   connect.
 4. Use Clara as usual: browse projects, start and steer sessions, answer
-   approvals, and read usage.
-5. Click a link in a message; it opens in the system browser instead of
-   replacing the app.
-6. Install a newer build to update. There is no in-app updater yet.
-7. Settings → App identifies the desktop app and shows the `Clara Desktop`
-   surface label with the same version and build stamp as the web client.
-8. Open **Hub** and use **Harness → Pair Harness** to install an adapter on
+   approvals, and read usage. A link in a message opens in the system browser
+   instead of replacing the app.
+5. Install a newer build to update; there is no in-app updater yet. Settings →
+   App identifies the desktop app and shows the `Clara Desktop` surface label
+   with the same version and build stamp as the web client.
+6. Open **Hub** and use **Harness → Pair Harness** to install an adapter on
    **This computer**, an **SSH host** from `~/.ssh/config`, or a local **Docker
-   container**. A `clara://adapter?code=…` link opens the same panel flow with
-   the code filled in.
-9. Open **Hub** from the connected app to use the hub panel in the same window.
-   Sign in with the hub owner account. The overview, harness, sessions,
-   connections, clients, traffic, activity, and settings views use the paired
-   hub's live state over the encrypted connection; no loopback page is opened.
-10. Open **Clara Lab** from the sidebar to preview packages and drive a run by
-    hand. It needs a lab service on the engine host; the app reaches it through
-    the hub bridge, so the hub and engine can be remote.
+   container**. A `clara://adapter?code=…` link opens the same flow; see
+   [harness-adapters.md](harness-adapters.md).
+7. Open **Hub** from the connected app to use the hub panel in this window.
+   Sign in with the hub owner account and work from the paired hub's live state
+   over the encrypted connection, without opening its loopback page.
+8. Open **Clara Lab** from the sidebar to preview packages and drive a run by
+   hand. It needs a lab service on the engine host and reaches it through the
+   hub bridge, so hub and engine can both be remote.
 
 ## Core business rules
 
 1. One codebase, two artifacts. The web build writes `dist` with the service
-   worker and manifest; the desktop build writes `dist-desktop` without them,
-   so a native build can never leak into a web deploy. The lab route is
-   desktop-only: the web build omits it and Vite stubs the lab modules, so no
-   lab code reaches the deployed artifact.
-2. The desktop app connects through the same hub and the same E2EE WebSocket as
-   a browser. Its endpoint comes from the pairing payload, so remote relay and
-   local-only codes both work without a desktop-specific URL.
-3. Pairing, drafts, layout, theme, and settings live in the webview's
-   IndexedDB/localStorage. They belong to the app installation; removing the
-   app removes them.
-4. Links are contained. Only `http`, `https`, and `mailto` leave the app, and
-   new windows are denied. Other schemes never reach the system.
-5. The window is served with the same CSP as the deployed web headers. No
-   remote page is trusted inside the app.
-6. A local hub can return on a different port after a conflict. The shell reads
-   the shared runtime file and exposes it to the webview through Tauri IPC; the
-   client refreshes its stored local URL on boot and reconnect. Relay pairings
-   keep their stored relay URL.
-7. The adapter host is a second sidecar. The shell spawns it with a per-launch
-   bearer token, prints only the bound loopback port to the webview, and kills
-   it on exit. The host accepts local, SSH, and Docker installs; it validates
-   the harness kind, pairing code, target, and manifest, verifies the installer
-   hash on the target, and never runs arbitrary commands. There is no password
-   prompt: the user's SSH key must be in the agent/keychain.
-8. `clara://` is registered only for adapter links. The window is
-   focused when one arrives; a link received before the webview is ready is
-   stored and read on demand. Other schemes never reach the system.
-9. The app is a client, not a hub host. It never starts the hub service, a
-   panel listener, or a relay. `/hub` uses the same E2EE session as chat and
-   reaches the hub's loopback panel through the typed `/v1/hub-panel` bridge.
-   The app holds a panel session bearer token for that connection; it does not
-   receive the served panel's HttpOnly cookie or the hub's harness credentials.
-10. The bundled panel disables controls that would cut its own connection:
-    **Go offline**, the transport switch carrying the session (local or relay),
-    and relay target or room edits. Harness setup, device management, monitoring, sync,
-    orchestration, and configuration stay available. Adapter setup offers are
-    carried out by the app's adapter host, not by the hub service.
-11. The lab is a route, not a sidecar. `/lab` renders `@clara/lab` and calls the
-    hub bridge under `/v1/lab` through the paired session. The app runs no lab
-    process; the lab service lives next to the engine and keeps the engine
-    token. A remote hub and a remote engine work because the bridge is the only
-    path.
+   worker and manifest; the desktop build writes `dist-desktop` without them, so
+   a native build cannot leak into a web deploy. The lab route is desktop-only:
+   the web build omits it and Vite stubs the lab modules.
+2. The app connects through the same hub and the same E2EE WebSocket as a
+   browser. Its endpoint comes from the pairing payload, so relay and local-only
+   codes both work without a desktop-specific URL.
+3. Pairing, drafts, layout, theme, and settings live in the webview's storage and
+   belong to the installation; removing the app removes them.
+4. Links are contained. Only `http`, `https`, and `mailto` leave the app, new
+   windows are denied, and the window is served with the same CSP as the
+   deployed web headers, so no remote page is trusted inside the app.
+5. A local hub can return on a different port after a conflict. The shell reads
+   the shared runtime file and exposes it over Tauri IPC, and the client
+   refreshes its stored local URL on boot and reconnect. Relay pairings keep
+   their stored relay URL.
+6. The adapter host is a second sidecar. The shell spawns it with a per-launch
+   bearer token, gives the webview only the bound loopback port, and kills it on
+   exit. It validates harness kind, pairing code, target, and manifest, verifies
+   the installer hash on the target, and never runs arbitrary commands; there is
+   no password prompt, so the SSH key must be in the agent or keychain.
+7. `clara://` is registered only for adapter links; the window is focused when
+   one arrives, and a link received before the webview is ready is stored.
+8. The app is a client, not a hub host. It never starts the hub service, a panel
+   listener, or a relay. `/hub` uses the same E2EE session as chat and the typed
+   `/v1/hub-panel` bridge, holding a panel session token but neither the served
+   panel's HttpOnly cookie nor harness credentials. The bundled panel disables
+   the controls that would cut its own connection and keeps the rest; see
+   [panel/index.md](panel/index.md).
+9. The lab is a route, not a sidecar. `/lab` renders `@clara/lab` and calls the
+   hub bridge under `/v1/lab`. The app runs no lab process and holds no engine
+   token; the lab service lives next to the engine. See
+   [orchestration/lab.md](orchestration/lab.md).
 
 ## Edge cases
 
 - A build host without Rust or the platform WebView development packages cannot
-  produce an installer on the host. The web build and deploy are unaffected.
-- The Docker builder targets Debian 12 and produces Linux bundles only. macOS
-  and Windows installers need their own hosts. AppImage bundling can still fail
-  inside linuxdeploy; narrowing to `--bundles deb,rpm` avoids it.
-- The per-user install script is Linux-only. It refuses a build without the
-  `clara-adapter-host` sidecar and names the rebuild command instead of
-  installing a half-working app.
+  produce an installer. The web build and deploy are unaffected.
+- The Docker builder targets Debian 12 and produces Linux bundles only; macOS
+  and Windows installers need their own hosts. If AppImage bundling fails,
+  `--bundles deb,rpm` avoids it. The Linux install script refuses a build
+  without the adapter-host sidecar.
 - Installers are unsigned, so the operating system may warn on first launch.
-- The desktop app has no service worker, so the PWA install prompt, update
-  banner, and cache-recovery action do not appear. Settings reports updates as
-  installed with the app.
-- Web Push needs a service worker, so the push switch stays hidden. Inbox
-  attention is limited to the running window until native notifications land.
-- Pairing links for a browser are ordinary web URLs. Adapter links use
-  `clara://adapter?code=…`; the browser pairing flow still uses a pasted code.
-- The QR camera path depends on the platform webview exposing a camera.
-  Pasting the code always works.
-- WebCrypto must be available for device-key pairing. If a platform webview
-  ever loads the app outside a secure context, pairing fails instead of
-  silently degrading.
-- A local port change is repaired from the runtime file without a new pairing.
-  A remote client that cannot read the file keeps its relay URL.
-- Several app windows can run at once. Each opens its own hub connection from
-  the same paired device.
-- A remote hub with no owner account cannot be set up from `/hub`. The hub
-  starts no transport until the owner exists, so the app cannot connect. Create
-  the owner with `CLARA_ADMIN_*` or the headless setup command, then pair the
-  app. The bundled panel never renders the local setup form.
-- The panel session expires while the app stays connected to chat. The panel
-  asks for the owner credentials again; the chat connection is unaffected.
-- The hub has no panel because it was built or started with the panel disabled.
-  `/hub` reports that the panel is unavailable.
-- A control that is disabled in the bundled panel explains why and points at the
-  server-served panel on the hub. The app does not silently hide the control.
-- The app is offline from the hub. The panel shows the connection failure and
-  the last snapshot is not presented as live.
-- Clara Lab reports that the lab service is unavailable. The hub could not reach
-  it at `CLARA_LAB_URL`; on the engine host run `clara start` (the packaged
-  command supervises the Lab as `lab`) or `clara start lab`, and check the
-  shared `CLARA_LAB_TOKEN`.
-- A bookmarked `/lab` is opened in the browser or PWA. The route is not
-  registered there, so the app does not show Clara Lab.
+- There is no service worker, so the PWA install prompt, update banner, and
+  cache-recovery action do not appear; Settings reports updates as installed
+  with the app. Web Push needs a worker, so the switch stays hidden and inbox
+  attention is limited to the running window.
+- The QR camera path depends on the webview exposing a camera; pasting the code
+  always works. WebCrypto must be available, and pairing fails rather than
+  silently degrading outside a secure context.
+- A remote hub with no owner cannot be set up from `/hub`, because it starts no
+  transport until the owner exists; create the owner on the hub first.
+- A panel session can expire while chat stays connected; the panel asks for
+  owner credentials again, and a hub without a panel reports `/hub` unavailable.
+- Clara Lab reports the lab service unavailable when the hub cannot reach
+  `CLARA_LAB_URL` or the shared token differs. A bookmarked `/lab` opened in a
+  browser or PWA shows nothing, because the route is not registered there.
 
 ## Out of scope
 
@@ -151,8 +103,7 @@ engine both work.
 - Native notifications and notification-click routing.
 - `clara://` browser-pairing deep links and single-instance forwarding.
 - Running the hub service, a panel listener, or a relay inside the app.
-- Running the lab service inside the app or as a bundled sidecar. The lab service
-  runs next to the engine and is reached through the hub bridge.
+- Running the lab service in the app or as a bundled sidecar.
 - Window-state persistence, tray behavior, and mobile targets.
 
 ## Known gaps
@@ -166,88 +117,33 @@ engine both work.
 <details>
 <summary>Build wiring and code locations</summary>
 
-- `apps/desktop` owns the shell, the Tauri configuration, and the committed
-  icons. It has no `build` script, so `pnpm build` stays a web/Node build.
-- `pnpm desktop:dev` runs the Vite dev server in desktop mode and the Tauri
-  window; `pnpm desktop:build` bundles installers for the host platform;
-  `pnpm desktop:build:app` produces the binary without installers.
-- `pnpm desktop:build:docker` builds Linux bundles in Debian 12 with Rust, Node,
-  and the WebKitGTK prerequisites, then extracts them to `dist/desktop` with the
-  BuildKit local exporter. Cargo, Tauri tool, and target directories live in
-  cache mounts. The script passes the version stamp because `.git` is outside
-  the context, and sets `NO_STRIP`/`APPIMAGE_EXTRACT_AND_RUN` for linuxdeploy.
-  `--bundles`, `--platform`, `--output`, `--base`, and `--no-cache` are
-  available; the container cannot produce macOS or Windows installers. The
-  artifacts include both `clara-desktop` and the `clara-adapter-host` sidecar, so
-  an extracted build is self-contained.
-- `pnpm desktop:build:release` (`apps/desktop/scripts/build-release.mjs`) builds
-  one platform's installers into `dist/desktop-release`, the way the release
-  workflow does. It stamps `--version` through a temporary Tauri config
-  override and `CLARA_VERSION`/`CLARA_COMMIT` in the web bundle, verifies the
-  adapter host in the `.app` or `.deb`, and writes `SHA256SUMS`. It builds only
-  on the host. `.github/workflows/desktop-releases.yml` runs it on `macos-15`,
-  `macos-15-intel`, `ubuntu-22.04`, and `windows-latest`; a `desktop-v*` tag
-  publishes macOS arm64 and x64 DMGs, Linux deb/rpm/AppImage, and Windows
-  MSI/NSIS installers to that release, while the `dry_run` dispatch input
-  builds without publishing. Installers are unsigned.
-- `pnpm desktop:install` (`apps/desktop/scripts/install.mjs`) installs an
-  existing Linux build into the current user's XDG directories: both binaries in
-  `~/.local/bin`, a generated `clara.desktop` menu entry, and the 32, 128, and
-  256 px hicolor icons, then refreshes the desktop database, the icon cache, and
-  the `clara://` scheme default. It prefers `dist/desktop`, falls back to
-  `src-tauri/target/release`, verifies `SHA256SUMS`, and replaces files by rename
-  so it works while the app is running. `--from`, `--prefix`, `--dry-run`,
-  `--no-verify`, `--uninstall`, and `--purge` are available. It is Linux-only;
-  the macOS and Windows installers already install for the current user.
-  `pnpm desktop:uninstall` removes the binaries, entry, and icons, and
-  `--purge` also removes the webview's `com.kalenmichael.clara` data and cache.
+- `apps/desktop` owns the shell, Tauri configuration, and committed icons. It
+  has no `build` script, so `pnpm build` stays a web/Node build. Build, Docker,
+  release, and install commands are in [../development.md](../development.md).
+  The release workflow runs one platform per host; artifacts include
+  `clara-desktop` and the `clara-adapter-host` sidecar.
 - Vite's `desktop` mode disables `vite-plugin-pwa`, sets
-  `build.outDir = dist-desktop`, and defines `CLARA_DESKTOP`. The web build is
-  the default and keeps the PWA worker and manifest.
-- `apps/web/scripts/check-bundle.mjs` asserts the split on every build: the web
-  artifact must contain `sw.js` and the manifest, the desktop artifact must not,
-  every emitted chunk is scanned for harness SDK symbols, and no chunk may
-  exceed the size budget.
-- The window is created in Rust so navigation can be intercepted. The CSP,
-  window size, frontend path, and bundle identifier live in `tauri.conf.json`.
-  The bundle identifier is `com.kalenmichael.clara`; changing it resets the
-  webview's stored pairing.
-- Update UI is read through `apps/web/src/features/updates`; the web branch
-  keeps using the service worker. Notifications stay behind
-  `features/notifications/notifier.ts`, and pairing capture accepts an explicit
-  URL, so both can gain desktop branches without touching their callers.
-- The shell exposes `hub_runtime` through `withGlobalTauri`. On boot and
-  reconnect, `apps/web/src/lib/desktop-runtime.ts` asks for the live local
-  `wsUrl` and `connection-provider.tsx` persists it when it changed.
-- The bundled panel route is `/hub`. It renders `@clara/panel` from
-  `packages/panel` and calls the hub bridge under `/v1/hub-panel` through the
-  paired E2EE session. It passes the house capability set that disables **Go
-  offline**, the active transport switch (local or relay), and relay target/room
-  edits.
-  The bridge adds no listener; the app still has no hub-service process.
-- The bundled lab route is `/lab`. It renders `@clara/lab` from `packages/lab` and
-  calls the hub bridge under `/v1/lab`, which forwards to the lab service's
-  `/api/*` next to the engine. The app runs no lab process and holds no engine
-  token. The route is registered only when `CLARA_DESKTOP` is set; the web build
-  omits it and Vite aliases `@clara/lab`, its stylesheet, and the lab page to
-  stubs, so no lab code can reach `dist`. `apps/web/scripts/check-bundle.mjs`
-  fails a web bundle that contains a lab marker and a desktop bundle that lacks
-  one.
-- The adapter host lives in `apps/desktop/host` (`@clara/desktop-host`). It
-  reuses `@clara/adapter-install` from `packages/adapters/install` for planning,
-  target discovery, and jobs. The bundled panel supplies it through
-  `PanelRuntimeProvider`, so the same Harness view issues the pairing and runs
-  the install; the hub never runs an install. A `clara://adapter` link opens
-  `/hub#harness` with the one-time code instead of a separate Settings dialog.
-  `pnpm --filter @clara/desktop-host run bundle` compiles the Bun sidecar into
-  `apps/desktop/src-tauri/binaries/clara-adapter-host-<triple>`; the Tauri
-  `externalBin` entry packages it. The shell's `adapter_host_runtime` and
-  `adapter_take_link` commands are the only bridge, and
-  `apps/web/src/lib/desktop-adapter-host.ts` calls the loopback service with the
-  per-launch token. The deep-link plugin registers the `clara` scheme.
-- See [install.md](install.md) for the web/PWA lifecycle, [lab.md](lab.md) for
-  the lab service and bridge, and
-  [../architecture/overview.md](../architecture/overview.md) for the connection
-  model.
+  `build.outDir = dist-desktop`, and defines `CLARA_DESKTOP`; the web build is
+  the default. `apps/web/scripts/check-bundle.mjs` asserts the split: `sw.js`
+  and the manifest only in the web artifact, no harness SDK symbols, no chunk
+  over budget, lab markers only in the desktop artifact.
+- The window is created in Rust so navigation can be intercepted; CSP, window
+  size, frontend path, and bundle identifier live in `tauri.conf.json`. The
+  identifier is `com.kalenmichael.clara`, and changing it resets the webview's
+  stored pairing.
+- The shell exposes `hub_runtime` through `withGlobalTauri`;
+  `apps/web/src/lib/desktop-runtime.ts` asks for the live local `wsUrl` on boot
+  and reconnect.
+- `/hub` renders `@clara/panel` and calls `/v1/hub-panel`; the bridge adds no
+  listener. `/lab` renders `@clara/lab` and calls `/v1/lab`, which forwards to
+  the lab service's `/api/*`. Both routes are registered only when
+  `CLARA_DESKTOP` is set.
+- The adapter host lives in `apps/desktop/host` (`@clara/desktop-host`) and
+  reuses `@clara/adapter-install`. The bundled panel supplies it through
+  `PanelRuntimeProvider`, so the Harness view issues the pairing and runs the
+  install; the hub never runs an install. The shell's `adapter_host_runtime` and
+  `adapter_take_link` commands are the only bridge.
+- Related: [hub service](hub-service.md), [harness adapters](harness-adapters.md),
+  [panel](panel/index.md), [lab](orchestration/lab.md), [install](install.md).
 
 </details>

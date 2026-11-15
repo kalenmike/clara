@@ -110,8 +110,8 @@ client frame arrives wrapped in a route envelope that names the sender's peer
 and grant id, so the hub never treats the payload's `sid` as proof of ownership.
 A leaked grant can open a socket and add noise, but cannot read or act without
 the matching device or adapter key; revocation stops refreshes and the grant
-expires on its own. The grant format, TTLs, and verification rules live in
-[Handshake v4](../features/handshake-v4.md#relay-grant-encoding-and-verification).
+expires on its own. The grant format, lifetimes, and verification rules are
+covered under [Relay grants and the v4 handshake](#relay-grants-and-the-v4-handshake).
 The adapter adds its own long-lived credential after enrollment.
 
 The hub token must be 32–512 characters with no whitespace and no comma. The
@@ -124,6 +124,87 @@ refused with `400` instead of reaching the DO, and the Worker strips the
 
 The hub's relay role and secret keep the historical `agent` name
 (`clara.role.agent`, `CLARA_AGENT_TOKEN`), while prose calls that side the hub.
+
+## Relay grants and the v4 handshake
+
+The hub signs a grant with its token and a browser or adapter presents it in
+`clara.auth.<grant>`. The Worker verifies it before the WebSocket upgrade and
+attaches its id to every forwarded frame.
+
+### Grant format and lifetime
+
+```text
+payload = {"v":1,"room":"<room>","role":"client","id":"<id>","exp":<unix-seconds>}
+```
+
+The encoder writes those fields in that order, serializes UTF-8 JSON, and
+base64url-encodes without padding; the signing input is that encoded string as
+sent, not a re-serialized object. The signature is
+`base64url(HMAC-SHA-256(utf8(agentToken), utf8(encodedPayload)))` and the grant
+is `<encodedPayload>.<signature>`. The Worker splits on the single dot, validates
+the payload, compares the HMAC in constant time, and checks `room`, `role`, and
+`exp + 60 seconds`; a structurally invalid payload fails before the HMAC. Failure
+reasons are `malformed`, `invalid_payload`, `bad_signature`, `wrong_room`,
+`wrong_role`, and `expired`. An empty grant id, or one over 128 characters, is
+invalid.
+
+| Grant      | `id`        | Lifetime | Issued                                      | Refreshed              |
+| ---------- | ----------- | -------- | ------------------------------------------- | ---------------------- |
+| Enrollment | `enrollId`  | 10 min   | When the pairing code is created            | Never; one connect     |
+| Device     | `deviceId`  | 30 days  | Enrollment `ready`, then every accepted one | Every accepted connect |
+| Adapter    | `adapterId` | 30 days  | Enrollment `ready`, then every accepted one | Every accepted connect |
+
+Grants are not stored at the relay. A revoked id stops receiving refreshes and
+its live session ends; the relay still accepts the old grant until `exp`, which
+is why revocation also has to hold at the hub.
+
+### Connect sequence
+
+1. The browser or adapter opens a WSS upgrade with `clara.auth.<grant>`. The
+   Worker verifies HMAC, room, role, expiry, and id, then forwards
+   `route v3 { p, i: <grant id>, m }` to the hub.
+2. The client sends `hello v4 { sid, nonce, eph, deviceId | enrollId }`. The hub
+   requires the hello identity to equal `route.i`, the id the relay verified.
+3. The hub answers `hello v4 { nonce, eph, mac }`. The client verifies the MAC
+   and derives the session keys.
+4. The client sends sealed frames. The hub sends sealed `ready { relayGrant }`
+   and refreshes the grant on every accepted connect.
+
+A browser hello carries `deviceId` or `enrollId`, never both. An adapter hello
+carries `adapter: true` with `adapterId`, and may also carry `enrollId` while it
+is enrolling; `adapterId` is only valid with the adapter flag. An enrollment
+socket is scoped to `enrollId`, is used once, and never refreshes its grant. The
+relay wraps each client frame as
+`{ "t": "route", "v": 4, "p": "<peer>", "i": "<grant id>", "b": true, "m": "…" }`.
+`p` stays relay-assigned, `b` marks base64url bytes, and the E2EE version inside
+the frame is independent of the route envelope version.
+
+The route envelope and the handshake version move independently:
+`x-clara-relay-version: 3` selects envelope v3, while the frames inside carry
+`v: 4`; the compatibility rule and health check are in
+[Relay version](#relay-version). v4 has no compatibility mode: a v3 client or hub
+is rejected with a protocol error, the old shared client token is gone from the
+wire and from hub configuration, and local mode keeps bare frames but uses the
+same v4 session crypto.
+
+### Threat model delta
+
+| Threat                             | v4 outcome                                                                                                              |
+| ---------------------------------- | ----------------------------------------------------------------------------------------------------------------------- |
+| Shared relay token leak            | Fixed. Grants are per-id and expire; the shared credential no longer exists.                                            |
+| Plaintext hello injection          | Fixed for clients. A forged hub hello cannot produce a valid MAC without the session's static key.                      |
+| Harvest now, decrypt later         | Fixed. The static key alone cannot rebuild the ECDH secret or the session keys for a recorded session.                  |
+| Cross-peer session poisoning       | Already fixed by the route envelope; v3 adds the verified grant id for identity binding.                                |
+| Agent token leak                   | Not fixed. The holder can replace the hub socket, mint grants, and inject hub frames, though sealed frames stay opaque. |
+| Hub compromise                     | Not fixed. Static keys and live ephemeral private keys are both available to the compromised process.                   |
+| Revoked device keeps a relay grant | Partly fixed. It can open a socket until `exp`, but the hub rejects the handshake and stops refreshing.                 |
+| Stolen browser storage             | Unchanged. The static key is non-extractable while stored, and one device can be revoked without touching the others.   |
+| Metadata exposure                  | Unchanged. The relay still sees the grant id, `sid`, frame sizes, and timing, even though payloads stay sealed.         |
+
+Rollout order is relay, hub, web client, then adapters. The Worker needs only
+`CLARA_AGENT_TOKEN`; the hub issues grants; the web client presents them and
+verifies the hub MAC. The key schedule and forward-secrecy property are in
+[E2EE](e2ee.md#forward-secrecy).
 
 ## Hub token compromise
 
@@ -238,9 +319,7 @@ Preview and version URLs are off by default. `infra/relay/wrangler.jsonc` sets
 `preview_urls: false`, and the panel deploy sends `previews_enabled: false` on the
 Worker subdomain settings on every deploy, so redeploying clears URLs an earlier
 deploy enabled. Turning them on is an explicit opt-in because each version gets
-an extra `workers.dev` hostname outside host-scoped WAF and rate-limit rules. To
-confirm the setting against a real Cloudflare account, follow
-[relay preview URL verification](../features/relay-preview-verification.md).
+an extra `workers.dev` hostname outside host-scoped WAF and rate-limit rules.
 
 Every existing device and adapter must pair again to receive an enrollment grant
 under v4. The deployment is blocked while any relay environment variable is set,
@@ -296,4 +375,4 @@ without the flag. The manual Wrangler path below remains the supported fallback.
 
 - [E2EE](e2ee.md)
 - [Overview](overview.md)
-- [Pairing](../features/pairing.md)
+- [Connection](../features/connection.md)
