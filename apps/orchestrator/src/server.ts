@@ -1,8 +1,11 @@
-import { randomUUID } from 'node:crypto'
+import { createHash, randomUUID } from 'node:crypto'
+import { readdirSync, readFileSync, statSync, type Dirent } from 'node:fs'
 import { createServer, type IncomingMessage, type Server, type ServerResponse } from 'node:http'
+import { dirname, extname, join } from 'node:path'
 import { StreamableHTTPServerTransport } from '@modelcontextprotocol/sdk/server/streamableHttp.js'
 import { createClaraServer } from '@clara/mcp'
 import type { Runtime } from '@clara/orchestration'
+import { bundledStdDir, defaultConfigPath } from '@clara/orchestration/loader'
 import { instanceMode } from '@clara/service-control'
 import { RuntimeBackend } from './backend.ts'
 
@@ -21,6 +24,38 @@ export interface EngineServer {
   close(): Promise<void>
 }
 
+/**
+ * The engine ships its standard packages and default routing config beside the
+ * module. These are the only two roots the assets endpoint may read.
+ */
+export interface EngineAssetRoots {
+  stdDir?: string
+  defaultDir?: string
+}
+
+export interface EngineAssetBundle {
+  version: string
+  hash: string
+  files: Record<string, string>
+}
+
+const ENGINE_VERSION = '0.1.0'
+const MAX_ASSET_FILE_BYTES = 512 * 1024
+const MAX_ASSET_BUNDLE_BYTES = 4_000_000
+const TEXT_ASSET_EXTENSIONS = new Set([
+  '.md',
+  '.markdown',
+  '.yml',
+  '.yaml',
+  '.json',
+  '.txt',
+  '.toml',
+  '.sh',
+  '.py',
+  '.ts',
+  '.js',
+])
+
 class HttpError extends Error {
   readonly status: number
   readonly code: string
@@ -33,12 +68,18 @@ class HttpError extends Error {
   }
 }
 
-function json(res: ServerResponse, status: number, value: unknown): void {
+function json(
+  res: ServerResponse,
+  status: number,
+  value: unknown,
+  headers: Record<string, string> = {}
+): void {
   const body = JSON.stringify(value, null, 2)
   res.writeHead(status, {
     'content-type': 'application/json; charset=utf-8',
     'content-length': Buffer.byteLength(body),
     'cache-control': 'no-store',
+    ...headers,
   })
   res.end(body)
 }
@@ -88,6 +129,111 @@ function decode(value: string): string {
   }
 }
 
+/** Resolve the two roots the loader exposes for the engine's bundled assets. */
+function engineAssetRoots(): EngineAssetRoots {
+  const stdDir = bundledStdDir()
+  const config = defaultConfigPath()
+  const roots: EngineAssetRoots = {}
+  if (stdDir) roots.stdDir = stdDir
+  if (config) roots.defaultDir = dirname(config)
+  return roots
+}
+
+function isDirectory(path: string): boolean {
+  try {
+    return statSync(path).isDirectory()
+  } catch {
+    return false
+  }
+}
+
+function textAsset(path: string): string | undefined {
+  try {
+    const info = statSync(path)
+    if (!info.isFile() || info.size > MAX_ASSET_FILE_BYTES) return undefined
+    const buffer = readFileSync(path)
+    if (buffer.includes(0)) return undefined
+    return buffer.toString('utf8')
+  } catch {
+    return undefined
+  }
+}
+
+/** Walk one root without following symlinks, so nothing outside it is read. */
+function assetFiles(root: string, prefix: string): Array<{ name: string; path: string }> {
+  const found: Array<{ name: string; path: string }> = []
+  const visit = (dir: string, relative: string): void => {
+    let entries: Dirent[]
+    try {
+      entries = readdirSync(dir, { withFileTypes: true })
+    } catch {
+      return
+    }
+    for (const entry of [...entries].sort((left, right) => left.name.localeCompare(right.name))) {
+      if (entry.name.startsWith('.')) continue
+      const name = relative ? `${relative}/${entry.name}` : entry.name
+      const path = join(dir, entry.name)
+      if (entry.isDirectory()) {
+        visit(path, name)
+        continue
+      }
+      if (!entry.isFile()) continue
+      if (!TEXT_ASSET_EXTENSIONS.has(extname(entry.name).toLowerCase())) continue
+      found.push({ name: `${prefix}/${name}`, path })
+    }
+  }
+  visit(root, '')
+  return found
+}
+
+/**
+ * Read the bundled standard packages and default config into a text bundle.
+ * Returns undefined when either root is missing or nothing usable is found, so
+ * callers fail closed instead of serving a partial bundle.
+ */
+export function readEngineAssetBundle(
+  roots: EngineAssetRoots = engineAssetRoots()
+): EngineAssetBundle | undefined {
+  const { stdDir, defaultDir } = roots
+  if (!stdDir || !defaultDir) return undefined
+  if (!isDirectory(stdDir) || !isDirectory(defaultDir)) return undefined
+  const sources = [
+    { dir: stdDir, prefix: 'std' },
+    { dir: defaultDir, prefix: 'default' },
+  ]
+  const files: Record<string, string> = {}
+  let total = 0
+  for (const source of sources) {
+    for (const file of assetFiles(source.dir, source.prefix)) {
+      const text = textAsset(file.path)
+      if (text === undefined) continue
+      total += Buffer.byteLength(text)
+      if (total > MAX_ASSET_BUNDLE_BYTES) return undefined
+      files[file.name] = text
+    }
+  }
+  const names = Object.keys(files).sort()
+  if (!names.length) return undefined
+  const digest = createHash('sha256')
+  const sorted: Record<string, string> = {}
+  for (const name of names) {
+    sorted[name] = files[name]
+    digest.update(name)
+    digest.update('\0')
+    digest.update(files[name])
+    digest.update('\0')
+  }
+  return { version: ENGINE_VERSION, hash: digest.digest('hex'), files: sorted }
+}
+
+function etagMatches(header: string | undefined, etag: string): boolean {
+  if (!header) return false
+  return header
+    .split(',')
+    .map((value) => value.trim().replace(/^W\//, ''))
+    .some((value) => value === '*' || value === etag)
+}
+
 export function createEngineServer(options: EngineServerOptions): EngineServer {
   const { runtime, token } = options
   const backend = new RuntimeBackend(runtime, options.workspace)
@@ -95,6 +241,11 @@ export function createEngineServer(options: EngineServerOptions): EngineServer {
     string,
     { transport: StreamableHTTPServerTransport; close: () => void }
   >()
+  let assetBundleCache: EngineAssetBundle | undefined
+  const assetBundle = (): EngineAssetBundle | undefined => {
+    assetBundleCache ??= readEngineAssetBundle()
+    return assetBundleCache
+  }
 
   const server = createServer(async (req, res) => {
     try {
@@ -118,6 +269,29 @@ export function createEngineServer(options: EngineServerOptions): EngineServer {
           workspace: options.workspace ?? null,
           configSource: options.configPath ? 'file' : 'bundled',
           ...(options.configPath ? { configPath: options.configPath } : {}),
+        })
+        return
+      }
+      if (req.method === 'GET' && url.pathname === '/v1/packages/assets') {
+        const bundle = assetBundle()
+        if (!bundle) {
+          json(res, 503, {
+            error: {
+              code: 'assets_missing',
+              message: 'bundled engine assets are unavailable',
+            },
+          })
+          return
+        }
+        const etag = `"${bundle.hash}"`
+        if (etagMatches(req.headers['if-none-match'], etag)) {
+          res.writeHead(304, { etag, 'cache-control': 'private, max-age=0, must-revalidate' })
+          res.end()
+          return
+        }
+        json(res, 200, bundle, {
+          etag,
+          'cache-control': 'private, max-age=0, must-revalidate',
         })
         return
       }

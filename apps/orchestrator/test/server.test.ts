@@ -1,11 +1,12 @@
 import { fileURLToPath } from 'node:url'
 import type { AddressInfo } from 'node:net'
-import { resolve } from 'node:path'
+import { tmpdir } from 'node:os'
+import { join, resolve } from 'node:path'
 import { Client } from '@modelcontextprotocol/sdk/client/index.js'
 import { StreamableHTTPClientTransport } from '@modelcontextprotocol/sdk/client/streamableHttp.js'
 import { afterAll, beforeAll, describe, expect, it } from 'vitest'
 import { Runtime, Store, defaultConfigPath } from '@clara/orchestration'
-import { createEngineServer, type EngineServer } from '../src/server.ts'
+import { createEngineServer, readEngineAssetBundle, type EngineServer } from '../src/server.ts'
 
 const workspace = fileURLToPath(new URL('../../../', import.meta.url))
 const config = defaultConfigPath()
@@ -423,5 +424,118 @@ describe('orchestrator HTTP service', () => {
     expect(attemptItems.length).toBeGreaterThan(0)
     expect(attemptItems[0].step_path).toBeTruthy()
     await client.close()
+  })
+})
+
+describe('engine package assets', () => {
+  interface Bundle {
+    version: string
+    hash: string
+    files: Record<string, string>
+  }
+
+  const assetURL = (): string => `${base}/v1/packages/assets`
+
+  async function bundle(): Promise<Bundle> {
+    const response = await fetch(assetURL(), { headers: auth() })
+    expect(response.status).toBe(200)
+    return (await response.json()) as Bundle
+  }
+
+  it('requires the bearer token', async () => {
+    const denied = await fetch(assetURL())
+    expect(denied.status).toBe(401)
+    expect(denied.headers.get('etag')).toBeNull()
+    expect(((await denied.json()) as { error: { code: string } }).error.code).toBe('unauthorized')
+  })
+
+  it('serves the bundled std packages and default config as text', async () => {
+    const body = await bundle()
+    expect(body.version).toBe('0.1.0')
+    expect(body.hash).toMatch(/^[0-9a-f]{64}$/)
+
+    const names = Object.keys(body.files)
+    expect(names).toEqual(
+      expect.arrayContaining([
+        'std/software/index.yml',
+        'std/maintenance/pipelines/rebuild.yml',
+        'std/maintenance/scripts/build.yml',
+        'std/content/agents/draft.md',
+        'default/index.yml',
+        'default/routers/classifier.md',
+      ])
+    )
+    expect(body.files['default/index.yml']).toContain('imports:')
+    expect(body.files['std/maintenance/index.yml']).toContain('entry:')
+
+    // Bounded, text-only, and rooted in the two bundled directories.
+    expect(names.length).toBeLessThan(500)
+    expect(Buffer.byteLength(JSON.stringify(body.files))).toBeLessThan(4_000_000)
+    expect(names.every((name) => name.startsWith('std/') || name.startsWith('default/'))).toBe(true)
+    expect(names.every((name) => /^[A-Za-z0-9_.\-/]+$/.test(name))).toBe(true)
+    expect(Object.values(body.files).every((text) => !text.includes('\u0000'))).toBe(true)
+  })
+
+  it('hashes the same bundle on every call', async () => {
+    const first = await bundle()
+    const second = await bundle()
+    expect(second.hash).toBe(first.hash)
+    expect(second.files).toEqual(first.files)
+    expect(Object.keys(second.files)).toEqual(Object.keys(first.files))
+  })
+
+  it('answers a matching If-None-Match with 304', async () => {
+    const first = await bundle()
+    const etag = `"${first.hash}"`
+    const response = await fetch(assetURL(), { headers: auth() })
+    expect(response.headers.get('etag')).toBe(etag)
+
+    const cached = await fetch(assetURL(), { headers: auth({ 'if-none-match': etag }) })
+    expect(cached.status).toBe(304)
+    expect(cached.headers.get('etag')).toBe(etag)
+    expect(await cached.text()).toBe('')
+
+    const weak = await fetch(assetURL(), { headers: auth({ 'if-none-match': `W/${etag}` }) })
+    expect(weak.status).toBe(304)
+
+    const stale = await fetch(assetURL(), { headers: auth({ 'if-none-match': '"stale"' }) })
+    expect(stale.status).toBe(200)
+  })
+
+  it('takes no path input, so no outside file can be requested', async () => {
+    const body = await bundle()
+    const names = Object.keys(body.files)
+    expect(names.some((name) => name.includes('..') || name.startsWith('/'))).toBe(false)
+    expect(names).not.toContain('package.json')
+    expect(names.some((name) => name.includes('src/'))).toBe(false)
+
+    const text = JSON.stringify(body.files)
+    expect(text).not.toContain('"name": "clara"')
+    expect(text).not.toContain('pnpm-lock')
+
+    for (const path of [
+      '/v1/packages/assets/..%2F..%2Fpackage.json',
+      '/v1/packages/assets/std/software/index.yml',
+      '/v1/packages/assets/../../../etc/passwd',
+    ]) {
+      const response = await fetch(`${base}${path}`, { headers: auth() })
+      expect(response.status).toBe(404)
+    }
+
+    const withQuery = await fetch(`${assetURL()}?path=../package.json&file=/etc/passwd`, {
+      headers: auth(),
+    })
+    expect(withQuery.status).toBe(200)
+    expect((await withQuery.json()) as Bundle).toEqual(body)
+  })
+
+  it('reports missing assets instead of failing open', () => {
+    expect(readEngineAssetBundle({})).toBeUndefined()
+    expect(
+      readEngineAssetBundle({
+        stdDir: join(tmpdir(), 'clara-missing-std'),
+        defaultDir: join(tmpdir(), 'clara-missing-default'),
+      })
+    ).toBeUndefined()
   })
 })
