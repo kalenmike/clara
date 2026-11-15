@@ -7,6 +7,16 @@ function userMessage(text: string): ClaraSessionMessageUser {
   return { id: 'user-1', type: 'user', time: { created: 1 }, text }
 }
 
+function userMessageWithFile(name: string): ClaraSessionMessageUser {
+  return {
+    id: 'user-1',
+    type: 'user',
+    time: { created: 1 },
+    text: 'see attached',
+    files: [{ name, data: '', mime: 'image/png', source: { type: 'inline' } }],
+  }
+}
+
 function renderUser(text: string) {
   return renderToStaticMarkup(
     <MessageItem message={userMessage(text)} streaming={false} showInternal={false} />
@@ -32,5 +42,18 @@ describe('user message markdown', () => {
     const html = renderUser('use <div> here')
 
     expect(html).toContain('&lt;div&gt;')
+  })
+})
+
+describe('user message attachments', () => {
+  it('caps a long attachment name instead of widening the transcript', () => {
+    const name = `${'a'.repeat(120)}.png`
+    const html = renderToStaticMarkup(
+      <MessageItem message={userMessageWithFile(name)} streaming={false} showInternal={false} />
+    )
+
+    expect(html).toContain('max-w-full')
+    expect(html).toMatch(/<span class="[^"]*truncate[^"]*">[^<]*\.png<\/span>/)
+    expect(html).toContain(`title="${name}"`)
   })
 })

@@ -199,7 +199,10 @@ device key through a one-time code; there is no shared browser key.
   the panel listener at its loopback address; it adds no listener and publishes
   no port. A login over the bridge returns a session bearer token; the served
   page keeps `clara_panel_session` as an HttpOnly cookie. Both use the hub's
-  superadmin session policy and are revoked with it.
+  superadmin session policy and are revoked with it. A remembered sign-in stores
+  the token in `localStorage` (or a persistent cookie on the served page) and
+  keeps the SQLite-backed session for 30 days idle up to 90 days absolute;
+  signing out, a password change, or a host reset revokes it.
 - Bundled panel controls: `PanelCapabilitiesProvider` disables **Go offline**,
   the transport switch in use (local or relay), and relay target/room edits,
   because each would cut or retarget the connection carrying the panel. Harness, device,

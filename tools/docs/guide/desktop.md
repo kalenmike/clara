@@ -98,6 +98,11 @@ in the app and sign in with the hub owner's username and password. You do not
 need to open the hub's loopback address, and a remote hub works the same way
 once the app is paired.
 
+**Keep me signed in** is on by default, so the app remembers the sign-in on this
+computer until you choose **Sign out**, change the password, or the session
+expires after 30 days without use (90 days at most). The password itself is not
+saved; your system password manager can save it for you.
+
 The panel shows hub health, paired harnesses, sessions, clients, traffic, and
 settings in the same views as the hub host's own page. Adapter setup works from
 the Harness view: the hub issues a one-time code and command, and the app's

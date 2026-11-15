@@ -5,6 +5,7 @@ import { afterEach, beforeEach, describe, expect, it } from 'vitest'
 import { PanelAuth, PanelAuthError } from '../src/panel/auth.ts'
 import { readSetupToken } from '../src/panel/setup-token.ts'
 import { closeDatabase, openDatabase, type ClaraDatabase } from '../src/store/database.ts'
+import { SqlitePanelSessionStore } from '../src/store/panel-sessions.ts'
 import { PanelUserStore } from '../src/store/panel-users.ts'
 
 let dir: string
@@ -181,5 +182,86 @@ describe('panel auth', () => {
     await expect(auth.login('admin', 'a-long-password', '127.0.0.1')).rejects.toBeInstanceOf(
       PanelAuthError
     )
+  })
+
+  it('keeps a remembered session past the default idle window', async () => {
+    let now = 1_000_000
+    const clock = new PanelAuth({ users, configDir: dir, now: () => now })
+    await clock.setup(undefined, 'admin', 'a-long-password')
+
+    const tab = await clock.login('admin', 'a-long-password', '127.0.0.1', false)
+    const remembered = await clock.login('admin', 'a-long-password', '127.0.0.1', true)
+    expect(tab.remember).toBe(false)
+    expect(remembered.remember).toBe(true)
+    expect(clock.isRemembered(tab.token)).toBe(false)
+    expect(clock.isRemembered(remembered.token)).toBe(true)
+
+    now += 31 * 60_000
+    expect(clock.session(tab.token)).toBeUndefined()
+    expect(clock.session(remembered.token)).toMatchObject({ username: 'admin' })
+  })
+
+  it('expires a remembered session at its absolute limit', async () => {
+    let now = 1_000_000
+    const clock = new PanelAuth({
+      users,
+      configDir: dir,
+      now: () => now,
+      rememberIdleMs: 10_000,
+      rememberAbsoluteMs: 10_000,
+    })
+    await clock.setup(undefined, 'admin', 'a-long-password')
+    const remembered = await clock.login('admin', 'a-long-password', '127.0.0.1', true)
+
+    now += 11_000
+    expect(clock.session(remembered.token)).toBeUndefined()
+  })
+
+  it('keeps a remembered session across an agent restart', async () => {
+    const sessions = new SqlitePanelSessionStore(db)
+    const before = new PanelAuth({ users, configDir: dir, sessions })
+    await before.setup(undefined, 'admin', 'a-long-password')
+    const login = await before.login('admin', 'a-long-password', '127.0.0.1', true)
+
+    const restarted = new PanelAuth({
+      users,
+      configDir: dir,
+      sessions: new SqlitePanelSessionStore(db),
+    })
+    expect(restarted.session(login.token)).toMatchObject({ username: 'admin' })
+    restarted.logout(login.token)
+    expect(restarted.session(login.token)).toBeUndefined()
+  })
+
+  it('revokes a persisted session with a host reset', async () => {
+    const sessions = new SqlitePanelSessionStore(db)
+    const before = new PanelAuth({ users, configDir: dir, sessions })
+    const login = await before.setup(undefined, 'admin', 'a-long-password')
+    expect(before.session(login.token)).toBeTruthy()
+
+    before.resetForHost()
+
+    const restarted = new PanelAuth({
+      users,
+      configDir: dir,
+      sessions: new SqlitePanelSessionStore(db),
+    })
+    expect(restarted.session(login.token)).toBeUndefined()
+  })
+
+  it('keeps a remembered session remembered after a password change', async () => {
+    const login = await auth.setup(undefined, 'admin', 'a-long-password')
+    const remembered = await auth.login('admin', 'a-long-password', '127.0.0.1', true)
+    expect(remembered.remember).toBe(true)
+
+    const changed = await auth.changePassword(
+      remembered.user.id,
+      'a-long-password',
+      'another-long-password',
+      auth.isRemembered(remembered.token)
+    )
+    expect(login.token).toBeTruthy()
+    expect(changed.remember).toBe(true)
+    expect(auth.isRemembered(changed.token)).toBe(true)
   })
 })

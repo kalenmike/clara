@@ -20,7 +20,10 @@ export const COMPOSER_LAYOUT_DEFAULT: ComposerLayout = {
 export type ComposerAutoHideState = {
   enabled: boolean
   pinned: boolean
+  /** The pointer is over the composer. */
   revealed: boolean
+  /** A select or menu that the composer opened is showing outside it. */
+  menuOpen?: boolean
 }
 
 /** Maximize from pinned or minimized, and dock from maximized. */
@@ -55,5 +58,6 @@ export function autoHideComposerMode(
   state: ComposerAutoHideState
 ): ComposerMode {
   if (!state.enabled || layout.mode === 'maximized') return layout.mode
-  return state.pinned || state.revealed ? restoreComposer(layout).mode : 'minimized'
+  const held = state.pinned || state.revealed || state.menuOpen === true
+  return held ? restoreComposer(layout).mode : 'minimized'
 }

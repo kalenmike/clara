@@ -86,12 +86,13 @@ model and agent selection, waiting question forms, and the plan-ready handoff.
    adjustment.
 7. **Auto-hide the composer** is a device-local preference. With it on, the dock
    follows the pointer: entering the composer reveals the last expanded shape,
-   and leaving it hides the composer again. Only the pointer holds it open;
-   keyboard focus, a send, and an open model, variant, agent, or send menu never
-   do. The chevron is replaced by a pin toggle; a pinned composer stays open
-   across reloads until the pin is turned off, while turning auto-hide off
-   clears the pin. A maximized composer never auto-hides, and touch-first
-   devices ignore the preference.
+   and leaving it hides the composer again. The pointer holds it open, including
+   while it rests on a select or menu that the composer opened and that renders
+   outside the panel; the dock rests once that popup closes and the pointer is
+   away. Keyboard focus and a send never hold it open. The chevron is replaced
+   by a pin toggle; a pinned composer stays open across reloads until the pin is
+   turned off, while turning auto-hide off clears the pin. A maximized composer
+   never auto-hides, and touch-first devices ignore the preference.
 
 ## Edge cases
 
@@ -111,10 +112,10 @@ model and agent selection, waiting question forms, and the plan-ready handoff.
 - **Switching tabs with form answers** — answers belong to the mounted composer
   and reset when another tab is selected.
 - **Auto-hide while typing or choosing** — the expanded state follows the
-  pointer. Moving the pointer away rests the dock even when the editor has
-  focus or a model, variant, agent, or send menu is open; the draft and form
-  answers are kept, and pointing at the composer again restores the last
-  expanded shape.
+  pointer. Moving the pointer onto a select or menu that the composer opened
+  keeps the dock in place; moving it anywhere else rests the dock even when the
+  editor has focus. The draft and form answers are kept, and pointing at the
+  composer again restores the last expanded shape.
 - **Auto-hide with a fullscreen composer** — the maximized shape stays visible;
   docking it again returns it to pointer-driven auto-hide.
 - **Auto-hide on a touch device** — the Preferences switch is hidden and a stored
@@ -170,6 +171,8 @@ model and agent selection, waiting question forms, and the plan-ready handoff.
   keyboard resizing.
 - Auto-hide: `src/features/settings/composer-auto-hide.ts` stores the choice and
   pin; `src/features/settings/use-composer-auto-hide.ts` exposes them;
+  `src/features/chat/use-composer-menu-open.ts` watches the composer for an open
+  select or menu trigger, whose popup renders outside it;
   `src/components/settings/composer-card.tsx` renders the Preferences switch.
 - Tab status: `src/features/chat/use-composer-tab-status.ts` reads the active
   map, mailbox signals, and pending permissions for one tab;

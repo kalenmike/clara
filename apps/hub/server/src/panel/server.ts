@@ -524,16 +524,25 @@ async function handleSession(
     })
     return
   }
-  const unknown = unknownFields(body.value, ['username', 'password'])
+  const unknown = unknownFields(body.value, ['username', 'password', 'remember'])
   if (unknown) return invalidField(response, method, unknown)
   const username = body.value.username
   const password = body.value.password
+  const remember = body.value.remember
   if (typeof username !== 'string' || typeof password !== 'string') {
     return invalidField(response, method, 'username or password')
   }
+  if (remember !== undefined && typeof remember !== 'boolean') {
+    return invalidField(response, method, 'remember')
+  }
 
   try {
-    const result = await context.auth.login(username, password, requestSource(request))
+    const result = await context.auth.login(
+      username,
+      password,
+      requestSource(request),
+      remember === true
+    )
     sendJson(response, method, 200, sessionBody(request, result), {
       'set-cookie': context.auth.cookieHeader(result.token, result.maxAgeSeconds),
     })
@@ -567,22 +576,27 @@ async function handleSetup(
     })
     return
   }
-  const unknown = unknownFields(body.value, ['token', 'username', 'password'])
+  const unknown = unknownFields(body.value, ['token', 'username', 'password', 'remember'])
   if (unknown) return invalidField(response, method, unknown)
   const token = body.value.token
   const username = body.value.username
   const password = body.value.password
+  const remember = body.value.remember
   if (token !== undefined && typeof token !== 'string')
     return invalidField(response, method, 'token')
   if (typeof username !== 'string') return invalidField(response, method, 'username')
   if (typeof password !== 'string') return invalidField(response, method, 'password')
+  if (remember !== undefined && typeof remember !== 'boolean') {
+    return invalidField(response, method, 'remember')
+  }
 
   try {
     const result = await context.auth.setup(
       typeof token === 'string' ? token : undefined,
       username,
       password,
-      requestSource(request)
+      requestSource(request),
+      remember === true
     )
     try {
       await context.onSetupComplete?.()
@@ -631,7 +645,12 @@ async function handlePassword(
   if (typeof newPassword !== 'string') return invalidField(response, method, 'newPassword')
 
   try {
-    const result = await context.auth.changePassword(user.id, currentPassword, newPassword)
+    const result = await context.auth.changePassword(
+      user.id,
+      currentPassword,
+      newPassword,
+      context.auth.isRemembered(sessionToken(request))
+    )
     sendJson(response, method, 200, sessionBody(request, result), {
       'set-cookie': context.auth.cookieHeader(result.token, result.maxAgeSeconds),
     })
@@ -1411,9 +1430,9 @@ function tunneled(request: IncomingMessage): boolean {
 function sessionBody(
   request: IncomingMessage,
   result: PanelLoginResult
-): { user: PanelAuthUser; sessionToken?: string } {
+): { user: PanelAuthUser; sessionToken?: string; remember?: boolean } {
   return tunneled(request)
-    ? { user: result.user, sessionToken: result.token }
+    ? { user: result.user, sessionToken: result.token, remember: result.remember }
     : { user: result.user }
 }
 

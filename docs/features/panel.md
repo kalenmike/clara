@@ -251,8 +251,9 @@ first-run, headless, and emergency surface.
 22. In Clara, open **Hub** from the connected client. The bundled panel shows
     the same Overview, Harness, Sessions, Connections, Clients, Traffic,
     Activity, and Settings views without leaving the app. Sign in with the hub
-    owner account when asked. The app holds the resulting session token for the
-    connection, and its API calls travel over the existing encrypted tunnel.
+    owner account when asked. **Keep me signed in** is on by default, so the app
+    holds the session token for this device until sign-out, a password change,
+    or expiry; its API calls travel over the existing encrypted tunnel.
     Harness adapter setup runs in the same Harness view: choose remote or local,
     install with the app's adapter host on this computer, an SSH host, or a
     local container, or copy the one-time code, command, and `clara://adapter`
@@ -282,7 +283,12 @@ first-run, headless, and emergency surface.
    endpoint. `CLARA_ADMIN_USERNAME` plus `CLARA_ADMIN_PASSWORD` or
    `CLARA_ADMIN_PASSWORD_FILE` creates the owner before startup for CI and
    headless installs. A host-supplied `CLARA_ADMIN_SETUP_TOKEN` requires a token
-   on the setup form for an explicitly remote install.
+   on the setup form for an explicitly remote install. Sign-in can be remembered
+   on the device: the server stores only the session token hash in SQLite, keeps
+   the session for 30 days idle up to 90 days absolute, and the browser keeps
+   either a persistent HttpOnly cookie or an app-held token. Signing out,
+   changing the password, or a host reset revokes it; the password itself is
+   never stored.
 3. **Reads and writes require a session.** `GET` and `HEAD` serve the snapshot
    and assets after login. `POST` is accepted at the feature, master-stop,
    monitoring, sync, orchestration, config, harness, browser-pairing, password,
@@ -550,7 +556,10 @@ first-run, headless, and emergency surface.
   The bundled panel never renders the local setup form.
 - **The panel session token expires or is revoked** — the next bridge request
   returns unauthorized, the panel returns to its sign-in view, and cached
-  snapshot data is dropped.
+  snapshot data is dropped. A remembered session lasts 30 days after the last
+  visit and at most 90 days; a password change or host reset revokes it
+  immediately. **Sign out** revokes it on the server and removes the stored
+  token.
 - **The tunnel drops while the panel is open** — the last snapshot stays visible
   with its error banner while the client reconnects; controls fail until it does.
 - **The connection is local-only and the device moves networks** — the bundled
@@ -559,8 +568,9 @@ first-run, headless, and emergency surface.
   would cut its own connection and points to the server-served panel on the hub.
 - **The hub service is down** — the server-served page is unavailable too; the
   bundled panel reports the connection failure instead of showing stale controls.
-- **The app or its panel session ends** — the bearer token is not a browser
-  cookie and is held only by the app; sign in again with the owner account.
+- **The app or its panel session ends** — a remembered token is kept in the
+  app's `localStorage` and a tab token in `sessionStorage`; sign in again with
+  the owner account after signing out, a password change, or expiry.
 
 ## Out of scope
 
@@ -593,7 +603,9 @@ first-run, headless, and emergency surface.
 - Authentication is not host isolation. A process with the panel cookie, the
   database, or `secrets.key` can still act as the hub; keep the config and
   data directories private.
-- Sessions are in memory, so restarting the hub service signs everyone out.
+- Sessions are stored in SQLite as token hashes, so restarting the hub service
+  keeps a signed-in panel. A plain session keeps the 30-minute idle and 12-hour
+  absolute limits; a remembered one keeps 30 days idle and 90 days absolute.
 - The superadmin password is hashed; adapter credentials are reversible and
   must be encrypted at rest with a backed-up key.
 - Device identity is logical, not hardware-bound. The panel shows one row per
@@ -624,9 +636,12 @@ first-run, headless, and emergency surface.
 - Page: `GET /`
 - Health: `GET /health` (unauthenticated, no secrets; includes `version`,
   `protocol`, `setupRequired`, and `setupTokenRequired`)
-- Session: `GET|POST|DELETE /panel/api/v1/session`
+- Session: `GET|POST|DELETE /panel/api/v1/session`. A login body may include
+  `"remember": true`; it keeps the session for 30 days idle up to 90 days
+  absolute instead of 30 minutes and 12 hours.
 - Setup: `POST /panel/api/v1/setup` with `{ "username": "...", "password": "..." }`,
-  plus `"token"` only when the host supplied one
+  plus `"token"` only when the host supplied one, and an optional
+  `"remember": true`
 - Read API: `GET /panel/api/v1/status` (API version `13`, authenticated)
 - Sessions API: `GET /panel/api/v1/sessions` (authenticated) accepts
   `harnessID`, `running=true|false`, `archived=true|false`, `q`, and `limit`

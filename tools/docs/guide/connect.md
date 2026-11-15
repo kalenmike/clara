@@ -46,6 +46,10 @@ in the app and sign in with the hub owner's username and password. Pairing a
 device does not grant panel access by itself, and the panel password is never
 sent through the relay in readable form.
 
+**Keep me signed in** is on by default: the app keeps the sign-in on this device
+until you choose **Sign out**, change the password, or the session expires after
+30 days without use (90 days at most). The password itself is never stored.
+
 The app reaches the panel through its encrypted hub connection, so a remote hub
 works without opening a port or visiting its loopback address. Controls that
 would cut that connection are disabled there; use the hub host's own panel for

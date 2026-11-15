@@ -80,6 +80,27 @@ describe('composer auto-hide', () => {
     )
   })
 
+  it('stays open while a select or menu opened from it is showing', () => {
+    expect(
+      autoHideComposerMode(pinned, {
+        enabled: true,
+        pinned: false,
+        revealed: false,
+        menuOpen: true,
+      })
+    ).toBe('pinned')
+
+    const collapsed = minimizeComposer(maximized)
+    expect(
+      autoHideComposerMode(collapsed, {
+        enabled: true,
+        pinned: false,
+        revealed: false,
+        menuOpen: true,
+      })
+    ).toBe('maximized')
+  })
+
   it('never hides a maximized composer', () => {
     expect(autoHideComposerMode(maximized, { enabled: true, pinned: false, revealed: false })).toBe(
       'maximized'

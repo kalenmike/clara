@@ -1,4 +1,6 @@
 import { randomBytes } from 'node:crypto'
+import type { PanelSessionStore } from '../store/panel-sessions.ts'
+import { MemoryPanelSessionStore } from '../store/panel-sessions.ts'
 import type { PanelUser, PanelUserStore } from '../store/panel-users.ts'
 import {
   generateAdminToken,
@@ -19,6 +21,9 @@ const SESSION_COOKIE = 'clara_panel_session'
 const SESSION_BYTES = 32
 const DEFAULT_IDLE_MS = 30 * 60_000
 const DEFAULT_ABSOLUTE_MS = 12 * 60 * 60_000
+/** A remembered session survives app restarts and long gaps between visits. */
+const REMEMBER_IDLE_MS = 30 * 24 * 60 * 60_000
+const REMEMBER_ABSOLUTE_MS = 90 * 24 * 60 * 60_000
 const SETUP_TTL_MS = 24 * 60 * 60_000
 const MAX_SESSIONS = 20
 const LOGIN_WINDOW_MS = 10 * 60_000
@@ -51,6 +56,8 @@ export type PanelAuthStatus =
 export type PanelLoginResult = {
   token: string
   maxAgeSeconds: number
+  /** The session should be kept across restarts until sign-out or revocation. */
+  remember: boolean
   user: PanelAuthUser
 }
 
@@ -60,16 +67,11 @@ export type PanelAuthOptions = {
   secureCookie?: boolean
   idleMs?: number
   absoluteMs?: number
+  rememberIdleMs?: number
+  rememberAbsoluteMs?: number
+  /** Defaults to an in-memory store; the hub service passes the SQLite one. */
+  sessions?: PanelSessionStore
   now?: () => number
-}
-
-type SessionRecord = PanelAuthUser & {
-  tokenHash: string
-  sessionVersion: number
-  createdAt: number
-  lastSeen: number
-  idleExpiresAt: number
-  absoluteExpiresAt: number
 }
 
 type LoginAttempt = {
@@ -103,8 +105,10 @@ export class PanelAuth {
   private readonly secureCookie: boolean
   private readonly idleMs: number
   private readonly absoluteMs: number
+  private readonly rememberIdleMs: number
+  private readonly rememberAbsoluteMs: number
+  private readonly sessions: PanelSessionStore
   private readonly now: () => number
-  private readonly sessions = new Map<string, SessionRecord>()
   private readonly attempts = new Map<string, LoginAttempt>()
   private readonly setupAttempts = new Map<string, LoginAttempt>()
   /** A host-supplied setup token is the only first-run form of authentication. */
@@ -116,7 +120,11 @@ export class PanelAuth {
     this.secureCookie = options.secureCookie === true
     this.idleMs = options.idleMs ?? DEFAULT_IDLE_MS
     this.absoluteMs = options.absoluteMs ?? DEFAULT_ABSOLUTE_MS
+    this.rememberIdleMs = options.rememberIdleMs ?? REMEMBER_IDLE_MS
+    this.rememberAbsoluteMs = options.rememberAbsoluteMs ?? REMEMBER_ABSOLUTE_MS
+    this.sessions = options.sessions ?? new MemoryPanelSessionStore()
     this.now = options.now ?? Date.now
+    this.sessions.prune(this.now(), MAX_SESSIONS)
   }
 
   status(token: string | undefined): PanelAuthStatus {
@@ -184,7 +192,8 @@ export class PanelAuth {
     token: string | undefined,
     username: string,
     password: string,
-    source = 'unknown'
+    source = 'unknown',
+    remember = false
   ): Promise<PanelLoginResult> {
     this.assertSetupNotBlocked(source)
     try {
@@ -233,7 +242,7 @@ export class PanelAuth {
         removeSetupToken(this.configDir)
         this.users.touchLogin(user.id)
         this.clearSetupFailures(source)
-        return this.createSession(user)
+        return this.createSession(user, remember)
       }
 
       if (this.users.count() > 0) {
@@ -244,7 +253,7 @@ export class PanelAuth {
       const user = await this.createFirstUser(username, hash)
       this.users.touchLogin(user.id)
       this.clearSetupFailures(source)
-      return this.createSession(user)
+      return this.createSession(user, remember)
     } catch (cause) {
       this.recordSetupFailure(source)
       throw cause
@@ -280,7 +289,12 @@ export class PanelAuth {
     return user
   }
 
-  async login(username: string, password: string, source = 'unknown'): Promise<PanelLoginResult> {
+  async login(
+    username: string,
+    password: string,
+    source = 'unknown',
+    remember = false
+  ): Promise<PanelLoginResult> {
     this.assertNotBlocked(source, username)
     const name = username.trim()
     const user = this.users.findByUsername(name)
@@ -298,7 +312,7 @@ export class PanelAuth {
 
     this.clearFailures(source, name)
     this.users.touchLogin(user.id)
-    return this.createSession(user)
+    return this.createSession(user, remember)
   }
 
   logout(token: string | undefined): void {
@@ -309,27 +323,34 @@ export class PanelAuth {
   session(token: string | undefined): PanelAuthUser | undefined {
     if (!token) return undefined
     const tokenHash = hashToken(token)
-    const session = this.sessions.get(tokenHash)
+    const session = this.sessions.find(tokenHash)
     if (!session) return undefined
     const now = this.now()
     if (now >= session.idleExpiresAt || now >= session.absoluteExpiresAt) {
       this.sessions.delete(tokenHash)
       return undefined
     }
-    const user = this.users.findById(session.id)
+    const user = this.users.findById(session.userId)
     if (!user || user.disabled || user.sessionVersion !== session.sessionVersion) {
       this.sessions.delete(tokenHash)
       return undefined
     }
-    session.lastSeen = now
-    session.idleExpiresAt = now + this.idleMs
-    return publicUser(session)
+    const idleMs = session.remember ? this.rememberIdleMs : this.idleMs
+    this.sessions.touch(tokenHash, now, now + idleMs)
+    return publicUser(user)
+  }
+
+  /** Whether the current session was signed in with "keep me signed in". */
+  isRemembered(token: string | undefined): boolean {
+    if (!token) return false
+    return this.sessions.find(hashToken(token))?.remember === true
   }
 
   async changePassword(
     userId: string,
     currentPassword: string,
-    nextPassword: string
+    nextPassword: string,
+    remember = false
   ): Promise<PanelLoginResult> {
     const record = this.users.findByUsername(this.users.findById(userId)?.username ?? '')
     if (!record) throw new PanelAuthError(401, 'invalid_credentials', 'Sign in again')
@@ -340,7 +361,7 @@ export class PanelAuth {
     this.users.updatePassword(userId, hash)
     this.clearSessionsForUser(userId)
     const user = this.users.findById(userId) as PanelUser
-    return this.createSession(user)
+    return this.createSession(user, remember)
   }
 
   /** Host-only reset used by `clara-server admin reset`. */
@@ -389,49 +410,33 @@ export class PanelAuth {
     return match?.[1]?.trim() || undefined
   }
 
-  private createSession(user: PanelUser): PanelLoginResult {
+  private createSession(user: PanelUser, remember: boolean): PanelLoginResult {
     const token = randomBytes(SESSION_BYTES).toString('base64url')
     const tokenHash = hashToken(token)
     const now = this.now()
-    this.sessions.set(tokenHash, {
-      id: user.id,
-      username: user.username,
-      role: 'superadmin',
+    const idleMs = remember ? this.rememberIdleMs : this.idleMs
+    const absoluteMs = remember ? this.rememberAbsoluteMs : this.absoluteMs
+    this.sessions.create({
       tokenHash,
+      userId: user.id,
       sessionVersion: user.sessionVersion,
+      remember,
       createdAt: now,
       lastSeen: now,
-      idleExpiresAt: now + this.idleMs,
-      absoluteExpiresAt: now + this.absoluteMs,
+      idleExpiresAt: now + idleMs,
+      absoluteExpiresAt: now + absoluteMs,
     })
-    this.trimSessions()
+    this.sessions.prune(now, MAX_SESSIONS)
     return {
       token,
-      maxAgeSeconds: Math.floor(this.absoluteMs / 1000),
-      user: { id: user.id, username: user.username, role: 'superadmin' },
-    }
-  }
-
-  private trimSessions(): void {
-    const now = this.now()
-    for (const [hash, session] of this.sessions) {
-      if (now >= session.idleExpiresAt || now >= session.absoluteExpiresAt) {
-        this.sessions.delete(hash)
-      }
-    }
-    while (this.sessions.size > MAX_SESSIONS) {
-      const oldest = [...this.sessions.values()].sort(
-        (left, right) => left.lastSeen - right.lastSeen
-      )[0]
-      if (!oldest) break
-      this.sessions.delete(oldest.tokenHash)
+      maxAgeSeconds: Math.floor(absoluteMs / 1000),
+      remember,
+      user: publicUser(user),
     }
   }
 
   private clearSessionsForUser(userId: string): void {
-    for (const [hash, session] of this.sessions) {
-      if (session.id === userId) this.sessions.delete(hash)
-    }
+    this.sessions.deleteForUser(userId)
   }
 
   private assertNotBlocked(source: string, username: string): void {
@@ -513,8 +518,8 @@ export class PanelAuth {
   }
 }
 
-function publicUser(session: SessionRecord): PanelAuthUser {
-  return { id: session.id, username: session.username, role: session.role }
+function publicUser(user: PanelUser): PanelAuthUser {
+  return { id: user.id, username: user.username, role: 'superadmin' }
 }
 
 function normalizeUsername(value: string): string {
