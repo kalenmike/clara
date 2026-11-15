@@ -73,7 +73,7 @@ With a harness running, a local checkout needs:
 ```bash
 pnpm install
 clara start --local --build
-clara server panel
+clara status hub --open
 # In the panel: create the hub owner account, then follow the Setup modal:
 # choose Local only or configure the relay, pair a harness, and pair a client.
 # The modal can be dismissed and resumed from Settings -> Setup.
@@ -86,18 +86,18 @@ Until the owner account exists, the hub serves only its loopback setup screen
 and starts no transports. For a headless install, create it from a shell:
 
 ```bash
-clara server setup --local --password-stdin
+clara-server setup --password-stdin
 ```
 
 For Docker, use `clara start --build` and
-`clara server setup --password-stdin` (or set `CLARA_ADMIN_PASSWORD`). The
+`clara-server setup --password-stdin` (or set `CLARA_ADMIN_PASSWORD`). The
 Setup modal asks for Local only or a relay with an HTTPS Web URL; choose the
 path that matches where your devices will connect.
 
 For orchestration only, install the harness adapter after the stack is up:
 
 ```bash
-clara adapter install --opencode
+clara start adapter --harness opencode --pair <code>
 ```
 
 Only the OpenCode, Claude Code, and Pi adapters are included with this release.
@@ -124,11 +124,11 @@ sign in to the panel at <http://localhost:8790> and create a code under
 
 ### First run
 
-1. Start the hub (`pnpm dev` or `clara server start --local`).
-2. Open the panel at <http://127.0.0.1:8790>, or run `clara server panel`.
+1. Start the hub (`pnpm dev` or `clara start hub --local`).
+2. Open the panel at <http://127.0.0.1:8790> with `clara status hub --open`.
 3. Create the hub owner account. No other hub service starts until this account
    exists. For a headless install, run
-   `clara server setup --password-stdin` instead.
+   `clara-server setup --password-stdin` instead.
 4. Follow the Setup modal. Choose **Local only** or configure the relay with an
    HTTPS Web URL, then pair a harness and run the printed install command on the
    harness machine. The adapter finds the harness or prompts for its URL and
@@ -151,8 +151,8 @@ pnpm dev:panel   # http://localhost:5174
 ```
 
 In a production build, the panel ships inside the hub service and is available at
-<http://127.0.0.1:8790> after `pnpm build` and `clara server start --local`.
-Run `clara server panel` to open it in a browser; the command only opens a
+<http://127.0.0.1:8790> after `pnpm build` and `clara start hub --local`.
+Run `clara status hub --open` to open it in a browser; the command only opens a
 panel that is already being served. The panel never travels through the relay.
 From it you can create one-time browser pairing links and QR codes, add and
 manage harness adapters, disable the harness connection, local transport, relay,
@@ -177,7 +177,7 @@ Install the read-only API MCP for agents testing frontend code against live
 data:
 
 ```bash
-clara mcp install --api
+clara start adapter --harness opencode --mcp-api
 ```
 
 The MCP reads `CLARA_API_URL` and `CLARA_API_TOKEN_FILE`. See
@@ -197,18 +197,18 @@ clara stop
 `start` brings up the orchestrator, the hub (with its panel), and the web
 client, creates the `clara` network, and writes `infra/docker/.env` with a random
 orchestration token on first run. The containers are named `clara-orchestrator`,
-`clara-server`, and `clara-web`. Disable any part with `--no-orchestrator`,
-`--no-server`, or `--no-web`; combine them when needed:
+`clara-server`, and `clara-web`. Pass a target to start one service instead of
+the whole stack:
 
 ```bash
-clara start --no-web
-clara start --no-server --no-web
-clara start --build --no-orchestrator
+clara start hub
+clara start web --build
+clara start orchestrator
 ```
 
-`restart` stops and recreates the selected containers, so it applies image and
-environment changes. Add `--build` to rebuild first. `stop` is stack-wide; use
-the scoped commands below to control one service.
+`restart` stops and recreates the selected targets, so it applies image and
+environment changes. Add `--build` to rebuild first. `stop` without a target
+stops the stack; pass a target to stop one service.
 
 Docker state lives in named volumes, never in the local install directories:
 
@@ -222,7 +222,7 @@ Only the workspace is a host bind. Set `CLARA_SERVER_CONFIG_DIR`,
 `CLARA_SERVER_DATA_DIR`, or `CLARA_ORCHESTRATOR_DATA_DIR` in `infra/docker/.env` to an
 absolute host path when you want to bind one of those states instead. Local
 installs (`clara start --local`, `pnpm dev`, and
-`clara orchestrator start --local`) keep using `~/.config/clara` and
+`clara start orchestrator --local`) keep using `~/.config/clara` and
 `~/.local/share/clara`; they never read `infra/docker/.env` or the Docker volumes. See
 [docs/development.md](docs/development.md#local-and-docker-state) for the full
 state map and the one-time migration.
@@ -241,8 +241,7 @@ clara start
 
 `status` uses one table for every service, shows the container name and whether
 the endpoint answers, and exits nonzero when any selected service is not
-running. It accepts the same `--no-server`, `--no-web`, and `--no-orchestrator`
-selection as `start`, plus `--json`:
+running. It accepts a target and `--json`:
 
 ```text
 Clara stack
@@ -259,10 +258,9 @@ Details
 ```
 
 `clara status --json` prints `{ "ok": true, "services": [...] }` with the
-same record for each service. The scoped
-`clara server status --json`, `clara web status --json`, and
-`clara orchestrator status --json` commands print one record with the same
-shape. For the server record, `url` is the local listener and `details.panel`
+same record for each service. The scoped `clara status hub --json`,
+`clara status web --json`, and `clara status orchestrator --json` commands print
+one record with the same shape. For the server record, `url` is the local listener and `details.panel`
 holds the panel URL.
 
 ### Hub container
@@ -271,11 +269,11 @@ The hub can also run on its own. Docker is the default; `--local` runs
 the built hub service as a detached local process:
 
 ```bash
-clara server start --build
-clara server start --local --build
-clara server status
-clara server setup --password-stdin
-clara server pair --docker
+clara start hub --build
+clara start hub --local --build
+clara status hub
+clara-server setup --password-stdin
+clara pair --docker
 ```
 
 The hub service joins the same `clara` network as the orchestrator and, when
@@ -301,24 +299,24 @@ The built SPA can be served locally instead of Cloudflare Pages. It starts with
 `clara start`, or on its own with:
 
 ```bash
-clara web start --docker --build
-clara web status
-clara web stop --docker
+clara start web --docker --build
+clara status web
+clara stop web --docker
 ```
 
 Open <http://127.0.0.1:8080>. The image builds the same bundle as
 `pnpm --filter @clara/web build` and serves it with nginx on host loopback; the
 Pages headers and cache rules are mirrored in `infra/docker/web.nginx.conf`.
 
-Pairing mode comes from the hub, not the web image. `clara server pair
---docker` prints a relay code when the hub has a relay configured and a local
+Pairing mode comes from the hub, not the web image. `clara pair --docker`
+prints a relay code when the hub has a relay configured and a local
 code otherwise; add `--no-relay` to force a local code and print the local web
 app link. The relay code already
 carries its `wss://…/room/<id>` URL, so `VITE_CLARA_WS_URL` is only needed when
 the browser must use a different relay endpoint than the hub:
 
 ```bash
-VITE_CLARA_WS_URL=wss://relay.example clara web start --docker --build
+VITE_CLARA_WS_URL=wss://relay.example clara start web --docker --build
 ```
 
 The default Web URL is `http://127.0.0.1:8080`. Set **Web URL** in the hub
@@ -338,9 +336,9 @@ does not proxy API or WebSocket traffic. See
 The orchestrator also runs without the hub or web client:
 
 ```bash
-clara orchestrator start --docker --build
-clara orchestrator status
-clara orchestrator stop --docker
+clara start orchestrator --docker --build
+clara status orchestrator
+clara stop orchestrator --docker
 ```
 
 It serves REST, SSE, and MCP on `127.0.0.1:8789` with its bearer token and needs
@@ -468,17 +466,15 @@ is no UI for it. See [docs/features/sync.md](docs/features/sync.md).
 | `pnpm dev:server`         | Hub service only                                             |
 | `pnpm dev:relay`          | Local `wrangler dev` for the Worker/DO                       |
 | `pnpm build`              | Build every workspace package                                |
-| `clara pair`              | Print a pairing code                                         |
-| `clara server panel`      | Open the hub panel in a browser                              |
-| `clara start`             | Start the stack (Docker by default; `--local` for processes) |
-| `clara stop`              | Stop the stack                                               |
-| `clara restart`           | Restart the stack                                            |
-| `clara status`            | Probe the orchestrator, hub service, and web client          |
-| `clara logs`              | Follow one service log                                       |
-| `clara server`            | Start, stop, inspect, pair, or reset the hub                 |
-| `clara web`               | Start, stop, inspect, or follow the web client               |
-| `clara orchestrator`      | Start, stop, analyze, or inspect the orchestration service   |
-| `clara runner`            | Run script steps for a workspace                             |
+| `clara pair`              | Print a browser or adapter pairing code                      |
+| `clara status hub --open` | Open the hub panel in a browser                              |
+| `clara start [target]`    | Start the stack or one target (Docker by default; `--local`) |
+| `clara stop [target]`     | Stop the stack or one target                                 |
+| `clara restart [target]`  | Restart the stack or one target                              |
+| `clara status [target]`   | Probe the stack or one target                                |
+| `clara logs [target]`     | Follow a service log                                         |
+| `clara start adapter`     | Pair, start, or reinstall a harness adapter                  |
+| `clara start runner`      | Run script steps for a workspace                             |
 | `clara rebuild`           | Rebuild Clara, recover services, inspect, and verify health  |
 | `pnpm test`               | Run crypto, protocol, server, web, and Worker tests          |
 | `pnpm check`              | Typecheck + lint + format + Knip + tests                     |
@@ -515,7 +511,7 @@ is no UI for it. See [docs/features/sync.md](docs/features/sync.md).
   endpoints, sync values, or file contents. A one-time pairing code is returned
   only by the authenticated request that creates it, never in the status
   snapshot. It is not exposed through the relay or Pages.
-- A lost panel password is reset with `clara server admin reset` (add
+- A lost panel password is reset with `clara-server admin reset` (add
   `--docker` in a container). That command writes a new one-time reset token.
   There is deliberately no network password-reset endpoint.
 - Never commit `.env`, `.dev.vars`, `service.json`, push subscriptions, VAPID
@@ -540,7 +536,7 @@ minor because the API is generated per release. See
 
 End-user and self-hosting documentation lives in
 [tools/docs/guide/index.md](tools/docs/guide/index.md). Run the site locally with
-`clara docs`; it serves the guide at `/guide/` and the developer docs at
+`clara start docs`; it serves the guide at `/guide/` and the developer docs at
 `/internals/`.
 
 Developer and agent documentation starts at [docs/README.md](docs/README.md).

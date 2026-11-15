@@ -136,11 +136,11 @@ Each build verifies the result:
 
 ```bash
 # Lifecycle
-clara start [default|hub|web|orchestrator] [--docker|--local] [--build]
-clara stop [default|hub|web|orchestrator] [--docker|--local]
-clara restart [default|hub|web|orchestrator] [--docker|--local] [--build]
-clara status [default|hub|web|orchestrator] [--json]
-clara logs [default|hub|web|orchestrator] [--local|--docker]
+clara start [default|hub|web|orchestrator|adapter|runner|lab|docs] [--docker|--local] [--build]
+clara stop [default|hub|web|orchestrator|adapter|runner|lab|docs] [--docker|--local]
+clara restart [default|hub|web|orchestrator|adapter|runner|lab|docs] [--docker|--local] [--build]
+clara status [default|hub|web|orchestrator|adapter|runner|lab|docs] [--json]
+clara logs [default|hub|web|orchestrator|adapter|runner|lab|docs] [--local|--docker]
 clara start hub --open
 clara status hub --open
 clara backup [default|hub|orchestrator] [--output <path>]
@@ -158,14 +158,18 @@ clara pair adapter --harness <name>
 clara start runner [--workspace <path>]
 clara stop runner [--purge]
 clara status runner [--json]
+
+# Setup
 clara pair [hub] [--no-relay] [--no-qr] [--no-panel] [--revoke-all] [--revoke <id>]
 
-# Tools
+# Sites
 clara start lab [--workspace <path>]
 clara status lab --check
 clara start docs [--build]
 clara status docs --check
 clara status docs --typecheck
+
+# Maintenance
 clara rebuild <status|build|adapters|restart|health|inspect|recover> [--docker|--local|--all]
 pnpm check:boundaries
 ```
