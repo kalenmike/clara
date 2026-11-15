@@ -52,6 +52,11 @@ model and agent selection, waiting question forms, and the plan-ready handoff.
    restores a minimized one to its last expanded shape; the expand control only
    toggles fullscreen and the pinned dock, and targets fullscreen from a
    minimized header. The height persists; the shape resets to pinned on reload.
+   A shape change is a 150 ms eased motion: the shell animates between the saved
+   dock height and the measured header height, the editor fades as it clips, and
+   the pinned/fullscreen swap fades the incoming shape in. Resizing keeps the
+   shell in step with the pointer, and reduced-motion users get the change
+   immediately.
 2. The session on screen always has a highlighted tab and cannot close it, so
    the strip is never empty. Leaving a session keeps its tab only when that
    session's composer has unsent text or attachments. Tabs persist across
@@ -168,7 +173,10 @@ model and agent selection, waiting question forms, and the plan-ready handoff.
   and the auto-hide visibility decision,
   `src/features/chat/composer-tabs.ts` owns tab membership, persistence, and the
   close guard, and `src/hooks/use-composer-height.ts` owns the pinned drag and
-  keyboard resizing.
+  keyboard resizing. `src/hooks/use-element-height.ts` measures the tab strip so
+  the collapsed shell has a pixel height to animate to; `composer-panel.tsx` owns
+  the shell transition and the fullscreen fade, whose keyframes
+  (`clara-composer-enter`) sit in `src/index.css`.
 - Auto-hide: `src/features/settings/composer-auto-hide.ts` stores the choice and
   pin; `src/features/settings/use-composer-auto-hide.ts` exposes them;
   `src/features/chat/use-composer-menu-open.ts` watches the composer for an open

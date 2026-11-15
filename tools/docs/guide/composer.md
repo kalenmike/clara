@@ -29,6 +29,11 @@ The composer has three shapes, controlled from the right side of its header:
   expand control always goes fullscreen, so using it from a collapsed composer
   opens fullscreen directly.
 
+The composer changes shape with a quick, eased motion instead of a jump:
+collapsing folds it down to its header while the thread takes the space back, and
+Expand fades the fullscreen panel in from the edge. With reduced motion turned on
+in your system settings, the shape changes immediately.
+
 Drag the pinned composer's top edge to make it taller or shorter. With the
 resize handle focused, use Up/Down, Home/End, or double-click to reset the
 height. The height is remembered; a reload starts pinned.
