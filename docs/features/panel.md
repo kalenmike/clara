@@ -38,8 +38,7 @@ first-run, headless, and emergency surface.
 
 ## User flow
 
-1. Start the hub after `pnpm build` with `clara start hub --local`, or
-   `clara start hub` for the container, then run
+1. Start the hub after `pnpm build` with `clara start hub`, then run
    `clara status hub --open`. The open command only opens a panel that is
    already being served; the start command prints the panel URL
    (`http://127.0.0.1:8790/` by default).
@@ -242,8 +241,8 @@ first-run, headless, and emergency surface.
     engine service; the Overview tile still reports its state. Turning it
     on starts a detached local instance when nothing is answering and waits for
     `/health`; turning it off stops only the local instance started from this
-    data directory. A Docker or external instance is detected and labelled, and
-    the switch is disabled because the panel does not own it. The switch is the
+    data directory. An externally managed instance is detected and labelled, and the switch is
+    disabled because the panel does not own it. The switch is the
     master gate for the feature; connected clients choose separately whether to
     use the engine surface.
 21. Leave the page open. It refreshes every five seconds while visible and
@@ -263,8 +262,7 @@ first-run, headless, and emergency surface.
 ## Core business rules
 
 1. **Authenticated, and loopback by default.** The panel listens on
-   `127.0.0.1:8790` by default. A container binds `0.0.0.0` inside its own
-   network and publishes only on host loopback. Every API request except
+   `127.0.0.1:8790` by default. Every API request except
    `/health`, the session endpoints, setup, and static assets requires a
    superadmin session. `CLARA_PANEL_BIND_HOST` and `CLARA_PANEL_ALLOW_REMOTE` are
    explicit exposure controls. The `Host`/`Origin` guard still expects a
@@ -433,8 +431,7 @@ first-run, headless, and emergency surface.
 - **The setup token is wrong or expired** — setup returns a generic invalid-token
   error and keeps the form available. A token is only required when the host
   supplied one; local setup needs no token.
-- **The superadmin password is lost** — run `clara-server admin reset`, or
-  `docker exec clara-server /app/clara-server admin reset` for a container. It
+- **The superadmin password is lost** — run `clara-server admin reset`. It
   targets the running deployment, writes a new one-time token, and revokes every
   panel session. While that token
   is valid, the sign-in screen shows **Lost your password? Use a reset token**;
@@ -446,14 +443,8 @@ first-run, headless, and emergency surface.
   is ignored, and a password under 12 characters fails startup.
 - **No owner and the panel is disabled** — startup fails with the missing
   account and the two supported paths (panel or `CLARA_ADMIN_PASSWORD`).
-- **A local install and the Docker stack both have state** — the command refuses
-  to guess and exits after printing the reason. Pass `--docker` for the
-  `clara-server` container or `--local` for the local install.
 - **The session expires** — the next poll returns `401`, the dashboard is
   replaced by the sign-in screen, and no stale data is shown.
-- **The panel is reached through the Docker bridge** — `CLARA_PANEL_ALLOW_REMOTE`
-  skips only the socket-address check; authentication, `Host`, `Origin`, and
-  fetch-metadata checks still apply. Keep the published port on host loopback.
 - **Local transport is off** — the card says off and the listener closes its
   clients with a clear reason. Turning it on starts a fresh listener.
 - **Relay is not configured** — the relay card explains local-only mode and
@@ -488,7 +479,7 @@ first-run, headless, and emergency surface.
 - **Orchestration changes** — the hub probes `/health` before and after the
   action, then broadcasts the new `orchestration` flag so connected clients
   update their feature availability without a reload. A failed local start keeps
-  the error on the card. A Docker or external instance cannot be stopped from
+  the error on the card. An externally managed instance cannot be stopped from
   the panel.
 - **A feature fails to start** — the saved choice remains, the card shows the
   error, and the rest of the hub keeps running.
@@ -631,8 +622,8 @@ first-run, headless, and emergency surface.
 <details>
 <summary>Routes, data, and references</summary>
 
-- Panel listener: `127.0.0.1:8790` by default; `CLARA_PANEL_BIND_HOST=0.0.0.0`
-  inside the container with host-loopback publishing
+- Panel listener: `127.0.0.1:8790` by default; `CLARA_PANEL_BIND_HOST` changes
+  the bound address
 - Page: `GET /`
 - Health: `GET /health` (unauthenticated, no secrets; includes `version`,
   `protocol`, `setupRequired`, and `setupTokenRequired`)
@@ -710,7 +701,7 @@ first-run, headless, and emergency surface.
 - Environment:
   - `CLARA_PANEL_PORT` changes the port (default `8790`)
   - `CLARA_PANEL_BIND_HOST` changes the listener (default `127.0.0.1`)
-  - `CLARA_PANEL_ALLOW_REMOTE=1` permits a container bridge source; auth remains required
+  - `CLARA_PANEL_ALLOW_REMOTE=1` permits a non-loopback source; auth remains required
   - `CLARA_PANEL_SECURE_COOKIE=1` for a loopback-preserving HTTPS proxy
   - `CLARA_PANEL_DISABLED=1` disables the panel
   - `CLARA_PAIRING_BASE_URL` overrides the panel Web URL
@@ -733,17 +724,13 @@ first-run, headless, and emergency surface.
 - Built assets: `apps/hub/server/dist/panel`, copied from `apps/hub/panel/dist`
 - Open the built panel: `clara status hub --open` opens
   `http://127.0.0.1:${CLARA_PANEL_PORT:-8790}/` in a browser when the hub service is
-  already serving it; start the hub with `clara start hub --local`
-  (or `--docker`) first. The panel is a surface of the hub, not a
-  separate service
-- Docker (default): `clara start|stop|restart|status|logs hub` and
-  `clara pair`; `clara-server setup`, `setup-token`, and `admin` target the
-  running deployment, and `--docker`/`--local` force the container or the host
-  install. Pass `--local` to `start`, `stop`, `restart`, or `logs` to use the
-  detached local hub instead. `pair --no-relay` emits a local-only code.
-  The rebuild snapshot records the hub as `container` or `local` and
-  recreates a container with stop/start instead of signalling a PID. See
-  [maintenance.md](maintenance.md).
+  already serving it; start the hub with `clara start hub` first. The panel is
+  a surface of the hub, not a separate service
+- Local hub: `clara start|stop|restart|status|logs hub` and `clara pair`;
+  `clara-server setup`, `setup-token`, and `admin` target the running local
+  install. `pair --no-relay` emits a local-only code. The rebuild snapshot
+  records the hub as `local` or `stopped` and restarts it from the captured
+  process. See [maintenance.md](maintenance.md).
 - Dev UI: `pnpm dev:panel` (Vite on `5174`, proxying `/panel/api` to `8790`; the
   proxy rewrites `Host` and `Origin`, and the browser carries the session cookie)
 - Snapshot sections: hub, auth, config, harness, harnesses, devices, local transport,
@@ -761,8 +748,7 @@ first-run, headless, and emergency surface.
   `apps/hub/panel/src/lib/feature-control.ts`
 - Panel version: `apps/hub/panel/vite.config.ts` injects the release version or
   the checkout's `-dev+<commit>` tag; `packages/panel/src/lib/build-info.ts`
-  renders it as `Clara Hub · <version>` in the status bar. Docker builds receive
-  `CLARA_COMMIT` and `CLARA_DIRTY` from the host CLI.
+  renders it as `Clara Hub · <version>` in the status bar.
 - Harness view: `harness-add-card.tsx` (pairing flow),
   `harness-sessions-card.tsx` (live adapters), and
   `harness-connections-card.tsx` (paired harnesses and actions)

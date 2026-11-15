@@ -4,7 +4,7 @@
 
 Clara installs as a PWA on desktop and iPhone and keeps itself current without
 asking anyone to delete and re-add the home-screen icon. The same app can be
-served from a local container instead of Cloudflare Pages. A native desktop app
+served from the local stack instead of Cloudflare Pages. A native desktop app
 can be built from the same client; see [desktop.md](desktop.md).
 
 ## User flow
@@ -29,35 +29,31 @@ can be built from the same client; see [desktop.md](desktop.md).
    desktop it reloads the bundled app.
 8. Offline, a navigation falls back to the cached app shell instead of failing.
 
-### Self-hosted container
+### Self-hosted web client
 
 Cloudflare Pages is optional. To serve the SPA from the checkout:
 
 ```bash
-docker network create clara      # once, or reuse the server stack
-clara start web --docker --build
+clara start web --build
 ```
 
-Open [127.0.0.1:8080](http://127.0.0.1:8080). The image builds the same bundle as
-`pnpm --filter @clara/web build`, and `infra/docker/web.nginx.conf` mirrors
-`apps/web/public/_headers`: the worker and app shell revalidate, hashed assets
-cache for a year, and the CSP, referrer, permissions, and nosniff headers match.
-`clara rebuild` captures the container and recreates it with a fresh build.
+Open [127.0.0.1:8080](http://127.0.0.1:8080). The local server serves the same
+`apps/web/dist` bundle as `pnpm --filter @clara/web build`. `clara rebuild`
+stops and restarts the local web client with a fresh build.
 
 Local pairing works from `http://127.0.0.1:8080` or an SSH tunnel. The default
-Web URL is `http://127.0.0.1:8080`, so local codes print a link to this
-container. A remote HTTPS page cannot open a `ws://` socket, so remote browsers
-need a relay pairing. Set **Web URL** in the hub panel for a remote deployment
-(`CLARA_PAIRING_BASE_URL` overrides it), and set `VITE_CLARA_WS_URL` in
-`infra/docker/.env` only when the browser must use a different relay endpoint than the
-agent, then rebuild with `--build`.
+Web URL is `http://127.0.0.1:8080`, so local codes print a link to this server.
+A remote HTTPS page cannot open a `ws://` socket, so remote browsers need a
+relay pairing. Set **Web URL** in the hub panel for a remote deployment
+(`CLARA_PAIRING_BASE_URL` overrides it), and set `VITE_CLARA_WS_URL` only when
+the browser must use a different relay endpoint than the hub, then rebuild the
+web package.
 
 Browsers share cookies across every port on the same host, so other local apps
-can make the `127.0.0.1` cookie jar much larger than nginx's default header
-buffer. The container raises that limit, and the hub service raises Node's, so
-the page and the local WebSocket handshake tolerate a large jar. If a browser
-still rejects it, open `http://localhost:8080` instead; it uses a separate
-cookie jar.
+can make the `127.0.0.1` cookie jar much larger than a default header buffer.
+The hub service raises Node's limit, so the page and the local WebSocket
+handshake tolerate a large jar. If a browser still rejects it, open
+`http://localhost:8080` instead; it uses a separate cookie jar.
 
 ## Core business rules
 

@@ -13,10 +13,10 @@ pastes the same code, and Clara stores the device credential locally.
 The panel also pairs harness adapters with the same one-time-code and E2EE
 pattern. **Harness → Pair Harness** asks which harness and whether it runs
 **Remote** or **Local**, then infers the transport: the relay for a remote
-machine, the Docker network for a container on a containerized hub, and
-loopback for a local harness outside Docker. A container on a host-process hub
-falls back to the relay, and an advanced WebSocket URL overrides the address
-when the adapter reaches the hub directly. It produces a `clara-harness1_…`
+machine, the Docker bridge for a local container, and loopback for a local
+harness outside Docker. A container without a reachable hub address falls back
+to the relay, and an advanced WebSocket URL overrides the address when the
+adapter reaches the hub directly. It produces a `clara-harness1_…`
 code; the install
 action runs the registry install script on the target over SSH or Docker, while
 **Copy code** and **Copy command** install by hand. For the included adapters

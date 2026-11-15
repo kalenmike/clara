@@ -84,7 +84,7 @@ browser-safe, so Clara uses the browser client from the same family.
 
 ```text
 apps/
-  web/                 React SPA, deployed to Cloudflare Pages or the web container
+  web/                 React SPA, deployed to Cloudflare Pages or the local stack
   hub/
     server/            Node hub service, outbound relay client, local WS listener, /v1 API
     panel/             Loopback dashboard and admin controls served by the hub service
@@ -107,7 +107,7 @@ packages/
   crypto/              device-key derivation, AES-GCM envelopes, replay guard
 infra/
   relay/               Cloudflare Worker + RelayRoom Durable Object
-  docker/              Compose files, Dockerfiles, and the stack .env example
+  docker/              Desktop build image and OpenCode adapter container
 docs/                  Internal documentation
 ```
 
@@ -130,7 +130,7 @@ Local tools: MCP ──HTTP 127.0.0.1:8788──▶ hub /v1 API
 Panel: browser ──HTTP 127.0.0.1:8790──▶ hub (auth + setup + controls)
 Hub CLI: clara-server serve (hub + embedded panel) ──HTTP 127.0.0.1:<dynamic>──▶ panel in a browser
 Harness: panel ──▶ SQLite harness identity/pairing ──▶ adapter session (E2EE)
-Docker: web client, hub, engine, and an optional harness on the `clara` bridge network
+Local stack: web client, hub, and engine as host processes; an optional harness can run in an adapter container
 ```
 
 The relay forwards opaque frames. It does not parse, store, or replay payloads.
@@ -337,12 +337,10 @@ guaranteed to be connected, so alerts still reach a closed app.
   database alone does not expose them. The harness URL and password stay in the
   adapter's `config.json` (mode `0600`) on the adapter host, not in the hub
   database. `vapid.json`, `subscriptions.json`, and the temporary
-  `admin-setup.txt` remain in `~/.config/clara` with the same mode. These are
-  the local install paths. The Docker stack uses the `clara-server-config` and
-  `clara-server-data` volumes instead and keeps its host control token under
-  `~/.local/share/clara/docker`. The hub writes a `runtime.json` discovery
-  file with the live local and panel ports; the desktop client and local tools
-  read it, and remote relay clients never do.
+  `admin-setup.txt` remain in `~/.config/clara` with the same mode. The hub
+  writes a `runtime.json` discovery file with the live local and panel ports;
+  the desktop client and local tools read it, and remote relay clients never
+  do.
 - The relay sees metadata only; all payloads are E2EE. Web Push payloads use
   Web Push encryption to the browser subscription, not Clara's device envelope.
 - The web stores a non-extractable device key in IndexedDB; no raw connection

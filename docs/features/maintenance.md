@@ -4,8 +4,8 @@
 
 The maintenance package keeps three pipelines:
 
-- `rebuild` snapshots the running Clara setup, including the web client
-  container, rebuilds the checkout, reinstalls the configured harness adapters, restarts
+- `rebuild` snapshots the running Clara setup, including the web client,
+  rebuilds the checkout, reinstalls the configured harness adapters, restarts
   exactly the services that were running, and verifies their health. It retries
   restart and health once and has a bounded recovery branch that restarts only
   the unhealthy captured services.
@@ -28,19 +28,18 @@ and `clara-engine inspect`.
    `std:maintenance/diagnose` directly.
 2. `rebuild` captures the live setup: the primary checkout, git revision, Node
    and pnpm versions, the adapter and MCP entries, every running engine,
-   Lab, hub, and web container, and each service's deployment form
-   (`local`, `container`, or `stopped`; an engine also carries an
-   `external` flag). It writes the snapshot used by the later steps.
+   Lab, hub, and web client, and each service's deployment form
+   (`local`, `host`, or `stopped`; an engine also carries an `external` flag).
+   It writes the snapshot used by the later steps.
 3. The build step runs `pnpm install --frozen-lockfile` and `pnpm build` in the
    captured build checkout.
 4. The adapter step links the OpenCode adapter, installs the Clara agent file,
    and refreshes the MCP entry when it was already configured.
 5. The restart step brings back only the services captured as running, in the
-   captured form. It restarts the web container, Lab, and hub first and
-   the engine last, waiting for each health endpoint before moving on. A
-   containerized hub is stopped and recreated with compose instead of
-   being signalled by PID; the web container is recreated with a fresh image
-   build.
+   captured form. It restarts the web client, Lab, and hub first and the engine
+   last, waiting for each health endpoint before moving on. A service captured
+   as a container is reported as managed outside the installation and skipped
+   with a warning.
 6. The verify step probes every captured service and adapter, compares the
    workspace and deployment mode with the snapshot, and reports warnings or
    failures.
@@ -60,11 +59,11 @@ and `clara-engine inspect`.
 
 1. **The snapshot is the contract.** `status` writes it, `restart`, `recover`,
    and `health` read it. A service that was stopped when captured stays stopped.
-2. **Deployment form is saved.** The snapshot records `local`, `container`, or
-   `stopped` for the hub, engine, Lab, and web client, plus an
-   `external` flag for an engine managed outside the checkout. A
-   containerized hub or web client is recreated with compose, and a
-   captured local hub is never restarted by signalling a container PID.
+2. **Deployment form is saved.** The snapshot records `local`, `host`, or
+   `stopped` for the hub, engine, Lab, and web client, plus an `external` flag
+   for an engine managed outside the checkout. A service captured as a
+   container is managed outside the installation and is skipped, never
+   signalled by PID.
 3. **Recovery uses the same snapshot.** Re-running `status` after a partial
    restart would mark dead services as stopped, so recovery never recaptures.
    A new `rebuild` is the only thing that takes a new snapshot.
@@ -101,33 +100,20 @@ and `clara-engine inspect`.
   step with the exit code and output tail.
 - **The engine is stopped:** capture records it as stopped, the restart
   step leaves it stopped, and health does not expect it.
-- **The engine runs in a container:** a loopback container is restarted
-  through compose with a rebuild; a non-loopback container is skipped as
-  external unless `--manage-external` is passed.
+- **The engine runs outside this installation:** a non-loopback engine is
+  skipped as external unless `--manage-external` is passed; a container-managed
+  engine is skipped with a warning.
 - **The run was started from Clara Lab:** restarting the Lab kills the debug
   dispatcher. The normal Clara hub path is safe; the operator can pass
   `--skip lab` when driving the pipeline from the Lab.
-- **The hub runs in a container:** restart stops and recreates it with
-  `clara stop hub --docker` and `clara start hub --docker
---build`, then waits for the panel `/health` endpoint. The container is
-  detected from its health `mode` or, if the panel is down, from the running
-  compose service. No host PID is signalled.
-- **The hub changed form:** if the snapshot captured a local hub but a
-  container is now serving the same ports, restart refuses instead of signalling
-  the container. Re-capture or pass `--force`. Health reports a captured-mode
-  change as a warning, not a failure.
-- **The hub container is stopped when captured:** capture records the hub
-  as stopped and the restart leaves it stopped. It does not start a service
-  that was down before the rebuild.
-- **The web client runs in a container:** restart stops and recreates it with
-  `clara stop web --docker` and `clara start web --docker --build`,
-  then waits for `/healthz`. The fresh build reuses any `VITE_CLARA_WS_URL` in
-  `infra/docker/.env`, so keep a retargeted relay endpoint there when the image uses
-  one.
-- **The web client is served outside compose:** a healthy `/healthz` without a
-  running compose service is captured as `local` and skipped with a warning;
-  the pipeline cannot rebuild a static server it does not manage.
-- **The web container is stopped when captured:** capture records it as stopped
+- **A service is managed outside the installation:** a container captured by
+  an older snapshot or an engine behind a non-loopback URL is skipped with a
+  warning. Restart it where it is managed and capture again.
+- **The hub changed form:** if the snapshot captured a local hub but another
+  process is now serving the same ports, restart refuses instead of signalling
+  it. Re-capture or pass `--force`. Health reports the mode change as a warning,
+  not a failure.
+- **The web client was stopped when captured:** capture records it as stopped
   and the restart leaves it stopped, like the other services.
 - **The hub is systemd-managed:** restart uses `systemctl --user restart
 clara`. A manually started hub is restarted from the captured root with its
@@ -176,18 +162,9 @@ clara`. A manually started hub is restarted from the captured root with its
 
 - A manually started hub can lose environment-only credentials when the
   process environment is not readable; systemd-managed hubs do not.
-- A containerized hub is rebuilt from its Dockerfile, not from the host
-  `apps/hub/server/dist`; the restart step stops it and runs `server start --docker
---build` from the captured build checkout.
-- The hub container form is saved from the panel health `mode` or a
-  running compose service. A stopped container is recorded as `stopped`, not as
-  a container that should be restarted.
-- The web container form is saved from its `/healthz` response and a running
-  compose service. A web client served by another static server is captured as
-  `local` and is not restarted by the pipeline.
-- A rebuilt web image takes `VITE_CLARA_WS_URL` from `infra/docker/.env` (or the
-  environment). If a previous image retargeted relay rooms and the value is
-  missing, the new image falls back to the relay URL in each pairing code.
+- An old snapshot that captured a service as a container is reported as
+  outside the installation and skipped. Re-run `clara rebuild status` after
+  starting the service on the host.
 - A Lab started with `pnpm dev:lab` is restarted as the built Lab server, not
   with its Vite development process.
 - A containerized OpenCode needs host access to `pnpm`, git, docker or systemd,
@@ -211,34 +188,27 @@ clara`. A manually started hub is restarted from the captured root with its
 - CLI: `clara rebuild status|build|adapters|restart|health|inspect|recover`
   with `--json`, `--root <path>`, `--state <path>`, `--dry-run`,
   `--manage-external`, `--force`, `--skip <service>`, `--lines <n>`, and
-  `--mcp` / `--no-mcp`. Service restarts default to Docker; pass `--local` for
-  local services or `--all` for a mixed setup.
+  `--mcp` / `--no-mcp`.
 - Run evidence: `clara-engine inspect [--run <id> | --request
 <path> | --request-env] [--json]`. `--request-env` reads `CLARA_REQUEST` in a
   script step. Without a run id it selects the latest failed root run for the
   workspace.
 - Snapshot: `${CLARA_DATA_DIR:-~/.local/share/clara}/rebuild/setup.json` (mode
   `0600`). Restart journal: `rebuild/restart.json`. Log: `rebuild/rebuild.log`.
-  The snapshot is host control state for both local and Docker stacks; it is not
-  part of the Docker volumes. Use `clara backup` for the volumes.
+  The snapshot is host control state; back it up with the rest of the local
+  data directories.
 - Deployment state: the snapshot's `deployment` block records `server.mode`,
-  `engine.mode`, `lab.mode`, and `web.mode` as `local`, `container`, or
-  `stopped`, plus `engine.external`. `server.container` and
-  `web.container` are the boolean forms. Older snapshots without the block fall
-  back to `server.mode` or the running server compose service; snapshots that
-  still use the old `control` key are migrated when read.
+  `engine.mode`, `lab.mode`, and `web.mode` as `local`, `host`, or `stopped`,
+  plus `engine.external`. Older snapshots that still use the old `control` key
+  are migrated when read. A legacy `container` mode is reported as managed
+  outside the installation.
 - Capture: `GET <engine>/health`, `GET <engine>/v1/config`, Lab
   `GET /api/health`, panel `GET /health`, local `GET /health`, and web
   `GET /healthz`. The detailed panel status API requires a session, so the
-  rebuild uses the minimal health route. The panel health `mode` is the primary
-  source for the hub deployment form; a running compose service is the
-  fallback when the panel is down. The web form uses the running web compose
-  service as its container signal.
-- Restart order: web, Lab, hub, engine. The engine is last
-  and the command waits for its health endpoint. A containerized hub is
-  stopped and recreated with compose rather than signalled by PID; the web
-  client is recreated with a fresh image build; local restarts use systemd when
-  active, then the captured PID.
+  rebuild uses the minimal health route.
+- Restart order: web, Lab, hub, engine. The engine is last and the command
+  waits for its health endpoint. Local restarts use systemd when active, then
+  the captured PID.
 - Recovery: `recover` probes health, selects only `expected && !healthy`
   services, restarts them in the same order, and re-runs health. It never
   restarts a healthy service or starts one that was stopped at capture.
@@ -269,11 +239,8 @@ clara`. A manually started hub is restarted from the captured root with its
 - Default ports: engine `8789`, panel `8790`, local hub `8788`, Lab
   `8791`, web `8080`. `CLARA_LAB_PORT`, `CLARA_PANEL_PORT`,
   `CLARA_LOCAL_PORT`, `CLARA_WEB_PORT`, and `CLARA_ENGINE_URL` override
-  discovery. The hub container uses `clara status hub --docker` or
-  `clara start hub --docker`; the web container uses
-  `clara status web --docker` or `clara start web --docker`.
+  discovery.
 - Tests: `tools/cli/test/rebuild.test.mjs`,
-  `tools/cli/test/web-control.test.mjs`,
   `packages/orchestration/engine/test/loader.test.ts`,
   `packages/orchestration/engine/test/evidence.test.ts`, and
   `packages/preview/test/preview.test.ts`.

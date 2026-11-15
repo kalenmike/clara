@@ -7,7 +7,7 @@ Bun executable with the hub service and panel embedded. It runs the local
 WebSocket/API listener, the outbound relay client, and the loopback panel from
 one process. There is no desktop shell, tray icon, or Tauri window.
 
-The hub CLI is an alternative to running the hub with Docker or a Node install.
+The hub CLI is an alternative to running the hub from a checkout or a Node install.
 The hub data model, pairing, relay, panel, and adapters are unchanged.
 
 The panel remains the first-run and recovery surface. For day-to-day control,
@@ -24,10 +24,10 @@ session; the hub neither hosts nor depends on that route.
    harness, then pair a client. It can be dismissed and resumed from
    **Settings → Setup**.
 4. Open Clara on the paired device from the link or QR shown in the modal.
-5. Keep the process running under a service manager, container, or terminal.
+5. Keep the process running under a service manager or terminal.
 6. Stop it with `SIGINT` or `SIGTERM`. The process checkpoints SQLite and exits.
-7. Update by replacing the executable or container image. The database
-   migrations run on startup.
+7. Update by replacing the executable. The database migrations run on
+   startup.
 
 On another machine, pair Clara Desktop and open **Hub** to reach the same panel
 through the encrypted tunnel. The loopback panel remains the surface for first
@@ -47,8 +47,6 @@ run and recovery.
      ephemeral port.
    - The auto-selected local port is **not** written to `server.json`. It lives
      in the runtime file.
-   - Docker keeps fixed container ports because pairing links need the published
-     host port.
 4. The runtime file is the local discovery contract. The hub writes
    `<runtime>/runtime.json` with the actual ports, PID, paths, and version. The
    CLI, MCP, and desktop client read it. Remote relay clients do not.
@@ -81,7 +79,7 @@ run and recovery.
     the engine; the hub forwards `/v1/lab/*` to it with `CLARA_LAB_URL` and the
     shared `CLARA_LAB_TOKEN`. The hub holds no engine token and runs no lab
     process; the packaged `clara` command supervises the lab service separately,
-    and the Docker and headless hub deployments leave it to the host.
+    and the headless hub deployment leaves it to the host.
     `CLARA_LAB_URL=off` disables the bridge.
 
 ## Commands
@@ -119,8 +117,8 @@ clara-server health
 - **Existing hub**: the runtime lock refuses a second hub for the same data
   directory.
 - **Stale runtime file**: a dead PID is ignored and the lock is cleared.
-- **Process exits**: the service manager or container restarts it; the database
-  is checkpointed on the way out.
+- **Process exits**: the service manager restarts it; the database is
+  checkpointed on the way out.
 - **Panel build missing**: the Bun build fails before it writes an executable.
 - **No panel**: `--no-panel` leaves only the API/WebSocket listener. The owner
   account must already exist.
@@ -130,8 +128,8 @@ clara-server health
   listener through the E2EE bridge. The hub keeps one process.
 - **The panel session expires in the bundled panel**: Clara Desktop asks for the
   owner credentials again. The loopback panel's cookie session is separate.
-- **Orchestration**: the hub does not run the engine in-process. Use the
-  engine container or `clara start engine`.
+- **Orchestration**: the hub does not run the engine in-process. Use
+  `clara start engine`.
 - **The lab service is unreachable**: `/v1/lab/*` returns `503 lab_unavailable`.
   Start it next to the engine with `clara start` or `clara start lab`, or fix
   `CLARA_LAB_URL`; a token mismatch fails the lab's own authentication.
@@ -145,8 +143,8 @@ clara-server health
 - A desktop shell, tray icon, or native window for the hub.
 - Signed and notarized desktop installers and an auto-updater.
 - Running the engine inside the hub process.
-- Serving the web client from the hub. The web PWA and web container remain
-  separate.
+- Serving the web client from the hub. The web PWA and the local web client
+  remain separate.
 
 ## Technical appendix
 
@@ -182,9 +180,6 @@ clara-server health
   point the `/v1/lab/*` bridge at the lab service next to the engine. The lab
   service itself reads `CLARA_LAB_HOST` and `CLARA_LAB_ALLOW_REMOTE=1`; the hub
   never holds the engine token.
-- Docker: `infra/docker/server.Dockerfile` builds the same Bun executable; the
-  Node fallback is `server-node.Dockerfile`. Compose keeps the fixed
-  `8788`/`8790` mappings and uses `clara-server health` for the healthcheck.
 - See [development.md](../development.md) for build commands and
   [panel.md](panel.md) for the panel surface.
 

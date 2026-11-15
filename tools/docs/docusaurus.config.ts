@@ -104,7 +104,6 @@ const config: Config = {
           title: 'Host Clara',
           items: [
             { label: 'Self-hosting overview', to: '/guide/self-hosting/' },
-            { label: 'Docker', to: '/guide/self-hosting/docker' },
             { label: 'Local install', to: '/guide/self-hosting/local' },
           ],
         },

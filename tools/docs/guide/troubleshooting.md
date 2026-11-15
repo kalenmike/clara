@@ -187,39 +187,30 @@ worker sessions are unavailable. The host can start it from the hub panel or
 with `clara start engine`. See
 [Orchestration](self-hosting/orchestration.md).
 
-## A Docker container keeps restarting
+## A service keeps restarting
 
-`clara start` checks the Docker environment before it launches a container
-and prints the recent log lines when a service does not become healthy. If a
-container still keeps restarting:
+`clara start` waits for each service health endpoint and prints the recent log
+lines when one does not become healthy. If a service still keeps restarting:
 
-- Read the printed log tail, or run `clara logs hub`, `clara logs web`,
-  or `clara logs engine`.
+- Read the printed log tail, or run `clara logs hub`, `clara logs web`, or
+  `clara logs engine`.
 - A `CLARA_RELAY_URL` without `CLARA_AGENT_TOKEN` stops the hub at startup only
-  when the panel has not saved the token. `clara start` warns about the gap
-  before launching the container.
-- `CLARA_SERVER_CONFIG_DIR`, `CLARA_SERVER_DATA_DIR`, and
-  `CLARA_ORCHESTRATOR_DATA_DIR` must be absolute host paths when set.
-- Stopping the stack does not need any of those values exported in your shell.
+  when the panel has not saved the token. Startup warns about the gap.
+- Check that any directory override (`CLARA_CONFIG_DIR`, `CLARA_DATA_DIR`,
+  `CLARA_SERVER_CONFIG_DIR`, `CLARA_SERVER_DATA_DIR`) is an absolute path and is
+  writable by the user running Clara.
 
-## The hub container stops with EACCES
+## A service stops with EACCES
 
 `[clara] fatal: EACCES: permission denied, mkdir '/data/runtime.json.lock'` means
-the config or data directory is not writable by the container user, which is
-UID/GID 1000. A volume created by an older image, or a bind-mounted host
-directory, can have a different owner. Stop the stack and fix ownership once;
-the data is kept:
+the config or data directory is not writable by the Clara process. Stop the
+stack and fix ownership of `~/.config/clara` and `~/.local/share/clara` for the
+user that runs Clara:
 
 ```bash
 clara stop
-docker run --rm \
-  -v clara-server-config:/config \
-  -v clara-server-data:/data \
-  node:22-bookworm-slim \
-  chown -R 1000:1000 /config /data
+chown -R "$USER" ~/.config/clara ~/.local/share/clara
 ```
-
-For bind mounts, change the owner of the host directories instead.
 
 ## Still stuck
 

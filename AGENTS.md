@@ -10,7 +10,7 @@ for every AI agent working in this repo.
 
 ```text
 apps/cli                             Packaged `clara` command, supervisor, releases, and adapters
-apps/web                             React/Vite SPA (Cloudflare Pages or the web container)
+apps/web                             React/Vite SPA (Cloudflare Pages or the local stack)
 apps/desktop                         Tauri shell that packages the web client for desktop
 apps/desktop/host                    Loopback adapter-host sidecar for local, SSH, and Docker installs
 apps/hub/panel                       Hub panel entry that serves the shared panel package
@@ -45,7 +45,7 @@ packages/lab-server                  Lab service: workspace preview, engine toke
 packages/preview                     Pipeline preview, diagnostics, and snapshot diff SDK
 packages/crypto                      Device-key derivation, AES-GCM envelopes, replay guard
 infra/relay                          Cloudflare Worker + RelayRoom Durable Object
-infra/docker                         Compose files, Dockerfiles, and the stack .env example
+infra/docker                         Desktop build image and the OpenCode adapter container
 ```
 
 ## Tech stack
@@ -92,11 +92,11 @@ clara adapter install <kind> --from <path> # Install a checkout adapter build
 clara pair hub      # Print a browser pairing code
 clara service       # install|uninstall|status|print the per-user login service
 clara doctor|uninstall|version
-clara start [default|hub|web|engine] [--docker|--local] [--build] # Start the core stack or one service
-clara stop [default|hub|web|engine] [--docker|--local] # Stop the core stack or one service
-clara restart [default|hub|web|engine] [--docker|--local] [--build] # Restart
+clara start [default|hub|web|engine] [--build] # Start the core stack or one service
+clara stop [default|hub|web|engine] # Stop the core stack or one service
+clara restart [default|hub|web|engine] [--build] # Restart
 clara status [default|hub|web|engine] [--json] # Probe the core services
-clara logs [default|hub|web|engine] [--local|--docker] # Follow service logs
+clara logs [default|hub|web|engine] # Follow service logs
 clara start hub --open # Start the hub and open the panel
 clara status hub --open # Open the running panel
 clara-dev mcp install [--api] # Checkout-only MCP bridge
@@ -108,8 +108,6 @@ clara-dev status lab --check # Validate a package target for CI
 clara start docs [--build] # Start the documentation site on :5176
 clara status docs --check # Check guide and internal doc indexes and links
 clara status docs --typecheck # Typecheck the documentation site
-clara backup [default|hub|engine] [--output <path>] # Archive Docker state
-clara restore [default|hub|engine] <archive> [--force] # Replace Docker state
 clara pair [hub] # Print a browser pairing code
 clara pair adapter --harness <name> # Print an adapter pairing code
 clara rebuild       # Snapshot, rebuild, recover services, inspect, and verify health
@@ -318,7 +316,7 @@ is never published.
 | Before you touch…                    | Read                                                                             |
 | ------------------------------------ | -------------------------------------------------------------------------------- |
 | Using Clara, pairing, sessions, chat | [tools/docs/guide/index.md](tools/docs/guide/index.md)                           |
-| Hosting the hub, Docker, relay       | [tools/docs/guide/self-hosting/index.md](tools/docs/guide/self-hosting/index.md) |
+| Hosting the hub, relay               | [tools/docs/guide/self-hosting/index.md](tools/docs/guide/self-hosting/index.md) |
 
 ### Internal documentation
 

@@ -81,10 +81,10 @@ Every host imports `@clara/theme` and scans the package from its Tailwind entry:
 The package must not import `tailwindcss`, style `html`/`body`, or ship a CSS
 file. Those belong to the host surface.
 
-The container builds copy workspace manifests and sources explicitly. Keep
-`packages/ui/package.json` and `packages/ui` in
-`infra/docker/desktop.Dockerfile`, `web.Dockerfile`, `server.Dockerfile`, and
-`server-node.Dockerfile` whenever their surfaces use the shared components.
+The desktop container build copies workspace manifests and sources explicitly.
+Keep `packages/ui/package.json` and `packages/ui` in
+`infra/docker/desktop.Dockerfile` whenever the desktop surface uses the shared
+components.
 
 ## Adding or changing a component
 

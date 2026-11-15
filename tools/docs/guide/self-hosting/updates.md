@@ -23,7 +23,6 @@ For a smaller change, rebuild and restart one target:
 
 ```bash
 clara restart --build
-clara restart --local --build
 clara restart web --build
 ```
 
@@ -62,16 +61,15 @@ pairing screen, beside the app and protocol versions.
 
 ## Back up
 
-For Docker, stop the stack and archive the volumes:
+Stop the stack, then archive the config and data directories:
 
 ```bash
 clara stop
-clara backup --output ~/clara-backup.tar.gz
+tar -czf ~/clara-backup.tar.gz ~/.config/clara ~/.local/share/clara
 ```
 
-For a local install, copy the config and data directories. The important files
-are the hub database, `secrets.key`, `server.json`, `vapid.json`, and
-`subscriptions.json`.
+The important files are the hub database, `secrets.key`, `server.json`,
+`vapid.json`, and `subscriptions.json`.
 
 Do not copy the database while the hub is running if you can avoid it; stop the
 hub first for a consistent snapshot.
@@ -80,12 +78,12 @@ hub first for a consistent snapshot.
 
 ```bash
 clara stop
-clara restore ~/clara-backup.tar.gz --force
+tar -xzf ~/clara-backup.tar.gz -C ~
 clara start --build
 ```
 
-The restore replaces the Docker state volumes. For a local install, put the files
-back in the config and data directories and restart.
+Put the files back in the config and data directories and restart. Replace the
+directories rather than merging them if the backup came from another host.
 
 ## Check the result
 
@@ -101,6 +99,5 @@ replaced.
 
 ## Related
 
-- [Docker](docker.md)
 - [Local install](local.md)
 - [Troubleshooting](../troubleshooting.md)

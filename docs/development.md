@@ -113,10 +113,11 @@ ENABLE_CLOUDFLARE_DEPLOYMENT=true pnpm dev:server
 ENABLE_CLOUDFLARE_DEPLOYMENT=true pnpm dev:panel
 ```
 
-Docker builds forward the same flag through the `server` compose build args:
+The packaged command and the checkout build use the same flag. Rebuild the hub
+before starting it when the flag changes:
 
 ```bash
-ENABLE_CLOUDFLARE_DEPLOYMENT=true clara start hub --docker --build
+ENABLE_CLOUDFLARE_DEPLOYMENT=true pnpm build
 ```
 
 Anything other than `1`, `true`, `yes`, or `on` builds without the feature. The
@@ -166,8 +167,8 @@ pnpm hub:headless  # standalone server archive and install helpers
 `pnpm hub:binary` writes `apps/hub/server/dist/bun/clara-server` by default.
 Pass `--target bun-linux-x64`, `bun-darwin-arm64`, or another Bun target for a
 cross-build. `pnpm build` builds the Node server and panel, not the Bun
-executable. See [features/hub-cli.md](features/hub-cli.md) for ports, the runtime
-file, and the Docker image.
+executable. See [features/hub-cli.md](features/hub-cli.md) for ports and the
+runtime file.
 
 `pnpm hub:headless` reuses the Bun build and writes a standalone archive under
 `dist/headless` with the executable, an install helper, and a Linux systemd
@@ -234,15 +235,13 @@ command (`pnpm clara:link` installs the shim).
 
 ```bash
 # Lifecycle (clara-dev)
-clara-dev start [default|hub|web|engine|runner|lab|docs] [--docker|--local] [--build]
-clara-dev stop [default|hub|web|engine|runner|lab|docs] [--docker|--local]
-clara-dev restart [default|hub|web|engine|runner|lab|docs] [--docker|--local] [--build]
+clara-dev start [default|hub|web|engine|runner|lab|docs] [--build]
+clara-dev stop [default|hub|web|engine|runner|lab|docs]
+clara-dev restart [default|hub|web|engine|runner|lab|docs] [--build]
 clara-dev status [default|hub|web|engine|runner|lab|docs] [--json]
-clara-dev logs [default|hub|web|engine|runner|lab|docs] [--local|--docker]
+clara-dev logs [default|hub|web|engine|runner|lab|docs]
 clara-dev start hub --open
 clara-dev status hub --open
-clara-dev backup [default|hub|engine] [--output <path>]
-clara-dev restore [default|hub|engine] <archive> [--force]
 
 # Adapters (packaged command)
 clara adapter search [--json]
@@ -277,7 +276,7 @@ clara-dev status docs --check
 clara-dev status docs --typecheck
 
 # Maintenance (clara-dev)
-clara-dev rebuild <status|build|adapters|restart|health|inspect|recover> [--docker|--local|--all]
+clara-dev rebuild <status|build|adapters|restart|health|inspect|recover>
 pnpm check:boundaries
 ```
 
@@ -308,28 +307,24 @@ The bridge reads `CLARA_API_URL` (default `http://127.0.0.1:8788`) and
 
 `pnpm clara:link` installs a thin `clara-dev` shim under `~/.local/bin`. It
 runs the checkout's Node entry, so it does not need pnpm at invocation time;
-`--build`, Docker Compose, local service scripts, and the MCP bridge still use
-the checkout. The `pnpm clara …` script in the checkout remains an alias for the
+`--build`, the local service scripts, and the MCP bridge still use the
+checkout. The `pnpm clara …` script in the checkout remains an alias for the
 same entry point. Adapters belong to the packaged command; `pnpm cli` runs it
 from source and `pnpm cli:install` installs that build.
 
-`clara-dev start` starts Docker by default: it creates the `clara` network,
-bootstraps `infra/docker/.env` and the engine token on first run, then
-starts the selected targets in engine, hub, web order. Pass `--local` to
-run the same targets as detached local processes. `--build` rebuilds before
-starting. Select one target with `start hub`, `start web`, or
-`start engine`; there are no `--no-*` flags.
+`clara-dev start` runs the selected targets as detached host processes in
+engine, hub, web order. `--build` rebuilds before starting. Select one target
+with `start hub`, `start web`, or `start engine`; there are no `--no-*` flags.
 
-`hub` is the public target name for the hub service. Docker resources keep their
-`clara-server` names so existing volumes and containers keep working.
+`hub` is the public target name for the hub service.
 
 `clara-dev start hub --open` starts the hub and opens the panel;
 `clara-dev status hub --open` opens a panel that is already running. Headless
 hub maintenance uses `clara-server setup` and `clara-server admin` directly.
 
-Local processes keep a PID and log under `~/.local/share/clara`, so
-`clara-dev stop --local`, `restart --local`, and `logs --local` work the same
-way as the Docker stack. Stop also resolves a service that was restarted
+Processes keep a PID and log under `~/.local/share/clara`, so
+`clara-dev stop`, `restart`, and `logs` can find them. Stop also resolves a
+service that was restarted
 outside the PID files: the hub through its runtime file, and the web client
 through the pid in its `/healthz` response. Discovered processes are checked
 against the expected command line before they are signalled, a port owner must
@@ -379,95 +374,31 @@ checks are `status lab --check`, `status docs --check`, and
 
 `clara-dev rebuild` snapshots the running services, rebuilds the primary
 checkout, installs the adapters, restarts only the captured services, and
-verifies their health. It manages Docker services by default; pass `--local`
-for local services or `--all` for a mixed setup. The standard
+verifies their health. The standard
 `std:maintenance/rebuild` pipeline drives the same commands one step at a time;
 see [features/maintenance.md](features/maintenance.md).
 
 Use these commands instead of calling the workspace scripts directly so that
 agents and developers share one command surface.
 
-## Local and Docker state
+## Local state
 
-Docker is optional. A local install keeps using the host directories; the
-Docker stack uses volumes and a Docker-only control directory. Neither mode
-reads the other's service state.
+The checkout CLI and the packaged command both use the host directories under
+`~/.config/clara` and `~/.local/share/clara`.
 
-| State           | Local install                       | Docker stack                               |
-| --------------- | ----------------------------------- | ------------------------------------------ |
-| Server config   | `~/.config/clara`                   | volume `clara-server-config`               |
-| Server database | `~/.local/share/clara/clara.db`     | volume `clara-server-data`                 |
-| Engine database | `~/.local/share/clara/engine.db`    | volume `clara-orchestrator-data`           |
-| Engine token    | `~/.local/share/clara/engine.token` | `~/.local/share/clara/docker/engine.token` |
-| Compose input   | none                                | `infra/docker/.env`                        |
-| Workspace       | host path                           | bind mount at `/workspace/clara`           |
+| State           | Location                            |
+| --------------- | ----------------------------------- |
+| Server config   | `~/.config/clara`                   |
+| Server database | `~/.local/share/clara/clara.db`     |
+| Engine database | `~/.local/share/clara/engine.db`    |
+| Engine token    | `~/.local/share/clara/engine.token` |
+| Rebuild state   | `~/.local/share/clara/rebuild`      |
+| Workspace       | the checked-out path                |
 
-`CLARA_DOCKER_STATE_DIR` moves the Docker control directory. The workspace and
-the rebuild snapshot under `~/.local/share/clara/rebuild` are the only shared
-host paths. Back up Docker volumes with `clara backup`; back up a local
-install by archiving its two host directories.
-
-`clara pair` probes the panel's `/health` mode and then the Docker/local
-state to pick a target, and prints which one it chose. `--docker` forces the
-`clara-server` container and `--local` forces a local install. When both a local
-install and Docker state exist and neither is running, the command refuses to
-guess and exits; pass one of the flags.
-
-Hub setup, setup tokens, and admin resets use the hub binary directly:
-`node apps/hub/server/dist/index.js setup --password-stdin` for a local install
-or `docker exec clara-server /app/clara-server setup --password-stdin` for a
-container. The installed `clara-server` binary supports the same commands.
-
-### One-time migration to Docker volumes
-
-Existing Docker installs that still bind `~/.config/clara` and
-`~/.local/share/clara` need one manual copy. Stop the stack first.
-
-```bash
-clara stop
-tar -czf ~/clara-local-state-backup.tar.gz \
-  ~/.config/clara \
-  ~/.local/share/clara/clara.db* \
-  ~/.local/share/clara/engine \
-  infra/docker/.env
-docker volume create clara-server-config clara-server-data clara-orchestrator-data
-docker run --rm \
-  -v clara-server-config:/to/config \
-  -v clara-server-data:/to/data \
-  -v clara-orchestrator-data:/to/engine \
-  -v "$HOME/.config/clara:/from/config:ro" \
-  -v "$HOME/.local/share/clara:/from/data:ro" \
-  node:22-bookworm-slim \
-  sh -c '
-    if [ -d /from/config ]; then cp -a /from/config/. /to/config/; fi &&
-    find /from/data -maxdepth 1 -name "clara.db*" -exec cp -a {} /to/data/ \; &&
-    if [ -d /from/data/engine ]; then cp -a /from/data/engine/. /to/engine/; fi &&
-    chown -R 1000:1000 /to
-  '
-```
-
-Remove `CLARA_DATA_DIR` from `infra/docker/.env`, then start and verify the panel,
-harness connection, and pairing:
-
-```bash
-clara start
-clara status
-```
-
-Keep the archive until the stack is healthy. Move the old directories aside
-instead of deleting them; keep `~/.local/share/clara/rebuild` and the local
-`engine.token` if a local install is still used:
-
-```bash
-mkdir -p ~/.local/share/clara-pre-volumes
-mv ~/.config/clara ~/.config/clara-pre-volumes
-mv ~/.local/share/clara/clara.db* ~/.local/share/clara-pre-volumes/
-mv ~/.local/share/clara/engine ~/.local/share/clara-pre-volumes/
-```
-
-The Docker stack writes its control token to
-`~/.local/share/clara/docker/engine.token`, so a local install can keep
-using `~/.local/share/clara/engine.token` unchanged.
+Back up a local install by archiving the two host directories while the stack
+is stopped. Hub setup, setup tokens, and admin resets use the hub binary
+directly: `node apps/hub/server/dist/index.js setup --password-stdin`, or the
+installed `clara-server` binary.
 
 ## Pipeline development
 

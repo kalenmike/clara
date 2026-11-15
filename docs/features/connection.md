@@ -110,8 +110,8 @@ device key through a one-time code; there is no shared browser key.
   offers Retry; the hub tunnel and settings stay usable.
 - **Adapter cannot reach the harness** — `127.0.0.1` inside an adapter
   container is the adapter itself. Use the harness service name or an address
-  reachable from the adapter host. In the Docker stack the adapter joins the
-  `clara` network and reaches the hub at `ws://server:8788/ws`.
+  reachable from the adapter host. The adapter container joins the `clara`
+  network and reaches the hub at `ws://server:8788/ws`.
 - **Adapter reconnect loop** — `clara adapter status <kind>` and the adapter log show
   the most recent relay close code. `4008` means the relay's frame or byte
   budget refused the socket; `4009` means one sealed frame exceeded 128 KiB. The
@@ -216,18 +216,15 @@ device key through a one-time code; there is no shared browser key.
   registry manifest, copy command, and `clara://adapter` link. Clara Desktop's
   adapter host (`apps/desktop/host`) turns an offer into a local, SSH, or Docker
   install through `packages/adapters/install`; the hub runs nothing.
-- Docker stack: `clara start` starts the engine, hub, and web client
-  together; `start hub`, `start web`, or `start engine` selects one
-  target; `restart` recreates the selection.
-- Server container: `clara start hub --docker`; panel and local
-  WebSocket publish on host loopback, and adapters on the `clara` Docker network
-  connect to `ws://server:8788/ws`.
-  The maintenance snapshot records `local` vs `container` and recreates the
-  container with stop/start; see [maintenance.md](maintenance.md).
-- Web container: `clara start web --docker --build` serves the SPA on
-  `127.0.0.1:8080`. Local pairing works from that loopback origin; a remote
-  HTTPS page still needs the relay because pairing carries a `ws://` URL. The
-  maintenance snapshot records the web client as `container` or `stopped`.
+- Local stack: `clara start` starts the engine, hub, and web client together;
+  `start hub`, `start web`, or `start engine` selects one target; `restart`
+  stops and starts the selection.
+- Hub: `clara start hub`; the panel and local WebSocket listen on host
+  loopback. Adapters on the `clara` Docker network connect to
+  `ws://server:8788/ws` when the hub exposes its Docker bridge.
+- Web: `clara start web --build` serves the SPA on `127.0.0.1:8080`. Local
+  pairing works from that loopback origin; a remote HTTPS page still needs the
+  relay because pairing carries a `ws://` URL.
 - Stream health: `onActivity` tracks every chunk, including the 15s heartbeat;
   the watchdog aborts after 45s of silence
 - Related: [architecture overview](../architecture/overview.md),

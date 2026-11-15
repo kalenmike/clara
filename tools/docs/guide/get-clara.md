@@ -1,6 +1,6 @@
 ---
 title: Install the Clara command
-description: Install Clara as one signed command and run the stack without Docker.
+description: Install Clara as one signed command and run the stack without a checkout.
 sidebar_position: 9.5
 ---
 
@@ -8,7 +8,7 @@ sidebar_position: 9.5
 
 The packaged `clara` command runs the hub, the panel, the engine, and the web
 client from one executable. It is the fastest way to run Clara on a machine you
-own. Docker and the checkout workflows still work.
+own. The checkout workflow still works for development.
 
 ## Install
 
