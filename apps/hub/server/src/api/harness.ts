@@ -14,29 +14,6 @@ export type ForwardRequest = {
   body?: string
 }
 
-export async function forward(
-  deps: ApiDependencies,
-  request: ForwardRequest,
-  signal: AbortSignal
-): Promise<Response> {
-  if (!deps.canAccess()) {
-    throw new ApiRequestError(403, 'disabled', 'Harness access is disabled by an admin setting')
-  }
-  if (!deps.harness.configured) {
-    throw new ApiRequestError(
-      503,
-      'harness_unconfigured',
-      'No harness adapter is configured. Add one in the hub panel.'
-    )
-  }
-
-  try {
-    return await deps.harness.request(toHarnessInput(request), signal)
-  } catch (cause) {
-    throw harnessError(cause)
-  }
-}
-
 /** Forward a request to one specific paired harness. */
 export async function forwardTo(
   deps: ApiDependencies,
@@ -79,31 +56,6 @@ function harnessError(cause: unknown): never {
   )
 }
 
-export async function forwardJson(
-  deps: ApiDependencies,
-  method: HttpMethod,
-  path: string,
-  body: unknown,
-  signal: AbortSignal,
-  search?: string
-): Promise<Response> {
-  return forward(
-    deps,
-    {
-      method,
-      path,
-      ...(search ? { search } : {}),
-      ...(body === undefined
-        ? {}
-        : {
-            headers: { 'content-type': 'application/json' },
-            body: JSON.stringify(body),
-          }),
-    },
-    signal
-  )
-}
-
 export async function readJson<T>(response: Response): Promise<T> {
   const text = await response.text()
   if (!text) return undefined as T
@@ -112,15 +64,6 @@ export async function readJson<T>(response: Response): Promise<T> {
   } catch {
     throw new ApiRequestError(502, 'upstream_invalid', 'The adapter returned invalid JSON')
   }
-}
-
-export async function forwardResult<T>(
-  deps: ApiDependencies,
-  request: ForwardRequest,
-  signal: AbortSignal,
-  unwrapData = false
-): Promise<T> {
-  return readForwardResult<T>(await forward(deps, request, signal), unwrapData)
 }
 
 export async function forwardResultTo<T>(

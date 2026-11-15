@@ -133,7 +133,7 @@ export function Composer({
   const agentsQuery = useAgents(harnessID)
   const skillsQuery = useSkills(directory, harnessID)
   const referencesQuery = useReferences(directory, harnessID)
-  const { isModelHidden } = useModelVisibility()
+  const { isModelHidden } = useModelVisibility(harnessID)
   const isTouchDevice = useIsTouchDevice()
   const sendPrompt = useSendPrompt(sessionID)
   const runCommand = useRunCommand(sessionID)
@@ -205,7 +205,7 @@ export function Composer({
   const deferredMention = useDeferredValue(mentionQuery)
 
   const fileQuery = useQuery({
-    queryKey: ['file-find', directory, harnessID ?? 'active', deferredMention],
+    queryKey: ['file-find', directory, harnessID ?? 'none', deferredMention],
     queryFn: () =>
       client!.file.find({
         location: { directory },

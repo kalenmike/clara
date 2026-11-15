@@ -75,8 +75,11 @@ export function createClaraClient(options: ClaraClientOptions): ClaraClient {
 
   return {
     server: {
-      info: (requestOptions) =>
-        request<ClaraServerInfo>('GET', '/v1/harness/info', { options: requestOptions }),
+      info: (input, requestOptions) =>
+        request<ClaraServerInfo>('GET', '/v1/harness/info', {
+          query: { harnessID: input.harnessID },
+          options: requestOptions,
+        }),
       status: (requestOptions) => request<ApiInfo>('GET', '/v1/info', { options: requestOptions }),
       openapi: (requestOptions) =>
         request<Record<string, unknown>>('GET', '/openapi.json', { options: requestOptions }),
@@ -363,28 +366,28 @@ export function createClaraClient(options: ClaraClientOptions): ClaraClient {
     agent: {
       list: (input, requestOptions) =>
         request<ClaraAgentListOutput>('GET', '/v1/agents', {
-          query: { harnessID: input?.harnessID },
+          query: { harnessID: input.harnessID },
           options: requestOptions,
         }),
     },
     model: {
       list: (input, requestOptions) =>
         request<ClaraModelListOutput>('GET', '/v1/models', {
-          query: { harnessID: input?.harnessID },
+          query: { harnessID: input.harnessID },
           options: requestOptions,
         }),
     },
     provider: {
       list: (input, requestOptions) =>
         request<ClaraProviderListOutput>('GET', '/v1/providers', {
-          query: { harnessID: input?.harnessID },
+          query: { harnessID: input.harnessID },
           options: requestOptions,
         }),
     },
     command: {
       list: (input, requestOptions) =>
         request<ClaraCommandListOutput>('GET', '/v1/commands', {
-          query: { harnessID: input?.harnessID },
+          query: { harnessID: input.harnessID },
           options: requestOptions,
         }),
     },

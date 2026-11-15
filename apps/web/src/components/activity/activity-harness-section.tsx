@@ -33,11 +33,6 @@ export function ActivityHarnessSection({
             Partial
           </Badge>
         )}
-        {harness.active && (
-          <Badge variant="outline" className="text-[10px]">
-            Active harness
-          </Badge>
-        )}
       </div>
 
       {harness.message && (

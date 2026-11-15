@@ -31,8 +31,8 @@ export class HttpBackend implements ClaraApiReadBackend {
     return this.client.server.openapi()
   }
 
-  harnessInfo() {
-    return this.client.server.info()
+  harnessInfo(harnessID: string) {
+    return this.client.server.info({ harnessID })
   }
 
   projects(input?: { archived?: boolean }) {
@@ -69,28 +69,34 @@ export class HttpBackend implements ClaraApiReadBackend {
     return this.client.session.inbox.list({ sessionID })
   }
 
-  agents() {
-    return this.client.agent.list()
+  agents(harnessID: string) {
+    return this.client.agent.list({ harnessID })
   }
 
-  models() {
-    return this.client.model.list()
+  models(harnessID: string) {
+    return this.client.model.list({ harnessID })
   }
 
-  providers() {
-    return this.client.provider.list()
+  providers(harnessID: string) {
+    return this.client.provider.list({ harnessID })
   }
 
-  commands() {
-    return this.client.command.list()
+  commands(harnessID: string) {
+    return this.client.command.list({ harnessID })
   }
 
-  skills(input?: { directory?: string }) {
-    return this.client.skill.list({ location: { directory: input?.directory } })
+  skills(input: { harnessID: string; directory?: string }) {
+    return this.client.skill.list({
+      harnessID: input.harnessID,
+      location: { directory: input.directory },
+    })
   }
 
-  references(input?: { directory?: string }) {
-    return this.client.reference.list({ location: { directory: input?.directory } })
+  references(input: { harnessID: string; directory?: string }) {
+    return this.client.reference.list({
+      harnessID: input.harnessID,
+      location: { directory: input.directory },
+    })
   }
 
   location(directory?: string) {

@@ -9,12 +9,12 @@ describe('queryKeys project aggregates', () => {
 })
 
 describe('queryKeys harness scope', () => {
-  it('marks an omitted harness as the active one', () => {
-    expect(harnessKey(undefined)).toBe('active')
-    expect(queryKeys.agents()).toEqual(['agents', 'active'])
-    expect(queryKeys.models(undefined)).toEqual(['models', 'active'])
-    expect(queryKeys.providers()).toEqual(['providers', 'active'])
-    expect(queryKeys.commands()).toEqual(['commands', 'active'])
+  it('marks an omitted harness as unknown', () => {
+    expect(harnessKey(undefined)).toBe('none')
+    expect(queryKeys.agents()).toEqual(['agents', 'none'])
+    expect(queryKeys.models(undefined)).toEqual(['models', 'none'])
+    expect(queryKeys.providers()).toEqual(['providers', 'none'])
+    expect(queryKeys.commands()).toEqual(['commands', 'none'])
   })
 
   it('keeps catalogs and location data separate per harness', () => {
@@ -53,7 +53,7 @@ describe('queryKeys harness scope', () => {
 
   it('scopes pending permissions but keeps a cross-harness prefix', () => {
     expect(queryKeys.permissionsFor('/repo', 'one')).toEqual(['permissions', '/repo', 'one'])
-    expect(queryKeys.permissionsFor('/repo', undefined)).toEqual(['permissions', '/repo', 'active'])
+    expect(queryKeys.permissionsFor('/repo', undefined)).toEqual(['permissions', '/repo', 'none'])
     expect(queryKeys.permissionsFor('/repo', 'one').slice(0, 1)).toEqual(queryKeys.permissions)
   })
 })

@@ -44,7 +44,7 @@ export function ModelPicker({
 }) {
   const modelsQuery = useModels(harnessID)
   const switchModel = useSwitchModel(session?.id ?? '')
-  const { visibility, isModelHidden } = useModelVisibility()
+  const { visibility, isModelHidden } = useModelVisibility(harnessID)
   const models = useMemo(
     () => (modelsQuery.data ?? []).filter((model) => isModelVisible(model, visibility)),
     [modelsQuery.data, visibility]
@@ -136,7 +136,7 @@ export function VariantPicker({
   harnessID?: string
 }) {
   const modelsQuery = useModels(harnessID)
-  const { visibility } = useModelVisibility()
+  const { visibility } = useModelVisibility(harnessID)
   const switchModel = useSwitchModel(session?.id ?? '')
   const currentModel = (modelsQuery.data ?? [])
     .filter((model) => isModelVisible(model, visibility))

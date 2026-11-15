@@ -20,7 +20,6 @@ import {
 } from '@clara/api-contract'
 import { ApiRequestError, type ApiDependencies, type ApiVariables } from '../context.ts'
 import {
-  forwardDto,
   forwardDtoTo,
   parseClaraFiles,
   parseClaraLocation,
@@ -31,7 +30,11 @@ import {
   parseClaraWorktrees,
 } from '../dto.ts'
 import { forwardResultTo, locationQuery, query } from '../harness.ts'
-import { resolveHarnessForDirectory, resolveHarnessProjectGroups } from '../harness-scope.ts'
+import {
+  requireHarnessContext,
+  resolveHarnessForDirectory,
+  resolveHarnessProjectGroups,
+} from '../harness-scope.ts'
 import {
   availableProjects,
   signalProjectArchive,
@@ -103,7 +106,6 @@ export function registerProjectRoutes(
           kind: connection.kind,
           label: connection.label,
           online: connection.online,
-          active: connection.isActive,
           capabilities: connection.capabilities,
         }))
       )
@@ -143,11 +145,7 @@ export function registerProjectRoutes(
     }),
     validator('query', z.object({ harnessID: z.string().min(1).optional() })),
     async (c) => {
-      const requested = c.req.valid('query').harnessID
-      const harnessID = requested ?? deps.harness.active?.harnessId
-      if (!harnessID) {
-        throw new ApiRequestError(503, 'harness_unconfigured', 'No harness is paired yet')
-      }
+      const harnessID = requireHarnessContext(deps, c.req.valid('query').harnessID)
       const candidates = await availableProjects(deps, harnessID, c.req.raw.signal)
       return c.json(
         candidates.map(({ connection, project }) => toAvailableProject(connection, project))
@@ -562,12 +560,20 @@ export function registerProjectRoutes(
       summary: 'List worktrees for a project',
       responses: responses(jsonResponse(resolver(claraWorktreeListSchema), 'Worktrees')),
     }),
-    validator('query', z.object({ project: z.string().min(1).optional() })),
+    validator(
+      'query',
+      z.object({
+        project: z.string().min(1).optional(),
+        harnessID: z.string().min(1).optional(),
+      })
+    ),
     async (c) => {
-      const { project } = c.req.valid('query')
+      const { project, harnessID: requestedHarnessID } = c.req.valid('query')
       if (!project) {
-        const result = await forwardDto(
+        const harnessID = requireHarnessContext(deps, requestedHarnessID)
+        const result = await forwardDtoTo(
           deps,
+          harnessID,
           { method: 'GET', path: '/worktrees', search: query({}) },
           c.req.raw.signal,
           parseClaraWorktrees
@@ -660,14 +666,12 @@ export function registerProjectRoutes(
 
 function forwardScopedDto<T>(
   deps: ApiDependencies,
-  harnessID: string | undefined,
+  harnessID: string,
   request: Parameters<typeof forwardDtoTo>[2],
   signal: AbortSignal,
   parse: (value: unknown) => T
 ): Promise<T> {
-  return harnessID
-    ? forwardDtoTo(deps, harnessID, request, signal, parse)
-    : forwardDto(deps, request, signal, parse)
+  return forwardDtoTo(deps, harnessID, request, signal, parse)
 }
 
 function asApiError(cause: unknown): ApiRequestError {

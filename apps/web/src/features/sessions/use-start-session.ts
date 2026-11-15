@@ -5,8 +5,11 @@ import { resolveDefaultAgent } from '@/features/agents/default-agent'
 import { useDefaultAgent } from '@/features/agents/use-default-agent'
 import { useAgents } from '@/features/catalog/use-catalog'
 import type { PromptFile } from '@/features/chat/use-chat'
-import { useModelVisibility } from '@/features/models/use-model-visibility'
-import { resolveInheritedModel } from '@/features/models/visibility'
+import {
+  hiddenModelsFor,
+  readHiddenModels,
+  resolveInheritedModel,
+} from '@/features/models/visibility'
 import { isWorkspaceStartable } from '@/features/projects/project-workspaces'
 import { latestSessionInWorkspace } from '@/features/sessions/session-workspace'
 import {
@@ -34,9 +37,8 @@ export function useStartSession({
 }) {
   const navigate = useNavigate()
   const createSession = useCreateSession()
-  const { settings, lastAgent } = useDefaultAgent()
+  const { settings, lastAgent } = useDefaultAgent(workspace?.harnessID)
   const agentsQuery = useAgents(workspace?.harnessID)
-  const { visibility } = useModelVisibility()
   const sessionsQuery = useSessions(projectID ?? null, '', Boolean(projectID && workspace))
 
   const resolvedAgent = resolveDefaultAgent({
@@ -54,9 +56,12 @@ export function useStartSession({
   const modelForWorkspace = useCallback(
     (target: ClaraProjectWorkspace) => {
       const latest = latestSessionInWorkspace(sessionsQuery.data?.data ?? [], target)
-      return resolveInheritedModel(latest?.model, visibility)
+      return resolveInheritedModel(
+        latest?.model,
+        hiddenModelsFor(readHiddenModels(), target.harnessID)
+      )
     },
-    [sessionsQuery.data?.data, visibility]
+    [sessionsQuery.data?.data]
   )
 
   const startSession = useCallback(

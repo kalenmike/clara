@@ -16,7 +16,6 @@ export type HarnessConnection = {
   protocolVersion?: number
   harnessVersion?: string
   capabilities: Record<string, unknown>
-  isActive: boolean
   credentialConfigured: boolean
   lastTestAt?: number
   lastTestOk?: boolean
@@ -74,7 +73,7 @@ export class HarnessUnconfiguredError extends Error {
 export class HarnessOfflineError extends Error {
   readonly code = 'harness_offline'
 
-  constructor(message = 'The active harness adapter is offline') {
+  constructor(message = 'The harness adapter is offline') {
     super(message)
     this.name = 'HarnessOfflineError'
   }

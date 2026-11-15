@@ -12,12 +12,7 @@ function json(value: unknown, status = 200): Response {
   })
 }
 
-function connection(
-  harnessID: string,
-  online: boolean,
-  active: boolean,
-  createdAt: number
-): HarnessConnection {
+function connection(harnessID: string, online: boolean, createdAt: number): HarnessConnection {
   return {
     id: `connection-${harnessID}`,
     harnessId: harnessID,
@@ -26,7 +21,6 @@ function connection(
     transport: 'local',
     online,
     capabilities: {},
-    isActive: active,
     credentialConfigured: true,
     createdAt,
     updatedAt: 1,
@@ -72,9 +66,9 @@ function fakeHarness(
 ): { harness: HarnessManager; calls: string[] } {
   const calls: string[] = []
   const connections = [
-    connection('harness-a', true, true, 2),
-    connection('harness-b', true, false, 1),
-    connection('harness-c', false, false, 3),
+    connection('harness-a', true, 2),
+    connection('harness-b', true, 1),
+    connection('harness-c', false, 3),
   ]
   const aSessions = options.aSessions ?? [
     session('a1', { created: 10, updated: 30, title: 'Fix parser', agent: 'build' }),
@@ -233,7 +227,7 @@ describe('SessionMonitor', () => {
 
   it('rejects invalid harness payloads instead of returning partial rows', async () => {
     const harness = {
-      list: () => [connection('harness-a', true, true, 1)],
+      list: () => [connection('harness-a', true, 1)],
       requestFor: async () => json({ data: [{ id: 'missing-time' }] }),
       overlaySession: (_harnessID: string, value: ClaraSession) => value,
     } as unknown as HarnessManager

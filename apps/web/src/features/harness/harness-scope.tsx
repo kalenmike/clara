@@ -3,7 +3,7 @@ import { createContext, useContext, useMemo, type ReactNode } from 'react'
 import type { ClaraLocationInput } from '@clara/api-client'
 
 type HarnessScopeValue = {
-  /** The harness this subtree belongs to; undefined means the active/default one. */
+  /** The harness this subtree belongs to. Undefined means no harness is known. */
   harnessID: string | undefined
 }
 
@@ -11,8 +11,7 @@ const HarnessScopeContext = createContext<HarnessScopeValue>({ harnessID: undefi
 
 /**
  * Pin catalog and data hooks in a subtree to the harness that owns the current
- * session or workspace. Settings and other unscoped screens keep the active
- * harness by not wrapping their content.
+ * session or workspace. Hooks stay disabled when there is no known harness.
  */
 export function HarnessScopeProvider({
   harnessID,
@@ -29,7 +28,7 @@ export function useHarnessScope(): string | undefined {
   return useContext(HarnessScopeContext).harnessID
 }
 
-/** An explicit harness wins; otherwise the surrounding scope, then the active one. */
+/** An explicit harness wins; otherwise the surrounding scope. */
 export function resolveHarnessID(
   harnessID: string | undefined,
   scope: string | undefined

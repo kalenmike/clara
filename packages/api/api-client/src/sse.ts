@@ -5,10 +5,10 @@ import { ClaraApiError } from './errors.ts'
 export async function* subscribeEvents(
   fetch: typeof globalThis.fetch,
   baseUrl: string,
-  options: ClaraEventSubscribeOptions = {}
+  options: ClaraEventSubscribeOptions
 ): AsyncIterable<ClaraEvent> {
   const url = new URL('/v1/events', baseUrl)
-  if (options.harnessID) url.searchParams.set('harnessID', options.harnessID)
+  url.searchParams.set('harnessID', options.harnessID)
   const response = await fetch(url, {
     method: 'GET',
     headers: {

@@ -21,7 +21,6 @@ export const claraProjectWorkspaceSchema = passthroughObject({
   harnessKind: z.string(),
   harnessLabel: z.string(),
   online: z.boolean(),
-  active: z.boolean(),
   directory: z.string(),
   canonical: z.string().optional(),
   label: z.string().optional(),

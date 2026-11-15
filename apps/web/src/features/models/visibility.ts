@@ -3,17 +3,30 @@ import { notifySettingChanged } from '@/lib/setting-events'
 
 export const HIDDEN_MODELS_KEY = 'clara.hiddenModels'
 
+/** The hidden providers and models for one harness. */
 export type HiddenModels = {
   providers: string[]
   models: string[]
+}
+
+/** Per-harness visibility. There is no global default harness. */
+export type HiddenModelsState = {
+  version: 2
+  harnesses: Record<string, HiddenModels>
 }
 
 export type PriceFilter = 'all' | 'free' | 'paid'
 
 const MAX_ENTRIES = 5_000
 
-let cached: HiddenModels | null = null
+let cached: HiddenModelsState | null = null
 const listeners = new Set<() => void>()
+
+const EMPTY_HIDDEN_MODELS: HiddenModels = { providers: [], models: [] }
+
+export function emptyHiddenModels(): HiddenModels {
+  return EMPTY_HIDDEN_MODELS
+}
 
 function normalizeList(value: unknown): string[] {
   if (!Array.isArray(value)) return []
@@ -30,10 +43,8 @@ function normalizeList(value: unknown): string[] {
   return result
 }
 
-export function normalizeHiddenModels(value: unknown): HiddenModels {
-  if (!value || typeof value !== 'object' || Array.isArray(value)) {
-    return { providers: [], models: [] }
-  }
+function normalizeGroup(value: unknown): HiddenModels {
+  if (!value || typeof value !== 'object' || Array.isArray(value)) return emptyHiddenModels()
   const record = value as Record<string, unknown>
   return {
     providers: normalizeList(record.providers),
@@ -41,36 +52,65 @@ export function normalizeHiddenModels(value: unknown): HiddenModels {
   }
 }
 
-export function parseHiddenModels(raw: string | null): HiddenModels {
-  if (!raw) return { providers: [], models: [] }
+function normalizeState(value: unknown): HiddenModelsState {
+  if (!value || typeof value !== 'object' || Array.isArray(value)) {
+    return { version: 2, harnesses: {} }
+  }
+  const record = value as Record<string, unknown>
+  if (record.version !== 2 || !record.harnesses || typeof record.harnesses !== 'object') {
+    return { version: 2, harnesses: {} }
+  }
+
+  const harnesses: Record<string, HiddenModels> = {}
+  for (const [harnessID, group] of Object.entries(record.harnesses)) {
+    const trimmed = harnessID.trim()
+    if (!trimmed) continue
+    const normalized = normalizeGroup(group)
+    if (normalized.providers.length > 0 || normalized.models.length > 0) {
+      harnesses[trimmed] = normalized
+    }
+  }
+  return { version: 2, harnesses }
+}
+
+export function normalizeHiddenModels(value: unknown): HiddenModelsState {
+  return normalizeState(value)
+}
+
+export function parseHiddenModels(raw: string | null): HiddenModelsState {
+  if (!raw) return { version: 2, harnesses: {} }
   try {
-    return normalizeHiddenModels(JSON.parse(raw))
+    return normalizeState(JSON.parse(raw))
   } catch {
-    return { providers: [], models: [] }
+    return { version: 2, harnesses: {} }
   }
 }
 
-export function readHiddenModels(): HiddenModels {
+export function readHiddenModels(): HiddenModelsState {
   if (cached) return cached
 
   try {
     cached = parseHiddenModels(window.localStorage.getItem(HIDDEN_MODELS_KEY))
   } catch {
-    cached = { providers: [], models: [] }
+    cached = { version: 2, harnesses: {} }
   }
 
   return cached
 }
 
+export function isEmptyHiddenModels(state: HiddenModelsState): boolean {
+  return Object.keys(state.harnesses).length === 0
+}
+
 /**
- * Visibility is one value: callers that change a provider or model should save
- * the complete snapshot so sync pushes the whole group at once.
+ * Visibility is one value per harness. Callers that change a provider or model
+ * save the complete state so sync pushes the whole group at once.
  */
 export function saveHiddenModels(value: unknown): void {
-  cached = normalizeHiddenModels(value)
+  cached = normalizeState(value)
 
   try {
-    if (cached.providers.length === 0 && cached.models.length === 0) {
+    if (isEmptyHiddenModels(cached)) {
       window.localStorage.removeItem(HIDDEN_MODELS_KEY)
     } else {
       window.localStorage.setItem(HIDDEN_MODELS_KEY, JSON.stringify(cached))
@@ -97,6 +137,14 @@ export function subscribeHiddenModels(listener: () => void): () => void {
     listeners.delete(listener)
     window.removeEventListener('storage', onStorage)
   }
+}
+
+export function hiddenModelsFor(
+  state: HiddenModelsState,
+  harnessID: string | undefined
+): HiddenModels {
+  if (!harnessID) return EMPTY_HIDDEN_MODELS
+  return state.harnesses[harnessID] ?? EMPTY_HIDDEN_MODELS
 }
 
 function modelKey(providerID: string, modelID: string): string {
@@ -131,31 +179,69 @@ export function isModelVisible(
 }
 
 export function withProviderHidden(
-  visibility: HiddenModels,
+  state: HiddenModelsState,
+  harnessID: string,
   providerID: string,
   hidden: boolean
-): HiddenModels {
-  const providers = new Set(visibility.providers)
+): HiddenModelsState {
+  const current = hiddenModelsFor(state, harnessID)
+  const providers = new Set(current.providers)
   if (hidden) providers.add(providerID)
   else providers.delete(providerID)
-  return { providers: [...providers], models: [...visibility.models] }
+  return withHarnessGroup(state, harnessID, {
+    providers: [...providers],
+    models: [...current.models],
+  })
 }
 
 export function withModelHidden(
-  visibility: HiddenModels,
+  state: HiddenModelsState,
+  harnessID: string,
   providerID: string,
   modelID: string,
   hidden: boolean
-): HiddenModels {
-  const models = new Set(visibility.models)
+): HiddenModelsState {
+  const current = hiddenModelsFor(state, harnessID)
+  const models = new Set(current.models)
   const key = modelKey(providerID, modelID)
   if (hidden) models.add(key)
   else models.delete(key)
-  return { providers: [...visibility.providers], models: [...models] }
+  return withHarnessGroup(state, harnessID, {
+    providers: [...current.providers],
+    models: [...models],
+  })
 }
 
-export function enableAllModels(): HiddenModels {
-  return { providers: [], models: [] }
+export function enableAllModels(state: HiddenModelsState, harnessID: string): HiddenModelsState {
+  const harnesses = { ...state.harnesses }
+  delete harnesses[harnessID]
+  return { version: 2, harnesses }
+}
+
+export function disableAllModels(
+  state: HiddenModelsState,
+  harnessID: string,
+  providerIDs: readonly string[]
+): HiddenModelsState {
+  const current = hiddenModelsFor(state, harnessID)
+  return withHarnessGroup(state, harnessID, {
+    providers: [...new Set([...current.providers, ...providerIDs])],
+    models: [...current.models],
+  })
+}
+
+function withHarnessGroup(
+  state: HiddenModelsState,
+  harnessID: string,
+  group: HiddenModels
+): HiddenModelsState {
+  const harnesses = { ...state.harnesses }
+  if (group.providers.length === 0 && group.models.length === 0) {
+    delete harnesses[harnessID]
+  } else {
+    harnesses[harnessID] = group
+  }
+  return { version: 2, harnesses }
 }
 
 export function resolveInheritedModel<T extends { id: string; providerID: string }>(

@@ -31,7 +31,7 @@ import {
   claraWorktreeSchema,
 } from '@clara/api-contract'
 import { ApiRequestError, type ApiDependencies } from './context.ts'
-import { forwardResult, forwardResultTo, type ForwardRequest } from './harness.ts'
+import { forwardResultTo, type ForwardRequest } from './harness.ts'
 
 function parser<T>(schema: z.ZodType<T>, label: string) {
   return (value: unknown): T => {
@@ -100,21 +100,10 @@ export const parseClaraWorktrees = parser(z.array(claraWorktreeSchema), 'worktre
 export const parseClaraEvent = parser(claraEventSchema, 'event')
 
 /**
- * Forward a request to the harness, then validate and return the Clara DTO.
+ * Forward a request to one harness, then validate and return the Clara DTO.
  * A schema failure becomes the same `upstream_invalid` error the hub already
  * uses for malformed upstream JSON.
  */
-export async function forwardDto<T>(
-  deps: ApiDependencies,
-  request: ForwardRequest,
-  signal: AbortSignal,
-  parse: (value: unknown) => T,
-  unwrapData = false
-): Promise<T> {
-  const value = await forwardResult<unknown>(deps, request, signal, unwrapData)
-  return parse(value)
-}
-
 export async function forwardDtoTo<T>(
   deps: ApiDependencies,
   harnessID: string,

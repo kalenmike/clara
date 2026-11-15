@@ -36,7 +36,7 @@ export function useForwardMessage({ session, projectID }: SessionTarget) {
   const queryClient = useQueryClient()
   const navigate = useNavigate()
   const { lowerSingular } = useSessionWording()
-  const { visibility } = useModelVisibility()
+  const { visibility } = useModelVisibility(session?.harnessID)
 
   return useMutation({
     mutationFn: async ({ message, text: selected }: ForwardInput) => {

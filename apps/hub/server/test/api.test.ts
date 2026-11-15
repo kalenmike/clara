@@ -19,7 +19,6 @@ const connection = {
   transport: 'local' as const,
   online: true,
   capabilities: {},
-  isActive: true,
   credentialConfigured: true,
   createdAt: 1,
   updatedAt: 1,
@@ -136,10 +135,11 @@ describe('hub API', () => {
 
   it('rejects an invalid upstream payload with upstream_invalid', async () => {
     const harness = fakeHarness()
-    harness.request = async () => json({ id: 'incomplete-location' })
+    ;(harness as unknown as { request: () => Promise<Response> }).request = async () =>
+      json({ id: 'incomplete-location' })
     const api = createTestApi(harness)
     const response = await api.fetch(
-      request('/v1/locations?directory=/workspace/demo', {
+      request('/v1/locations?directory=/workspace/demo&harnessID=harness-a', {
         headers: { authorization: 'Bearer secret' },
       })
     )
@@ -150,7 +150,9 @@ describe('hub API', () => {
 
   it('accepts the trusted agent header from the WebSocket bridge', async () => {
     const api = createTestApi()
-    const response = await api.fetch(request('/v1/sessions', { headers: { 'x-clara-agent': '1' } }))
+    const response = await api.fetch(
+      request('/v1/sessions?harnessID=harness-a', { headers: { 'x-clara-agent': '1' } })
+    )
     expect(response.status).toBe(200)
     expect(await response.json()).toEqual({ data: [], cursor: {} })
   })

@@ -167,7 +167,8 @@ describe('api contract', () => {
       harness: {
         configured: true,
         generation: 1,
-        active: { kind: 'opencode', label: 'Test' },
+        paired: 1,
+        online: 1,
         lastError: null,
       },
       agent: { version: '0.1.0', protocol: 1 },

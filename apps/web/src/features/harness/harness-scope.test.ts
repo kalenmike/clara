@@ -6,7 +6,7 @@ describe('resolveHarnessID', () => {
     expect(resolveHarnessID('explicit', 'scope')).toBe('explicit')
   })
 
-  it('falls back to the scope, then the active harness', () => {
+  it('falls back to the scope, then no harness', () => {
     expect(resolveHarnessID(undefined, 'scope')).toBe('scope')
     expect(resolveHarnessID(undefined, undefined)).toBeUndefined()
   })

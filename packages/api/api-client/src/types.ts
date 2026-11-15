@@ -49,16 +49,26 @@ export type RequestOptions = {
 }
 
 export type ClaraEventSubscribeOptions = RequestOptions & {
-  /** Stream events from one paired harness instead of the active/default one. */
-  readonly harnessID?: string
+  /** The paired harness whose events to stream. */
+  readonly harnessID: string
 }
 
 export type ClaraLocationInput = {
   readonly location?: {
     readonly directory?: string
   }
-  /** Routes the request to one paired harness instead of the active/default one. */
+  /** The paired harness that owns the location. */
   readonly harnessID?: string
+}
+
+/** Context-free catalog reads must name their harness. */
+export type ClaraCatalogInput = {
+  readonly harnessID: string
+}
+
+/** Directory-scoped catalog reads still name the harness they belong to. */
+export type ClaraLocatedCatalogInput = ClaraLocationInput & {
+  readonly harnessID: string
 }
 
 export type ClaraProjectListInput = {
@@ -87,7 +97,7 @@ export type ClaraProjectDeleteInput = {
 }
 
 export type ClaraProjectAvailableInput = {
-  readonly harnessID?: string
+  readonly harnessID: string
 }
 
 export type ClaraActivitySessionsInput = {
@@ -313,7 +323,7 @@ export type ClaraWorktreeRefreshInput = {
  */
 export type ClaraClient = {
   server: {
-    info: (options?: RequestOptions) => Promise<ClaraServerInfo>
+    info: (input: ClaraCatalogInput, options?: RequestOptions) => Promise<ClaraServerInfo>
     status: (options?: RequestOptions) => Promise<ApiInfo>
     openapi: (options?: RequestOptions) => Promise<Record<string, unknown>>
   }
@@ -426,23 +436,26 @@ export type ClaraClient = {
     }
   }
   agent: {
-    list: (input?: ClaraLocationInput, options?: RequestOptions) => Promise<ClaraAgentListOutput>
+    list: (input: ClaraCatalogInput, options?: RequestOptions) => Promise<ClaraAgentListOutput>
   }
   model: {
-    list: (input?: ClaraLocationInput, options?: RequestOptions) => Promise<ClaraModelListOutput>
+    list: (input: ClaraCatalogInput, options?: RequestOptions) => Promise<ClaraModelListOutput>
   }
   provider: {
-    list: (input?: ClaraLocationInput, options?: RequestOptions) => Promise<ClaraProviderListOutput>
+    list: (input: ClaraCatalogInput, options?: RequestOptions) => Promise<ClaraProviderListOutput>
   }
   command: {
-    list: (input?: ClaraLocationInput, options?: RequestOptions) => Promise<ClaraCommandListOutput>
+    list: (input: ClaraCatalogInput, options?: RequestOptions) => Promise<ClaraCommandListOutput>
   }
   skill: {
-    list: (input?: ClaraLocationInput, options?: RequestOptions) => Promise<ClaraSkillListOutput>
+    list: (
+      input: ClaraLocatedCatalogInput,
+      options?: RequestOptions
+    ) => Promise<ClaraSkillListOutput>
   }
   reference: {
     list: (
-      input?: ClaraLocationInput,
+      input: ClaraLocatedCatalogInput,
       options?: RequestOptions
     ) => Promise<ClaraReferenceListOutput>
   }
@@ -463,7 +476,7 @@ export type ClaraClient = {
     log: (input: GitLogQuery, options?: RequestOptions) => Promise<GitCommit[]>
   }
   event: {
-    subscribe: (options?: ClaraEventSubscribeOptions) => AsyncIterable<ClaraEvent>
+    subscribe: (options: ClaraEventSubscribeOptions) => AsyncIterable<ClaraEvent>
   }
 }
 

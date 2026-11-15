@@ -210,7 +210,7 @@ function ChatPageContent() {
   const agents = useMemo(() => primaryAgents(agentsQuery.data), [agentsQuery.data])
   const switchAgent = useSwitchAgent(sessionId ?? '')
   const switchModel = useSwitchModel(sessionId ?? '')
-  const { settings: defaultAgentSettings } = useDefaultAgent()
+  const { settings: defaultAgentSettings } = useDefaultAgent(harnessID)
   const fixedDefaultAgent =
     defaultAgentSettings.mode === 'fixed' &&
     defaultAgentSettings.agent != null &&
@@ -218,7 +218,7 @@ function ChatPageContent() {
       ? defaultAgentSettings.agent
       : null
   const draftAgentReset = useRef<string | null>(null)
-  const { visibility } = useModelVisibility()
+  const { visibility } = useModelVisibility(harnessID)
   const compact = useCompactSession(sessionId ?? '')
   const interrupt = useInterruptSession(sessionId ?? '')
   const { mutate: forkSession, isPending: forkPending } = useForkSession({

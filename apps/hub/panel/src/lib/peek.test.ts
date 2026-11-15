@@ -58,7 +58,6 @@ describe('collectSecrets', () => {
   it('collects the harness identity and pending pairing material', () => {
     const secrets = collectSecrets(
       snapshot({
-        opencode: { url: 'http://opencode.internal:4096' },
         harnesses: [{ harnessId: 'harness-identity-1234567890' }],
         harnessPairings: [
           {
@@ -69,8 +68,6 @@ describe('collectSecrets', () => {
       })
     )
 
-    expect(secrets).toContain('http://opencode.internal:4096')
-    expect(secrets).toContain('opencode.internal')
     expect(secrets).toContain('harness-identity-1234567890')
     expect(secrets).toContain('clara-harness1_secret-code')
   })
@@ -78,7 +75,6 @@ describe('collectSecrets', () => {
   it('masks a harness URL and the relay room in free text', () => {
     const secrets = collectSecrets(
       snapshot({
-        opencode: { url: 'http://opencode.internal:4096' },
         harnesses: [{ harnessId: 'http://opencode.internal:4096' }],
       })
     )
@@ -89,15 +85,12 @@ describe('collectSecrets', () => {
     expect(maskText('Room room-abc', secrets)).toBe(`Room ${PEEK_MASK}`)
   })
 
-  it('keeps loopback harness hostnames out of the secret list', () => {
+  it('keeps loopback transport hosts out of the secret list', () => {
     const secrets = collectSecrets(
-      snapshot({
-        opencode: { url: 'http://127.0.0.1:4096' },
-        harnesses: [{ harnessId: 'harness-identity-1234567890' }],
-      })
+      snapshot({ harnesses: [{ harnessId: 'harness-identity-1234567890' }] })
     )
 
-    expect(secrets).toContain('http://127.0.0.1:4096')
+    expect(secrets).toContain('ws://127.0.0.1:8788')
     expect(secrets).not.toContain('127.0.0.1')
     expect(secrets).not.toContain('localhost')
   })
@@ -156,7 +149,6 @@ function snapshot(patch: Partial<Record<string, unknown>> = {}): PanelSnapshot {
       relayRoom: { value: 'room-abc' },
     },
     local: { host: '127.0.0.1', port: 8788, url: 'ws://127.0.0.1:8788' },
-    opencode: { url: 'http://127.0.0.1:4096' },
     harnesses: [],
     relay: { url: 'wss://relay.example.com', room: 'room-abc' },
     storage: [],

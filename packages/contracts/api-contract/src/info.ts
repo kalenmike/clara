@@ -21,12 +21,8 @@ export const apiInfoSchema = z.object({
   harness: z.object({
     configured: z.boolean(),
     generation: z.number(),
-    active: z
-      .object({
-        kind: z.string(),
-        label: z.string(),
-      })
-      .nullable(),
+    paired: z.number(),
+    online: z.number(),
     lastError: z.string().nullable(),
   }),
   agent: agentInfoSchema,
@@ -45,7 +41,6 @@ export const claraHarnessConnectionSchema = z.object({
   kind: z.string(),
   label: z.string(),
   online: z.boolean(),
-  active: z.boolean(),
   capabilities: z.record(z.string(), z.unknown()),
 })
 

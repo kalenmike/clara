@@ -935,11 +935,6 @@ export class RuntimeController {
     return toPanelHarnessTest(result)
   }
 
-  async activateHarness(id: string): Promise<PanelHarnessMutationResponse> {
-    await harnessCall(async () => this.options.harness.activate(id))
-    return this.harnessMutation()
-  }
-
   async deleteHarness(id: string): Promise<PanelHarnessMutationResponse> {
     await harnessCall(async () => this.options.harness.remove(id))
     return this.harnessMutation()
@@ -1120,9 +1115,10 @@ export class RuntimeController {
   }
 
   private harnessMutation(): PanelHarnessMutationResponse {
+    const control = this.controls().features.find((feature) => feature.name === 'opencode')
     return {
       harnesses: harnessList(this.options.harness),
-      harness: harnessState(this.options.harness),
+      harness: harnessState(this.options.harness, control ?? { desired: false, effective: false }),
     }
   }
 
@@ -1133,16 +1129,18 @@ export class RuntimeController {
     this.pushMonitor?.sync()
     await this.refreshHarnessInfo()
     this.syncPushMonitor()
+    const connections = this.options.harness.list()
     this.options.log(
-      this.options.harness.configured
-        ? `harness connection is active: ${this.options.harness.active?.label ?? 'harness'}`
+      connections.length > 0
+        ? `paired harnesses: ${connections.length} (${connections.filter((item) => item.online).length} online)`
         : 'no harness connection is configured'
     )
   }
 
   private async refreshHarnessInfo(): Promise<void> {
-    const probe = await this.options.harness.probe(3_000)
-    this.options.info.opencodeVersion = probe.ok ? probe.version : undefined
+    this.options.info.opencodeVersion = this.options.harness
+      .list()
+      .find((connection) => connection.online && connection.harnessVersion)?.harnessVersion
     this.localAgent.broadcastAgentInfo()
     this.relayAgent?.broadcastAgentInfo()
   }

@@ -21,20 +21,15 @@ export function HarnessView({
   const { redact } = usePeek()
   const [pairingOpen, setPairingOpen] = useState(false)
   const feature = findFeature(snapshot.controls, 'opencode')
-  const activeHarness = snapshot.harnesses.find((harness) => harness.isActive)
   const adapterClients = snapshot.clients.filter((client) => client.kind === 'adapter')
-  const notice =
-    snapshot.harness.error ??
-    (snapshot.opencode.code !== 'disabled' && snapshot.opencode.code !== 'unconfigured'
-      ? snapshot.opencode.error
-      : undefined)
+  const notice = snapshot.harness.error
 
   return (
     <View
       id="harness"
-      kicker={activeHarness?.label ?? 'Harness'}
+      kicker={`${snapshot.harness.online} of ${snapshot.harness.paired} online`}
       title="Harness"
-      description="Live adapter sessions, paired harnesses, and the harness server this hub proxies."
+      description="Every paired harness is a peer. Workspaces choose the harness they belong to."
       actions={
         <button type="button" className="panel-button primary" onClick={() => setPairingOpen(true)}>
           Pair Harness

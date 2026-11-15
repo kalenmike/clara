@@ -1,4 +1,3 @@
-import { useEffect, useRef } from 'react'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import type { ClaraProject } from '@clara/api-contract'
 import type { ClaraProjectDeleteInput, ClaraProjectUpdateInput } from '@clara/api-client'
@@ -27,8 +26,7 @@ export function useArchivedProjects() {
 
 export function useHarnesses() {
   const { client } = useConnection()
-  const queryClient = useQueryClient()
-  const query = useQuery({
+  return useQuery({
     queryKey: queryKeys.harnesses,
     queryFn: () => client!.harness.list(),
     enabled: Boolean(client),
@@ -36,32 +34,14 @@ export function useHarnesses() {
     // A newly paired harness must start streaming without a page reload.
     refetchInterval: 30_000,
   })
-  const activeID = query.data?.find((harness) => harness.active)?.harnessID
-  const previousActive = useRef<string | undefined>(undefined)
-
-  useEffect(() => {
-    const previous = previousActive.current
-    previousActive.current = activeID
-    // Un-scoped screens key their catalogs as `active`; a changed default must
-    // not keep serving the previous harness for the full stale window.
-    if (!previous || previous === activeID) return
-    for (const key of ['agents', 'models', 'providers', 'commands']) {
-      void queryClient.invalidateQueries({ queryKey: [key, 'active'] })
-    }
-    for (const key of ['skills', 'references', 'permissions', 'vcs', 'git']) {
-      void queryClient.invalidateQueries({ queryKey: [key] })
-    }
-  }, [activeID, queryClient])
-
-  return query
 }
 
 export function useAvailableProjects(harnessID: string | undefined) {
   const { client } = useConnection()
   return useQuery({
     queryKey: queryKeys.projectAvailable(harnessID),
-    queryFn: () => client!.project.available({ harnessID }),
-    enabled: Boolean(client) && Boolean(harnessID),
+    queryFn: () => client!.project.available({ harnessID: harnessID! }),
+    enabled: Boolean(client && harnessID),
     staleTime: 15_000,
   })
 }

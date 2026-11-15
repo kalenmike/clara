@@ -1,6 +1,6 @@
-/** A stable key segment for a harness; undefined asks for the active/default one. */
+/** A stable key segment for a harness. Nothing is fetched without one. */
 export function harnessKey(harnessID?: string): string {
-  return harnessID ?? 'active'
+  return harnessID ?? 'none'
 }
 
 export const queryKeys = {

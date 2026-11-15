@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useRef, useState, useSyncExternalStore } from 'react'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
-import type { ClaraJsonValue, ClaraSessionMessage } from '@clara/api-contract'
+import type { ClaraJsonValue, ClaraSession, ClaraSessionMessage } from '@clara/api-contract'
 import { toast } from 'sonner'
 export type PromptFile = {
   uri: string
@@ -271,7 +271,8 @@ export function useSwitchAgent(sessionID: string) {
         client!.session.switchAgent({ sessionID, agent })
       ),
     onSuccess: (_data, agent) => {
-      saveLastAgent(agent)
+      const session = queryClient.getQueryData<ClaraSession>(queryKeys.session(sessionID))
+      saveLastAgent(session?.harnessID, agent)
       void queryClient.invalidateQueries({ queryKey: queryKeys.session(sessionID) })
     },
   })

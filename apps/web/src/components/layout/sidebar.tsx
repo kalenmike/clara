@@ -37,7 +37,6 @@ import { SidebarSessionRow } from '@/components/layout/sidebar-session-row'
 import { DeleteSessionDialog } from '@/components/sessions/delete-session-dialog'
 import { useWorkspacePendingPermissions } from '@/features/chat/use-permissions'
 import { usePruneEmptyDrafts } from '@/features/chat/use-prune-empty-drafts'
-import { useHarnessLabel } from '@/features/harness/use-harness-label'
 import { resolveAttentionKind } from '@/features/notifications/attention'
 import {
   filterVisibleProjects,
@@ -148,8 +147,7 @@ export function SidebarContent({
   const location = useLocation()
   const params = useParams<{ projectId: string; sessionId?: string }>()
   const { lowerSingular, lowerPlural } = useSessionWording()
-  const { harness, reconnect, reconnecting } = useConnection()
-  const label = useHarnessLabel('Harness')
+  const { reconnect, reconnecting } = useConnection()
   const { state } = useEventStream()
   const projectsQuery = useProjects()
   const projects = useMemo(() => projectsQuery.data ?? [], [projectsQuery.data])
@@ -995,7 +993,9 @@ export function SidebarContent({
       <div className="shrink-0 border-t px-3 py-2.5 text-[11px] text-muted-foreground md:py-2 md:text-[10px]">
         <div className="flex items-center justify-between gap-2">
           <span className="truncate">
-            {harness ? `${label} ${harness.version}` : 'Harness offline'}
+            {sessionWorkspace
+              ? `${sessionWorkspace.harnessLabel} ${sessionWorkspace.online ? 'online' : 'offline'}`
+              : 'No workspace'}
           </span>
           <span className="truncate" title={claraBuildTitle}>
             Clara {claraDisplayVersion}
