@@ -1,9 +1,8 @@
 #!/usr/bin/env node
-// Install a thin `clara` shim that points at this checkout.
+// Install a thin `clara-dev` shim that points at this checkout.
 //
-// The compiled-binary route is deliberately not used yet: the CLI still needs a
-// checkout for compose files, `--build`, and the MCP bridge, so a wrapper gives
-// the same "run clara" convenience without a per-platform build.
+// The packaged `clara` command lives in apps/cli. This shim exposes the
+// developer-only command under a separate name so both can coexist.
 
 import { chmodSync, existsSync, mkdirSync, writeFileSync } from 'node:fs'
 import { homedir } from 'node:os'
@@ -23,11 +22,11 @@ if (!existsSync(entry)) {
 mkdirSync(binDir, { recursive: true, mode: 0o755 })
 
 if (process.platform === 'win32') {
-  const path = join(binDir, 'clara.cmd')
+  const path = join(binDir, 'clara-dev.cmd')
   writeFileSync(path, `@echo off\r\nnode "${entry}" %*\r\n`, { mode: 0o755 })
   console.log(`wrote ${path}`)
 } else {
-  const path = join(binDir, 'clara')
+  const path = join(binDir, 'clara-dev')
   writeFileSync(path, `#!/bin/sh\nexec node "${entry}" "$@"\n`, { mode: 0o755 })
   chmodSync(path, 0o755)
   console.log(`wrote ${path}`)
@@ -35,7 +34,7 @@ if (process.platform === 'win32') {
 
 const pathEntries = (process.env.PATH ?? '').split(process.platform === 'win32' ? ';' : ':')
 if (!pathEntries.includes(binDir)) {
-  console.log(`Add ${binDir} to PATH, then run \`clara --help\`.`)
+  console.log(`Add ${binDir} to PATH, then run \`clara-dev --help\`.`)
 } else {
-  console.log('Run `clara --help`.')
+  console.log('Run `clara-dev --help`.')
 }
