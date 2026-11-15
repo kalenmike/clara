@@ -105,6 +105,9 @@ engine both work.
 - The Docker builder targets Debian 12 and produces Linux bundles only. macOS
   and Windows installers need their own hosts. AppImage bundling can still fail
   inside linuxdeploy; narrowing to `--bundles deb,rpm` avoids it.
+- The per-user install script is Linux-only. It refuses a build without the
+  `clara-adapter-host` sidecar and names the rebuild command instead of
+  installing a half-working app.
 - Installers are unsigned, so the operating system may warn on first launch.
 - The desktop app has no service worker, so the PWA install prompt, update
   banner, and cache-recovery action do not appear. Settings reports updates as
@@ -172,7 +175,20 @@ engine both work.
   cache mounts. The script passes the version stamp because `.git` is outside
   the context, and sets `NO_STRIP`/`APPIMAGE_EXTRACT_AND_RUN` for linuxdeploy.
   `--bundles`, `--platform`, `--output`, `--base`, and `--no-cache` are
-  available; the container cannot produce macOS or Windows installers.
+  available; the container cannot produce macOS or Windows installers. The
+  artifacts include both `clara-desktop` and the `clara-adapter-host` sidecar, so
+  an extracted build is self-contained.
+- `pnpm desktop:install` (`apps/desktop/scripts/install.mjs`) installs an
+  existing Linux build into the current user's XDG directories: both binaries in
+  `~/.local/bin`, a generated `clara.desktop` menu entry, and the 32, 128, and
+  256 px hicolor icons, then refreshes the desktop database, the icon cache, and
+  the `clara://` scheme default. It prefers `dist/desktop`, falls back to
+  `src-tauri/target/release`, verifies `SHA256SUMS`, and replaces files by rename
+  so it works while the app is running. `--from`, `--prefix`, `--dry-run`,
+  `--no-verify`, `--uninstall`, and `--purge` are available. It is Linux-only;
+  the macOS and Windows installers already install for the current user.
+  `pnpm desktop:uninstall` removes the binaries, entry, and icons, and
+  `--purge` also removes the webview's `com.kalenmichael.clara` data and cache.
 - Vite's `desktop` mode disables `vite-plugin-pwa`, sets
   `build.outDir = dist-desktop`, and defines `CLARA_DESKTOP`. The web build is
   the default and keeps the PWA worker and manifest.

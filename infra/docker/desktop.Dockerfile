@@ -105,6 +105,7 @@ RUN --mount=type=cache,id=clara-cargo-registry,target=/usr/local/cargo/registry 
     --mount=type=cache,id=clara-tauri-tools,target=/root/.cache/tauri \
     mkdir -p /out \
     && node apps/desktop/host/scripts/build.mjs \
+    && cp "apps/desktop/src-tauri/binaries/clara-adapter-host-$(rustc -vV | sed -n 's/^host: //p')" /out/clara-adapter-host \
     && pnpm --dir apps/desktop exec tauri build --bundles "$TAURI_BUNDLES" \
     && find apps/desktop/src-tauri/target/release/bundle -type f -name '*.deb' \
          -exec cp -t /out/ {} + \
