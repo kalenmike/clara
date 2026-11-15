@@ -72,6 +72,20 @@ clara adapter remove pi --purge
 
 The hub still prints a copy command for adapters you install on another machine.
 
+## Run scripts
+
+The shared runner is part of the command; it does not need a separate download.
+
+```bash
+clara runner start --workspace ~/src/clara
+clara runner status
+clara runner logs -f
+clara runner stop
+```
+
+The runner connects to the local engine and executes pipeline scripts in the
+workspace you name.
+
 ## Update
 
 ```bash
