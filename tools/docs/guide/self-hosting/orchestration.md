@@ -60,7 +60,8 @@ reads the service, and a greeting does not create work.
 ## Preview a package
 
 Clara Lab has two parts: a service that runs next to the engine, and the UI in
-Clara Desktop. Start the service on the engine host:
+Clara Desktop. `clara start` runs the service with the rest of the stack; to run
+only the service on the engine host:
 
 ```bash
 clara start lab
@@ -74,9 +75,6 @@ machines.
 It compiles a package with the same loader and compiler as the service, shows
 the step tree, rendered prompts, policy, budget, and source files, and can drive
 a run manually. It also reports the workspace the service uses.
-
-`clara status lab --check --workspace . --target std:software/feature` validates a
-target for CI.
 
 ### Remote desktop setup
 

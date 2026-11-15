@@ -4,7 +4,7 @@ import { join } from 'node:path'
 import type { ClaraPaths } from '../paths.ts'
 import type { Ports } from '../ports.ts'
 import { selfCommand } from '../self.ts'
-import { startStack } from '../service/lifecycle.ts'
+import { defaultServices, startStack } from '../service/lifecycle.ts'
 import { detectService, installPlan, applyPlan } from '../service-manager/index.ts'
 import type { ServiceKind } from '../service-manager/index.ts'
 
@@ -57,7 +57,7 @@ export async function runSetup(options: SetupOptions): Promise<SetupResult> {
     const code = await startStack({
       paths: options.paths,
       ports: options.ports,
-      services: ['engine', 'hub', 'web'],
+      services: defaultServices(),
       foreground: false,
     })
     if (code !== 0) return fail('started the Clara stack', 'see `clara logs --no-follow`')

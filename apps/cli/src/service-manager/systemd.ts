@@ -6,7 +6,7 @@ export function systemdUnit(options: ServiceOptions): string {
     .map(([key, value]) => `Environment=${JSON.stringify(`${key}=${value}`)}`)
     .join('\n')
   return `[Unit]
-Description=Clara hub, engine, and web client
+Description=Clara hub, engine, lab, and web client
 After=network-online.target
 Wants=network-online.target
 

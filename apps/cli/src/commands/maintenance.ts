@@ -4,7 +4,7 @@ import { homedir } from 'node:os'
 import { isCompiled } from '../self.ts'
 import { resolvePaths } from '../paths.ts'
 import { resolvePorts } from '../ports.ts'
-import { statusStack, stopStack } from '../service/lifecycle.ts'
+import { defaultServices, statusStack, stopStack } from '../service/lifecycle.ts'
 import { adapterHubLinks } from '../adapters/hubs.ts'
 import { adapterListReport } from './adapters.ts'
 import { detectRole, roleLabel } from '../state/role.ts'
@@ -146,7 +146,7 @@ export async function runDoctorCommand(): Promise<number> {
     return 0
   }
 
-  const state = await statusStack(paths, ports, ['engine', 'hub', 'web'])
+  const state = await statusStack(paths, ports, defaultServices())
   for (const service of state.services) {
     console.log(`service      ${service.name} ${service.state} ${service.url}`)
   }

@@ -47,7 +47,7 @@ Re-running setup repairs missing pieces without duplicating them.
 
 ```bash
 clara ps                 # what is running, with version, protocol, and uptime
-clara logs -f            # follow all three services
+clara logs -f            # follow every service
 clara logs hub -f        # follow one service
 clara pair hub           # print a browser pairing code and QR
 clara restart            # restart the stack
