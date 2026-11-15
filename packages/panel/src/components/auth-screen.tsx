@@ -79,69 +79,69 @@ export function AuthScreen({ session }: { session: SessionController }) {
         : 'Sign in'
 
   return (
-    <div className="flex min-h-screen items-center justify-center bg-[var(--panel-bg)] px-4">
+    <div className="flex min-h-screen items-center justify-center bg-background px-4">
       <main className="panel-card w-full max-w-md p-6">
         <div className="mb-6 flex items-start gap-3">
-          <div className="flex size-10 shrink-0 items-center justify-center rounded-md bg-[var(--panel-accent)] text-white">
+          <div className="flex size-10 shrink-0 items-center justify-center rounded-md bg-primary text-primary-foreground">
             <ShieldCheck className="size-5" aria-hidden="true" />
           </div>
           <div>
             <h1 className="text-lg font-semibold tracking-tight">{heading}</h1>
-            <p className="mt-1 text-xs text-neutral-500 dark:text-neutral-400">{description}</p>
+            <p className="mt-1 text-xs text-muted-foreground">{description}</p>
           </div>
         </div>
 
         <form className="space-y-3" onSubmit={(event) => void submit(event)}>
           {needsTokenField ? (
-            <label className="block text-xs font-medium text-neutral-600 dark:text-neutral-300">
+            <label className="block text-xs font-medium text-foreground">
               {reset ? 'Reset token' : 'Setup token'}
               <input
                 type="password"
                 autoComplete="one-time-code"
                 value={token}
                 onChange={(event) => setToken(event.target.value)}
-                className="mt-1 w-full rounded-lg border border-neutral-200 bg-white px-3 py-2 font-mono text-sm outline-none focus:border-neutral-500 dark:border-neutral-700 dark:bg-neutral-950"
+                className="mt-1 w-full rounded-lg border border-border bg-card px-3 py-2 font-mono text-sm outline-none focus:border-ring "
                 required
               />
             </label>
           ) : null}
 
           {showsUsernameField(mode) ? (
-            <label className="block text-xs font-medium text-neutral-600 dark:text-neutral-300">
+            <label className="block text-xs font-medium text-foreground">
               Username
               <input
                 type="text"
                 autoComplete="username"
                 value={username}
                 onChange={(event) => setUsername(event.target.value)}
-                className="mt-1 w-full rounded-lg border border-neutral-200 bg-white px-3 py-2 text-sm outline-none focus:border-neutral-500 dark:border-neutral-700 dark:bg-neutral-950"
+                className="mt-1 w-full rounded-lg border border-border bg-card px-3 py-2 text-sm outline-none focus:border-ring "
                 required
               />
             </label>
           ) : null}
 
-          <label className="block text-xs font-medium text-neutral-600 dark:text-neutral-300">
+          <label className="block text-xs font-medium text-foreground">
             {credential ? 'New password' : 'Password'}
             <input
               type="password"
               autoComplete={credential ? 'new-password' : 'current-password'}
               value={password}
               onChange={(event) => setPassword(event.target.value)}
-              className="mt-1 w-full rounded-lg border border-neutral-200 bg-white px-3 py-2 text-sm outline-none focus:border-neutral-500 dark:border-neutral-700 dark:bg-neutral-950"
+              className="mt-1 w-full rounded-lg border border-border bg-card px-3 py-2 text-sm outline-none focus:border-ring "
               minLength={credential ? 12 : undefined}
               required
             />
           </label>
 
           {credential ? (
-            <label className="block text-xs font-medium text-neutral-600 dark:text-neutral-300">
+            <label className="block text-xs font-medium text-foreground">
               Confirm password
               <input
                 type="password"
                 autoComplete="new-password"
                 value={confirm}
                 onChange={(event) => setConfirm(event.target.value)}
-                className="mt-1 w-full rounded-lg border border-neutral-200 bg-white px-3 py-2 text-sm outline-none focus:border-neutral-500 dark:border-neutral-700 dark:bg-neutral-950"
+                className="mt-1 w-full rounded-lg border border-border bg-card px-3 py-2 text-sm outline-none focus:border-ring "
                 minLength={12}
                 required
               />
@@ -164,7 +164,7 @@ export function AuthScreen({ session }: { session: SessionController }) {
               )}
             </div>
           ) : setup ? (
-            <div className="rounded-lg border border-neutral-200 bg-neutral-50 px-3 py-2 text-xs text-neutral-600 dark:border-neutral-800 dark:bg-neutral-900/60 dark:text-neutral-300">
+            <div className="rounded-lg border border-border bg-muted px-3 py-2 text-xs text-foreground">
               <ShieldCheck className="mr-1 inline size-3.5" aria-hidden="true" />
               This setup screen is available on the hub machine only. The hub starts after this
               account is created.
@@ -181,7 +181,7 @@ export function AuthScreen({ session }: { session: SessionController }) {
           <button
             type="submit"
             disabled={pending}
-            className="inline-flex w-full items-center justify-center gap-2 rounded-md bg-[var(--panel-accent)] px-3 py-2 text-sm font-semibold text-white transition hover:brightness-110 disabled:cursor-not-allowed disabled:opacity-60"
+            className="inline-flex w-full items-center justify-center gap-2 rounded-md bg-primary px-3 py-2 text-sm font-semibold text-primary-foreground transition hover:brightness-110 disabled:cursor-not-allowed disabled:opacity-60"
           >
             {pending ? (
               <LoaderCircle className="size-4 animate-spin" aria-hidden="true" />
@@ -197,7 +197,7 @@ export function AuthScreen({ session }: { session: SessionController }) {
             <button
               type="button"
               onClick={closeReset}
-              className="w-full text-center text-xs font-medium text-neutral-500 underline-offset-4 hover:underline dark:text-neutral-400"
+              className="w-full text-center text-xs font-medium text-muted-foreground underline-offset-4 hover:underline"
             >
               Back to sign in
             </button>
@@ -205,7 +205,7 @@ export function AuthScreen({ session }: { session: SessionController }) {
             <button
               type="button"
               onClick={openReset}
-              className="w-full text-center text-xs font-medium text-neutral-500 underline-offset-4 hover:underline dark:text-neutral-400"
+              className="w-full text-center text-xs font-medium text-muted-foreground underline-offset-4 hover:underline"
             >
               Lost your password? Use a reset token.
             </button>

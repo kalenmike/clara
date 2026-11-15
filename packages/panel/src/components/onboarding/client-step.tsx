@@ -51,7 +51,7 @@ export function ClientStep({
         </Notice>
       ) : null}
 
-      <div className="overflow-hidden rounded-lg border border-neutral-200 dark:border-neutral-800">
+      <div className="overflow-hidden rounded-lg border border-border">
         <div className="panel-setup-body">
           <PairClientContent flow={flow} now={now} />
         </div>
@@ -64,7 +64,7 @@ export function ClientStep({
 function PairedClients({ devices, webUrl }: { devices: PanelSnapshot['devices']; webUrl: string }) {
   if (devices.length === 0) {
     return (
-      <div className="flex items-start gap-2 rounded-lg border border-neutral-200 bg-neutral-50 p-3 text-[11px] text-neutral-600 dark:border-neutral-800 dark:bg-neutral-900/60 dark:text-neutral-300">
+      <div className="flex items-start gap-2 rounded-lg border border-border bg-muted p-3 text-[11px] text-foreground">
         <QrCode className="mt-0.5 size-4 shrink-0" aria-hidden="true" />
         <span>
           No client is paired yet. Create a code below, or dismiss this setup and use Clients → Pair

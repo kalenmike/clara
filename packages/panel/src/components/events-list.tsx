@@ -23,12 +23,12 @@ export function EventsCard({ events, now }: { events: PanelEvent[]; now: number 
             {newestFirst.map((event, index) => (
               <li
                 key={`${event.at}:${index}`}
-                className="flex items-start gap-2 rounded-md border border-neutral-100 px-2.5 py-2 text-xs dark:border-neutral-800"
+                className="flex items-start gap-2 rounded-md border border-border px-2.5 py-2 text-xs"
               >
                 <Badge tone={toneFor(event.level)}>{event.level}</Badge>
                 <span className="min-w-0 flex-1 break-words">{redact(event.message)}</span>
                 <time
-                  className="shrink-0 text-[10px] text-neutral-500 dark:text-neutral-400"
+                  className="shrink-0 text-[10px] text-muted-foreground"
                   dateTime={event.at}
                   title={formatTimestamp(event.at)}
                 >
@@ -38,7 +38,7 @@ export function EventsCard({ events, now }: { events: PanelEvent[]; now: number 
             ))}
           </ol>
         )}
-        <p className="pt-2 text-xs text-neutral-500 dark:text-neutral-400">
+        <p className="pt-2 text-xs text-muted-foreground">
           The systemd journal keeps the durable log.
         </p>
       </CardBody>

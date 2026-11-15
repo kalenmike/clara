@@ -100,7 +100,7 @@ export function AdapterRegistryCard({
             type="button"
             onClick={() => void load()}
             disabled={loading}
-            className="inline-flex cursor-pointer items-center gap-1 rounded-md border border-neutral-200 px-2 py-1 text-[11px] transition hover:bg-neutral-100 disabled:cursor-not-allowed disabled:opacity-50 dark:border-neutral-700 dark:hover:bg-neutral-800"
+            className="inline-flex cursor-pointer items-center gap-1 rounded-md border border-border px-2 py-1 text-[11px] transition hover:bg-accent disabled:cursor-not-allowed disabled:opacity-50"
           >
             <RefreshCw className={`size-3 ${loading ? 'animate-spin' : ''}`} aria-hidden="true" />
             Check registry
@@ -117,7 +117,7 @@ export function AdapterRegistryCard({
           {entries.map((entry) => (
             <div
               key={entry.kind}
-              className="flex flex-wrap items-center gap-2 rounded-md border border-neutral-200 px-2.5 py-2 text-[11px] dark:border-neutral-800"
+              className="flex flex-wrap items-center gap-2 rounded-md border border-border px-2.5 py-2 text-[11px]"
             >
               <span className="font-medium">{entry.kind}</span>
               {entry.ok && entry.manifest ? (

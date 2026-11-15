@@ -116,7 +116,7 @@ export function RelayEditor({
   }
 
   return (
-    <div className="space-y-2 border-t border-neutral-100 pt-2 dark:border-neutral-800/60">
+    <div className="space-y-2 border-t border-border pt-2">
       {targetLocked ? <Notice>{RELAY_TARGET_LOCK_REASON}</Notice> : null}
 
       {replacedAt ? (
@@ -145,14 +145,14 @@ export function RelayEditor({
           disabled={urlFromEnv || targetLocked || pending !== undefined}
           spellCheck={false}
           placeholder="wss://relay.example"
-          className="mt-1 w-full rounded-md border border-neutral-200 bg-white px-2 py-1.5 font-mono text-xs disabled:opacity-60 dark:border-neutral-700 dark:bg-neutral-900"
+          className="mt-1 w-full rounded-md border border-border bg-card px-2 py-1.5 font-mono text-xs disabled:opacity-60 "
         />
       </label>
 
       <div className="flex items-end justify-between gap-2 text-[11px]">
         <span className="flex min-w-0 items-center gap-2">
           <span>Room</span>
-          <span className="truncate font-mono text-[11px] text-neutral-600 dark:text-neutral-300">
+          <span className="truncate font-mono text-[11px] text-foreground">
             {relay.room ?? 'Generated on first save'}
           </span>
           {relay.roomSource ? <SourceTag source={sourceLabel(relay.roomSource)} /> : null}
@@ -161,7 +161,7 @@ export function RelayEditor({
           type="button"
           onClick={() => setConfirmAction('room')}
           disabled={!relay.roomRegeneratable || targetLocked || pending !== undefined}
-          className="inline-flex shrink-0 items-center gap-1 rounded-md border border-neutral-200 px-2 py-1 text-[11px] font-medium disabled:opacity-60 dark:border-neutral-700"
+          className="inline-flex shrink-0 items-center gap-1 rounded-md border border-border px-2 py-1 text-[11px] font-medium disabled:opacity-60"
         >
           <RefreshCw className="size-3" aria-hidden="true" />
           {pending === 'room' ? 'Regenerating…' : 'Regenerate room'}
@@ -191,11 +191,11 @@ export function RelayEditor({
                 ? 'Saved — leave blank to keep'
                 : 'Required'
           }
-          className="mt-1 w-full rounded-md border border-neutral-200 bg-white px-2 py-1.5 font-mono text-xs disabled:opacity-60 dark:border-neutral-700 dark:bg-neutral-900"
+          className="mt-1 w-full rounded-md border border-border bg-card px-2 py-1.5 font-mono text-xs disabled:opacity-60 "
         />
       </label>
 
-      <p className="text-[10px] text-neutral-500 dark:text-neutral-400">
+      <p className="text-[10px] text-muted-foreground">
         The token is encrypted on this hub and never shown again. It must match the Worker secret.
         Changing the room or hub token requires every device to pair again.
       </p>
@@ -226,7 +226,7 @@ export function RelayEditor({
             type="button"
             onClick={() => setConfirmAction('clear')}
             disabled={targetLocked || pending !== undefined}
-            className="inline-flex items-center gap-1.5 rounded-lg border border-neutral-200 px-2.5 py-1.5 text-xs font-semibold transition hover:bg-neutral-50 disabled:opacity-60 dark:border-neutral-700 dark:hover:bg-neutral-900"
+            className="inline-flex items-center gap-1.5 rounded-lg border border-border px-2.5 py-1.5 text-xs font-semibold transition hover:bg-accent disabled:opacity-60"
           >
             <Trash2 className="size-3.5" aria-hidden="true" />
             {pending === 'clear' ? 'Clearing…' : 'Clear panel relay'}

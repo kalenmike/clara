@@ -203,7 +203,7 @@ function SessionLoading() {
       <div className="panel-boot-mark" aria-hidden="true">
         C
       </div>
-      <LoaderCircle className="size-5 animate-spin text-neutral-400" aria-hidden="true" />
+      <LoaderCircle className="size-5 animate-spin text-muted-foreground" aria-hidden="true" />
       <p>Clara hub panel</p>
     </div>
   )

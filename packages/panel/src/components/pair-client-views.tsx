@@ -50,7 +50,7 @@ export function PairClientSetupView({ flow }: { flow: ClientPairingFlow }) {
       {flow.notice ? <Notice>{flow.notice}</Notice> : null}
       <div>
         <div
-          className="inline-flex rounded-md border border-neutral-200 p-0.5 dark:border-neutral-700"
+          className="inline-flex rounded-md border border-border p-0.5"
           role="group"
           aria-label="Connection type"
         >
@@ -69,7 +69,7 @@ export function PairClientSetupView({ flow }: { flow: ClientPairingFlow }) {
             Local
           </TransportButton>
         </div>
-        <p className="mt-2 text-xs text-neutral-500 dark:text-neutral-400">{flow.helper}</p>
+        <p className="mt-2 text-xs text-muted-foreground">{flow.helper}</p>
       </div>
     </div>
   )
@@ -124,14 +124,14 @@ export function PairClientPairingView({
       <a href={pairing.link} target="_blank" rel="noreferrer" className="panel-link text-xs">
         Open Link
       </a>
-      <p className="text-[11px] text-neutral-500 dark:text-neutral-400">
+      <p className="text-[11px] text-muted-foreground">
         Expires {formatRelative(pairing.expiresAt, now)}. It enrolls one client.
       </p>
       <p
         className={`flex items-center gap-1.5 text-xs ${
           connection
             ? 'font-medium text-emerald-600 dark:text-emerald-400'
-            : 'text-neutral-500 dark:text-neutral-400'
+            : 'text-muted-foreground'
         }`}
       >
         {connection ? (
@@ -243,8 +243,8 @@ function TransportButton({
       onClick={onClick}
       className={`rounded px-2.5 py-1 text-[11px] font-medium transition ${
         active
-          ? 'bg-neutral-950 text-white dark:bg-white dark:text-neutral-950'
-          : 'text-neutral-600 enabled:cursor-pointer enabled:hover:bg-neutral-100 dark:text-neutral-300 dark:enabled:hover:bg-neutral-800'
+          ? 'bg-primary text-primary-foreground'
+          : 'text-foreground enabled:cursor-pointer enabled:hover:bg-accent'
       } disabled:cursor-not-allowed disabled:opacity-40`}
     >
       {children}

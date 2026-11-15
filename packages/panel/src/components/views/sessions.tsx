@@ -61,14 +61,14 @@ export function SessionsView({ active, now }: { active: boolean; now: number }) 
               <label className="relative min-w-[220px] flex-1 text-[11px]">
                 <span className="sr-only">Search sessions</span>
                 <Search
-                  className="pointer-events-none absolute top-1/2 left-2 size-3.5 -translate-y-1/2 text-neutral-400"
+                  className="pointer-events-none absolute top-1/2 left-2 size-3.5 -translate-y-1/2 text-muted-foreground"
                   aria-hidden="true"
                 />
                 <input
                   value={search}
                   onChange={(event) => setSearch(event.target.value)}
                   placeholder="Filter by title, agent, directory, ID, or harness"
-                  className="w-full rounded-md border border-neutral-200 bg-white py-1.5 pr-2 pl-7 text-xs dark:border-neutral-700 dark:bg-neutral-900"
+                  className="w-full rounded-md border border-border bg-card py-1.5 pr-2 pl-7 text-xs "
                 />
               </label>
               <label className="text-[11px]">
@@ -76,7 +76,7 @@ export function SessionsView({ active, now }: { active: boolean; now: number }) 
                 <select
                   value={harnessID}
                   onChange={(event) => setHarnessID(event.target.value)}
-                  className="rounded-md border border-neutral-200 bg-white px-2 py-1.5 text-xs dark:border-neutral-700 dark:bg-neutral-900"
+                  className="rounded-md border border-border bg-card px-2 py-1.5 text-xs "
                 >
                   <option value="all">All harnesses</option>
                   {(data?.harnesses ?? []).map((harness) => (
@@ -86,7 +86,7 @@ export function SessionsView({ active, now }: { active: boolean; now: number }) 
                   ))}
                 </select>
               </label>
-              <label className="flex items-center gap-2 text-[11px] text-neutral-600 dark:text-neutral-300">
+              <label className="flex items-center gap-2 text-[11px] text-foreground">
                 <Toggle
                   checked={runningOnly}
                   onChange={() => setRunningOnly((value) => !value)}
@@ -94,7 +94,7 @@ export function SessionsView({ active, now }: { active: boolean; now: number }) 
                 />
                 Running only
               </label>
-              <label className="flex items-center gap-2 text-[11px] text-neutral-600 dark:text-neutral-300">
+              <label className="flex items-center gap-2 text-[11px] text-foreground">
                 <Toggle
                   checked={includeArchived}
                   onChange={() => setIncludeArchived((value) => !value)}
@@ -103,7 +103,7 @@ export function SessionsView({ active, now }: { active: boolean; now: number }) 
                 Show archived
               </label>
             </div>
-            <div className="flex items-center gap-2 text-[11px] text-neutral-500 dark:text-neutral-400">
+            <div className="flex items-center gap-2 text-[11px] text-muted-foreground">
               <ListChecks className="size-3.5" aria-hidden="true" />
               {sessions.length} shown
               {data?.truncated ? ' · capped' : ''}
@@ -125,7 +125,7 @@ function HarnessSummary({ harnesses }: { harnesses: PanelSessionHarness[] }) {
   const { redact } = usePeek()
   if (harnesses.length === 0) {
     return (
-      <div className="panel-card px-3 py-2.5 text-xs text-neutral-500 dark:text-neutral-400">
+      <div className="panel-card px-3 py-2.5 text-xs text-muted-foreground">
         No harness is paired. Add one from Harness.
       </div>
     )
@@ -140,11 +140,9 @@ function HarnessSummary({ harnesses }: { harnesses: PanelSessionHarness[] }) {
             <div className="flex items-start justify-between gap-2">
               <div className="min-w-0">
                 <div className="flex flex-wrap items-center gap-2">
-                  <span className="truncate text-[12px] font-semibold">{harness.label}</span>
+                  <span className="truncate text-xs font-semibold">{harness.label}</span>
                 </div>
-                <div className="panel-mono text-[10px] text-neutral-500 dark:text-neutral-400">
-                  {harness.kind}
-                </div>
+                <div className="panel-mono text-[10px] text-muted-foreground">{harness.kind}</div>
               </div>
               <Badge tone={tone}>
                 {!harness.online
@@ -156,14 +154,12 @@ function HarnessSummary({ harnesses }: { harnesses: PanelSessionHarness[] }) {
                       : 'partial'}
               </Badge>
             </div>
-            <div className="mt-1.5 flex items-center gap-3 text-[11px] text-neutral-600 dark:text-neutral-300">
+            <div className="mt-1.5 flex items-center gap-3 text-[11px] text-foreground">
               <span>{harness.sessionCount} sessions</span>
               <span>{harness.runningCount} running</span>
             </div>
             {harness.message ? (
-              <p className="mt-1 text-[10px] text-neutral-500 dark:text-neutral-400">
-                {redact(harness.message)}
-              </p>
+              <p className="mt-1 text-[10px] text-muted-foreground">{redact(harness.message)}</p>
             ) : null}
           </div>
         )

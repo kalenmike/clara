@@ -37,7 +37,7 @@ export function StorageCard({
       }
     >
       <CardBody>
-        <ul className="divide-y divide-neutral-100 dark:divide-neutral-800">
+        <ul className="divide-y divide-border">
           {storage.map((entry) => (
             <li key={entry.key} className="py-3 first:pt-0 last:pb-0">
               <div className="flex items-start justify-between gap-3">
@@ -46,12 +46,12 @@ export function StorageCard({
                     <span className="text-sm font-medium">{entry.label}</span>
                     <Badge tone={toneFor(entry.status)}>{healthLabel(entry.status)}</Badge>
                     <span
-                      className={`text-[11px] ${entry.writable ? 'text-neutral-500 dark:text-neutral-400' : 'text-amber-700 dark:text-amber-300'}`}
+                      className={`text-[11px] ${entry.writable ? 'text-muted-foreground' : 'text-amber-700 dark:text-amber-300'}`}
                     >
                       {entry.writable ? 'writable' : 'read-only'}
                     </span>
                   </div>
-                  <p className="mt-1 break-all font-mono text-[11px] text-neutral-500 dark:text-neutral-400">
+                  <p className="mt-1 break-all font-mono text-[11px] text-muted-foreground">
                     {masked ? PEEK_MASK : entry.path}
                   </p>
                   {entry.detail ? (
@@ -60,14 +60,14 @@ export function StorageCard({
                     </p>
                   ) : null}
                   {entry.sync ? (
-                    <p className="mt-1 text-[11px] text-neutral-500 dark:text-neutral-400">
+                    <p className="mt-1 text-[11px] text-muted-foreground">
                       {entry.sync.namespaces} namespace(s) · {entry.sync.liveEntries} synced
                       value(s) · {entry.sync.tombstones} tombstone(s) ·{' '}
                       {formatBytes(entry.sync.bytes)} of sync data
                     </p>
                   ) : null}
                 </div>
-                <div className="shrink-0 text-right text-[11px] text-neutral-500 dark:text-neutral-400">
+                <div className="shrink-0 text-right text-[11px] text-muted-foreground">
                   {entry.schemaVersion !== undefined ? (
                     <div className="font-mono">schema v{entry.schemaVersion}</div>
                   ) : null}
@@ -108,6 +108,6 @@ function detailClass(status: PanelStorageEntry['status']): string {
     case 'warn':
       return 'text-amber-700 dark:text-amber-300'
     default:
-      return 'text-neutral-500 dark:text-neutral-400'
+      return 'text-muted-foreground'
   }
 }

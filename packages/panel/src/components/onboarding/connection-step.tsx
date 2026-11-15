@@ -112,7 +112,7 @@ export function ConnectionStep({
               and hub token.
             </Notice>
           ) : null}
-          <div className="flex flex-wrap items-center gap-2 rounded-lg border border-neutral-200 bg-neutral-50 px-3 py-2 text-xs dark:border-neutral-800 dark:bg-neutral-900/60">
+          <div className="flex flex-wrap items-center gap-2 rounded-lg border border-border bg-muted px-3 py-2 text-xs">
             <Radio
               className="size-3.5 shrink-0 text-sky-600 dark:text-sky-400"
               aria-hidden="true"
@@ -135,17 +135,17 @@ export function ConnectionStep({
         </div>
       ) : null}
 
-      <div className="rounded-lg border border-neutral-200 p-3 dark:border-neutral-800">
+      <div className="rounded-lg border border-border p-3">
         <div className="flex items-start gap-2">
-          <Globe2 className="mt-0.5 size-4 shrink-0 text-neutral-500" aria-hidden="true" />
+          <Globe2 className="mt-0.5 size-4 shrink-0 text-muted-foreground" aria-hidden="true" />
           <div className="min-w-0 flex-1">
             <h3 className="text-xs font-semibold">Pairing link preview</h3>
             <p className="panel-muted mt-0.5 text-[11px]">
               {setup.path === 'relay'
-                ? 'Remote clients open this URL. Use the public HTTPS address of the hosted or self-hosted client.'
+                ? 'Remote clients open this URL. Use the public HTTPS address of hosted or self-hosted client.'
                 : 'Local clients open this URL. Use this machine’s address if another device on the network should open Clara.'}
             </p>
-            <code className="mt-2 block break-all rounded-md bg-neutral-100 px-2 py-1.5 font-mono text-[11px] dark:bg-neutral-900">
+            <code className="mt-2 block break-all rounded-md bg-muted px-2 py-1.5 font-mono text-[11px]">
               {webUrl}/#pair=…
             </code>
           </div>
@@ -157,7 +157,7 @@ export function ConnectionStep({
             </Notice>
           </div>
         ) : null}
-        <div className="mt-3 border-t border-neutral-100 pt-3 dark:border-neutral-800/60">
+        <div className="mt-3 border-t border-border pt-3">
           <ConfigEditorRow
             id="setup-web-url"
             label="Web URL"
@@ -207,13 +207,11 @@ function PathChoice({
       aria-checked={active}
       onClick={onSelect}
       className={`rounded-lg border p-3 text-left transition ${
-        active
-          ? 'border-[color:var(--panel-accent)] bg-[color:var(--panel-accent-soft)]'
-          : 'border-neutral-200 hover:border-neutral-300 dark:border-neutral-800 dark:hover:border-neutral-700'
+        active ? 'border-primary bg-primary/10' : 'border-border hover:border-border'
       }`}
     >
       <span className="flex items-center gap-2 text-xs font-semibold">
-        <span className="text-neutral-500 dark:text-neutral-400">{icon}</span>
+        <span className="text-muted-foreground">{icon}</span>
         {title}
         {badge ? <Badge tone={active ? 'info' : 'neutral'}>{badge}</Badge> : null}
       </span>

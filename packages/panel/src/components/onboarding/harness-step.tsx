@@ -33,7 +33,7 @@ export function HarnessStep({
         </p>
       </div>
 
-      <div className="rounded-lg border border-neutral-200 bg-neutral-50 p-3 text-[11px] text-neutral-600 dark:border-neutral-800 dark:bg-neutral-900/60 dark:text-neutral-300">
+      <div className="rounded-lg border border-border bg-muted p-3 text-[11px] text-foreground">
         <p className="flex items-center gap-1.5 font-semibold">
           <Cable className="size-3.5" aria-hidden="true" />
           What is a harness?
@@ -79,7 +79,7 @@ export function HarnessStep({
         </div>
       ) : null}
 
-      <div className="overflow-hidden rounded-lg border border-neutral-200 dark:border-neutral-800">
+      <div className="overflow-hidden rounded-lg border border-border">
         <div className="panel-setup-body">
           <HarnessPairContent flow={flow} now={now} />
         </div>
