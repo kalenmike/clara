@@ -191,6 +191,7 @@ function handleInvalidation(
     case 'project.updated':
       void queryClient.invalidateQueries({ queryKey: queryKeys.projects })
       void queryClient.invalidateQueries({ queryKey: queryKeys.archivedProjects })
+      void queryClient.invalidateQueries({ queryKey: queryKeys.archivedSessionsRoot })
       return
 
     case 'session.created':
@@ -202,6 +203,7 @@ function handleInvalidation(
     case 'session.moved':
       if (event.type === 'session.deleted' && sessionID) chatStore.forget(sessionID)
       void queryClient.invalidateQueries({ queryKey: ['sessions'] })
+      void queryClient.invalidateQueries({ queryKey: queryKeys.archivedSessionsRoot })
       if (event.type === 'session.created' || event.type === 'session.deleted') {
         void queryClient.invalidateQueries({ queryKey: queryKeys.projects })
         void queryClient.invalidateQueries({ queryKey: ['project-presence'] })

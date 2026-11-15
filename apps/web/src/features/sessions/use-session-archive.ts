@@ -15,6 +15,7 @@ export function useDoneSession() {
         : client!.session.update({ sessionID: session.id, archived: true }),
     onSuccess: (_result, { session, empty }) => {
       void queryClient.invalidateQueries({ queryKey: ['sessions'] })
+      void queryClient.invalidateQueries({ queryKey: queryKeys.archivedSessionsRoot })
       if (empty) {
         queryClient.removeQueries({ queryKey: queryKeys.session(session.id) })
         queryClient.removeQueries({ queryKey: queryKeys.messages(session.id) })

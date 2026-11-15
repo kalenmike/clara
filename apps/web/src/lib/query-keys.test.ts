@@ -8,6 +8,17 @@ describe('queryKeys project aggregates', () => {
   })
 })
 
+describe('queryKeys session lists', () => {
+  it('keeps archived lists out of the active session prefix', () => {
+    expect(queryKeys.archivedSessions('project')).toEqual(['archived-sessions', 'project'])
+    expect(queryKeys.archivedSessions(null)).toEqual(['archived-sessions', 'all'])
+    expect(queryKeys.archivedSessions('project')[0]).not.toBe('sessions')
+    expect(queryKeys.archivedSessions('project').slice(0, 1)).toEqual(
+      queryKeys.archivedSessionsRoot
+    )
+  })
+})
+
 describe('queryKeys harness scope', () => {
   it('marks an omitted harness as unknown', () => {
     expect(harnessKey(undefined)).toBe('none')

@@ -9,7 +9,7 @@ import { queryKeys } from '@/lib/query-keys'
 import { useConnection } from '@/providers/connection-provider'
 
 /** Archived rows are older and read on demand instead of with the active list. */
-export const ARCHIVED_SESSIONS_PAGE_SIZE = 20
+const ARCHIVED_SESSIONS_PAGE_SIZE = 20
 
 export function useSessions(projectID: string | null, search: string, enabled = true) {
   const { client } = useConnection()
@@ -97,6 +97,7 @@ export function useRenameSession(sessionID: string) {
     mutationFn: (title: string) => client!.session.update({ sessionID, title }),
     onSuccess: () => {
       void queryClient.invalidateQueries({ queryKey: ['sessions'] })
+      void queryClient.invalidateQueries({ queryKey: queryKeys.archivedSessionsRoot })
       void queryClient.invalidateQueries({ queryKey: queryKeys.session(sessionID) })
     },
   })
@@ -109,6 +110,7 @@ export function useArchiveSession(sessionID: string) {
     mutationFn: (archived: boolean) => client!.session.update({ sessionID, archived }),
     onSuccess: () => {
       void queryClient.invalidateQueries({ queryKey: ['sessions'] })
+      void queryClient.invalidateQueries({ queryKey: queryKeys.archivedSessionsRoot })
       void queryClient.invalidateQueries({ queryKey: queryKeys.session(sessionID) })
     },
   })
@@ -143,6 +145,7 @@ export function useReopenSession() {
       }),
     onSuccess: (_result, { session }) => {
       void queryClient.invalidateQueries({ queryKey: ['sessions'] })
+      void queryClient.invalidateQueries({ queryKey: queryKeys.archivedSessionsRoot })
       void queryClient.invalidateQueries({ queryKey: queryKeys.session(session.id) })
     },
   })
@@ -155,6 +158,7 @@ export function useDeleteSession() {
     mutationFn: (sessionID: string) => client!.session.remove({ sessionID }),
     onSuccess: () => {
       void queryClient.invalidateQueries({ queryKey: ['sessions'] })
+      void queryClient.invalidateQueries({ queryKey: queryKeys.archivedSessionsRoot })
     },
   })
 }
