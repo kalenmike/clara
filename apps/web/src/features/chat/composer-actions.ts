@@ -1,9 +1,11 @@
 /**
  * The send menu holds the actions that are not the primary Send. They are
- * contextual: a draft can be saved or deleted, a busy run can queue, an idle
- * session can be marked done, and an archived session can be reopened.
+ * contextual: a ready plan can start work, a draft can be saved or deleted, a
+ * busy run can queue, an idle session can be marked done, and an archived
+ * session can be reopened.
  */
-export type ComposerAction = 'done' | 'save-draft' | 'queue' | 'delete-empty' | 'reopen'
+export type ComposerAction =
+  'start-plan' | 'done' | 'save-draft' | 'queue' | 'delete-empty' | 'reopen'
 
 export function composerActions(input: {
   ready: boolean
@@ -14,9 +16,13 @@ export function composerActions(input: {
   snoozed: boolean
   hasText: boolean
   canSaveDraft: boolean
+  planReady: boolean
+  formWaiting: boolean
 }): ComposerAction[] {
   if (!input.ready || !input.hasSession) return []
   const actions: ComposerAction[] = []
+
+  if (input.planReady && !input.formWaiting) actions.push('start-plan')
 
   if (input.busy) {
     if (input.hasText) actions.push('queue')
