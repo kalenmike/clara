@@ -92,7 +92,7 @@
     "packages/orchestration/mcp": {
       "project": ["src/**/*.ts", "test/**/*.ts"]
     },
-    "apps/orchestrator": {
+    "apps/engine": {
       "entry": ["src/bun.ts", "scripts/*.mjs"],
       "project": ["src/**/*.ts", "scripts/**/*.mjs", "test/**/*.ts"]
     },

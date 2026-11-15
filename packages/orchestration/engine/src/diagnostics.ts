@@ -298,7 +298,7 @@ export function analyzeDatabaseFile(
       available: false,
       version: 1,
       generated_at: (options.now ?? new Date()).toISOString(),
-      reason: `no orchestrator database at ${path}`,
+      reason: `no engine database at ${path}`,
       database: { path },
     }
   }

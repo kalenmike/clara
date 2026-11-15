@@ -22,7 +22,7 @@ import {
 const root = resolve(dirname(fileURLToPath(import.meta.url)), '..', '..', '..', '..')
 const mcpEntry = join(root, 'packages', 'orchestration', 'mcp', 'dist', 'index.js')
 const apiMcpEntry = join(root, 'packages', 'api', 'mcp', 'dist', 'index.js')
-const orchestratorEntry = join(root, 'apps', 'orchestrator', 'dist', 'index.js')
+const engineEntry = join(root, 'apps', 'engine', 'dist', 'index.js')
 const configHome = process.env.XDG_CONFIG_HOME?.trim() || join(homedir(), '.config')
 const opencodeDir = join(configHome, 'opencode')
 const opencodeConfig = join(opencodeDir, 'opencode.json')
@@ -168,7 +168,7 @@ async function status() {
   const ok = await fetch(`${baseURL}/health`)
     .then((response) => response.ok)
     .catch(() => false)
-  console.log(`orchestrator: ${ok ? 'running' : 'stopped'} (${baseURL})`)
+  console.log(`engine: ${ok ? 'running' : 'stopped'} (${baseURL})`)
   console.log(`OpenCode MCP config: ${existsSync(opencodeConfig) ? opencodeConfig : 'missing'}`)
   console.log(`MCP bridge: ${existsSync(mcpEntry) ? mcpEntry : 'not built'}`)
   console.log(`API MCP bridge: ${existsSync(apiMcpEntry) ? apiMcpEntry : 'not built'}`)
@@ -238,12 +238,12 @@ function removeCommandIfUnused(config) {
 }
 
 function startService() {
-  if (!existsSync(orchestratorEntry)) {
-    console.log('warn orchestrator is not built; run `pnpm --filter @clara/engine build`')
+  if (!existsSync(engineEntry)) {
+    console.log('warn engine is not built; run `pnpm --filter @clara/engine build`')
     return
   }
-  const result = spawnSync(process.execPath, [orchestratorEntry, 'start'], { stdio: 'inherit' })
-  if (result.status !== 0) fail('could not start the orchestrator')
+  const result = spawnSync(process.execPath, [engineEntry, 'start'], { stdio: 'inherit' })
+  if (result.status !== 0) fail('could not start the engine')
 }
 
 function readConfig() {

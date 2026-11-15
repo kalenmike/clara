@@ -111,6 +111,6 @@ function run(command, args, cwd) {
 }
 
 function fail(message) {
-  console.error(`orchestrator bun build: ${message}`)
+  console.error(`engine bun build: ${message}`)
   process.exit(1)
 }

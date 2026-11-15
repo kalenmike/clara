@@ -11,18 +11,19 @@ import {
 } from '@clara/service-control'
 import { PanelControlError } from '../panel/controls.ts'
 
-/** Resolve the built orchestrator, or its source in a development checkout. */
+/** Resolve the built engine, or its source in a development checkout. */
 export function orchestrationCommand(): string[] | undefined {
-  const configured = process.env.CLARA_ORCHESTRATOR_ENTRY?.trim()
+  const configured =
+    process.env.CLARA_ENGINE_ENTRY?.trim() || process.env.CLARA_ORCHESTRATOR_ENTRY?.trim()
   if (configured) return commandFor(configured)
 
   const root = findRepositoryRoot(dirname(fileURLToPath(import.meta.url)))
   if (!root) return undefined
 
-  const built = join(root, 'apps/orchestrator/dist/index.js')
+  const built = join(root, 'apps/engine/dist/index.js')
   if (existsSync(built)) return commandFor(built)
 
-  const source = join(root, 'apps/orchestrator/src/index.ts')
+  const source = join(root, 'apps/engine/src/index.ts')
   if (existsSync(source)) return commandFor(source)
 
   return undefined
@@ -38,7 +39,7 @@ function commandFor(entry: string): string[] {
 function findRepositoryRoot(start: string): string | undefined {
   let directory = start
   for (;;) {
-    if (existsSync(join(directory, 'apps/orchestrator/package.json'))) return directory
+    if (existsSync(join(directory, 'apps/engine/package.json'))) return directory
     const parent = dirname(directory)
     if (parent === directory) return undefined
     directory = parent
@@ -55,7 +56,7 @@ function reportError(report: StatusReport): string | undefined {
     return `${report.url} is being used by another service`
   }
   if (report.state === 'unresponsive') {
-    return `The orchestrator process at ${report.url} is not responding`
+    return `The engine process at ${report.url} is not responding`
   }
   return undefined
 }
@@ -89,7 +90,7 @@ export async function startOrchestration(): Promise<void> {
     throw new PanelControlError(
       409,
       'orchestrator_container',
-      'The orchestrator is managed by Docker on this host. Start it with `pnpm clara start orchestrator --docker` or docker compose.'
+      'The engine is managed by Docker on this host. Start it with `pnpm clara start engine --docker` or docker compose.'
     )
   }
 
@@ -98,7 +99,7 @@ export async function startOrchestration(): Promise<void> {
     throw new PanelControlError(
       503,
       'orchestrator_missing',
-      'The orchestrator is not built. Run `pnpm build` and try again.'
+      'The engine is not built. Run `pnpm build` and try again.'
     )
   }
 
@@ -108,7 +109,7 @@ export async function startOrchestration(): Promise<void> {
     throw new PanelControlError(
       409,
       'orchestrator_unresponsive',
-      `The orchestrator process (pid ${result.pid}) is alive but not answering at ${baseURL()}`
+      `The engine process (pid ${result.pid}) is alive but not answering at ${baseURL()}`
     )
   }
   if (result.kind === 'foreign') {
@@ -121,7 +122,7 @@ export async function startOrchestration(): Promise<void> {
   throw new PanelControlError(
     503,
     'orchestrator_unhealthy',
-    `The orchestrator did not become healthy at ${baseURL()}. Check \`pnpm clara status orchestrator\`.`
+    `The engine did not become healthy at ${baseURL()}. Check \`pnpm clara status engine\`.`
   )
 }
 
@@ -133,14 +134,14 @@ export async function stopOrchestration(): Promise<void> {
     throw new PanelControlError(
       409,
       'orchestrator_container',
-      'The orchestrator is running in Docker. Stop it with `pnpm clara stop orchestrator --docker`.'
+      'The engine is running in Docker. Stop it with `pnpm clara stop engine --docker`.'
     )
   }
   if (result.kind === 'external') {
     throw new PanelControlError(
       409,
       'orchestrator_external',
-      'The orchestrator was started outside this data directory. Stop it where it was started.'
+      'The engine was started outside this data directory. Stop it where it was started.'
     )
   }
   if (result.kind === 'foreign') {
@@ -154,13 +155,13 @@ export async function stopOrchestration(): Promise<void> {
     throw new PanelControlError(
       503,
       'orchestrator_stopping',
-      `The orchestrator process (pid ${result.pid}) did not exit after SIGTERM`
+      `The engine process (pid ${result.pid}) did not exit after SIGTERM`
     )
   }
   if (result.kind === 'error') {
     throw new PanelControlError(503, 'orchestrator_stop_failed', result.message)
   }
-  throw new PanelControlError(503, 'orchestrator_stop_failed', 'Could not stop the orchestrator')
+  throw new PanelControlError(503, 'orchestrator_stop_failed', 'Could not stop the engine')
 }
 
 function isContainerized(): boolean {

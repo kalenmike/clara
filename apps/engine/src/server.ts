@@ -377,7 +377,7 @@ export function createEngineServer(options: EngineServerOptions): EngineServer {
     try {
       runtime.tick()
     } catch (error) {
-      console.error('[orchestrator] watchdog tick failed', error)
+      console.error('[engine] watchdog tick failed', error)
     }
   }, tickMs)
   tick.unref?.()

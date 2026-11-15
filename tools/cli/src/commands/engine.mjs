@@ -18,8 +18,8 @@ import {
   readEngineToken,
 } from '../lib/stack-control.mjs'
 
-const source = join(root, 'apps', 'orchestrator', 'src', 'index.ts')
-const built = join(root, 'apps', 'orchestrator', 'dist', 'index.js')
+const source = join(root, 'apps', 'engine', 'src', 'index.ts')
+const built = join(root, 'apps', 'engine', 'dist', 'index.js')
 const composeFile = join(root, 'infra', 'docker', 'engine.compose.yml')
 const envFile = join(root, 'infra', 'docker', '.env')
 const ctx = readServiceArgs(process.argv.slice(2), 'help')

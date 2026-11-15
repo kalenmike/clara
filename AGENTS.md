@@ -15,7 +15,7 @@ apps/desktop                         Tauri shell that packages the web client fo
 apps/desktop/host                    Loopback adapter-host sidecar for local, SSH, and Docker installs
 apps/hub/panel                       Hub panel entry that serves the shared panel package
 apps/hub/server                      Hub service, CLI, Bun executable, local WS + outbound Cloudflare relay
-apps/orchestrator                    Loopback engine service, REST/SSE/MCP (legacy path)
+apps/engine                          Loopback engine service, REST/SSE/MCP
 apps/adapters/opencode               OpenCode harness adapter, binding, and standalone bin
 apps/adapters/claude                 Claude Code harness adapter and standalone bin
 apps/adapters/pi                     Pi harness adapter and standalone bin (RPC mode)
@@ -194,7 +194,6 @@ transport, Worker, Durable Object, or crypto.
 - Use **engine** for the deterministic pipeline service (`@clara/engine`,
   `clara-engine`, the `clara-engine` container) and **orchestration** for the
   feature, packages, and pipelines. The engine is never an LLM or an agent.
-  `apps/orchestrator` remains the legacy directory name for one release.
 - Write platform behavior as **harness** and **adapter**. Name OpenCode only for
   the included adapter, its install commands, or a fact specific to OpenCode.
 - Web components live under `apps/web/src/components`; web hooks under

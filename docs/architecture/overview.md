@@ -32,8 +32,8 @@ Other terms:
 - **Engine** — the deterministic pipeline service (`@clara/engine`,
   `clara-engine`, the `clara-engine` container). It owns run state, leases,
   budgets, and policy, and it is never an LLM or an agent. The feature and
-  package domain remain **orchestration**. `apps/orchestrator` and
-  `CLARA_ORCHESTRATION_*` are compatibility names for one release.
+  package domain remain **orchestration**. `CLARA_ORCHESTRATION_*` is a
+  compatibility name for one release.
 - **Client** / **device** — the browser, installed PWA, or desktop app.
 - **Relay** — the Cloudflare Worker and Durable Object that forward encrypted
   frames from browsers and adapters.
@@ -88,7 +88,7 @@ apps/
   hub/
     server/            Node hub service, outbound relay client, local WS listener, /v1 API
     panel/             Loopback dashboard and admin controls served by the hub service
-  orchestrator/        Loopback engine service and CLI
+  engine/              Loopback engine service and CLI
   adapters/
     opencode/          OpenCode harness adapter, binding, and standalone bin
     claude/            Claude Code harness adapter and standalone bin

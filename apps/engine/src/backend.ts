@@ -24,7 +24,7 @@ export class RuntimeBackend implements ClaraBackend {
     if (!workspace) {
       throw new OrchestrationErrorWithCode(
         'workspace_required',
-        'The orchestrator has no configured workspace.'
+        'The engine has no configured workspace.'
       )
     }
     const resolved = resolve(workspace)

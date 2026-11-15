@@ -255,7 +255,7 @@ export class Runtime {
     if (path) return path
     throw new OrchestrationErrorWithCode(
       'config_missing',
-      `No orchestration config found for ${workspace}. The bundled default config is missing; rebuild the orchestrator.`
+      `No orchestration config found for ${workspace}. The bundled default config is missing; rebuild the engine.`
     )
   }
 

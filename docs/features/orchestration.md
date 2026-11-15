@@ -12,8 +12,7 @@ policy, and carries results back to the human-facing Clara agent.
 **Naming:** the service is the **Clara Engine** (formerly the orchestrator).
 **Orchestration** is the feature, package domain, and pipeline vocabulary, not a
 process. The engine is deterministic and is never an LLM or an agent.
-`apps/orchestrator` and `CLARA_ORCHESTRATION_*` remain compatibility names for
-one release.
+`CLARA_ORCHESTRATION_*` remains a compatibility name for one release.
 
 See [orchestration-dsl.md](orchestration-dsl.md) for the complete package and
 step reference.
@@ -824,7 +823,7 @@ they can run while the adapter or setup is degraded. See
 <details>
 <summary>Commands, packages, data, and references</summary>
 
-- Service: `apps/orchestrator` (legacy directory name), loopback REST, SSE, and `/mcp`.
+- Service: `apps/engine`, loopback REST, SSE, and `/mcp`.
 - MCP: `packages/orchestration/mcp` provides the shared tools and the stdio bridge,
   which talks to the service over loopback HTTP.
 - Engine: `packages/orchestration/engine`; policy: `packages/orchestration/policy`;
