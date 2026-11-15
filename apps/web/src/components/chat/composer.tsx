@@ -867,7 +867,7 @@ export function Composer({
         </div>
       </div>
 
-      <div className="flex shrink-0 items-center gap-1 border-t px-2 py-2 max-md:gap-0.5 max-md:px-3 max-md:pb-[max(1.25rem,calc(0.5rem_+_env(safe-area-inset-bottom)))]">
+      <div className="flex shrink-0 items-center gap-1 border-t px-2 py-2 max-md:gap-0.5 max-md:px-3 max-md:pb-3">
         <input
           ref={fileInputRef}
           type="file"

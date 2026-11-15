@@ -10,8 +10,9 @@ type MobileActionsContextValue = {
 const MobileActionsContext = createContext<MobileActionsContextValue | null>(null)
 
 /**
- * Shares the mobile app-bar mount point between the shell and the page header.
- * The slot is always in the DOM; the bar itself is only visible below `md`.
+ * Shares the mobile action mount point between the app header and the page
+ * header. The slot is always in the DOM; the strip itself is only visible
+ * below `md`.
  */
 export function MobileActionsProvider({ children }: { children: ReactNode }) {
   const [node, setNode] = useState<HTMLDivElement | null>(null)

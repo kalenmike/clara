@@ -21,15 +21,6 @@ export function isIos(): boolean {
   )
 }
 
-export function isStandalone(): boolean {
-  if (typeof window === 'undefined') return false
-  const navigatorWithStandalone = navigator as Navigator & { standalone?: boolean }
-  return (
-    window.matchMedia('(display-mode: standalone)').matches ||
-    navigatorWithStandalone.standalone === true
-  )
-}
-
 export async function getServiceWorkerRegistration(): Promise<ServiceWorkerRegistration | null> {
   if (typeof navigator === 'undefined' || !('serviceWorker' in navigator)) return null
 

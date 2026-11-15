@@ -1,11 +1,9 @@
-import { displayVersion } from './version.ts'
-
 const build = import.meta.env.CLARA_BUILD
 const builtAt = new Date(build.builtAt)
 const pad = (value: number) => String(value).padStart(2, '0')
 
-/** Panel version with the build commit, e.g. `0.1.0.c8becb85`. */
-export const panelDisplayVersion = displayVersion(import.meta.env.CLARA_VERSION, build.commit)
+/** Panel version with the build commit, e.g. `0.1.0-dev+abc1234`. */
+export const panelDisplayVersion = import.meta.env.CLARA_VERSION
 
 /** Compact stamp shown in the status-bar tooltip. */
 const panelBuildLabel = `${build.mode} ${pad(builtAt.getMonth() + 1)}-${pad(builtAt.getDate())} ${pad(builtAt.getHours())}:${pad(builtAt.getMinutes())}`

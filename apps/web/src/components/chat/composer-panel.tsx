@@ -1,15 +1,18 @@
-import { useCallback, useEffect, useMemo } from 'react'
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { Composer } from '@/components/chat/composer'
 import { ComposerTabStrip } from '@/components/chat/composer-tab-strip'
 import { useComposer } from '@/features/chat/composer-provider'
+import { autoHideComposerMode } from '@/features/chat/composer-layout'
 import { composerSessionTitle } from '@/features/chat/composer-session'
 import type { ComposerDraft } from '@/features/chat/composer-tabs'
 import { useComposerTarget } from '@/features/chat/use-composer-target'
 import { useAgents } from '@/features/catalog/use-catalog'
 import { primaryAgents } from '@/features/agents/default-agent'
 import { useSwitchAgent } from '@/features/chat/use-chat'
+import { useComposerAutoHide } from '@/features/settings/use-composer-auto-hide'
 import { useSessionWording } from '@/features/sessions/use-wording'
 import { useComposerHeight } from '@/hooks/use-composer-height'
+import { useIsTouchDevice } from '@/hooks/use-is-touch-device'
 import { COMPOSER_HEIGHT_MIN, readDraft } from '@/lib/storage'
 import { cn } from '@/lib/utils'
 
@@ -37,6 +40,7 @@ function ConnectedComposer({
 }) {
   const {
     mode,
+    expanded,
     tabs,
     draftFor,
     handoff,
@@ -55,6 +59,12 @@ function ConnectedComposer({
     notifySent,
   } = useComposer()
   const { height, maxHeight, dragging, handleProps } = useComposerHeight()
+  const { enabled: autoHide, pinned, setPinned } = useComposerAutoHide()
+  const isTouchDevice = useIsTouchDevice()
+  const autoHideEnabled = autoHide && !isTouchDevice
+  const [revealed, setRevealed] = useState(false)
+  const pointerInside = useRef(false)
+  const sectionRef = useRef<HTMLElement>(null)
   const { lowerSingular } = useSessionWording()
   const { session, directory, busy, ready, empty, menuMode, planReady, disabled } =
     useComposerTarget(sessionID)
@@ -111,19 +121,62 @@ function ConnectedComposer({
     [agents, session?.agent, switchAgent]
   )
 
+  const reveal = useCallback(() => {
+    if (autoHideEnabled) setRevealed(true)
+  }, [autoHideEnabled])
+
+  /** Keep the composer open while it holds focus or one of its menus is open. */
+  const canConceal = useCallback(() => {
+    if (pointerInside.current) return false
+    const section = sectionRef.current
+    if (!section) return true
+    if (section.contains(document.activeElement)) return false
+    if (section.querySelector('[aria-expanded="true"]')) return false
+    return true
+  }, [])
+
+  const conceal = useCallback(() => {
+    if (autoHideEnabled && canConceal()) setRevealed(false)
+  }, [autoHideEnabled, canConceal])
+
+  const scheduleConceal = useCallback(() => {
+    window.setTimeout(conceal, 0)
+  }, [conceal])
+
+  useEffect(() => {
+    if (!autoHideEnabled) setRevealed(false)
+  }, [autoHideEnabled])
+
+  const displayMode = autoHideComposerMode(
+    { mode, expanded },
+    { enabled: autoHideEnabled, pinned, revealed }
+  )
+  const togglePinned = useCallback(() => setPinned(!pinned), [pinned, setPinned])
+
   return (
     <section
+      ref={sectionRef}
       role="region"
       aria-label={`Composer for ${title}`}
-      style={mode === 'pinned' ? { height } : undefined}
+      style={displayMode === 'pinned' ? { height } : undefined}
       className={cn(
         'relative flex flex-col overflow-hidden border bg-popover text-popover-foreground',
-        mode === 'maximized'
+        displayMode === 'maximized'
           ? 'fixed inset-0 z-50 rounded-none border-0'
           : 'w-full shrink-0 rounded-none border-x-0 border-b-0 shadow-[0_-12px_24px_-16px_rgba(0,0,0,0.35)]'
       )}
+      onPointerEnter={() => {
+        pointerInside.current = true
+        reveal()
+      }}
+      onPointerLeave={() => {
+        pointerInside.current = false
+        conceal()
+      }}
+      onFocusCapture={reveal}
+      onBlurCapture={scheduleConceal}
     >
-      {mode === 'pinned' && (
+      {displayMode === 'pinned' && (
         <div
           {...handleProps}
           role="separator"
@@ -148,7 +201,9 @@ function ConnectedComposer({
 
       <ComposerTabStrip
         tabs={tabs}
-        mode={mode}
+        mode={displayMode}
+        autoHide={autoHideEnabled}
+        pinned={pinned}
         currentSessionID={currentSessionID}
         selectedSessionID={sessionID}
         selectedPlanReady={planReady}
@@ -156,9 +211,10 @@ function ConnectedComposer({
         onClose={closeTab}
         onToggleExpand={toggleExpand}
         onToggleCollapse={toggleCollapse}
+        onTogglePin={togglePinned}
       />
 
-      <div className={cn('flex min-h-0 flex-1 flex-col', mode === 'minimized' && 'hidden')}>
+      <div className={cn('flex min-h-0 flex-1 flex-col', displayMode === 'minimized' && 'hidden')}>
         <Composer
           key={sessionID}
           session={session}

@@ -38,8 +38,8 @@ engine both work.
 5. Click a link in a message; it opens in the system browser instead of
    replacing the app.
 6. Install a newer build to update. There is no in-app updater yet.
-7. Settings → App identifies the desktop app and shows the same version and
-   build stamp as the web client.
+7. Settings → App identifies the desktop app and shows the `Clara Desktop`
+   surface label with the same version and build stamp as the web client.
 8. Open **Hub** and use **Harness → Pair Harness** to install an adapter on
    **This computer**, an **SSH host** from `~/.ssh/config`, or a local **Docker
    container**. A `clara://adapter?code=…` link opens the same panel flow with

@@ -127,7 +127,8 @@ one paragraph, list, or section. See [fork.md](fork.md).
     Snoozing moves the session to the sidebar's Snoozed bucket and swaps the
     send menu's Done for Reopen. Replying, starting work, saving a draft, or
     answering the agent on a snoozed session clears the snooze first and returns
-    it to its mailbox section.
+    it to its mailbox section. On an archived session the same menu replaces
+    **Archive** with **Reopen**, which clears the archive and any snooze marker.
 
 ## Core business rules
 
@@ -208,13 +209,15 @@ one paragraph, list, or section. See [fork.md](fork.md).
     **Delete empty draft** instead: it removes the session immediately. The Done
     action plays the UI completion chime when **UI sounds** is on; its success
     toast does not depend on sound settings.
-13. Archived or snoozed sessions offer **Reopen** in the send menu. Reopen
-    clears the server's archived flag and any snooze metadata without renaming
-    the session, so the session returns to its mailbox section with its title
-    intact. Archived wins when both flags are present. Any reply that engages
-    the agent — a prompt, Start, a plan start or a plan request, a command, a
-    saved draft, a permission decision, or a question answer — clears the snooze
-    marker first, so the session leaves Snoozed without a manual Reopen.
+13. Archived or snoozed sessions offer **Reopen** in the send menu, and an
+    archived session also offers it in the header's more menu in place of
+    Archive. Reopen clears the server's archived flag and any snooze metadata
+    without renaming the session, so the session returns to its mailbox section
+    with its title intact. Archived wins when both flags are present. Any reply
+    that engages the agent — a prompt, Start, a plan start or a plan request, a
+    command, a saved draft, a permission decision, or a question answer — clears
+    the snooze marker first, so the session leaves Snoozed without a manual
+    Reopen.
 14. The plan-ready handoff is part of the composer. It appears only while the
     session is idle, the session agent is Plan, and the newest user or assistant
     message is a Plan reply that finished with `stop` and no error. It is absent
@@ -271,10 +274,11 @@ one paragraph, list, or section. See [fork.md](fork.md).
     stay complete. The composer sits above it, and it scrolls horizontally on
     narrow screens instead of wrapping.
 20. The header's second line shows the run state (`busy`, `retry N`, or `idle`)
-    and the active agent. The state is seeded from the server's active-session
-    map when the thread opens, then kept live by status, execution, and step
-    events. A reconnect reseeds it, so a session that was already running does
-    not read as idle after a reload or a missed event.
+    and the active agent. Live status, execution, and step events drive the
+    state, and every successful active-session fetch reconciles it. A seeded or
+    live `busy` label therefore cannot outlive the run when a terminal event is
+    missed while a thread opens or a stream is re-created; only the richer
+    `retry N` detail survives a seed that agrees the run is active.
 
 ## Edge cases
 
@@ -298,9 +302,10 @@ one paragraph, list, or section. See [fork.md](fork.md).
 - **Running session opened mid-run** — the header seeds `busy` from the active
   session map even though the event stream does not replay the current status,
   then returns to `idle` when the run ends.
-- **Reconnect after a missed run** — status seed markers are cleared with the
-  history reset, so the next active-session fetch corrects a stale `busy` or
-  `idle` label.
+- **Reconnect after a missed run** — the next successful active-session fetch
+  corrects a stale `busy` or `idle` label, whether or not a reconnect was
+  detected. A fetch that was already in flight when the newest event arrived is
+  skipped, so reconciliation never overwrites fresher stream state.
 - **Session without an agent** — the header's second line falls back to `build`
   beside the state.
 - **Empty session usage bar** — a session with no messages shows zero tokens,
@@ -427,6 +432,8 @@ one paragraph, list, or section. See [fork.md](fork.md).
   is shown instead; the chat remains readable.
 - **Snoozing while running** — the session moves to Snoozed, but Reopen stays
   hidden until the run finishes.
+- **Reopen from the header** — an archived session's more menu offers Reopen
+  even while the run is active; the send menu's Reopen still waits for idle.
 - **UI sounds off** — Done archives silently, but the button animation and
   success toast still play. Inbox alert sounds are controlled separately.
 - **Reopen** — clears the archived flag and any snooze metadata, leaves the title
@@ -434,10 +441,10 @@ one paragraph, list, or section. See [fork.md](fork.md).
 - **Title preserved on archive** — Done archives the session as-is, so existing
   titles, including legacy `[DONE]` and `(DONE)` suffixes, are never changed.
 - **Narrow viewport** — the session title keeps its own row and ellipsizes; the
-  internal-output, collapse-all, side-panel, and more actions move into the Clara
-  app bar above it instead of sharing the title row. Every icon control in the
-  mobile chrome uses a 44px touch target and a 20px glyph, while the desktop
-  header keeps its compact 32px controls.
+  internal-output, collapse-all, side-panel, and more actions move into the top
+  row of the fixed app header instead of sharing the title row. Every icon
+  control in the mobile chrome uses a 44px touch target and a 20px glyph, while
+  the desktop header keeps its compact 32px controls.
 - **Part selection while streaming** — **Select part** stays hidden until the
   reply settles; a run that starts while selecting ends selection.
 - **Part selection across tool calls** — the selection stays inside the text

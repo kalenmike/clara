@@ -33,6 +33,13 @@ Drag the pinned composer's top edge to make it taller or shorter. With the
 resize handle focused, use Up/Down, Home/End, or double-click to reset the
 height. The height is remembered; a reload starts pinned.
 
+If you turn on **Auto-hide the composer** in **Settings → Preferences**, the
+composer rests as its title bar. Point at the title bar to expand it, and move
+away to collapse it. Typing or an open menu keeps it open until you finish. The
+collapse chevron becomes a pin: pin the composer to keep it open, then unpin to
+return to auto-hide. A maximized composer stays visible. Touch devices do not
+show the setting or use it.
+
 ## Tabs
 
 The header is a tab strip with one tab per session. The session you are viewing

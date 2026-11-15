@@ -1,3 +1,5 @@
+import { claraVersionLabel } from '@clara/shared-types'
+import { labBuildTitle, labDisplayVersion } from '../lib/build-info'
 import type { LabTab } from '../lib/settings'
 import type { LabSnapshot, PreflightResult } from '../types'
 import { Icon } from './Icon'
@@ -50,9 +52,12 @@ export function StatusBar({
         </button>
       </div>
       <div className="statusbar-group statusbar-meta">
-        <span className="status-text">{workspace || 'No workspace selected'}</span>
-        <span className="status-text">
+        <span className="status-text status-workspace">{workspace || 'No workspace selected'}</span>
+        <span className="status-text status-counts">
           {snapshot.calls.length} calls · {snapshot.events.length} events
+        </span>
+        <span className="status-text status-version" title={labBuildTitle}>
+          {claraVersionLabel('lab', labDisplayVersion)}
         </span>
       </div>
     </footer>

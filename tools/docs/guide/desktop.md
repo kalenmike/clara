@@ -142,6 +142,8 @@ available in Clara Desktop only.
 ## What is different
 
 - The app has its own window, taskbar or dock icon, and install location.
+- The bottom status bar labels this build as `Clara Desktop` and shows its
+  version at the far right.
 - Links in messages open in your default browser instead of replacing Clara.
 - There is no install prompt, service worker, offline shell, or update banner.
   To update, install a newer build. The reload control on the pairing screen

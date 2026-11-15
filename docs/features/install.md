@@ -20,13 +20,13 @@ can be built from the same client; see [desktop.md](desktop.md).
    page, and only then reloads onto the new build.
 5. **Later** keeps the current build for this session. Closing every Clara
    window installs the update for the next launch.
-6. Settings → App shows the running version and build, reports whether an
-   update is ready, and offers **Clear cached app data**.
+6. Settings → App shows the surface label, running version, and build, reports
+   whether an update is ready, and offers **Clear cached app data**.
 7. Before pairing, and on every boot splash, the bottom of the screen shows the
-   app version, the wire protocol version, and a reload control. On the web the
-   control unregisters the worker, drops every cache, and reloads, so a stale
-   install recovers without reaching Settings; on desktop it reloads the
-   bundled app.
+   surface label and app version, the wire protocol version, and a reload
+   control. On the web the control unregisters the worker, drops every cache,
+   and reloads, so a stale install recovers without reaching Settings; on
+   desktop it reloads the bundled app.
 8. Offline, a navigation falls back to the cached app shell instead of failing.
 
 ### Self-hosted container
@@ -159,11 +159,15 @@ cookie jar.
   `controllerchange` before reloading (`waitForActivation`, ten-second bound).
 - Throttle: `apps/web/src/features/pwa/update-check.ts` (`dueForUpdateCheck`).
 - Banner: `apps/web/src/components/pwa/update-banner.tsx`, rendered under the
-  mobile app bar in the app shell.
+  app header in the app shell.
 - Standalone footer: `apps/web/src/components/pwa/app-footer.tsx` shows the
-  build and wire protocol stamp plus the reload control, and is rendered by the
-  connect screen and `connection-splash.tsx`. `reloadApp` in
-  `apps/web/src/features/updates/app-update.ts` picks the reset for the surface.
+  surface label and version, the wire protocol stamp, and the reload control,
+  and is rendered by the connect screen and `connection-splash.tsx`. `reloadApp`
+  in `apps/web/src/features/updates/app-update.ts` picks the reset for the
+  surface.
+- Status bar: `apps/web/src/components/layout/app-status-bar.tsx` sits at the
+  bottom of the app shell and renders `Clara Web`, `Clara PWA`, or
+  `Clara Desktop` with the build version at the far right.
 - Reset action and build stamp: `apps/web/src/components/settings/app-card.tsx`.
 - Cache headers: `apps/web/public/_headers` revalidates `/sw.js`,
   `/index.html`, and `/manifest.webmanifest`.

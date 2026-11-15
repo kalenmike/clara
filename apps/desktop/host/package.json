@@ -8,6 +8,7 @@
     "clara-adapter-host": "./dist/index.js"
   },
   "scripts": {
+    "clean": "node ../../../tools/build/clean.mjs dist ../src-tauri/binaries",
     "build": "tsup",
     "typecheck": "tsc -p tsconfig.json",
     "test": "vitest run",

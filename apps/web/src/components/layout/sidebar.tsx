@@ -31,7 +31,6 @@ import { Skeleton } from '@/components/ui/skeleton'
 import { AddProjectDialog } from '@/components/projects/add-project-dialog'
 import { ProjectAvatar } from '@/components/projects/project-avatar'
 import { SidebarSelectionBar } from '@/components/layout/sidebar-selection-bar'
-import { SidebarNav } from '@/components/layout/sidebar-nav'
 import { SidebarSessionRow } from '@/components/layout/sidebar-session-row'
 import { DeleteSessionDialog } from '@/components/sessions/delete-session-dialog'
 import { useWorkspacePendingPermissions } from '@/features/chat/use-permissions'
@@ -77,7 +76,6 @@ import {
 import { useStartSession } from '@/features/sessions/use-start-session'
 import { useSessionWording } from '@/features/sessions/use-wording'
 import { useSidebarWidth } from '@/hooks/use-sidebar-width'
-import { claraBuildTitle, claraDisplayVersion } from '@/lib/build-info'
 import { errorMessage } from '@/lib/errors'
 import { isTextEntryTarget } from '@/lib/keyboard'
 import {
@@ -642,50 +640,26 @@ export function SidebarContent({
 
   return (
     <>
-      <div className="flex h-14 items-center gap-2 px-4">
-        <img src="/clara-mark.png" alt="" className="size-7 shrink-0" />
-        <div className="min-w-0 flex-1">
+      {scope === 'drawer' && (
+        <div className="flex h-14 shrink-0 items-center gap-2 px-4">
+          <img src="/clara-mark.png" alt="" className="size-7 shrink-0" />
           <img src="/clara-type.png" alt="Clara" className="h-4 w-auto" />
-          <div className="flex items-center gap-1 text-[11px] uppercase tracking-wider text-muted-foreground md:text-[10px]">
-            {state === 'live' ? (
-              <span className="flex items-center gap-1">
-                <span className="size-1.5 rounded-full bg-emerald-500" />
-                live
-              </span>
-            ) : (
-              <button
-                type="button"
-                onClick={() => void reconnect()}
-                disabled={reconnecting}
-                title="Reconnect to the harness"
-                className="flex items-center gap-1 rounded-sm uppercase tracking-wider transition-colors hover:text-foreground disabled:opacity-60"
-              >
-                <span
-                  className={cn(
-                    'size-1.5 rounded-full',
-                    reconnecting ? 'animate-pulse bg-amber-500' : 'bg-muted-foreground/40'
-                  )}
-                />
-                {reconnecting || state === 'connecting' ? 'reconnecting' : 'retry'}
-              </button>
-            )}
-          </div>
+          {onNavigate && (
+            <Button
+              variant="ghost"
+              size="icon"
+              onClick={onNavigate}
+              title="Close navigation"
+              className="ml-auto size-11"
+            >
+              <X className="size-5" />
+              <span className="sr-only">Close navigation</span>
+            </Button>
+          )}
         </div>
-        {onNavigate && (
-          <Button
-            variant="ghost"
-            size="icon"
-            onClick={onNavigate}
-            title="Close navigation"
-            className="size-11 md:size-8"
-          >
-            <X className="size-5 md:size-4" />
-            <span className="sr-only">Close navigation</span>
-          </Button>
-        )}
-      </div>
+      )}
 
-      <div className="px-3 pb-2">
+      <div className="px-3 pb-2 pt-2 md:pt-3">
         <DropdownMenu>
           <DropdownMenuTrigger asChild>
             <Button
@@ -972,14 +946,31 @@ export function SidebarContent({
           })}
       </ScrollArea>
 
-      <SidebarNav onNavigate={onNavigate} />
-
       <div className="shrink-0 px-3 pb-2.5 pt-1 text-[11px] text-muted-foreground md:pb-2 md:text-[10px]">
-        <div className="flex justify-end">
-          <span className="truncate" title={claraBuildTitle}>
-            Clara {claraDisplayVersion}
-          </span>
-        </div>
+        <span className="flex min-w-0 items-center gap-1 uppercase tracking-wider">
+          {state === 'live' ? (
+            <>
+              <span className="size-1.5 rounded-full bg-emerald-500" />
+              live
+            </>
+          ) : (
+            <button
+              type="button"
+              onClick={() => void reconnect()}
+              disabled={reconnecting}
+              title="Reconnect to the harness"
+              className="flex items-center gap-1 rounded-sm uppercase tracking-wider transition-colors hover:text-foreground disabled:opacity-60"
+            >
+              <span
+                className={cn(
+                  'size-1.5 rounded-full',
+                  reconnecting ? 'animate-pulse bg-amber-500' : 'bg-muted-foreground/40'
+                )}
+              />
+              {reconnecting || state === 'connecting' ? 'reconnecting' : 'retry'}
+            </button>
+          )}
+        </span>
       </div>
 
       <DeleteSessionDialog

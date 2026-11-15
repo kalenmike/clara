@@ -17,6 +17,12 @@ export const COMPOSER_LAYOUT_DEFAULT: ComposerLayout = {
   expanded: 'pinned',
 }
 
+export type ComposerAutoHideState = {
+  enabled: boolean
+  pinned: boolean
+  revealed: boolean
+}
+
 /** Maximize from pinned or minimized, and dock from maximized. */
 export function expandComposer(layout: ComposerLayout): ComposerLayout {
   const mode: ExpandedComposerMode = layout.mode === 'maximized' ? 'pinned' : 'maximized'
@@ -38,4 +44,16 @@ export function restoreComposer(layout: ComposerLayout): ComposerLayout {
 /** The chevron collapses an expanded composer and restores a minimized one. */
 export function toggleComposerCollapse(layout: ComposerLayout): ComposerLayout {
   return layout.mode === 'minimized' ? restoreComposer(layout) : minimizeComposer(layout)
+}
+
+/**
+ * The shape actually on screen when auto-hide is active. A maximized composer
+ * never hides, and revealing a minimized one restores its last expanded shape.
+ */
+export function autoHideComposerMode(
+  layout: ComposerLayout,
+  state: ComposerAutoHideState
+): ComposerMode {
+  if (!state.enabled || layout.mode === 'maximized') return layout.mode
+  return state.pinned || state.revealed ? restoreComposer(layout).mode : 'minimized'
 }

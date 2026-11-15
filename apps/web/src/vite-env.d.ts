@@ -3,7 +3,7 @@
 interface ImportMetaEnv {
   /** Optional relay or local hub WebSocket base. Empty uses the pairing payload URL. */
   readonly VITE_CLARA_WS_URL?: string
-  /** Injected from package.json by Vite. */
+  /** Injected by Vite: a release version or the checkout's dev version. */
   readonly CLARA_VERSION: string
   /** True in the Tauri desktop build (Vite `desktop` mode). */
   readonly CLARA_DESKTOP: boolean

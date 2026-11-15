@@ -3,6 +3,7 @@
   "private": true,
   "version": "0.1.0",
   "scripts": {
+    "clean": "node ../../tools/build/clean.mjs build",
     "dev": "docusaurus start --host 127.0.0.1 --port 5176",
     "start": "docusaurus start --host 127.0.0.1 --port 5176",
     "build": "docusaurus build",

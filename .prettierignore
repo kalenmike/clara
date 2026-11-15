@@ -1,6 +1,8 @@
 dist
 coverage
 node_modules
+.turbo
+**/.turbo
 pnpm-lock.yaml
 **/dist
 **/dist-desktop

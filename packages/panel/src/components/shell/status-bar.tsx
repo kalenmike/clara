@@ -1,4 +1,4 @@
-import { PANEL_API_VERSION, type PanelSnapshot } from '@clara/shared-types'
+import { PANEL_API_VERSION, claraVersionLabel, type PanelSnapshot } from '@clara/shared-types'
 import { panelBuildTitle, panelDisplayVersion } from '../../lib/build-info.ts'
 import { buildHealth, type HealthTone } from '../../lib/health.ts'
 import { usePeek } from '../../lib/peek-context.tsx'
@@ -19,7 +19,8 @@ export function StatusBar({
   onSelect: (tab: PanelTab) => void
 }) {
   const { redact } = usePeek()
-  const versionLabel = `v${panelDisplayVersion} · API v${data?.apiVersion ?? PANEL_API_VERSION}`
+  const versionLabel = claraVersionLabel('hub', panelDisplayVersion)
+  const versionTitle = `${panelBuildTitle} · API v${data?.apiVersion ?? PANEL_API_VERSION}`
 
   if (!data) {
     return (
@@ -31,7 +32,7 @@ export function StatusBar({
           </span>
         </div>
         <div className="panel-status-group panel-status-meta">
-          <span className="panel-status-text" title={panelBuildTitle}>
+          <span className="panel-status-text" title={versionTitle}>
             {versionLabel}
           </span>
         </div>
@@ -102,7 +103,7 @@ export function StatusBar({
         />
       </div>
       <div className="panel-status-group panel-status-meta">
-        <span className="panel-status-text" title={panelBuildTitle}>
+        <span className="panel-status-text" title={versionTitle}>
           {versionLabel}
         </span>
       </div>

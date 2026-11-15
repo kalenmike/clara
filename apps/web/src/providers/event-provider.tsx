@@ -135,7 +135,6 @@ export function EventProvider({ children }: { children: ReactNode }) {
     /** A dropped stream reconnected: nothing that arrived while it was down was replayed. */
     const recovered = (downForMs: number) => {
       chatStore.resetHistories()
-      chatStore.resetStatuses()
       void queryClient.resetQueries({ queryKey: ['messages'] })
       void queryClient.invalidateQueries({
         predicate: (query) => query.queryKey[0] !== 'messages',
@@ -271,11 +270,12 @@ function handleInvalidation(
       return
 
     case 'session.status':
-      invalidateSoon('active-sessions', queryKeys.activeSessions)
+      // Reconcile the run state before another poll can apply a stale map.
+      void queryClient.invalidateQueries({ queryKey: queryKeys.activeSessions })
       return
 
     case 'session.execution.started':
-      invalidateSoon('active-sessions', queryKeys.activeSessions)
+      void queryClient.invalidateQueries({ queryKey: queryKeys.activeSessions })
       invalidateSoon('activity', queryKeys.activitySessions)
       if (sessionID) {
         invalidateSoon(`mailbox:${sessionID}`, queryKeys.sessionMailbox(sessionID))

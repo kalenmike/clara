@@ -44,6 +44,57 @@ worktree with no commits is removed without merging.
 The primary checkout's current branch is the merge target. Normally that is
 `main`.
 
+## Incremental builds
+
+`pnpm build` runs `turbo run build`. Each package's build task is cached against
+its own tracked sources, the sources of every workspace package it depends on,
+the root lockfile and config, the declared build-time environment, and the task
+definition. A second run only executes tasks whose inputs changed.
+
+Before a task runs or restores from cache, its `clean` script removes the
+package's outputs. Turborepo restores cached files over the working tree without
+deleting files that are no longer in the cache entry, so cleaning first keeps a
+cache hit equivalent to a fresh build (no stale web chunks, bundles, or
+feature-gated artifacts).
+
+```bash
+pnpm build                              # stale packages only
+pnpm build:force                        # rebuild and rewrite every cache entry
+pnpm build:changed                      # affected by this branch (main...HEAD)
+pnpm exec turbo run build --dry=json    # task graph, hashes, inputs, outputs
+pnpm exec turbo run build --filter=@clara/web
+pnpm exec turbo run build --summarize   # run metadata under .turbo/runs
+```
+
+`build:changed` compares `main` with `HEAD`, so it builds nothing on `main`
+itself and needs the branch history (a shallow clone falls back to every
+package). It includes dependents of a changed package.
+
+Edges the package manifests do not express are configured in `turbo.json`:
+`@clara/hub-server` builds after the hub panel and hashes `infra/relay/src`,
+`@clara/docs` hashes the root `docs/` tree, and `@clara/cli` and
+`@clara/desktop-host` use the `transit` task to hash the source-exported
+packages they bundle.
+
+The web and panel builds embed the checkout commit and dirty flag. `CLARA_COMMIT`
+and `CLARA_DIRTY` are part of their cache keys when set; without them, a
+docs-only commit can reuse a cached build stamped with the previous commit. Run
+`pnpm build:force` when the embedded identity must match the current commit.
+
+The local cache lives in `.turbo/cache`, is capped at 10GB by `cacheMaxSize`, and
+is shared with the primary checkout when running in a task worktree. Turn off
+Turbo telemetry once per machine with `pnpm exec turbo telemetry disable`.
+
+`pnpm cli:build` builds the panel and web assets through the cache and compiles
+the binary with `--skip-assets`, so an unchanged binary is not rebuilt. Release
+workflows still call `build:binary` directly and always build fresh assets.
+`pnpm desktop:build` caches the web desktop bundle, the adapter-host sidecar, and
+the installers; `pnpm desktop:build:app` always runs Tauri but reuses the cached
+web and sidecar stages.
+
+Cached tasks skip post-build validators such as `check-bundle.mjs`. A failing
+validator fails the task and is never cached.
+
 ## Worker tests
 
 `@clara/relay` runs its tests in `workerd` through the Cloudflare Vitest pool.

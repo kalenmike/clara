@@ -6,8 +6,8 @@ sidebar_position: 8
 
 # Settings
 
-Open **Settings** from the icon row at the bottom of the sidebar, or from the
-start view. The page has seven tabs:
+Open **Settings** from the app header, or from the start view. The page has seven
+tabs:
 Appearance, Preferences, Models, Notifications, Sync, Shortcuts, and Advanced.
 On a narrow screen the tabs become a section menu.
 
@@ -19,8 +19,8 @@ not change:
 
 - Notifications shows one Inbox sounds switch instead of four state switches and
   a volume slider.
-- Advanced shows only Reconnect, Disconnect, the app version with its build
-  commit, update state, and the cache reset.
+- Advanced shows only Reconnect, Disconnect, the surface label and app version
+  with its build commit, update state, and the cache reset.
 - Other tabs keep their main controls.
 
 Simplification is only a view filter. Turning it on or off never clears a
@@ -46,6 +46,9 @@ follow, so it follows your system's light or dark setting.
   **Brief**. Presets include Task, Session, Action, Run, Job, and a custom word.
 - **Default agent** — per harness, the last agent selected there or a specific
   agent.
+- **Auto-hide composer** — keep the composer folded to its title bar. Point at
+  the title bar to expand it, or use the pin in the bar to keep it open. Saved
+  on this device and available with a mouse or trackpad.
 - **Cost display** — **Actual** or **Estimated**. Estimates are marked with `~`.
 
 ## Models
@@ -80,8 +83,8 @@ touch-first devices. See [Shortcuts](shortcuts.md).
 
 ## Advanced
 
-The Advanced tab contains the server connection, the app version with its build
-commit and update state, and recovery actions:
+The Advanced tab contains the server connection, the surface label and app
+version with its build commit and update state, and recovery actions:
 
 - **Reconnect** proves the transport again without forgetting the device.
 - **Disconnect** forgets the device in this browser.

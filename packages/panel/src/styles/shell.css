@@ -713,10 +713,6 @@
   .panel-workbench {
     padding: 10px;
   }
-
-  .panel-status-meta {
-    display: none;
-  }
 }
 
 @media (max-width: 640px) {
