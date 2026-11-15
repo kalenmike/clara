@@ -6,7 +6,7 @@ import { openSqlite, type SqliteDatabase } from '@clara/sqlite'
 
 export type ClaraDatabase = SqliteDatabase
 
-export const SCHEMA_VERSION = 15
+export const SCHEMA_VERSION = 16
 
 const BUSY_TIMEOUT_MS = 5_000
 const DATABASE_MODE = 0o600
@@ -588,6 +588,30 @@ const MIGRATIONS: Migration[] = [
     if (columns.some((column) => column.name === 'is_active')) {
       db.exec('ALTER TABLE harness_connections DROP COLUMN is_active')
     }
+  },
+  /**
+   * Panel sessions used to live only in memory, so a hub restart signed every
+   * panel out. Persisting the token hash lets a remembered sign-in survive a
+   * restart while a password change or host reset still revokes it through the
+   * user's `session_version`.
+   */
+  (db) => {
+    db.exec(`
+      CREATE TABLE IF NOT EXISTS panel_sessions (
+        token_hash TEXT PRIMARY KEY,
+        user_id TEXT NOT NULL REFERENCES panel_users(id) ON DELETE CASCADE,
+        session_version INTEGER NOT NULL,
+        remember INTEGER NOT NULL DEFAULT 0,
+        created_at INTEGER NOT NULL,
+        last_seen INTEGER NOT NULL,
+        idle_expires_at INTEGER NOT NULL,
+        absolute_expires_at INTEGER NOT NULL
+      );
+
+      CREATE INDEX IF NOT EXISTS panel_sessions_user ON panel_sessions(user_id);
+      CREATE INDEX IF NOT EXISTS panel_sessions_expiry
+        ON panel_sessions(idle_expires_at, absolute_expires_at);
+    `)
   },
 ]
 

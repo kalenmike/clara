@@ -105,6 +105,8 @@ export type PanelAuthStatus =
 export type PanelLoginUpdate = {
   username: string
   password: string
+  /** Keep the session across app restarts until sign-out or revocation. */
+  remember?: boolean
 }
 
 export type PanelSetupUpdate = {
@@ -112,6 +114,8 @@ export type PanelSetupUpdate = {
   token?: string
   username: string
   password: string
+  /** Keep the session across app restarts until sign-out or revocation. */
+  remember?: boolean
 }
 
 export type PanelPasswordUpdate = {
