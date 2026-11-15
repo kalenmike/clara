@@ -37,6 +37,10 @@ services:
       CLARA_SERVER_CONTAINER: '1'
       CLARA_ORCHESTRATION_HOST: ${CLARA_ORCHESTRATION_HOST:-orchestrator}
       CLARA_ORCHESTRATION_PORT: '8789'
+      # The lab service runs next to the engine, not in this container. Point
+      # the hub at it and share the bridge token.
+      CLARA_LAB_URL: ${CLARA_LAB_URL:-http://host.docker.internal:8791}
+      CLARA_LAB_TOKEN: ${CLARA_LAB_TOKEN:-}
       CLARA_PANEL_SECURE_COOKIE: ${CLARA_PANEL_SECURE_COOKIE:-}
       CLARA_ADMIN_USERNAME: ${CLARA_ADMIN_USERNAME:-}
       CLARA_ADMIN_PASSWORD: ${CLARA_ADMIN_PASSWORD:-}

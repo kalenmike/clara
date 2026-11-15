@@ -116,6 +116,28 @@ Use the hub's own panel for those.
 - **A remote hub:** the host creates the owner before pairing. The app cannot
   create the first owner over a remote connection.
 
+## Open Clara Lab
+
+Clara Lab is a developer workbench for the orchestration engine. It previews a
+package's steps, prompts, policy, and source files, and it lets you drive a run
+by hand. It is for people writing custom pipelines, not for everyday chat.
+
+Clara Lab needs a lab service running next to the engine. Start it on the engine
+host:
+
+```bash
+clara start lab
+```
+
+The app reaches that service through your hub, so Clara Lab works with a remote
+hub and a remote engine as long as the hub can reach the lab service. When the
+hub and the lab service are on different machines, set the hub's lab address and
+shared token and allow the remote bridge on the lab host. The
+[Orchestration](self-hosting/orchestration.md) page has the steps.
+
+Clara Lab is not part of the browser app or the home-screen install. It is
+available in Clara Desktop only.
+
 ## What is different
 
 - The app has its own window, taskbar or dock icon, and install location.

@@ -27,6 +27,7 @@ import {
   saveRelayTarget,
   type ServerConfig,
 } from './config.ts'
+import { labEndpoint } from './lab/service.ts'
 import { loadCloudflareDeploymentFeature } from './features/cloudflare-deployment/loader.ts'
 import { HarnessManager } from './harness/manager.ts'
 import { HarnessMetadataStore } from './harness/metadata.ts'
@@ -352,6 +353,7 @@ async function runServe(
     apiToken,
     secretKey,
     panel: panelTarget,
+    lab: labEndpoint,
     onRelayTargetChanged: () => cloudflare?.forgetDeployment(),
     onLocalEndpointChange: publishRuntime,
     log,

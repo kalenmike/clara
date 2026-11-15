@@ -15,6 +15,7 @@
     "@clara/api-client": "workspace:*",
     "@clara/api-contract": "workspace:*",
     "@clara/crypto": "workspace:*",
+    "@clara/lab": "workspace:*",
     "@clara/panel": "workspace:*",
     "@clara/shared-types": "workspace:*",
     "@fontsource-variable/geist": "^5.3.0",

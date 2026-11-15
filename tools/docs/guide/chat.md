@@ -13,7 +13,8 @@ decision. You can read at your own pace; a running session keeps filling in.
 
 Each message is full width with a sender, timestamp, and fold control. Prompts
 and replies render as Markdown, and single line breaks in prompts are preserved.
-Older messages start collapsed so the newest reply is visible.
+Older messages start collapsed so the newest reply is visible. A chat opens at
+its newest output, and stays where you leave it while you read.
 
 The header shows the session title, busy or idle state, the active agent, and the
 harness that owns the session.

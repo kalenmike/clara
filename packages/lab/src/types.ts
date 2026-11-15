@@ -1,7 +1,7 @@
-import type { PreviewResult } from '@clara/pipeline-preview'
+import type { PreviewResult } from '@clara/pipeline-preview/types'
 
 export type { PreviewResult }
-export type { CompiledNode, CompiledRoute } from '@clara/pipeline-preview'
+export type { CompiledNode, CompiledRoute } from '@clara/pipeline-preview/types'
 
 export type LabPreviewResult = PreviewResult
 export type {
@@ -14,7 +14,7 @@ export type {
   PreviewStats,
   SourceRef,
   TargetInfo,
-} from '@clara/pipeline-preview'
+} from '@clara/pipeline-preview/types'
 
 export interface StepInput {
   label: string

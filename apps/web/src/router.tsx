@@ -2,8 +2,23 @@ import { createBrowserRouter, Navigate } from 'react-router'
 import { ConnectionSplash } from '@/components/connect/connection-splash'
 import { RouteError } from '@/components/errors/route-error'
 import { AppShell } from '@/components/layout/app-shell'
+import { isDesktop } from '@/lib/runtime'
 import { ConnectPage } from '@/pages/connect-page'
 import { HomePage } from '@/pages/home-page'
+
+/**
+ * The lab is a desktop-only surface. The route is not registered in the web
+ * build, and Vite aliases its module to a stub there, so no lab code can reach
+ * the deployed artifact.
+ */
+const labRoute = isDesktop
+  ? {
+      path: '/lab',
+      lazy: () => import('@/pages/lab-page').then((m) => ({ Component: m.LabPage })),
+      errorElement: <RouteError />,
+      HydrateFallback: () => <ConnectionSplash label="Loading Clara Lab…" />,
+    }
+  : null
 
 /**
  * Every screen except the shell, the landing view, and the pairing view loads
@@ -15,6 +30,7 @@ import { HomePage } from '@/pages/home-page'
  * and pairing is the first thing an unpaired install shows.
  */
 export const router = createBrowserRouter([
+  ...(labRoute ? [labRoute] : []),
   { path: '/connect', element: <ConnectPage />, errorElement: <RouteError /> },
   {
     // The hub panel is a full-window surface, so it stays outside the app shell

@@ -1,7 +1,6 @@
 import { readFileSync } from 'node:fs'
-import { dirname, extname, join, resolve, sep } from 'node:path'
+import { extname, join, resolve, sep } from 'node:path'
 import type { ServerResponse } from 'node:http'
-import { fileURLToPath } from 'node:url'
 
 const CONTENT_TYPES: Record<string, string> = {
   '.css': 'text/css; charset=utf-8',
@@ -34,20 +33,19 @@ export interface StaticFiles {
 }
 
 /**
- * The lab server runs from source through `clara start lab` and from the bundle
- * through `pnpm build`. Vite always emits to `tools/lab/dist/web`, so the source
- * layout needs one more parent hop than the bundle layout.
+ * The standalone app runs the server from source through `clara start lab` and
+ * from the bundle through `pnpm build`. Vite always emits to
+ * `tools/lab/dist/web`, so the source layout needs one more parent hop than the
+ * bundle layout. The desktop sidecar passes no roots and serves no UI.
  */
-export function staticRootCandidates(moduleUrl: string | URL = import.meta.url): string[] {
-  const directory = dirname(fileURLToPath(moduleUrl))
+export function staticRootCandidates(directory: string): string[] {
   return [
     resolve(directory, '..', 'web'), // dist/server/index.js -> dist/web
     resolve(directory, '..', 'dist', 'web'), // server/static.ts -> dist/web
   ]
 }
 
-export function loadStaticFiles(): StaticFiles {
-  const candidates = staticRootCandidates()
+export function loadStaticFiles(candidates: string[] = []): StaticFiles {
   for (const root of candidates) {
     try {
       return { root, index: readFileSync(join(root, 'index.html')) }
@@ -55,7 +53,7 @@ export function loadStaticFiles(): StaticFiles {
       // Try the other layout.
     }
   }
-  return { root: candidates[0], index: undefined }
+  return { root: candidates[0] ?? '', index: undefined }
 }
 
 function contentType(path: string): string | undefined {

@@ -1,8 +1,8 @@
 import { spawn } from 'node:child_process'
 
 const commands = [
-  ['pnpm', ['--filter', '@clara/lab', 'dev:server']],
-  ['pnpm', ['--filter', '@clara/lab', 'dev:web']],
+  ['pnpm', ['--filter', '@clara/lab-cli', 'dev:server']],
+  ['pnpm', ['--filter', '@clara/lab-cli', 'dev:web']],
 ]
 
 const children = commands.map(([command, args]) => {
