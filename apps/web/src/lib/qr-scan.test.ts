@@ -1,10 +1,13 @@
 import { afterEach, describe, expect, it, vi } from 'vitest'
 import { TimeoutError } from './async'
 import {
+  CAMERA_CONSTRAINTS,
   CAMERA_PREVIEW_MESSAGE,
   CAMERA_TIMEOUT_MESSAGE,
   CAMERA_UNAVAILABLE_MESSAGE,
+  MAX_DECODE_WIDTH,
   SCAN_FAILED_MESSAGE,
+  decodeRegions,
   describeCameraError,
   isCameraScanningAvailable,
   isFrameReady,
@@ -64,6 +67,50 @@ describe('isCameraScanningAvailable', () => {
     vi.stubGlobal('window', { isSecureContext: true })
     vi.stubGlobal('navigator', {})
     expect(isCameraScanningAvailable()).toBe(false)
+  })
+})
+
+describe('decodeRegions', () => {
+  it('samples the whole frame first, then centered crops at native pixels', () => {
+    const [full, center, tight] = decodeRegions(1920, 1080)
+
+    expect(full).toEqual({
+      source: { x: 0, y: 0, width: 1920, height: 1080 },
+      width: MAX_DECODE_WIDTH,
+      height: 720,
+    })
+    expect(center).toEqual({
+      source: { x: 384, y: 216, width: 1152, height: 648 },
+      width: 1152,
+      height: 648,
+    })
+    expect(tight).toEqual({
+      source: { x: 624, y: 351, width: 672, height: 378 },
+      width: 672,
+      height: 378,
+    })
+  })
+
+  it('never draws a region wider than the decode cap', () => {
+    for (const region of decodeRegions(3840, 2160)) {
+      expect(region.width).toBeLessThanOrEqual(MAX_DECODE_WIDTH)
+    }
+  })
+
+  it('returns nothing until the video reports dimensions', () => {
+    expect(decodeRegions(0, 0)).toEqual([])
+    expect(decodeRegions(1280, 0)).toEqual([])
+  })
+})
+
+describe('CAMERA_CONSTRAINTS', () => {
+  it('asks for sensor resolution so a dense pairing code has pixels', () => {
+    expect(CAMERA_CONSTRAINTS.video).toMatchObject({
+      facingMode: { ideal: 'environment' },
+      width: { ideal: 1920 },
+      height: { ideal: 1080 },
+    })
+    expect(CAMERA_CONSTRAINTS.audio).toBe(false)
   })
 })
 
