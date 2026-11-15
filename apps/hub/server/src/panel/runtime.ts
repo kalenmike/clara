@@ -99,6 +99,7 @@ export class PanelRuntime implements PanelDataSource {
 
   async snapshot(auth: PanelAuthInfo): Promise<PanelSnapshot> {
     const now = Date.now()
+    this.options.push?.refreshStorage()
     this.harnessSecrets = await this.options.harness.redactionValues()
     const controls = this.controlsSnapshot()
     const hostEnabled =
@@ -156,7 +157,11 @@ export class PanelRuntime implements PanelDataSource {
         effective: push.effective,
         subscriptions: this.options.push?.count ?? 0,
         failing: this.options.push?.failing ?? 0,
-        publicKeyConfigured: Boolean(this.options.push?.publicKey),
+        vapidConfigured: Boolean(this.options.push?.publicKey),
+        storageAvailable: this.options.push?.storageAvailable ?? false,
+        ...(this.options.push?.storageError
+          ? { storageError: this.redact(this.options.push.storageError) }
+          : {}),
         ...(this.options.pushError || push.error
           ? { error: this.redact(this.options.pushError ?? push.error ?? '') }
           : {}),
@@ -407,6 +412,7 @@ export class PanelRuntime implements PanelDataSource {
         label: 'Harness secret key',
         path: this.options.secretKey?.source ?? 'environment',
         exists: true,
+        readable: true,
         writable: false,
         status: 'ok',
         detail: 'Provided by the environment',
@@ -542,10 +548,15 @@ function describeStorage(
   try {
     const stat = statSync(path)
     const mode = (stat.mode & 0o777).toString(8).padStart(3, '0')
-    const writable = canWrite(path)
+    const readable = canAccess(path, constants.R_OK)
+    const writable = canAccess(path, constants.W_OK)
     const details: string[] = []
     let status: PanelStorageEntry['status'] = 'ok'
 
+    if (!readable) {
+      status = 'warn'
+      details.push(`Not readable by the hub service${hubUserDetail()}`)
+    }
     if (!writable) {
       status = 'warn'
       details.push('Not writable by the hub service')
@@ -560,6 +571,7 @@ function describeStorage(
       label,
       path,
       exists: true,
+      readable,
       writable,
       bytes: stat.size,
       modifiedAt: new Date(stat.mtimeMs).toISOString(),
@@ -574,7 +586,8 @@ function describeStorage(
         label,
         path,
         exists: false,
-        writable: canWrite(dirname(path)),
+        readable: false,
+        writable: canAccess(dirname(path), constants.W_OK),
         status: required ? 'warn' : 'ok',
         detail: required ? 'File does not exist' : 'Nothing stored yet',
       }
@@ -584,6 +597,7 @@ function describeStorage(
       label,
       path,
       exists: false,
+      readable: false,
       writable: false,
       status: 'error',
       detail: clip(errorMessage(cause), MAX_ERROR_LENGTH),
@@ -591,13 +605,18 @@ function describeStorage(
   }
 }
 
-function canWrite(path: string): boolean {
+function canAccess(path: string, mode: number): boolean {
   try {
-    accessSync(path, constants.W_OK)
+    accessSync(path, mode)
     return true
   } catch {
     return false
   }
+}
+
+function hubUserDetail(): string {
+  if (typeof process.getuid !== 'function') return ''
+  return ` (uid ${process.getuid()})`
 }
 
 function isMissing(cause: unknown): boolean {

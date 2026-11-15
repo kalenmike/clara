@@ -155,6 +155,9 @@ first-run, headless, and emergency surface.
    room. The token is encrypted before it is saved and is never shown again. A
    relay URL saved without the hub token does not block the hub: the card marks
    the token as missing and the hub runs local-only until it is saved.
+   The Push card separates the VAPID key from subscription storage; when the
+   subscriptions file is unreadable it offers **Retry storage** and a confirmed
+   **Reset subscriptions**.
    Environment variables win over panel values field by field; fields they
    supply are read-only. When the build includes the optional Cloudflare
    deployment, the Relay card also carries **Deploy relay to Cloudflare**: paste
@@ -456,6 +459,10 @@ first-run, headless, and emergency surface.
 - **Push is off or unavailable** — the card shows the saved choice, the
   effective state, the startup error, and the subscription count. Existing
   subscriptions are kept.
+- **Push subscription storage is unavailable** — the card keeps the VAPID key
+  configured, marks storage unavailable, and shows the read error. **Retry
+  storage** retries the read after a permissions fix; **Reset subscriptions**
+  deletes the file and starts empty after confirmation.
 - **Client sync is off** — the web Sync tab disappears, sync actions return
   `disabled`, and the stored namespace and per-device category choices are kept
   for the next enable.

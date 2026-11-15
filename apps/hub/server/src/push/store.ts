@@ -7,6 +7,7 @@ const MAX_ENDPOINT_LENGTH = 2048
 const MAX_USER_AGENT_LENGTH = 200
 const MAX_ERROR_LENGTH = 240
 const FILE_VERSION = 1
+const READ_RETRY_MS = 5_000
 
 export type StoredPushSubscription = PushSubscriptionPayload & {
   createdAt: number
@@ -37,19 +38,88 @@ export type SubscriptionResult = {
   subscription: StoredPushSubscription
 }
 
+export type PushStorageState = {
+  available: boolean
+  subscriptions: number
+  error?: string
+}
+
+/**
+ * A broken or unreadable subscriptions file must not take down VAPID or the
+ * rest of push. The store keeps the read error, retries on demand, and refuses
+ * writes until it can read the file again so a stale write cannot overwrite
+ * subscriptions it never saw.
+ */
 export class PushSubscriptionStore {
   private readonly path: string
   private readonly log?: (message: string, detail?: unknown) => void
-  private entries: StoredPushSubscription[]
+  private entries: StoredPushSubscription[] = []
+  private readError?: string
+  private lastReadAttempt = 0
 
   constructor(path: string, log?: (message: string, detail?: unknown) => void) {
     this.path = path
     this.log = log
-    this.entries = this.read()
+    this.reload()
   }
 
   get size(): number {
     return this.entries.length
+  }
+
+  get error(): string | undefined {
+    return this.readError
+  }
+
+  get available(): boolean {
+    return this.readError === undefined
+  }
+
+  state(): PushStorageState {
+    return {
+      available: this.available,
+      subscriptions: this.entries.length,
+      ...(this.readError ? { error: this.readError } : {}),
+    }
+  }
+
+  /** Retry a failed read at most once per interval. Never throws. */
+  refresh(intervalMs = READ_RETRY_MS): boolean {
+    if (!this.readError) return true
+    if (Date.now() - this.lastReadAttempt < intervalMs) return false
+    return this.reload()
+  }
+
+  /** Re-read the file. A failed reload keeps the last in-memory entries. */
+  reload(): boolean {
+    this.lastReadAttempt = Date.now()
+    try {
+      this.entries = this.read()
+      this.readError = undefined
+      return true
+    } catch (cause) {
+      this.readError = errorMessage(cause)
+      return false
+    }
+  }
+
+  /**
+   * Replace the file with an empty store. The panel asks for this only after
+   * the operator confirms that the stored subscriptions may be dropped.
+   */
+  reset(): number {
+    const count = this.entries.length
+    try {
+      rmSync(this.path, { force: true })
+      rmSync(`${this.path}.tmp`, { force: true })
+      this.entries = []
+      this.persist()
+      this.readError = undefined
+      return count
+    } catch (cause) {
+      this.readError = `Could not reset push subscription storage: ${errorMessage(cause)}`
+      throw new Error(this.readError, { cause })
+    }
   }
 
   list(): readonly StoredPushSubscription[] {
@@ -61,6 +131,8 @@ export class PushSubscriptionStore {
   }
 
   upsert(subscription: PushSubscriptionPayload, meta: SubscriptionMeta = {}): SubscriptionResult {
+    this.refresh()
+    this.ensureWritable()
     const normalized = normalizePushSubscription(subscription)
     const now = Date.now()
     const index = this.entries.findIndex((entry) => entry.endpoint === normalized.endpoint)
@@ -98,6 +170,7 @@ export class PushSubscriptionStore {
   }
 
   remove(endpoint: string): boolean {
+    this.ensureWritable()
     const next = this.entries.filter((entry) => entry.endpoint !== endpoint)
     if (next.length === this.entries.length) return false
     this.entries = next
@@ -106,6 +179,7 @@ export class PushSubscriptionStore {
   }
 
   removeByDevice(deviceId: string): number {
+    this.ensureWritable()
     const next = this.entries.filter((entry) => entry.deviceId !== deviceId)
     const removed = this.entries.length - next.length
     if (removed === 0) return 0
@@ -124,22 +198,28 @@ export class PushSubscriptionStore {
 
   clear(): number {
     const count = this.entries.length
-    if (count === 0) return 0
-    this.entries = []
-    this.persist()
-    return count
+    if (count === 0 && this.available) return 0
+    return this.reset()
   }
 
   private updateStatus(
     endpoint: string,
     patch: Pick<StoredPushSubscription, 'lastSuccessAt' | 'lastError'>
   ): void {
+    if (!this.available) return
     const entry = this.entries.find((item) => item.endpoint === endpoint)
     if (!entry) return
     if (patch.lastSuccessAt !== undefined) entry.lastSuccessAt = patch.lastSuccessAt
     if (patch.lastError === undefined) delete entry.lastError
     else entry.lastError = patch.lastError
     this.persist()
+  }
+
+  private ensureWritable(): void {
+    if (!this.readError) return
+    throw new Error(
+      `Push subscription storage is unavailable. Fix ${this.path} and retry, or reset it from the hub panel. ${this.readError}`
+    )
   }
 
   private read(): StoredPushSubscription[] {

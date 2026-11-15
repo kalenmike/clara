@@ -152,6 +152,9 @@ export function pushHealth(push: PanelPushInfo): HealthItem {
     return { ...base, tone: 'bad', status: 'Error', detail: push.error }
   }
   if (push.effective) {
+    if (push.storageError) {
+      return { ...base, tone: 'warn', status: 'Storage error', detail: push.storageError }
+    }
     if (push.failing > 0) {
       return {
         ...base,

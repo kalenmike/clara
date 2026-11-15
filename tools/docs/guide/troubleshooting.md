@@ -136,6 +136,21 @@ of prompting.
   default. Hide or close it, or change **Hold phone alerts**.
 - If the subscription was dropped, clear cached app data and subscribe again.
 
+## The hub reports a push storage error
+
+The Push card in the hub panel can show **Subscription storage: Unavailable**.
+The VAPID key is separate, so it can still read **Configured**; only saving new
+subscriptions is blocked.
+
+- Make sure the account that runs the hub service can read the subscriptions
+  file in the hub's config directory. A container or login service that runs as
+  a different user sees a different permission set than your terminal.
+- After fixing the file's permissions, choose **Retry storage** in the panel.
+  If the hub started before the file was readable, restart the hub service.
+- If the file is corrupt or cannot be repaired, choose **Reset subscriptions**.
+  This deletes every stored push subscription, so each device must enable
+  notifications again.
+
 ## Desktop notifications work but sounds do not
 
 Inbox sounds and UI sounds are separate. Check the Inbox sounds switch, the

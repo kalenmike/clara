@@ -64,7 +64,17 @@ function relayClient(snapshot: RelaySnapshot): RelayClient {
 }
 
 function pushService(): PushService {
-  return { count: 2, failing: 1, publicKey: 'public-key' } as unknown as PushService
+  return {
+    count: 2,
+    failing: 1,
+    publicKey: 'public-key',
+    storageAvailable: true,
+    storageError: undefined,
+    refreshStorage: () => ({ available: true, subscriptions: 2 }),
+    reloadStorage: () => ({ available: true, subscriptions: 2 }),
+    resetStorage: () => ({ available: true, subscriptions: 0 }),
+    storageState: () => ({ available: true, subscriptions: 2 }),
+  } as unknown as PushService
 }
 
 function devices(): DeviceInfo[] {
@@ -252,6 +262,8 @@ describe('PanelRuntime', () => {
     expect(snapshot.auth).toEqual(AUTH)
     expect(snapshot.harness).toMatchObject({ configured: true, paired: 1, online: 1 })
     expect(snapshot.push.error).toContain('[redacted]')
+    expect(snapshot.push.vapidConfigured).toBe(true)
+    expect(snapshot.push.storageAvailable).toBe(true)
     expect(snapshot.agent.pairedDevices).toBe(2)
     expect(snapshot.devices).toHaveLength(2)
     expect(snapshot.devices.find((device) => device.id === 'device-remote')?.alias).toBe('Pocket')
@@ -276,6 +288,8 @@ describe('PanelRuntime', () => {
       'secret-key',
     ])
     expect(snapshot.storage[0]?.status).toBe('ok')
+    expect(snapshot.storage[0]?.readable).toBe(true)
+    expect(snapshot.storage.find((entry) => entry.key === 'subscriptions')?.readable).toBe(true)
   })
 
   it('redacts secrets from relay errors', async () => {

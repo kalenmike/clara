@@ -74,7 +74,10 @@ start an agent run and move on, so they do not have to watch the sidebar.
    twice. Desktop devices always receive push; mobile devices are held while a
    desktop client is present at the desk. The VAPID contact defaults to
    `https://clara.local`; the hub panel can edit it and `CLARA_VAPID_SUBJECT`
-   overrides it.
+   overrides it. VAPID keys and the subscriptions file are independent: an
+   unreadable or corrupt subscriptions file disables new subscriptions but
+   leaves the VAPID key configured, and the panel reports a storage error with
+   **Retry storage** and **Reset subscriptions** actions.
 7. Settings shows the controls that fit the current device. **Desktop
    notifications** appears only when the primary pointer is fine, such as a
    laptop with a mouse or trackpad. **Push notifications** appears on every
@@ -247,6 +250,9 @@ start an agent run and move on, so they do not have to watch the sidebar.
   colors and typography cannot follow the selected palette.
 - Losing or rotating `vapid.json` invalidates existing push subscriptions until
   each device subscribes again.
+- An unreadable or corrupt `subscriptions.json` stops new subscriptions until
+  it is fixed or reset. The hub keeps VAPID and the rest of push available, and
+  the panel offers **Retry storage** and **Reset subscriptions**.
 - There is no separate per-device push list. Subscriptions are tagged with the
   device id and removed when that device is revoked or when `pair --revoke-all`
   runs.
@@ -312,7 +318,12 @@ start an agent run and move on, so they do not have to watch the sidebar.
   `packages/contracts/shared-types/src/session-signals.ts`, shared by the hub and
   the web notification provider
 - Push storage: `${CLARA_CONFIG_DIR:-~/.config/clara}/subscriptions.json` (mode
-  `0600`); VAPID keys live in `vapid.json` next to it
+  `0600`); VAPID keys live in `vapid.json` next to it. The store keeps a read
+  error instead of failing startup, retries at most once every five seconds,
+  and exposes the live status to the panel.
+- Push storage recovery: `PushSubscriptionStore.reload()` retries the read;
+  `reset()` removes the file and writes an empty store. The panel route
+  `POST /panel/api/v1/push` runs either action with `{ action }`.
 - Push service worker: `apps/web/public/push-sw.js`, loaded by the Clara worker
   (`apps/web/src/sw.ts`) with `importScripts`
 - Push setup: the hub panel's VAPID contact (stored in `vapid.json`) or

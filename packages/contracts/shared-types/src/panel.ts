@@ -487,8 +487,23 @@ export type PanelPushInfo = {
   effective: boolean
   subscriptions: number
   failing: number
-  publicKeyConfigured: boolean
+  /** The VAPID key pair loaded, independent of subscription storage. */
+  vapidConfigured: boolean
+  /** False when the subscriptions file could not be read or written. */
+  storageAvailable: boolean
+  /** Present when subscriptions.json could not be read or written. */
+  storageError?: string
   error?: string
+}
+
+export type PanelPushStorage = {
+  available: boolean
+  subscriptions: number
+  error?: string
+}
+
+export type PanelPushStorageMutationResponse = {
+  storage: PanelPushStorage
 }
 
 export type PanelStorageKey =
@@ -507,6 +522,7 @@ export type PanelStorageEntry = {
   label: string
   path: string
   exists: boolean
+  readable?: boolean
   writable: boolean
   bytes?: number
   modifiedAt?: string
