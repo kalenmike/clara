@@ -49,7 +49,7 @@ export function installOffered(info: PanelInstallInfo | undefined): boolean {
 }
 
 export function repoCommand(kind: string, code: string): string {
-  return `pnpm clara start adapter --harness ${kind} --pair ${code}`
+  return `clara adapter install ${kind} --pair ${code}`
 }
 
 export function supportedPlatforms(manifest: PanelInstallManifest | undefined): string[] {

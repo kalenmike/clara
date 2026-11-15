@@ -74,7 +74,7 @@ describe('pairingInputError', () => {
     const code = `${HARNESS_PAIRING_CODE_PREFIX}${encodeHarnessPairingCode(adapterPairing)}`
     const error = pairingInputError(code)
     expect(error).toContain('harness adapter pairing code')
-    expect(error).toContain('pnpm clara start adapter --harness opencode --pair')
+    expect(error).toContain('clara adapter install opencode --pair')
   })
 
   it('uses the adapter kind in the install command', () => {
@@ -82,7 +82,7 @@ describe('pairingInputError', () => {
       ...adapterPairing,
       kind: 'pi',
     })}`
-    expect(pairingInputError(code)).toContain('pnpm clara start adapter --harness pi --pair')
+    expect(pairingInputError(code)).toContain('clara adapter install pi --pair')
   })
 
   it('explains the browser code prefix for other input', () => {
