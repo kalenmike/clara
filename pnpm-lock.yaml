@@ -406,6 +406,9 @@ importers:
       '@clara/crypto':
         specifier: workspace:*
         version: link:../../packages/crypto
+      '@clara/lab':
+        specifier: workspace:*
+        version: link:../../packages/lab
       '@clara/panel':
         specifier: workspace:*
         version: link:../../packages/panel

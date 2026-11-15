@@ -135,6 +135,20 @@ export default defineConfig(({ command, mode }) => {
     },
     resolve: {
       alias: {
+        // The lab is a desktop-only surface. Replace its modules with stubs in
+        // the web build so no lab code can reach the deployed artifact, even if
+        // a future refactor keeps the route import in the module graph.
+        ...(desktop
+          ? {}
+          : {
+              '@clara/lab/styles.css': fileURLToPath(
+                new URL('./src/lib/lab-absent.css', import.meta.url)
+              ),
+              '@clara/lab': fileURLToPath(new URL('./src/lib/lab-absent.ts', import.meta.url)),
+              '@/pages/lab-page': fileURLToPath(
+                new URL('./src/lib/lab-absent-page.tsx', import.meta.url)
+              ),
+            }),
         '@': fileURLToPath(new URL('./src', import.meta.url)),
       },
     },

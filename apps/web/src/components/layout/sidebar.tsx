@@ -6,6 +6,7 @@ import {
   ChevronRight,
   ChevronsDownUp,
   ChevronsUpDown,
+  FlaskConical,
   FolderGit2,
   FolderPlus,
   LayoutGrid,
@@ -81,6 +82,7 @@ import { useSidebarWidth } from '@/hooks/use-sidebar-width'
 import { claraBuildTitle, claraDisplayVersion } from '@/lib/build-info'
 import { errorMessage } from '@/lib/errors'
 import { isTextEntryTarget } from '@/lib/keyboard'
+import { isDesktop } from '@/lib/runtime'
 import {
   SIDEBAR_WIDTH_MAX,
   SIDEBAR_WIDTH_MIN,
@@ -674,6 +676,14 @@ export function SidebarContent({
             )}
           </div>
         </div>
+        {isDesktop ? (
+          <Button asChild variant="ghost" size="icon" className="size-11 md:size-8">
+            <Link to="/lab" onClick={onNavigate} title="Clara Lab">
+              <FlaskConical className="size-5 md:size-4" />
+              <span className="sr-only">Clara Lab</span>
+            </Link>
+          </Button>
+        ) : null}
         <Button asChild variant="ghost" size="icon" className="size-11 md:size-8">
           <Link to="/hub" onClick={onNavigate} title="Hub panel">
             <ShieldCheck className="size-5 md:size-4" />
