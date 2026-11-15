@@ -7,7 +7,7 @@ export type ParsedAdapterArgs = {
 }
 
 const FLAGS = new Set(['--no-start', '--json', '--purge', '--force', '--install'])
-const OPTIONS = new Set(['--pair', '--transport', '--harness', '--version'])
+const OPTIONS = new Set(['--pair', '--transport', '--harness', '--version', '--ws-url'])
 
 export type KindSpec = {
   kind: AdapterKind
@@ -66,8 +66,8 @@ export function requireKind(
   return parseKindSpec(value)
 }
 
-export function parseTransport(value: string | undefined): 'local' | 'relay' {
+export function parseTransport(value: string | undefined): 'local' | 'relay' | 'docker' {
   if (value === undefined) return 'local'
-  if (value === 'local' || value === 'relay') return value
-  throw new Error(`--transport must be local or relay, not ${value}`)
+  if (value === 'local' || value === 'relay' || value === 'docker') return value
+  throw new Error(`--transport must be local, relay, or docker, not ${value}`)
 }

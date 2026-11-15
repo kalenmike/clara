@@ -1185,9 +1185,16 @@ describe('panel server', () => {
       value: 'mailto:ops@example.com',
       source: 'file',
     })
+
+    const local = await post(server, 'config', {
+      localAccess: 'custom',
+      localBindHost: '192.168.1.20',
+    })
+    expect(local.status).toBe(200)
     expect(controls.configs).toEqual([
       { pairingBaseUrl: 'https://clara.example' },
       { vapidSubject: 'mailto:ops@example.com' },
+      { localAccess: 'custom', localBindHost: '192.168.1.20' },
     ])
   })
 
@@ -1215,6 +1222,8 @@ describe('panel server', () => {
     expect((await post(server, 'config', {})).status).toBe(400)
     expect((await post(server, 'config', { pairingBaseUrl: 1 })).status).toBe(400)
     expect((await post(server, 'config', { vapidSubject: 1 })).status).toBe(400)
+    expect((await post(server, 'config', { localAccess: 'carrier-pigeon' })).status).toBe(400)
+    expect((await post(server, 'config', { localBindHost: 1 })).status).toBe(400)
     expect((await post(server, 'config', { extra: true })).status).toBe(400)
     expect(controls.configs).toEqual([])
   })

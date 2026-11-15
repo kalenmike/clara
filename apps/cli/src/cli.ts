@@ -73,7 +73,7 @@ export const commands: Command[] = [
     name: 'pair',
     summary: 'Print a pairing code',
     usage:
-      'hub [--no-relay] [--no-qr] [--revoke-all|--revoke <id>] | adapter --harness <kind> [--transport local|relay] [--install]',
+      'hub [--no-relay] [--no-qr] [--revoke-all|--revoke <id>] | adapter --harness <kind> [--transport local|relay|docker] [--ws-url <url>] [--install]',
     run: runPair,
   },
   {
@@ -83,6 +83,8 @@ export const commands: Command[] = [
     options: [
       { flags: '--json', description: 'machine-readable output where supported' },
       { flags: '--pair <code>', description: 'pair with an existing code instead of issuing one' },
+      { flags: '--transport <mode>', description: 'local, relay, or docker when issuing a code' },
+      { flags: '--ws-url <url>', description: 'direct hub WebSocket URL for local or docker' },
       { flags: '--no-start', description: 'install without starting the adapter' },
       { flags: '--purge', description: 'remove adapter credentials with the install' },
     ],

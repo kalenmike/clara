@@ -1,13 +1,15 @@
 import { main as hubMain } from '@clara/hub-server/main'
 import type { PanelHarnessPairing } from '@clara/shared-types'
 
-export type PairingTransport = 'local' | 'relay'
+export type PairingTransport = 'local' | 'relay' | 'docker'
 
 export type PairingMain = (args: string[]) => Promise<void>
 
 export type PairingOptions = {
   main?: PairingMain
   label?: string
+  /** The direct hub address for a local or Docker install. */
+  wsUrl?: string
 }
 
 /**
@@ -37,6 +39,7 @@ export async function issueAdapterPairing(
       '--transport',
       transport,
       ...(options.label ? ['--label', options.label] : []),
+      ...(options.wsUrl ? ['--ws-url', options.wsUrl] : []),
       '--json',
     ])
     exitCode = typeof process.exitCode === 'number' ? process.exitCode : undefined
