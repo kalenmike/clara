@@ -10,6 +10,7 @@
     "clara-server": "./dist/index.js"
   },
   "scripts": {
+    "clean": "node ../../../tools/build/clean.mjs dist",
     "dev": "tsx watch src/index.ts",
     "start": "node dist/index.js",
     "prebuild": "pnpm --filter @clara/hub-panel build",

@@ -10,7 +10,9 @@
     "dev:lab": "pnpm --filter @clara/lab-cli dev",
     "dev:server": "pnpm --filter @clara/hub-server dev",
     "dev:relay": "pnpm --filter @clara/relay dev",
-    "build": "pnpm -r --if-present build",
+    "build": "turbo run build",
+    "build:force": "turbo run build --force",
+    "build:changed": "turbo run build --affected",
     "typecheck": "tsc -b",
     "lint": "eslint .",
     "lint:fix": "eslint . --fix",
@@ -63,6 +65,7 @@
     "husky": "^9.1.7",
     "knip": "^6.44.0",
     "prettier": "^3.9.10",
+    "turbo": "^2.11.11",
     "typescript": "~6.0.3",
     "typescript-eslint": "^8.72.1"
   },

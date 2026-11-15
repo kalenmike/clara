@@ -1,0 +1,40 @@
+{
+  "$schema": "https://turbo.build/schema.json",
+  "envMode": "loose",
+  "concurrency": "4",
+  "cacheMaxSize": "10GB",
+  "globalDependencies": ["pnpm-workspace.yaml", "tsconfig.base.json", "tools/build/**"],
+  "tasks": {
+    "transit": {
+      "dependsOn": ["^transit"]
+    },
+    "clean": {
+      "cache": false
+    },
+    "build": {
+      "dependsOn": ["clean", "^build"],
+      "outputs": ["dist/**"]
+    },
+    "@clara/web#build": {
+      "dependsOn": ["clean", "^build"],
+      "outputs": ["dist/**"],
+      "env": ["ENABLE_CLOUDFLARE_DEPLOYMENT", "CLARA_COMMIT", "CLARA_DIRTY", "VITE_CLARA_WS_URL"]
+    },
+    "@clara/hub-panel#build": {
+      "dependsOn": ["clean", "^build"],
+      "outputs": ["dist/**"],
+      "env": ["ENABLE_CLOUDFLARE_DEPLOYMENT", "CLARA_COMMIT", "CLARA_DIRTY"]
+    },
+    "@clara/hub-server#build": {
+      "dependsOn": ["clean", "^build", "@clara/hub-panel#build"],
+      "inputs": ["$TURBO_DEFAULT$", "$TURBO_ROOT$/infra/relay/src/**"],
+      "outputs": ["dist/**"],
+      "env": ["ENABLE_CLOUDFLARE_DEPLOYMENT"]
+    },
+    "@clara/docs#build": {
+      "dependsOn": ["clean", "^build"],
+      "inputs": ["$TURBO_DEFAULT$", "$TURBO_ROOT$/docs/**"],
+      "outputs": ["build/**"]
+    }
+  }
+}

@@ -11,6 +11,7 @@
     ".": "./src/index.ts"
   },
   "scripts": {
+    "clean": "node ../../../tools/build/clean.mjs dist",
     "dev": "tsx src/bin.ts",
     "build": "tsup",
     "start": "node dist/index.js",

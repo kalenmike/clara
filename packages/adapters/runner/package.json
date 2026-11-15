@@ -12,6 +12,7 @@
     ".": "./src/index.ts"
   },
   "scripts": {
+    "clean": "node ../../../tools/build/clean.mjs dist",
     "build": "tsup",
     "typecheck": "tsc -p tsconfig.json",
     "test": "vitest run"

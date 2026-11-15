@@ -11,6 +11,7 @@
     ".": "./src/main.ts"
   },
   "scripts": {
+    "clean": "node ../../tools/build/clean.mjs dist src/embedded-assets.generated.mjs",
     "dev": "tsx src/main.ts",
     "start": "tsx src/main.ts",
     "build:binary": "node scripts/build-binary.mjs",

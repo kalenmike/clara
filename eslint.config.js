@@ -11,6 +11,7 @@ export default defineConfig([
     '**/dist/**',
     '**/coverage/**',
     '**/node_modules/**',
+    '**/.turbo/**',
     '**/.wrangler/**',
     'apps/web/src/components/ui/**',
     'apps/**/src-tauri/**',

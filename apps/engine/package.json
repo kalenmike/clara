@@ -11,6 +11,7 @@
     "clara-engine": "./dist/index.js"
   },
   "scripts": {
+    "clean": "node ../../tools/build/clean.mjs dist",
     "dev": "tsx watch src/index.ts serve",
     "build": "tsup",
     "build:bun": "node scripts/build-bun.mjs",
