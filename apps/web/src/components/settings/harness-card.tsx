@@ -1,19 +1,17 @@
-import { useState } from 'react'
 import { Cable, Loader2, Plus } from 'lucide-react'
+import { Link } from 'react-router'
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
 import { useHarnesses } from '@/features/projects/use-projects'
-import { HarnessPairDialog } from './harness-pair-dialog'
 
 /**
- * Lists the adapters paired with this hub and issues a one-time code for a new
- * one. The browser cannot execute the install; the person runs the command or
- * opens the link with Clara Desktop.
+ * Lists the adapters paired with this hub and links to the hub panel, which
+ * owns the single pairing flow. The panel runs the install through Clara
+ * Desktop's adapter host when it is available, or shows the copy command.
  */
 export function HarnessCard({ simplified }: { simplified: boolean }) {
   const harnesses = useHarnesses()
-  const [open, setOpen] = useState(false)
   const rows = harnesses.data ?? []
 
   return (
@@ -35,8 +33,8 @@ export function HarnessCard({ simplified }: { simplified: boolean }) {
           </p>
         ) : rows.length === 0 ? (
           <p className="text-xs text-muted-foreground">
-            No harness is paired yet. Create a code, then run the command on the harness machine or
-            open the link with Clara Desktop.
+            No harness is paired yet. Open the hub panel to create a code, then run the command on
+            the harness machine or install it with Clara Desktop.
           </p>
         ) : (
           <ul className="space-y-2">
@@ -55,10 +53,11 @@ export function HarnessCard({ simplified }: { simplified: boolean }) {
           </ul>
         )}
 
-        <Button size="sm" onClick={() => setOpen(true)}>
-          <Plus className="size-4" /> Pair harness
+        <Button asChild size="sm">
+          <Link to="/hub#harness">
+            <Plus className="size-4" /> Pair harness
+          </Link>
         </Button>
-        <HarnessPairDialog open={open} onOpenChange={setOpen} />
       </CardContent>
     </Card>
   )
