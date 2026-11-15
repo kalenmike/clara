@@ -88,8 +88,6 @@ import {
   saveSidebarSections,
   type SidebarSection,
 } from '@/lib/storage'
-import { useConnection } from '@/providers/connection-provider'
-import { useEventStream } from '@/providers/event-provider'
 import { cn } from '@/lib/utils'
 
 type SidebarSectionView = {
@@ -144,8 +142,6 @@ export function SidebarContent({
   const navigate = useNavigate()
   const params = useParams<{ projectId: string; sessionId?: string }>()
   const { lowerSingular, lowerPlural } = useSessionWording()
-  const { reconnect, reconnecting } = useConnection()
-  const { state } = useEventStream()
   const projectsQuery = useProjects()
   const projects = useMemo(() => projectsQuery.data ?? [], [projectsQuery.data])
   const { showEmpty } = useShowEmptyProjects()
@@ -945,33 +941,6 @@ export function SidebarContent({
             )
           })}
       </ScrollArea>
-
-      <div className="shrink-0 px-3 pb-2.5 pt-1 text-[11px] text-muted-foreground md:pb-2 md:text-[10px]">
-        <span className="flex min-w-0 items-center gap-1 uppercase tracking-wider">
-          {state === 'live' ? (
-            <>
-              <span className="size-1.5 rounded-full bg-emerald-500" />
-              live
-            </>
-          ) : (
-            <button
-              type="button"
-              onClick={() => void reconnect()}
-              disabled={reconnecting}
-              title="Reconnect to the harness"
-              className="flex items-center gap-1 rounded-sm uppercase tracking-wider transition-colors hover:text-foreground disabled:opacity-60"
-            >
-              <span
-                className={cn(
-                  'size-1.5 rounded-full',
-                  reconnecting ? 'animate-pulse bg-amber-500' : 'bg-muted-foreground/40'
-                )}
-              />
-              {reconnecting || state === 'connecting' ? 'reconnecting' : 'retry'}
-            </button>
-          )}
-        </span>
-      </div>
 
       <DeleteSessionDialog
         open={dialogOpen}

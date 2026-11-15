@@ -46,7 +46,7 @@ device key through a one-time code; there is no shared browser key.
    authentication, or reachability failed. A failed pairing link returns to the
    pair form with the reason.
 8. **Settings → Reconnect** re-proves the current transport without clearing the
-   stored device. The sidebar health control offers the same action.
+   stored device. The status bar health control offers the same action.
 9. **Settings → Disconnect** forgets the device in this browser and returns here.
    Revoke it in the panel if the credential should stop working everywhere.
 
