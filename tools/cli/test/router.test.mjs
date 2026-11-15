@@ -77,6 +77,40 @@ test('renders leaf usage and options', () => {
   assert.doesNotMatch(help, /--version/)
 })
 
+test('renders a custom executable name and several usage forms', () => {
+  const custom = {
+    name: 'demo',
+    bin: 'demo-cli',
+    summary: 'Demo tools',
+    usage: ['one [options]', 'two <archive>'],
+    version: false,
+    options: [{ flags: '--now', description: 'Run immediately' }],
+  }
+  const help = renderHelp(custom)
+  assert.match(help, /^Usage:\n {2}demo-cli one \[options\]\n {2}demo-cli two <archive>$/m)
+  assert.doesNotMatch(help, /--version/)
+})
+
+test('renders sections with aligned columns', () => {
+  const sectioned = {
+    name: 'demo',
+    summary: 'Demo tools',
+    sections: [
+      {
+        label: 'Targets',
+        items: [
+          { name: 'run', description: 'Run it' },
+          { name: 'orchestrator', description: 'Orchestrate' },
+        ],
+      },
+    ],
+    options: [{ flags: '--now', description: 'Run immediately' }],
+  }
+  const help = renderHelp(sectioned)
+  assert.match(help, /Targets:\n {2}run {11}Run it\n {2}orchestrator {2}Orchestrate/)
+  assert.match(help, /\nOptions:\n {2}--now {2,}Run immediately\n {2}-h, --help {2,}Show help/)
+})
+
 test('resolves nested commands and leaves arguments alone', () => {
   const resolved = resolveCommand(tree, ['run', 'thing', '--now'])
   assert.equal(resolved.path.join(' '), 'run')
