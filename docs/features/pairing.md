@@ -108,7 +108,8 @@ action or `clara-server pair`.
 ## Edge cases
 
 - **Invalid or truncated code** — the form reports a pairing-code error and
-  keeps the input.
+  keeps the input. This includes a code from a different wire protocol version;
+  compare it with the protocol shown at the foot of the connect screen.
 - **Expired code** — Clara rejects it before connecting and asks for a fresh
   code from the panel or `clara-server pair`.
 - **Code already used** — the hub rejects enrollment with a used-code error.
@@ -139,6 +140,10 @@ action or `clara-server pair`.
   be close enough to resolve before anything is paired.
 - **Pairing link fails** — the connecting splash gives way to the pair form,
   which shows the relay, handshake, or enrollment failure.
+- **Stale client** — the connecting splash and the pair form end in a footer with
+  the app version and wire protocol version beside a reload control. On the web
+  the control unregisters the worker and deletes every cache before reloading; on
+  desktop it reloads the bundled app. Stored devices are untouched.
 - **Fingerprint mismatch** — the transport reports the mismatch and asks for a
   fresh code.
 - **Relay offline** — the device connects but the hub is absent; the client
@@ -214,7 +219,10 @@ action or `clara-server pair`.
   `apps/web/public/_headers`; self-hosted deployments must send the same header
 - Storage: IndexedDB `clara-devices` / `device`; no connection secret in
   `localStorage`
-- Connect screen: `/connect`
+- Connect screen: `/connect`; its footer shows the build, the wire protocol
+  version (`PROTOCOL_VERSION`), and a reload that resets the worker and caches
+  on the web (`apps/web/src/components/pwa/app-footer.tsx`, `reloadApp` in
+  `apps/web/src/features/updates/app-update.ts`)
 - Server config: `~/.config/clara/server.json` (mode `0600`); the panel writes
   `pairingBaseUrl` there and `pair` reads it without opening SQLite for the Web
   URL, then opens SQLite to create the enrollment token
