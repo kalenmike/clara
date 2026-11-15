@@ -15,7 +15,9 @@ pattern. **Harness → Pair Harness** asks which harness and whether it runs
 **Remote** or **Local**, then infers the transport: the relay for a remote
 machine, the Docker network for a container on a containerized hub, and
 loopback for a local harness outside Docker. A container on a host-process hub
-falls back to the relay. It produces a `clara-harness1_…` code; the install
+falls back to the relay, and an advanced WebSocket URL overrides the address
+when the adapter reaches the hub directly. It produces a `clara-harness1_…`
+code; the install
 action runs the registry install script on the target over SSH or Docker, while
 **Copy code** and **Copy command** install by hand. For the included adapters
 the manual command is `clara-adapter-opencode install --pair <code>` or

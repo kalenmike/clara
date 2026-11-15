@@ -75,8 +75,9 @@ once the app is paired.
 
 The panel shows hub health, paired harnesses, sessions, clients, traffic, and
 settings in the same views as the hub host's own page. Adapter setup works from
-here too: the hub issues a one-time code and command, and the app's adapter host
-can install on this computer, an SSH host, or a local Docker container.
+the Harness view: the hub issues a one-time code and command, and the app's
+adapter host can install on this computer, an SSH host, or a local Docker
+container. A `clara://adapter` link opens that view with the code ready.
 
 A few controls belong only to the hub host: **Go offline**, the local
 connection switch that carries this app, and relay target or room changes. They

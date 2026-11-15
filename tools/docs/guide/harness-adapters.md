@@ -24,23 +24,29 @@ Inside the Clara repository you can use
 
 ## Pair an adapter
 
-1. Open Clara and go to **Settings → Harness → Pair harness**. The hub panel
-   offers the same action.
+1. Open the hub panel's **Harness** view and choose **Pair Harness**. In the
+   Clara client, **Settings → Harness → Pair harness** opens the same view.
 2. Choose the harness. The hub returns a one-time code, an install command, and
    a link for Clara Desktop. It never runs the install itself.
-3. If you are using Clara Desktop, choose **This computer**, an **SSH host**
-   from your laptop's SSH configuration, or a local **Docker container**, then
-   install. The desktop app uses your SSH agent and Docker socket; your keys
-   never go to the hub. Unlock your key in the keychain/agent first, because
-   there is no password prompt.
-4. If you are using the website only, copy the command and run it on the
+3. Answer **Remote** or **Local**, and for a local harness choose **This
+   machine** or **Docker container**. The panel picks the connection that fits:
+   the relay for another machine, the Docker network for a container on a
+   containerized hub, and the hub's own address for a local host. If the
+   adapter can reach the hub at another address, enter it under **Advanced →
+   WebSocket URL**.
+4. If you are using Clara Desktop, install from the same panel flow on **This
+   computer**, an **SSH host** from your laptop's SSH configuration, or a local
+   **Docker container**. The desktop app uses your SSH agent and Docker socket;
+   your keys never go to the hub. Unlock your key in the keychain/agent first,
+   because there is no password prompt.
+5. If you are using the website only, copy the command and run it on the
    machine that hosts the harness. For a container, run it inside the container.
    The registry command downloads the adapter for that machine; the repository
    command works from a Clara checkout.
-5. Turn on adapter setup first in **Settings → Adapter downloads** if the code
+6. Turn on adapter setup first in **Settings → Adapter downloads** if the code
    cannot be created. A hosted or Docker-hosted hub does not need SSH or Docker
    access; the command runs where the harness is.
-6. The installer looks for the harness and starts a user service, or a
+7. The installer looks for the harness and starts a user service, or a
    background process when systemd is not available. Return to Clara. The
    pairing card shows **Waiting for the adapter to connect…** and changes to
    **Connected** when the adapter registers. A newly paired adapter shows
