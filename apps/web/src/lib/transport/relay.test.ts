@@ -38,6 +38,8 @@ type RelayOptions = {
   onGrant?: (grant: RelayGrantState) => void
   onProtocols?: (protocols: string[]) => void
   onSealed?: () => void
+  /** Drop the socket as soon as the handshake completes, racing the ready frame. */
+  closeAfterReady?: boolean
 }
 
 let server: Server
@@ -346,6 +348,27 @@ describe('relay transport device errors', () => {
   }, 20_000)
 })
 
+describe('relay connection races', () => {
+  it('reconnects when the socket closes as the handshake completes', async () => {
+    const seen: string[] = []
+    const relay = await startRelay(undefined, {
+      closeAfterReady: true,
+      onProtocols: (protocols) => {
+        const auth = protocols.find((value) => value.startsWith('clara.auth.'))
+        if (auth) seen.push(auth)
+      },
+    })
+
+    try {
+      await relay.transport.connect().catch(() => undefined)
+      await waitFor(() => seen.length >= 2, 10_000)
+      expect(seen.length).toBeGreaterThanOrEqual(2)
+    } finally {
+      await relay.close()
+    }
+  }, 15_000)
+})
+
 async function waitFor(check: () => boolean, timeoutMs = 2_000): Promise<void> {
   const started = Date.now()
   while (!check()) {
@@ -512,6 +535,7 @@ function attachFakeAgent(
           syncIntervalMs: 15_000,
         },
       })
+      if (options.closeAfterReady) chain = chain.then(() => socket.close(1000, 'test reconnect'))
       return
     }
 

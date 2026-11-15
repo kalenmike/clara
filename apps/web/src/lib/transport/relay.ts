@@ -500,7 +500,14 @@ class RelayFetchTransport implements RelayTransport {
     socket.addEventListener('message', (event) => {
       if (this.socket !== socket) return
       this.lastReceivedAt = Date.now()
-      this.receiveChain = this.receiveChain.then(() => this.handleFrame(event.data)).catch(() => {})
+      this.receiveChain = this.receiveChain
+        .then(() => {
+          // Decryption is asynchronous, so a close can land between arrival and
+          // handling. A frame from the dead socket must not revive it.
+          if (this.socket !== socket) return
+          return this.handleFrame(event.data, socket)
+        })
+        .catch(() => {})
     })
 
     socket.addEventListener('error', () => {
@@ -613,7 +620,7 @@ class RelayFetchTransport implements RelayTransport {
     })()
   }
 
-  private async handleFrame(raw: unknown): Promise<void> {
+  private async handleFrame(raw: unknown, socket: WebSocket): Promise<void> {
     let text: string
     if (typeof raw === 'string') {
       text = raw
@@ -664,6 +671,7 @@ class RelayFetchTransport implements RelayTransport {
           return
         }
         const material = await deriveV4SessionKeys(input)
+        if (this.socket !== socket) return
         this.keys = material.keys
         this.receive = new ReplayGuard()
         // The ephemeral private key is only needed for this handshake. Drop it
@@ -723,6 +731,7 @@ class RelayFetchTransport implements RelayTransport {
     }
 
     if (payload.type === 'ready') {
+      if (this.socket !== socket) return
       if (payload.relayGrant) {
         try {
           this.config.onRelayGrant?.(payload.relayGrant)
