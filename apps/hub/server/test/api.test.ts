@@ -249,8 +249,14 @@ describe('hub API', () => {
     expect(await manifest.json()).toMatchObject({ manifest: { version: '0.1.0' } })
   })
 
-  it('returns hub and harness status', async () => {
-    const api = createTestApi()
+  it('returns hub and harness status without adapter endpoints', async () => {
+    const api = createTestApi(undefined, {
+      info: {
+        version: '0.1.0',
+        protocol: 1,
+        endpoints: { web: 'https://clara.example.com' },
+      },
+    })
     const response = await api.fetch(
       request('/v1/info', { headers: { authorization: 'Bearer secret' } })
     )
@@ -258,9 +264,11 @@ describe('hub API', () => {
     const info = (await response.json()) as {
       harness: { configured: boolean; generation: number }
       api: { version: string }
+      agent: { endpoints?: unknown }
     }
     expect(info.harness.configured).toBe(true)
     expect(info.harness.generation).toBe(3)
     expect(info.api.version).toBe('v1')
+    expect(info.agent.endpoints).toBeUndefined()
   })
 })
