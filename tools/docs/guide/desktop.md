@@ -54,6 +54,31 @@ pnpm desktop:dev         # development window with hot reload
 Installers are unsigned for now, so the system may ask you to confirm the first
 launch.
 
+## Install from a build
+
+On Linux, `pnpm desktop:install` installs the newest build for the current user
+without root. It copies the app and its bundled adapter host into `~/.local`,
+adds a menu entry and icons, and registers `clara://` links:
+
+```bash
+pnpm desktop:install            # install from this checkout
+pnpm desktop:install --dry-run  # print the plan first
+pnpm desktop:uninstall          # remove it again
+```
+
+The script installs an existing build only. It uses `dist/desktop` from the
+Docker build first, then the output of a build made on this machine; run
+`pnpm desktop:build:docker` or `pnpm desktop:build` first. If it reports that the
+bundled adapter host is missing, rebuild so the sidecar is included. Use
+`--from <dir>` to install another build and `--prefix <dir>` to install
+somewhere other than `~/.local`.
+
+Launch Clara from the application menu or with `clara-desktop`. Removing the app
+keeps pairing and drafts; `pnpm desktop:uninstall --purge` removes those too.
+
+Windows and macOS installers already install for the current user, so the script
+does not handle them: open the `.exe` or `.dmg` from the build output.
+
 ## Pair the app
 
 Pairing works the same way as the browser:
