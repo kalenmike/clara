@@ -1,4 +1,5 @@
 import { main as hubMain } from '@clara/hub-server/main'
+import { connect } from 'node:net'
 import type { PanelHarnessPairing } from '@clara/shared-types'
 
 export type PairingTransport = 'local' | 'relay' | 'docker'
@@ -58,7 +59,56 @@ export async function issueAdapterPairing(
         `The hub could not issue a ${kind} pairing code (exit ${exitCode}).`
     )
   }
-  return parsePairing(stdout)
+  const pairing = parsePairing(stdout)
+  if (transport !== 'relay') await assertHubReachable(pairing.wsUrl)
+  return pairing
+}
+
+/**
+ * A local pairing code is useless when nothing listens on the hub port. The
+ * code is issued in-process, so without this check the install downloads the
+ * adapter first and only then reports a raw WebSocket error.
+ */
+async function assertHubReachable(wsUrl: string): Promise<void> {
+  const endpoint = localEndpoint(wsUrl)
+  if (!endpoint) return
+  if (await canConnect(endpoint.host, endpoint.port)) return
+  throw new Error(
+    [
+      `The hub is not answering at ${wsUrl}.`,
+      'Start it with `clara start hub`, then try again.',
+      'If the hub runs in Docker or on another machine, use `--transport docker` or `--transport relay`.',
+    ].join('\n')
+  )
+}
+
+function localEndpoint(wsUrl: string): { host: string; port: number } | undefined {
+  let url: URL
+  try {
+    url = new URL(wsUrl)
+  } catch {
+    return undefined
+  }
+  const host = url.hostname.replace(/^\[|\]$/g, '')
+  if (host !== '127.0.0.1' && host !== 'localhost' && host !== '::1') return undefined
+  const port = Number(url.port || (url.protocol === 'wss:' ? 443 : 80))
+  return Number.isInteger(port) && port > 0 ? { host, port } : undefined
+}
+
+function canConnect(host: string, port: number, timeoutMs = 1_500): Promise<boolean> {
+  return new Promise((resolve) => {
+    const socket = connect({ host, port })
+    let settled = false
+    const finish = (connected: boolean) => {
+      if (settled) return
+      settled = true
+      socket.destroy()
+      resolve(connected)
+    }
+    socket.setTimeout(timeoutMs, () => finish(false))
+    socket.once('connect', () => finish(true))
+    socket.once('error', () => finish(false))
+  })
 }
 
 function parsePairing(lines: readonly string[]): PanelHarnessPairing {
