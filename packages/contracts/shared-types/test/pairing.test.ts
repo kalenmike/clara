@@ -1,8 +1,10 @@
 import { describe, expect, it } from 'vitest'
 import {
   PAIRING_CODE_PREFIX,
+  PAIRING_LINK_MAX_LENGTH,
   PROTOCOL_VERSION,
   buildPairingUrl,
+  createRelayGrant,
   decodePairingCode,
   encodePairingCode,
   parsePairingInput,
@@ -59,5 +61,32 @@ describe('pairing', () => {
       fingerprint: 'fingerprint',
     }
     expect(decodePairingCode(encodePairingCode(legacy as unknown as PairingPayload))).toBeNull()
+  })
+
+  it('keeps a relay link inside the QR size budget', async () => {
+    // Field lengths match what the hub issues: a 22-character base64url room
+    // and enrollment id, a 43-character enrollment token and device key, a
+    // signed 204-character grant, and the advertised relay URL.
+    const room = 'r'.repeat(22)
+    const grant = await createRelayGrant({
+      room,
+      id: 'e'.repeat(22),
+      agentToken: 'a'.repeat(43),
+      ttlSeconds: 600,
+      nowSeconds: 1_800_000_000,
+    })
+    const relayPayload: PairingPayload = {
+      v: PROTOCOL_VERSION,
+      wsUrl: `wss://clara-relay.example.workers.dev/room/${room}`,
+      room,
+      grant: grant.grant,
+      enrollId: 'e'.repeat(22),
+      enrollToken: 't'.repeat(43),
+      fingerprint: `sha256:${'f'.repeat(43)}`,
+      expiresAt: 1_800_000_600_000,
+    }
+
+    const link = buildPairingUrl('https://clara.example', relayPayload)
+    expect(link.length).toBeLessThanOrEqual(PAIRING_LINK_MAX_LENGTH)
   })
 })

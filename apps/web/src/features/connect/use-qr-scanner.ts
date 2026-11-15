@@ -1,10 +1,12 @@
 import { useCallback, useEffect, useRef, useState } from 'react'
 import { withTimeout } from '@/lib/async'
 import {
+  CAMERA_CONSTRAINTS,
   CAMERA_PREVIEW_MESSAGE,
   CAMERA_STOPPED_MESSAGE,
   CAMERA_UNAVAILABLE_MESSAGE,
   SCAN_FAILED_MESSAGE,
+  decodeRegions,
   describeCameraError,
   isCameraScanningAvailable,
   isFrameReady,
@@ -14,7 +16,6 @@ import {
 } from '@/lib/qr-scan'
 
 const SCAN_INTERVAL_MS = 180
-const MAX_FRAME_WIDTH = 640
 /** Re-reading the same code should not repeat an invalid-QR message. */
 const REPEAT_IGNORE_MS = 2_000
 /** A camera prompt that never appears must not look like a slow one. */
@@ -30,9 +31,12 @@ export type QrScanStatus = 'starting' | 'scanning' | 'error'
  * whether a value starts a pairing; returning false keeps the camera running
  * so another QR can be tried.
  *
- * The camera is requested before anything is awaited: iOS can skip the
- * permission prompt when the request is issued after slow async work. Every
- * stage has a deadline so a wedged request reports why instead of spinning.
+ * Each scan samples one region, cycling from the full frame to centered crops,
+ * so a dense pairing code is decoded from native camera pixels rather than a
+ * downscaled preview. The camera is requested before anything is awaited: iOS
+ * can skip the permission prompt when the request is issued after slow async
+ * work. Every stage has a deadline so a wedged request reports why instead of
+ * spinning.
  */
 export function useQrScanner({
   active,
@@ -78,6 +82,7 @@ export function useQrScanner({
     let lastValueAt = 0
     let decoding = false
     let decode: QrDecoder | null = null
+    let regionIndex = 0
 
     const canvas = document.createElement('canvas')
     const context = canvas.getContext('2d', { willReadFrequently: true })
@@ -116,13 +121,26 @@ export function useQrScanner({
       if (now - lastScan < SCAN_INTERVAL_MS || !decode || !context) return
       lastScan = now
 
-      const { videoWidth, videoHeight } = videoEl
-      const scale = Math.min(1, MAX_FRAME_WIDTH / videoWidth)
-      canvas.width = Math.max(1, Math.round(videoWidth * scale))
-      canvas.height = Math.max(1, Math.round(videoHeight * scale))
-      context.drawImage(videoEl, 0, 0, canvas.width, canvas.height)
-      const image = context.getImageData(0, 0, canvas.width, canvas.height)
-      const value = decode(image.data, image.width, image.height)
+      const regions = decodeRegions(videoEl.videoWidth, videoEl.videoHeight)
+      if (regions.length === 0) return
+      const region = regions[regionIndex % regions.length]
+      regionIndex += 1
+
+      canvas.width = region.width
+      canvas.height = region.height
+      context.drawImage(
+        videoEl,
+        region.source.x,
+        region.source.y,
+        region.source.width,
+        region.source.height,
+        0,
+        0,
+        region.width,
+        region.height
+      )
+      const image = context.getImageData(0, 0, region.width, region.height)
+      const value = decode(image.data, region.width, region.height)
       if (!value) return
       if (value === lastValue && now - lastValueAt < REPEAT_IGNORE_MS) return
       lastValue = value
@@ -159,10 +177,7 @@ export function useQrScanner({
 
       // Nothing may be awaited before this call: the permission prompt is
       // tied to the tap that opened the scanner.
-      const camera = navigator.mediaDevices.getUserMedia({
-        video: { facingMode: { ideal: 'environment' } },
-        audio: false,
-      })
+      const camera = navigator.mediaDevices.getUserMedia(CAMERA_CONSTRAINTS)
       const decoder = loadQrDecoder()
 
       let media: MediaStream

@@ -14,11 +14,13 @@ minutes.
 
 1. Open Clara on the device you want to use.
 2. Choose **Scan QR code**. The first time, the browser asks for camera access.
-3. Point the camera at the QR code on the hub host's screen or terminal.
+3. Point the camera at the QR code on the hub host's screen or terminal. A relay
+   QR holds more data than a local one, so let it fill the middle of the frame.
 4. Clara recognizes the code and connects as soon as it is readable.
 
 Camera frames are decoded on the device. They are not uploaded to the hub or the
-relay.
+relay. If the terminal cannot fit the QR, it prints a note and the link and code
+instead; open the link or paste the code on the device.
 
 ## Pair with a code or link
 

@@ -41,7 +41,10 @@ action or `clara-server pair`.
    fingerprint. The panel offers a **Relay | Local** choice when a relay is
    configured; the command takes `--no-relay` for the same local result. The
    dialog moves from the transport choice to a QR, an **Open Link** action, the
-   expiry, and **Copy code** and **Copy link** buttons. It shows **Waiting to
+   expiry, and **Copy code** and **Copy link** buttons. The QR is rendered
+   locally at 288 px with the lowest error-correction level, because a relay
+   link carries its enrollment grant and already fills ~700 characters; the
+   terminal prints its QR only when the code fits the terminal width. It shows **Waiting to
    connect** until a device enrolls, then **Connected**. Closing before
    enrollment cancels the unused code; closing after it leaves the new device in
    place. Local codes use the panel Web URL (default
@@ -49,7 +52,10 @@ action or `clara-server pair`.
 3. Open Clara on the device. **Pair this device** offers **Scan QR code** and a
    paste field. Tapping Scan opens the rear camera and connects as soon as a
    Clara QR is recognized; a `clara1_…` code or `#pair=` link can still be
-   pasted. Opening a pairing link directly is consumed automatically and shows a
+   pasted. The scanner asks for a high-resolution rear stream and cycles each
+   tick through the full frame and two centered crops, so a dense relay QR is
+   decoded from native pixels instead of a downscaled preview. Opening a pairing
+   link directly is consumed automatically and shows a
    branded connecting splash.
 4. Clara validates the payload and expiry, checks that this browser can store a
    non-extractable key, connects with the one-time enrollment token and, for a
@@ -136,8 +142,14 @@ action or `clara-server pair`.
   scan action is hidden on a plain `http://` address; paste still works.
 - **Non-Clara QR** — the scanner reports that the code is not a Clara pairing
   code and keeps looking instead of starting a connection.
-- **Blurred or distant QR** — the scanner keeps sampling frames; the code must
-  be close enough to resolve before anything is paired.
+- **Blurred, dense, or distant QR** — a relay code carries its enrollment grant
+  and is the densest Clara produces. The scanner asks the camera for a
+  high-resolution rear stream and decodes the full frame or a centered crop on
+  each tick, so a code that needs native pixels can still resolve; nothing pairs
+  until a frame decodes.
+- **QR wider than the terminal** — `pair` prints the link and code and skips the
+  QR when it would wrap, because a wrapped code never scans. Widen the terminal
+  or open the printed link.
 - **Pairing link fails** — the connecting splash gives way to the pair form,
   which shows the relay, handshake, or enrollment failure.
 - **Stale client** — the connecting splash and the pair form end in a footer with

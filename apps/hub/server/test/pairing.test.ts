@@ -19,6 +19,7 @@ const ENV_KEYS = [
   'CLARA_AGENT_TOKEN',
   'CLARA_PAIRING_BASE_URL',
   'CLARA_WEB_PORT',
+  'COLUMNS',
   'XDG_STATE_HOME',
 ] as const
 
@@ -162,6 +163,39 @@ describe('createPairingPayload', () => {
       room: 'local',
     })
     expect(payload.grant).toBeUndefined()
+  })
+})
+
+describe('pairing QR in the terminal', () => {
+  const relayConfig = () =>
+    baseConfig({
+      relay: { url: 'wss://relay.example', room: 'room-1', agentToken: 'agent-token' },
+    })
+
+  async function print(withQr = true): Promise<string> {
+    const logs: string[] = []
+    const spy = vi.spyOn(console, 'log').mockImplementation((...args: unknown[]) => {
+      logs.push(args.map(String).join(' '))
+    })
+    try {
+      await printPairing(relayConfig(), fakeDevices(), withQr)
+    } finally {
+      spy.mockRestore()
+    }
+    return logs.join('\n')
+  }
+
+  it('prints the QR when the terminal can show it whole', async () => {
+    process.env.COLUMNS = '200'
+    const output = await print()
+    expect(output).toContain('█')
+  })
+
+  it('skips a QR that would wrap on a narrow terminal', async () => {
+    process.env.COLUMNS = '40'
+    const output = await print()
+    expect(output).toContain('skipped; it needs')
+    expect(output).not.toContain('█')
   })
 })
 
