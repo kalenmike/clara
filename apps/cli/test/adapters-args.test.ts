@@ -20,12 +20,15 @@ describe('adapter argument parsing', () => {
       '--pair',
       'clara-pair',
       '--transport=relay',
+      '--container',
+      'clara-adapter-opencode',
       '--json',
     ])
     expect(parsed.values).toEqual(['opencode@1.0.0'])
     expect([...parsed.flags]).toEqual(['--no-start', '--json'])
     expect(parsed.options.get('--pair')).toBe('clara-pair')
     expect(parsed.options.get('--transport')).toBe('relay')
+    expect(parsed.options.get('--container')).toBe('clara-adapter-opencode')
   })
 
   it('rejects unknown options and missing values', () => {

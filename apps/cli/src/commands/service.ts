@@ -374,6 +374,10 @@ function printExtras(
         { header: 'VERSION', value: (entry) => entry.version },
         { header: 'PLATFORM', value: (entry) => entry.platform },
         {
+          header: 'RUNTIME',
+          value: (entry) => (entry.container ? `container ${entry.container.name}` : 'host'),
+        },
+        {
           header: 'STATE',
           value: (entry) =>
             entry.state === 'running'

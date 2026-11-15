@@ -38,10 +38,15 @@ export async function runAdapterInstall(args: readonly string[]): Promise<number
   const paths = resolvePaths()
   const pairCode = parsed.options.get('--pair')
   const from = parsed.options.get('--from')
+  const container = parsed.options.get('--container')
+  if (container && (from || parsed.flags.has('--reuse-pairing'))) {
+    throw new Error('--container cannot be combined with --from or --reuse-pairing.')
+  }
   const reuse =
     parsed.flags.has('--reuse-pairing') ||
     (Boolean(from) && !pairCode && adapterHasPairing(spec.kind, paths))
-  const guard = pairCode || reuse ? undefined : adapterInstallGuard(detectRole(paths), spec.kind)
+  const guard =
+    pairCode || reuse || container ? undefined : adapterInstallGuard(detectRole(paths), spec.kind)
   if (guard) {
     console.error(guard)
     return 1
@@ -51,17 +56,19 @@ export async function runAdapterInstall(args: readonly string[]): Promise<number
   const transport = parseTransport(parsed.options.get('--transport'))
   const wsUrl = parsed.options.get('--ws-url')
   try {
-    const target = detectAdapterTarget()
+    const target = container ? undefined : detectAdapterTarget()
     const version = spec.version ?? parsed.options.get('--version')
     const code =
-      pairCode ?? (reuse ? undefined : await issueCode(spec.kind, transport, spinner, wsUrl))
+      pairCode ??
+      (reuse || container ? undefined : await issueCode(spec.kind, transport, spinner, wsUrl))
     const record = await installAdapter(
       {
         kind: spec.kind,
         ...(version ? { version } : {}),
-        target,
+        ...(target ? { target } : {}),
         ...(code ? { pairCode: code } : {}),
         ...(reuse ? { reusePairing: true } : {}),
+        ...(container ? { container } : {}),
         start: !parsed.flags.has('--no-start'),
         ...(from ? { from } : {}),
         ...(parsed.flags.has('--force') ? { force: true } : {}),
@@ -80,7 +87,12 @@ export async function runAdapterInstall(args: readonly string[]): Promise<number
       console.log(warn(record.lastError))
       return 1
     }
-    await startSharedRunner(record.kind, paths, parsed.flags.has('--no-runner'))
+    await startSharedRunner(
+      record.kind,
+      paths,
+      parsed.flags.has('--no-runner'),
+      Boolean(record.container)
+    )
     return 0
   } catch (cause) {
     if (!json) spinner?.fail(`The ${spec.kind} adapter did not install.`)
@@ -206,7 +218,12 @@ export async function runPairAdapter(args: readonly string[]): Promise<number> {
     if (installSpinner) installSpinner.succeed(`Installed ${record.kind} ${record.version}`)
     else console.log(success(`Installed ${record.kind} ${record.version}`))
     printRecord(record)
-    await startSharedRunner(record.kind, paths, parsed.flags.has('--no-runner'))
+    await startSharedRunner(
+      record.kind,
+      paths,
+      parsed.flags.has('--no-runner'),
+      Boolean(record.container)
+    )
   }
   return 0
 }
@@ -246,11 +263,16 @@ function installDeps(
 }
 
 function printRecord(record: AdapterInstallRecord): void {
-  console.log(`  version:  ${record.version}`)
-  console.log(`  platform: ${record.platform}`)
-  console.log(`  path:     ${record.path}`)
-  console.log(`  entry:    ${record.entry ?? 'native binary'}`)
-  console.log(`  paired:   ${record.pairedAt ? 'yes' : 'no'}`)
+  console.log(`  version:   ${record.version}`)
+  console.log(`  platform:  ${record.platform}`)
+  if (record.container) {
+    console.log(`  container: ${record.container.name}`)
+    console.log(`  entry:     ${record.container.entry.join(' ')}`)
+  } else {
+    console.log(`  path:      ${record.path}`)
+    console.log(`  entry:     ${record.entry ?? 'native binary'}`)
+  }
+  console.log(`  paired:    ${record.pairedAt ? 'yes' : 'no'}`)
 }
 
 /**
@@ -260,9 +282,10 @@ function printRecord(record: AdapterInstallRecord): void {
 async function startSharedRunner(
   kind: string,
   paths: ReturnType<typeof resolvePaths>,
-  noRunner: boolean
+  noRunner: boolean,
+  container: boolean
 ): Promise<void> {
-  if (kind !== 'opencode' || noRunner || detectRole(paths) !== 'hub') return
+  if (container || kind !== 'opencode' || noRunner || detectRole(paths) !== 'hub') return
   const installed = readRunnerManifest().runner
   // A checkout adapter can install the runner service itself; do not start a
   // second runner next to it.
