@@ -13,11 +13,11 @@ detail rows that most people leave alone.
 2. The page opens on **Appearance**, where the light/dark/system mode and color
    theme live.
 3. Use the tabs to reach **Preferences** for session wording, the per-harness
-   default agent, and cost display, **Models** for provider and model visibility,
-   **Notifications** for alerts and sounds, **Sync** for per-category settings
-   sync, **Shortcuts** for the keyboard reference, and **Advanced** for the
-   server connection and app build. On narrow screens the tab strip becomes a
-   section menu.
+   default agent, the auto-hide composer choice, and cost display, **Models** for
+   provider and model visibility, **Notifications** for alerts and sounds, **Sync**
+   for per-category settings sync, **Shortcuts** for the keyboard reference, and
+   **Advanced** for the server connection and app build. On narrow screens the tab
+   strip becomes a section menu.
 4. Press the filter icon in the header to open **Filter settings**.
 5. **Simplify settings** is on by default. Turn it off to see the full page.
 6. With it on, the Notifications card shows one Inbox sounds switch instead of
@@ -55,6 +55,11 @@ detail rows that most people leave alone.
    defaults to **Actual**, and is part of the Preferences sync category. It
    controls whether every cost surface shows the reported amount or an estimate
    from model prices.
+9. **Auto-hide the composer** is stored locally under `clara.composerAutoHide`,
+   defaults to off, and is not part of any sync category. The composer's pin is
+   stored separately under `clara.composerPinned`; turning auto-hide off clears
+   it. The card is hidden on touch-first devices because the behavior depends on
+   a hover pointer.
 
 ## Edge cases
 
@@ -72,8 +77,10 @@ detail rows that most people leave alone.
   the person can act on it.
 - **Update ready** — the update row and **Update and reload** button stay in
   simplified mode.
-- **Touch-first device** — the Shortcuts tab is absent, and the Notifications
-  card keeps its existing desktop-only row rules.
+- **Touch-first device** — the Shortcuts tab and the auto-hide composer card are
+  absent, and the Notifications card keeps its existing desktop-only row rules.
+- **Auto-hide pin** — a stored pin survives a reload, but turning auto-hide off
+  clears it so enabling it again rests on the title bar.
 - **Sync disabled by the hub** — the Sync tab disappears and the active section
   falls back to Appearance. Re-enabling sync makes it available again.
 - **Older stored values** — a missing or unknown simplify value counts as on;
@@ -101,6 +108,11 @@ detail rows that most people leave alone.
 - Cost display card: `src/components/settings/cost-card.tsx`
 - Cost display storage: `clara.costDisplay` (`actual` or `estimated`; missing
   means `actual`), module in `src/features/cost/cost-display.ts`
+- Auto-hide storage: `clara.composerAutoHide` and `clara.composerPinned` (`on` or
+  `off`; missing means off), modules in
+  `src/features/settings/composer-auto-hide.ts` and
+  `src/features/settings/use-composer-auto-hide.ts`
+- Auto-hide card: `src/components/settings/composer-card.tsx`
 - Cost estimation: `src/features/cost/estimate.ts`
 - Filter control: `src/components/settings/settings-filter.tsx`
 - Page and tabs: `src/pages/settings-page.tsx`

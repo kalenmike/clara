@@ -14,6 +14,7 @@ import {
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs'
 import { AgentCard } from '@/components/settings/agent-card'
 import { AppCard } from '@/components/settings/app-card'
+import { ComposerCard } from '@/components/settings/composer-card'
 import { CostCard } from '@/components/settings/cost-card'
 import { ModelsCard } from '@/components/settings/models-card'
 import { NotificationsCard } from '@/components/settings/notifications-card'
@@ -138,6 +139,7 @@ export function SettingsPage() {
         <TabsContent value="preferences" className="space-y-4">
           <AgentCard />
           <WordingCard />
+          {!isTouchDevice && <ComposerCard />}
           <CostCard />
         </TabsContent>
 

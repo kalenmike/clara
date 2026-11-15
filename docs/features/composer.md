@@ -32,7 +32,12 @@ model and agent selection, waiting question forms, and the plan-ready handoff.
    header, while Expand always goes fullscreen, including from a collapsed
    composer. A minimized tab selection restores the composer before focusing the
    editor.
-7. When a question form is waiting, select its card above the editor. Send
+7. With **Auto-hide the composer** on in Settings, the dock rests as its title
+   bar. Pointing at the title bar reveals the last expanded shape, and leaving
+   the composer hides it again. The collapse chevron becomes a pin toggle:
+   pinning keeps the composer open until the pin is turned off, and turning
+   auto-hide off clears the pin.
+8. When a question form is waiting, select its card above the editor. Send
    answers it, optionally with a message; a secondary Skip button sits beside
    Send. When a finished plan is waiting, the send menu offers Start work
    instead of a card.
@@ -77,6 +82,13 @@ model and agent selection, waiting question forms, and the plan-ready handoff.
    ready plan starts from the send menu and is hidden while a form waits.
    Send with typed text instead delivers that text to the Plan agent as an
    adjustment.
+7. **Auto-hide the composer** is a device-local preference. With it on, the dock
+   follows the pointer: entering the title bar reveals the last expanded shape,
+   and leaving the composer hides it again. Keyboard focus and an open composer
+   menu keep it visible. The chevron is replaced by a pin toggle; a pinned
+   composer stays open across reloads until the pin is turned off, while
+   turning auto-hide off clears the pin. A maximized composer never auto-hides,
+   and touch-first devices ignore the preference.
 
 ## Edge cases
 
@@ -95,6 +107,15 @@ model and agent selection, waiting question forms, and the plan-ready handoff.
   not restored after a reload because attachments are not persisted.
 - **Switching tabs with form answers** — answers belong to the mounted composer
   and reset when another tab is selected.
+- **Auto-hide while typing or choosing** — focus inside the composer or an open
+  model, variant, agent, or send menu keeps it revealed even after the pointer
+  leaves. It collapses after focus leaves and no menu is open.
+- **Auto-hide with a fullscreen composer** — the maximized shape stays visible;
+  docking it again returns it to pointer-driven auto-hide.
+- **Auto-hide on a touch device** — the Preferences switch is hidden and a stored
+  auto-hide choice is ignored because there is no hover.
+- **Pinned across reloads** — the pin is stored with the auto-hide choice.
+  Turning auto-hide off clears it so re-enabling starts hidden.
 - **Empty draft** — an untitled session with no messages, requests, text, or
   attachments is discarded when the view leaves it.
 - **Done on the current session** — archives and returns to the inbox or start
@@ -137,10 +158,14 @@ model and agent selection, waiting question forms, and the plan-ready handoff.
   `src/components/chat/composer-request-list.tsx`,
   `src/components/chat/form-fields.tsx`,
   `src/components/sessions/session-status-icon.tsx`
-- Layout and tabs: `src/features/chat/composer-layout.ts` owns the three shapes,
+- Layout and tabs: `src/features/chat/composer-layout.ts` owns the three shapes
+  and the auto-hide visibility decision,
   `src/features/chat/composer-tabs.ts` owns tab membership, persistence, and the
   close guard, and `src/hooks/use-composer-height.ts` owns the pinned drag and
   keyboard resizing.
+- Auto-hide: `src/features/settings/composer-auto-hide.ts` stores the choice and
+  pin; `src/features/settings/use-composer-auto-hide.ts` exposes them;
+  `src/components/settings/composer-card.tsx` renders the Preferences switch.
 - Tab status: `src/features/chat/use-composer-tab-status.ts` reads the active
   map, mailbox signals, and pending permissions for one tab;
   `src/features/sessions/session-status.ts` owns the shared mark precedence and
@@ -161,7 +186,9 @@ model and agent selection, waiting question forms, and the plan-ready handoff.
 - Done: `client.session.update({ sessionID, archived: true })`; Delete:
   `client.session.remove({ sessionID })`.
 - Storage: `clara.draft.<sessionID>` for text, `clara.composerTabs` for the
-  ordered session list, `clara.composerHeight` for the pinned height.
+  ordered session list, `clara.composerHeight` for the pinned height,
+  `clara.composerAutoHide` for the auto-hide choice, and `clara.composerPinned`
+  for the pin.
 - Loaded from: `/p/:projectId/s/:sessionId`
 - Related: [chat](chat.md), [sessions](sessions.md), [shortcuts](shortcuts.md)
 

@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'vitest'
 import {
   COMPOSER_LAYOUT_DEFAULT,
+  autoHideComposerMode,
   expandComposer,
   minimizeComposer,
   restoreComposer,
@@ -48,5 +49,50 @@ describe('composer layout transitions', () => {
   it('treats restore as a no-op for an expanded composer', () => {
     const pinned = { mode: 'pinned' as const, expanded: 'pinned' as const }
     expect(restoreComposer(pinned)).toBe(pinned)
+  })
+})
+
+describe('composer auto-hide', () => {
+  const pinned = { mode: 'pinned' as const, expanded: 'pinned' as const }
+  const maximized = { mode: 'maximized' as const, expanded: 'maximized' as const }
+
+  it('leaves the layout alone when auto-hide is off', () => {
+    expect(autoHideComposerMode(pinned, { enabled: false, pinned: false, revealed: false })).toBe(
+      'pinned'
+    )
+  })
+
+  it('keeps the dock collapsed until the pointer or focus reveals it', () => {
+    expect(autoHideComposerMode(pinned, { enabled: true, pinned: false, revealed: false })).toBe(
+      'minimized'
+    )
+    expect(autoHideComposerMode(pinned, { enabled: true, pinned: false, revealed: true })).toBe(
+      'pinned'
+    )
+  })
+
+  it('stays open while pinned or revealed', () => {
+    expect(autoHideComposerMode(pinned, { enabled: true, pinned: true, revealed: false })).toBe(
+      'pinned'
+    )
+    expect(autoHideComposerMode(pinned, { enabled: true, pinned: true, revealed: true })).toBe(
+      'pinned'
+    )
+  })
+
+  it('never hides a maximized composer', () => {
+    expect(autoHideComposerMode(maximized, { enabled: true, pinned: false, revealed: false })).toBe(
+      'maximized'
+    )
+  })
+
+  it('restores the expanded shape when a collapsed composer is revealed', () => {
+    const collapsed = minimizeComposer(maximized)
+    expect(autoHideComposerMode(collapsed, { enabled: true, pinned: false, revealed: true })).toBe(
+      'maximized'
+    )
+    expect(autoHideComposerMode(collapsed, { enabled: true, pinned: true, revealed: false })).toBe(
+      'maximized'
+    )
   })
 })

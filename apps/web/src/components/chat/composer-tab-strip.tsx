@@ -1,5 +1,14 @@
 import { useNavigate } from 'react-router'
-import { ChevronDown, ChevronUp, CornerUpLeft, Maximize2, Minimize2, X } from 'lucide-react'
+import {
+  ChevronDown,
+  ChevronUp,
+  CornerUpLeft,
+  Maximize2,
+  Minimize2,
+  Pin,
+  PinOff,
+  X,
+} from 'lucide-react'
 import { SessionStatusIcon } from '@/components/sessions/session-status-icon'
 import { Button } from '@/components/ui/button'
 import { Tooltip, TooltipContent, TooltipTrigger } from '@/components/ui/tooltip'
@@ -15,6 +24,8 @@ import { cn } from '@/lib/utils'
 export function ComposerTabStrip({
   tabs,
   mode,
+  autoHide,
+  pinned,
   currentSessionID,
   selectedSessionID,
   selectedPlanReady,
@@ -22,9 +33,13 @@ export function ComposerTabStrip({
   onClose,
   onToggleExpand,
   onToggleCollapse,
+  onTogglePin,
 }: {
   tabs: readonly ComposerTab[]
   mode: ComposerMode
+  /** Auto-hide replaces the collapse chevron with a pin toggle. */
+  autoHide: boolean
+  pinned: boolean
   currentSessionID: string | undefined
   selectedSessionID: string | null
   /** The selected tab's live plan-ready state, counted beside its forms. */
@@ -33,6 +48,7 @@ export function ComposerTabStrip({
   onClose: (sessionID: string) => void
   onToggleExpand: () => void
   onToggleCollapse: () => void
+  onTogglePin: () => void
 }) {
   const fullscreen = mode === 'maximized'
   const minimized = mode === 'minimized'
@@ -58,25 +74,48 @@ export function ComposerTabStrip({
       </div>
 
       <div className="flex shrink-0 items-center gap-0.5 border-l px-1.5 py-1">
-        <Tooltip>
-          <TooltipTrigger asChild>
-            <Button
-              type="button"
-              variant="ghost"
-              size="icon-sm"
-              className="max-md:size-11"
-              onClick={onToggleCollapse}
-              aria-label={minimized ? 'Restore the composer' : 'Collapse the composer'}
-            >
-              {minimized ? (
-                <ChevronUp className="size-3.5 max-md:size-5" />
-              ) : (
-                <ChevronDown className="size-3.5 max-md:size-5" />
-              )}
-            </Button>
-          </TooltipTrigger>
-          <TooltipContent>{minimized ? 'Restore' : 'Collapse'}</TooltipContent>
-        </Tooltip>
+        {autoHide ? (
+          <Tooltip>
+            <TooltipTrigger asChild>
+              <Button
+                type="button"
+                variant="ghost"
+                size="icon-sm"
+                className={cn('max-md:size-11', pinned && 'bg-accent text-accent-foreground')}
+                onClick={onTogglePin}
+                aria-pressed={pinned}
+                aria-label={pinned ? 'Let the composer auto-hide' : 'Keep the composer open'}
+              >
+                {pinned ? (
+                  <Pin className="size-3.5 max-md:size-5" />
+                ) : (
+                  <PinOff className="size-3.5 max-md:size-5" />
+                )}
+              </Button>
+            </TooltipTrigger>
+            <TooltipContent>{pinned ? 'Auto-hide' : 'Pin open'}</TooltipContent>
+          </Tooltip>
+        ) : (
+          <Tooltip>
+            <TooltipTrigger asChild>
+              <Button
+                type="button"
+                variant="ghost"
+                size="icon-sm"
+                className="max-md:size-11"
+                onClick={onToggleCollapse}
+                aria-label={minimized ? 'Restore the composer' : 'Collapse the composer'}
+              >
+                {minimized ? (
+                  <ChevronUp className="size-3.5 max-md:size-5" />
+                ) : (
+                  <ChevronDown className="size-3.5 max-md:size-5" />
+                )}
+              </Button>
+            </TooltipTrigger>
+            <TooltipContent>{minimized ? 'Restore' : 'Collapse'}</TooltipContent>
+          </Tooltip>
+        )}
 
         <Tooltip>
           <TooltipTrigger asChild>
