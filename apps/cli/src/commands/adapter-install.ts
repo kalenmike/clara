@@ -1,3 +1,4 @@
+import { readManifest as readRunnerManifest } from '@clara/runner'
 import { AdapterRegistry, ADAPTER_KINDS, type AdapterKind } from '../adapters/registry.ts'
 import {
   installAdapter,
@@ -15,6 +16,7 @@ import {
 } from '../adapters/state.ts'
 import { resolvePaths } from '../paths.ts'
 import { detectRole } from '../state/role.ts'
+import { runRunnerStart } from './runner.ts'
 import { adapterInstallGuard } from './role-guard.ts'
 import { dim, green } from '../ui/color.ts'
 import { formatBytes, muted, success, warn } from '../ui/index.ts'
@@ -78,6 +80,7 @@ export async function runAdapterInstall(args: readonly string[]): Promise<number
       console.log(warn(record.lastError))
       return 1
     }
+    await startSharedRunner(record.kind, paths, parsed.flags.has('--no-runner'))
     return 0
   } catch (cause) {
     if (!json) spinner?.fail(`The ${spec.kind} adapter did not install.`)
@@ -186,6 +189,7 @@ export async function runPairAdapter(args: readonly string[]): Promise<number> {
   }
 
   if (!parsed.flags.has('--install')) return 0
+  const paths = resolvePaths()
   const installSpinner =
     json || !process.stdout.isTTY ? undefined : startSpinner(`Installing the ${kind.kind} adapter`)
   const record = await installAdapter(
@@ -195,13 +199,14 @@ export async function runPairAdapter(args: readonly string[]): Promise<number> {
       start: true,
       ...(kind.version ? { version: kind.version } : {}),
     },
-    installDeps(resolvePaths(), installSpinner, json)
+    installDeps(paths, installSpinner, json)
   )
   if (json) console.log(JSON.stringify(record, null, 2))
   else {
     if (installSpinner) installSpinner.succeed(`Installed ${record.kind} ${record.version}`)
     else console.log(success(`Installed ${record.kind} ${record.version}`))
     printRecord(record)
+    await startSharedRunner(record.kind, paths, parsed.flags.has('--no-runner'))
   }
   return 0
 }
@@ -246,6 +251,32 @@ function printRecord(record: AdapterInstallRecord): void {
   console.log(`  path:     ${record.path}`)
   console.log(`  entry:    ${record.entry ?? 'native binary'}`)
   console.log(`  paired:   ${record.pairedAt ? 'yes' : 'no'}`)
+}
+
+/**
+ * The downloaded adapter cannot ship the shared runner command. On the hub
+ * host, start the runner through Clara so script steps have an executor.
+ */
+async function startSharedRunner(
+  kind: string,
+  paths: ReturnType<typeof resolvePaths>,
+  noRunner: boolean
+): Promise<void> {
+  if (kind !== 'opencode' || noRunner || detectRole(paths) !== 'hub') return
+  const installed = readRunnerManifest().runner
+  // A checkout adapter can install the runner service itself; do not start a
+  // second runner next to it.
+  if (installed?.service === 'systemd' || installed?.service === 'launchd') return
+  console.log('')
+  try {
+    const code = await runRunnerStart([])
+    if (code === 0) return
+  } catch (cause) {
+    console.log(
+      warn(`The adapter is installed, but the shared runner did not start: ${errorText(cause)}`)
+    )
+  }
+  console.log(dim('Start it with `clara runner start` when the engine is running.'))
 }
 
 function errorText(cause: unknown): string {
