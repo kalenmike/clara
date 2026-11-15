@@ -22,13 +22,18 @@ export function adapterHubLinks(entries: readonly AdapterListEntry[]): AdapterHu
   for (const entry of entries) {
     const live = entry.live
     if (!live) continue
+    // A stopped adapter keeps its last state; do not report that link as live.
+    const active = entry.state !== 'stopped'
+    const status = active ? live.hub.status : 'stopped'
+    const connected = active && live.hub.connected
+    const authenticated = active && live.hub.authenticated
     const existing = links.get(live.hub.url)
     if (!existing) {
       links.set(live.hub.url, {
         url: live.hub.url,
-        status: live.hub.status,
-        connected: live.hub.connected,
-        authenticated: live.hub.authenticated,
+        status,
+        connected,
+        authenticated,
         ...(live.hub.lastFrameAt ? { lastFrameAt: live.hub.lastFrameAt } : {}),
         ...(live.hub.lastError ? { lastError: live.hub.lastError } : {}),
         ...(live.hubInfo?.version ? { version: live.hubInfo.version } : {}),
@@ -41,9 +46,9 @@ export function adapterHubLinks(entries: readonly AdapterListEntry[]): AdapterHu
     }
 
     existing.adapters.push(entry.kind)
-    existing.connected ||= live.hub.connected
-    existing.authenticated ||= live.hub.authenticated
-    if (rank(live.hub.status) > rank(existing.status)) existing.status = live.hub.status
+    existing.connected ||= connected
+    existing.authenticated ||= authenticated
+    if (rank(status) > rank(existing.status)) existing.status = status
     if (live.hub.lastFrameAt && live.hub.lastFrameAt > (existing.lastFrameAt ?? 0)) {
       existing.lastFrameAt = live.hub.lastFrameAt
     }
