@@ -6,7 +6,8 @@
   "exports": {
     ".": "./src/index.ts",
     "./styles/globals.css": "./src/styles/globals.css",
-    "./styles/shell.css": "./src/styles/shell.css"
+    "./styles/shell.css": "./src/styles/shell.css",
+    "./styles/standalone.css": "./src/styles/standalone.css"
   },
   "scripts": {
     "typecheck": "tsc -p tsconfig.json",

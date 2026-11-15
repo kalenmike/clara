@@ -4,6 +4,13 @@
 @import '@fontsource-variable/geist';
 @import './styles/color-themes.css';
 
+/*
+ * The `/hub` route renders `@clara/panel`, which lives outside this Vite root.
+ * Its utilities must be scanned from here so the lazily loaded screen ships the
+ * classes it uses; the panel package scans itself for the served panel build.
+ */
+@source '../../../packages/panel/src';
+
 @custom-variant dark (&:is(.dark *));
 
 @theme inline {

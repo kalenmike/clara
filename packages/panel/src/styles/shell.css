@@ -2,9 +2,14 @@
  * The hub panel borrows the Clara Lab workbench chrome: a compact title bar,
  * an activity rail, a scrollable workbench, and a status bar. Values mirror the
  * lab palettes so the two local surfaces feel like one tool.
+ *
+ * The palette is declared on the document body as custom properties only, so
+ * the bundled `/hub` route can import this file without restyling the chat app:
+ * the app never reads `--panel-*`, and nothing here sets a document property.
+ * `color-scheme` stays scoped to the panel container below.
  */
 
-:root {
+body {
   --panel-bg: #f6f7f9;
   --panel-surface: #ffffff;
   --panel-surface-2: #f6f8fa;
@@ -24,10 +29,9 @@
   --panel-live: #8250df;
   --panel-mono:
     ui-monospace, SFMono-Regular, 'SF Mono', Menlo, Monaco, Consolas, 'Liberation Mono', monospace;
-  color-scheme: light;
 }
 
-:root.dark {
+.dark body {
   --panel-bg: #0b0d10;
   --panel-surface: #111419;
   --panel-surface-2: #161a21;
@@ -45,23 +49,19 @@
   --panel-bad: #f85149;
   --panel-warn: #d6a132;
   --panel-live: #a371f7;
+}
+
+/*
+ * Color scheme follows the panel's own dark state: an ancestor `.dark` (the
+ * served page) or a `.dark` panel container (a host that scopes the theme).
+ */
+:where(.panel-root, .panel-shell, .panel-boot) {
+  color-scheme: light;
+}
+
+.dark :where(.panel-root, .panel-shell, .panel-boot),
+:where(.panel-root, .panel-shell, .panel-boot).dark {
   color-scheme: dark;
-}
-
-html,
-body,
-#root {
-  height: 100%;
-}
-
-body {
-  margin: 0;
-  overflow: hidden;
-  background: var(--panel-bg);
-  color: var(--panel-text);
-  font-family: var(--font-sans);
-  font-size: 13px;
-  line-height: 1.45;
 }
 
 /* Shell grid */
