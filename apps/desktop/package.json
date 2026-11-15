@@ -9,6 +9,7 @@
     "dev": "pnpm --filter @clara/desktop-host run bundle && tauri dev",
     "bundle": "pnpm --filter @clara/desktop-host run bundle && tauri build",
     "bundle:app": "pnpm --filter @clara/desktop-host run bundle && tauri build --no-bundle",
+    "build:release": "node scripts/build-release.mjs",
     "build:docker": "node scripts/build-docker.mjs",
     "install:app": "node scripts/install.mjs",
     "uninstall:app": "node scripts/install.mjs --uninstall",

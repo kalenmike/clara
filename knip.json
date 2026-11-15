@@ -9,7 +9,7 @@
       "project": ["src/**/*.{ts,tsx}"]
     },
     "apps/desktop": {
-      "ignoreBinaries": ["vite"]
+      "ignoreBinaries": ["vite", "dpkg-deb"]
     },
     "apps/desktop/host": {
       "entry": ["scripts/*.mjs"],

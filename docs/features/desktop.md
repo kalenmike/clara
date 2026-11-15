@@ -6,8 +6,9 @@ Clara can run as a native desktop app as well as a web PWA. The desktop app is
 the same web client in a Tauri window, so projects, sessions, chat, approvals,
 and settings behave the same. It is a second build target, not a replacement:
 the web deploy keeps its service worker and continues to ship unchanged. The
-app is built on its host, or for Linux in a container that extracts the bundles
-into the checkout.
+app is built on its host, for Linux in a container that extracts the bundles
+into the checkout, or on every supported platform by the `desktop-releases`
+workflow.
 
 The desktop app also bundles the **adapter host**: a loopback sidecar that runs
 adapter installs on this computer, on an SSH host, or in a local Docker
@@ -28,8 +29,8 @@ engine both work.
 
 ## User flow
 
-1. Build the app for the host platform, or open an installer produced from the
-   checkout.
+1. Download an installer from a desktop release, or build the app for the host
+   platform from the checkout.
 2. Launch Clara. The window opens on the same connect screen as the web client.
 3. Paste a browser pairing code from the hub panel (or from `clara pair`)
    and connect.
@@ -146,7 +147,7 @@ engine both work.
 
 ## Out of scope
 
-- Signed and notarized installers, an auto-updater, and a release pipeline.
+- Signed and notarized installers and an auto-updater.
 - Native notifications and notification-click routing.
 - `clara://` browser-pairing deep links and single-instance forwarding.
 - Running the hub service, a panel listener, or a relay inside the app.
@@ -179,6 +180,16 @@ engine both work.
   available; the container cannot produce macOS or Windows installers. The
   artifacts include both `clara-desktop` and the `clara-adapter-host` sidecar, so
   an extracted build is self-contained.
+- `pnpm desktop:build:release` (`apps/desktop/scripts/build-release.mjs`) builds
+  one platform's installers into `dist/desktop-release`, the way the release
+  workflow does. It stamps `--version` through a temporary Tauri config
+  override and `CLARA_VERSION`/`CLARA_COMMIT` in the web bundle, verifies the
+  adapter host in the `.app` or `.deb`, and writes `SHA256SUMS`. It builds only
+  on the host. `.github/workflows/desktop-releases.yml` runs it on `macos-15`,
+  `macos-15-intel`, `ubuntu-22.04`, and `windows-latest`; a `desktop-v*` tag
+  publishes macOS arm64 and x64 DMGs, Linux deb/rpm/AppImage, and Windows
+  MSI/NSIS installers to that release, while the `dry_run` dispatch input
+  builds without publishing. Installers are unsigned.
 - `pnpm desktop:install` (`apps/desktop/scripts/install.mjs`) installs an
   existing Linux build into the current user's XDG directories: both binaries in
   `~/.local/bin`, a generated `clara.desktop` menu entry, and the 32, 128, and
