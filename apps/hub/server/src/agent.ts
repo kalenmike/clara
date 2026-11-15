@@ -676,6 +676,7 @@ export class Agent {
       session.adapterFetch = fetch
       await this.options.adapters?.setLive(harnessId, fetch, this.transport)
     }
+    if (kind === 'adapter' && adapterId) this.closeStaleAdapterSessions(sid, adapterId)
   }
 
   private async handleSealed(
@@ -915,6 +916,18 @@ export class Agent {
     if (this.sessions.get(session.sid) !== session) return
     this.sendError(session.sid, code, message)
     this.closeSession(session)
+  }
+
+  /**
+   * An adapter reconnects with a fresh sid. Retire any older live session for
+   * the same adapter identity so a flap loop cannot accumulate sessions or
+   * leave the harness bound to a dead fetch.
+   */
+  private closeStaleAdapterSessions(sid: string, adapterId: string): void {
+    for (const other of [...this.sessions.values()]) {
+      if (other.sid === sid || other.kind !== 'adapter' || other.adapterId !== adapterId) continue
+      this.closeSession(other)
+    }
   }
 
   /**
