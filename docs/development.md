@@ -167,7 +167,7 @@ pnpm hub:headless  # standalone server archive and install helpers
 `pnpm hub:binary` writes `apps/hub/server/dist/bun/clara-server` by default.
 Pass `--target bun-linux-x64`, `bun-darwin-arm64`, or another Bun target for a
 cross-build. `pnpm build` builds the Node server and panel, not the Bun
-executable. See [features/hub-cli.md](features/hub-cli.md) for ports and the
+executable. See [features/hub-service.md](features/hub-service.md) for ports and the
 runtime file.
 
 `pnpm hub:headless` reuses the Bun build and writes a standalone archive under
@@ -201,7 +201,7 @@ the exact build. `pnpm cli:install` never builds: it installs that build under
 writes `install.json` with channel `local`, so `clara doctor`, `clara update`,
 and `clara uninstall` treat it as a normal install. Use `--from <file|dir>`,
 `--dry-run`, and `--bin-dir <dir>` to change the source and target. See
-[features/package.md](features/package.md).
+[features/hub-service.md](features/hub-service.md).
 
 ### Panel UI and adapter installs
 
@@ -216,7 +216,7 @@ that would cut its own connection.
 the shadcn primitives, `cn`, and the Clara patterns for status badges, notices,
 empty states, key/value rows, copy actions, and section cards. Import from the
 explicit component, pattern, or lib subpath; do not copy a primitive into a
-surface package. See [features/ui.md](features/ui.md).
+surface package. See [ui.md](ui.md).
 
 `packages/theme` (`@clara/theme`) owns the palettes and type tokens shared by the
 web client, the hub panel, and the lab. Tailwind hosts import `theme.css`; the
@@ -376,7 +376,7 @@ checks are `status lab --check`, `status docs --check`, and
 checkout, installs the adapters, restarts only the captured services, and
 verifies their health. The standard
 `std:maintenance/rebuild` pipeline drives the same commands one step at a time;
-see [features/maintenance.md](features/maintenance.md).
+see [features/orchestration/maintenance.md](features/orchestration/maintenance.md).
 
 Use these commands instead of calling the workspace scripts directly so that
 agents and developers share one command surface.
@@ -417,4 +417,4 @@ a pre-commit hook or CI without blocking on author feedback. The lab compiles
 the files on the host; when the engine runs in a container, enter the host
 path under **Files on this machine** and the container mount under **Workspace
 inside the engine** in Setup, then run **Check setup**. See
-[features/lab.md](features/lab.md).
+[features/orchestration/lab.md](features/orchestration/lab.md).

@@ -136,6 +136,7 @@ open the confirmation only outside text-entry targets and open Clara dialogs.
 - Text-field check: `src/lib/keyboard.ts` (`isTextEntryTarget`)
 - Settings screen lists the same table on pointer devices: `/settings`
 - Device check: `src/hooks/use-is-touch-device.ts` (`pointer: coarse`)
-- Related: [composer](composer.md), [chat](chat.md), [git](git.md)
+- Related: [composer](chat/composer.md), [chat](chat/index.md),
+  [session panel](session-panel.md)
 
 </details>

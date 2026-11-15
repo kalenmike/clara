@@ -135,13 +135,11 @@ harness in the workspace.
 ## Related
 
 - [connection.md](connection.md)
-- [pairing.md](pairing.md)
 - [relay.md](../architecture/relay.md)
 - [e2ee.md](../architecture/e2ee.md)
-- [sessions.md](sessions.md)
-- [chat.md](chat.md)
-- [composer.md](composer.md)
-- [session-info.md](session-info.md)
+- [sessions/index.md](sessions/index.md)
+- [chat/index.md](chat/index.md)
+- [chat/composer.md](chat/composer.md)
+- [session-panel.md](session-panel.md)
 - [notifications.md](notifications.md)
-- [git.md](git.md)
 - [shortcuts.md](shortcuts.md)

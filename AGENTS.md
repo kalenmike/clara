@@ -320,34 +320,30 @@ is never published.
 
 ### Internal documentation
 
-| Before you touch…                  | Read                                                                     |
-| ---------------------------------- | ------------------------------------------------------------------------ |
-| Writing or updating a feature spec | [docs/features/GUIDE.md](docs/features/GUIDE.md)                         |
-| Developer commands and worktrees   | [docs/development.md](docs/development.md)                               |
-| Workspace, modes, auth, streaming  | [docs/architecture/overview.md](docs/architecture/overview.md)           |
-| Relay Worker, DO, remote access    | [docs/architecture/relay.md](docs/architecture/relay.md)                 |
-| E2EE, device keys, envelopes       | [docs/architecture/e2ee.md](docs/architecture/e2ee.md)                   |
-| What ships and what does not       | [docs/features/capabilities.md](docs/features/capabilities.md)           |
-| Shared components and patterns     | [docs/features/ui.md](docs/features/ui.md)                               |
-| Engine service and control         | [docs/features/orchestration.md](docs/features/orchestration.md)         |
-| Pipeline DSL and package fields    | [docs/features/orchestration-dsl.md](docs/features/orchestration-dsl.md) |
-| Engine diagnosis and fixes         | [docs/features/diagnostics.md](docs/features/diagnostics.md)             |
-| Rebuilding and restarting Clara    | [docs/features/maintenance.md](docs/features/maintenance.md)             |
-| Pipeline preview and agent probe   | [docs/features/lab.md](docs/features/lab.md)                             |
-| Pairing, QR codes, device storage  | [docs/features/pairing.md](docs/features/pairing.md)                     |
-| Install, updates, offline caching  | [docs/features/install.md](docs/features/install.md)                     |
-| Desktop shell and native build     | [docs/features/desktop.md](docs/features/desktop.md)                     |
-| Hub CLI, Bun executable, ports     | [docs/features/hub-cli.md](docs/features/hub-cli.md)                     |
-| Connection and credentials         | [docs/features/connection.md](docs/features/connection.md)               |
-| Hub panel and local hub state      | [docs/features/panel.md](docs/features/panel.md)                         |
-| Project/session browser            | [docs/features/sessions.md](docs/features/sessions.md)                   |
-| Messages, tools, approvals         | [docs/features/chat.md](docs/features/chat.md)                           |
-| Forking, forwarding                | [docs/features/fork.md](docs/features/fork.md)                           |
-| Prompt box, commands, mentions     | [docs/features/composer.md](docs/features/composer.md)                   |
-| Cost, tokens, context              | [docs/features/session-info.md](docs/features/session-info.md)           |
-| Inbox notifications and sounds     | [docs/features/notifications.md](docs/features/notifications.md)         |
-| Keyboard behavior                  | [docs/features/shortcuts.md](docs/features/shortcuts.md)                 |
-| Everything else                    | [docs/README.md](docs/README.md)                                         |
+| Before you touch…                     | Read                                                                           |
+| ------------------------------------- | ------------------------------------------------------------------------------ |
+| Writing or updating a feature spec    | [docs/features/GUIDE.md](docs/features/GUIDE.md)                               |
+| Developer commands and worktrees      | [docs/development.md](docs/development.md)                                     |
+| Workspace, modes, auth, streaming     | [docs/architecture/overview.md](docs/architecture/overview.md)                 |
+| Hub API, OpenAPI, read-only MCP       | [docs/architecture/api.md](docs/architecture/api.md)                           |
+| Relay Worker, DO, remote access       | [docs/architecture/relay.md](docs/architecture/relay.md)                       |
+| E2EE, device keys, envelopes          | [docs/architecture/e2ee.md](docs/architecture/e2ee.md)                         |
+| Harness protocol frames and transport | [docs/architecture/harness-protocol.md](docs/architecture/harness-protocol.md) |
+| What ships and what does not          | [docs/features/capabilities.md](docs/features/capabilities.md)                 |
+| Shared components and patterns        | [docs/ui.md](docs/ui.md)                                                       |
+| Connection, pairing, credentials      | [docs/features/connection.md](docs/features/connection.md)                     |
+| Hub executable, ports, lifecycle      | [docs/features/hub-service.md](docs/features/hub-service.md)                   |
+| Harness adapters and adapter install  | [docs/features/harness-adapters.md](docs/features/harness-adapters.md)         |
+| Hub panel, controls, network          | [docs/features/panel/index.md](docs/features/panel/index.md)                   |
+| Session panel, Git, terminal, plan    | [docs/features/session-panel.md](docs/features/session-panel.md)               |
+| Projects, sessions, lifecycle         | [docs/features/sessions/index.md](docs/features/sessions/index.md)             |
+| Messages, tools, approvals, composer  | [docs/features/chat/index.md](docs/features/chat/index.md)                     |
+| Engine, packages, runs, Lab           | [docs/features/orchestration/index.md](docs/features/orchestration/index.md)   |
+| Install, updates, offline caching     | [docs/features/install.md](docs/features/install.md)                           |
+| Desktop shell and native build        | [docs/features/desktop.md](docs/features/desktop.md)                           |
+| Inbox notifications and sounds        | [docs/features/notifications.md](docs/features/notifications.md)               |
+| Keyboard behavior                     | [docs/features/shortcuts.md](docs/features/shortcuts.md)                       |
+| Everything else                       | [docs/README.md](docs/README.md)                                               |
 
 ## Definition of done
 
