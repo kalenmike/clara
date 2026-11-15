@@ -112,9 +112,39 @@ export async function printPairing(
     )
   }
   console.log('')
-  if (withQr) qrcode.generate(url, { small: true })
+  if (withQr) printPairingQr(url)
 
   return payload
+}
+
+/**
+ * A wrapped QR does not scan, so only print one the terminal can show whole.
+ * A relay code carries its enrollment grant and is the widest Clara produces;
+ * on a narrow terminal the link and code above are the usable output.
+ */
+function printPairingQr(url: string): void {
+  qrcode.generate(url, { small: true }, (rendered) => {
+    const columns = terminalColumns()
+    const width = Math.max(...rendered.split('\n').map((line) => line.length))
+    if (columns !== null && width > columns) {
+      console.log(
+        `  QR:          skipped; it needs ${width} columns of this ${columns}-column terminal.`
+      )
+      console.log('               Widen the terminal, open the link above, or paste the code.')
+      return
+    }
+    console.log(rendered)
+  })
+}
+
+/** The terminal width, or null when the output is redirected. */
+function terminalColumns(): number | null {
+  const configured = Number(process.env.COLUMNS)
+  const columns =
+    Number.isFinite(configured) && configured > 0 ? configured : process.stdout.columns
+  return typeof columns === 'number' && Number.isFinite(columns) && columns > 0
+    ? Math.floor(columns)
+    : null
 }
 
 function isLoopbackUrl(value: string): boolean {
