@@ -106,8 +106,8 @@ The hub writes its log in the app log directory. If the hub stops unexpectedly,
 the tray shows a message. A second launch focuses the existing app instead of
 starting another hub for the same data directory.
 
-The hub desktop app cannot start the local orchestration service. Use the
-Docker orchestrator or the CLI when you need pipelines.
+The hub desktop app cannot start the local engine service. Use the
+Docker engine or the CLI when you need pipelines.
 
 If the panel already has a relay URL but the hub token is missing, the hub still
 starts and runs local-only. Save the hub token in **Connections → Relay** to

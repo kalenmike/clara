@@ -27,7 +27,7 @@ list has no checkbox column or bulk toolbar.
    one; **New project** and **All projects** end the menu.
 3. Choosing a project loads its sessions into five collapsible mailbox
    sections: Inbox, Outbox, Drafts, Snoozed, and Archived. Orchestration worker
-   sessions are ordinary sessions in this client; the dedicated orchestrator
+   sessions are ordinary sessions in this client; the dedicated engine
    surface is responsible for their separate view.
 4. Inbox holds sessions that need the person: a pending approval or question,
    or an idle session whose latest conversational message is from the agent.
@@ -549,7 +549,7 @@ startupScript?, defaultWorkspaceID? })`.
 - Mailbox signals: `client.message.list({ sessionID, order: 'desc', limit: 1, type })`
   for `user` and `assistant`, plus `client.session.form.list({ sessionID })`
 - Orchestration metadata: `session.metadata.automation === true` is preserved by
-  the hub and adapters for the dedicated orchestrator surface, but this client
+  the hub and adapters for the dedicated engine surface, but this client
   does not group or hide those sessions.
 - Pending drafts: `client.session.inbox.list({ sessionID })`
 - Save draft: `client.session.prompt({ sessionID, text, files, resume: false })`

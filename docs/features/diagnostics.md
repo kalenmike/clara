@@ -1,8 +1,8 @@
-# Orchestrator diagnostics
+# Engine diagnostics
 
 ## Summary
 
-The `std:diagnostics` package audits the orchestrator's own history and setup.
+The `std:diagnostics` package audits the engine's own history and setup.
 It runs a deterministic analyzer over the SQLite database, interprets the
 failure patterns in a six-step pipeline, and returns a ranked report of bugs,
 failure points, and proposed fixes. It is the self-analysis path for questions
@@ -14,16 +14,16 @@ and the rebuild snapshot instead of aggregating history. See
 
 ## User flow
 
-1. Ask Clara to diagnose the orchestrator, for example "why are my pipelines
-   failing?" or "audit the orchestrator setup". The primary classifier routes
+1. Ask Clara to diagnose the engine, for example "why are my pipelines
+   failing?" or "audit the engine setup". The primary classifier routes
    the request to `std:diagnostics`.
 2. A caller can also start the package directly from the Lab with
    `target: std:diagnostics`, or run the analyzer without a pipeline with
-   `clara-orchestrator analyze`. The Clara agent always starts at the
+   `clara-engine analyze`. The Clara agent always starts at the
    configured entry, whose router selects diagnostics.
 3. `collect_evidence` runs
-   `clara-orchestrator analyze --json --days 30`. The analyzer prefers a
-   reachable orchestrator service and otherwise opens the local database
+   `clara-engine analyze --json --days 30`. The analyzer prefers a
+   reachable engine service and otherwise opens the local database
    read-only.
 4. `pattern_failures` groups consistently failing pipelines and steps, repeated
    error signatures, retry exhaustion, stalls, budget failures, and alert
@@ -108,8 +108,8 @@ and the rebuild snapshot instead of aggregating history. See
   was live is not re-judged against the adapter state at that time.
 - The pipeline does not persist its report. The result is delivered through the
   run and the origin session; there is no `docs/records` artifact.
-- A containerized worker needs `CLARA_ORCHESTRATION_URL` and
-  `CLARA_ORCHESTRATION_TOKEN` to use the service endpoint. Without them it needs
+- A containerized worker needs `CLARA_ENGINE_URL` and
+  `CLARA_ENGINE_TOKEN` to use the service endpoint. Without them it needs
   a readable `CLARA_DATA_DIR` or `--db`.
 
 ## Technical appendix
@@ -124,7 +124,7 @@ and the rebuild snapshot instead of aggregating history. See
 propose_fixes → review_report`.
 - Analyzer: `packages/orchestration/engine/src/diagnostics.ts`;
   `analyzeDatabase(db, options)` and `analyzeDatabaseFile(path, options)`.
-- CLI: `clara-orchestrator analyze [--json] [--days n] [--db path]
+- CLI: `clara-engine analyze [--json] [--days n] [--db path]
 [--url url]`. Default window is 30 days; `--days 0` is all history.
 - Service: `GET /v1/diagnostics?days=30`, bearer-protected, returns the same
   report as the CLI.

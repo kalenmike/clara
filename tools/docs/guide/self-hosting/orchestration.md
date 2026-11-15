@@ -10,9 +10,12 @@ Orchestration is optional. It runs package-based pipelines in a local service an
 connects them to your harness through an adapter. If you only want Clara's chat
 client, skip this page.
 
+The service is the **Clara Engine**; **Orchestration** is the feature. The
+client's **Orchestrator mode** setting keeps its historical label for now.
+
 ## What it adds
 
-- A loopback orchestration service that owns run state, leases, budgets, and
+- A loopback engine service that owns run state, leases, budgets, and
   alerts.
 - A `Clara` agent in the harness that starts and checks runs. In OpenCode, the
   included adapter installs her as a primary agent.
@@ -20,7 +23,7 @@ client, skip this page.
 - Clara Lab, a local workbench for previewing packages and driving a run by hand.
 - MCP tools for callers that do not use the adapter.
 
-The hub enables the feature; each client chooses whether to use the orchestrator
+The hub enables the feature; each client chooses whether to use the engine
 surface. Keep the choice on one device, or share it through the isolated
 **Orchestrator mode** setting under **Settings → Sync**.
 
@@ -29,13 +32,13 @@ surface. Keep the choice on one device, or share it through the isolated
 From the hub panel, turn on **Settings → Orchestration**. Or run:
 
 ```bash
-clara start orchestrator
+clara start engine
 ```
 
 The service listens on `127.0.0.1:8789`. Check it with:
 
 ```bash
-clara status orchestrator --json
+clara status engine --json
 ```
 
 ## Install the adapter
@@ -69,10 +72,10 @@ target for CI.
 
 ## Pipelines
 
-Pipelines are YAML and Markdown data. The orchestrator ships with a default
+Pipelines are YAML and Markdown data. The engine ships with a default
 config that routes to the standard packages, so you can start a run without
 writing any configuration. To choose your own routing, point
-`CLARA_ORCHESTRATION_CONFIG` at an `index.yml`; its imports identify the
+`CLARA_ENGINE_CONFIG` at an `index.yml`; its imports identify the
 packages. The service may start with the orchestration switch, or the MCP bridge
 may start it on first use. The service owns the workspace and entry point; the
 model never passes them.
@@ -95,12 +98,12 @@ for callers that are not the Clara adapter.
 ## Diagnose a run
 
 ```bash
-clara-orchestrator analyze --json
-clara-orchestrator inspect --run <id> --json
+clara-engine analyze --json
+clara-engine inspect --run <id> --json
 ```
 
 An alert or a finished run is delivered back into the Clara session that started
-it. A client that uses the orchestrator surface holds worker-session alerts;
+it. A client that uses the engine surface holds worker-session alerts;
 other clients receive them normally.
 
 ## Related
