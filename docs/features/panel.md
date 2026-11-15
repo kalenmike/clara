@@ -71,14 +71,18 @@ first-run, headless, and emergency surface.
    available from **Replay setup guide**. Reconfiguring a relay or its room can
    require adapters and devices to pair again.
 3. After signing in, open **Harness** and use **Pair Harness**. Choose the
-   adapter type, then answer **Remote** or **Local**. The choice sets how the
-   adapter reaches the hub: a remote harness normally uses the relay, a local
-   host uses the hub's loopback listener, and a local container uses the Docker
-   network on a containerized hub or the relay on a host-process hub. Remote and
-   container targets work without a relay when the adapter can reach the hub at
-   another address; enter it under **Advanced → WebSocket URL**. The hub issues
-   the one-time code, copy command, and `clara://adapter` link. Install actions
-   are off until they are enabled in **Settings → Adapter downloads**.
+   adapter type, then answer **Remote** or **Local**. Relay and Direct are both
+   always available. The panel suggests a path: relay for a remote harness or a
+   client already on the relay, the Docker network for a local container, and
+   loopback for a local host. A direct pairing needs an address the target can
+   reach; the hub lists its loopback, Docker bridge, and LAN addresses, and Clara
+   Desktop adds the selected container's Docker gateway. The hub never blocks a
+   path because it cannot verify the route; it warns instead. Direct access is
+   configured in **Network → Local transport → Listen on** as this machine
+   only, this machine plus Docker, all interfaces, or a custom address, and the
+   same choice is available from `CLARA_LOCAL_ACCESS`. The hub issues the
+   one-time code, copy command, and `clara://adapter` link. Install actions are
+   off until they are enabled in **Settings → Adapter downloads**.
    A browser-only user runs the command on the harness machine. Clara Desktop
    adds the one-click path: its adapter host accepts **This computer**, an **SSH
    host** from `~/.ssh/config` or a typed user/host/port, and a local
@@ -666,6 +670,11 @@ first-run, headless, and emergency surface.
 - Assets: `GET /assets/<hashed file>` and `GET /favicon.svg`
 - Bundled panel: `/hub` in the web and desktop router, rendered from
   `packages/panel` (`@clara/panel`) inside the connected client shell
+- Bundled layout: the `/hub` route mounts `.panel-root` as a flex slot under its
+  app bar, and the shell, boot, and auth screens fill that slot with `flex: 1`
+  and `min-height: 0`. The panel never uses a viewport or percentage height when
+  embedded, so the host's bar cannot push the status bar off screen. The served
+  page is the only host that sizes the shell against the viewport
 - Hub bridge: `/v1/hub-panel` on the paired E2EE session forwards the typed panel
   API to the loopback listener; it is not a general loopback proxy and adds no
   listener or published port

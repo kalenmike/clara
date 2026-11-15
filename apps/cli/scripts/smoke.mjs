@@ -1,6 +1,7 @@
 #!/usr/bin/env node
 // Build the host binary and drive it end to end: version, status, start, the
-// three health endpoints, the panel shell, and a clean stop with no pid files.
+// service health endpoints, the hub's lab bridge, the panel shell, and a clean
+// stop with no pid files.
 // Everything runs against temporary Clara directories and ports chosen by Node,
 // so the smoke test never touches a real install or a default port.
 
@@ -36,7 +37,7 @@ async function main() {
 
   const root = mkdtempSync(join(tmpdir(), 'clara-smoke-'))
   const dataDir = makeDir(join(root, 'data'))
-  const [panelPort, localPort, enginePort, webPort] = await freePorts(4)
+  const [panelPort, localPort, enginePort, webPort, labPort] = await freePorts(5)
   const env = {
     ...process.env,
     CLARA_CONFIG_DIR: makeDir(join(root, 'config')),
@@ -47,6 +48,11 @@ async function main() {
     CLARA_LOCAL_PORT: String(localPort),
     CLARA_ENGINE_PORT: String(enginePort),
     CLARA_WEB_PORT: String(webPort),
+    CLARA_LAB_PORT: String(labPort),
+    // The hub starts no transport until an owner exists, and the bridge check
+    // below uses the loopback API.
+    CLARA_ADMIN_USERNAME: 'smoke',
+    CLARA_ADMIN_PASSWORD: 'clara-smoke-passphrase',
   }
 
   let started = false
@@ -67,6 +73,16 @@ async function main() {
     expect(web.ok === true, 'the web health endpoint did not report ok')
     expect(web.service === 'clara-web', `the web health endpoint reported ${web.service}`)
 
+    const lab = await getJson(`http://127.0.0.1:${labPort}/api/health`)
+    expect(lab.ok === true, 'the lab health endpoint did not report ok')
+    expect(lab.service === 'clara-lab', `the lab health endpoint reported ${lab.service}`)
+
+    const bridgedLab = await getJsonWithToken(
+      `http://127.0.0.1:${localPort}/v1/lab/health`,
+      join(root, 'config', 'api.token')
+    )
+    expect(bridgedLab.service === 'clara-lab', `the hub lab bridge reported ${bridgedLab.service}`)
+
     const panel = await fetch(`http://127.0.0.1:${panelPort}/`)
     expect(panel.status === 200, `the panel returned ${panel.status}`)
     expect(
@@ -74,7 +90,7 @@ async function main() {
       'the panel did not serve HTML'
     )
     expect(/<!doctype html/i.test(await panel.text()), 'the panel shell is not an HTML document')
-    console.log('Health endpoints and panel shell are served.')
+    console.log('Health endpoints, the lab bridge, and the panel shell are served.')
 
     const stop = cli(env, ['stop'])
     if (stop.status !== 0) throw failure(`clara stop exited ${stop.status}`, env, stop)
@@ -135,7 +151,7 @@ function expectStopped(env) {
   const report = parseJson(result.stdout, 'clara status --json')
   expect(Array.isArray(report.services), 'the status report has no services')
   expect(
-    report.services.length === 3,
+    report.services.length === 4,
     `the status report listed ${report.services.length} services`
   )
   for (const service of report.services) {
@@ -154,6 +170,24 @@ function cli(env, args) {
   if (result.error)
     throw new Error(`clara ${args.join(' ')} could not run: ${result.error.message}`)
   return result
+}
+
+async function getJsonWithToken(url, tokenPath, attempts = 40) {
+  let last = 'no attempt'
+  for (let attempt = 0; attempt < attempts; attempt += 1) {
+    try {
+      // The hub writes the token before it starts transports; read it each
+      // attempt so a slow first start does not fail the check.
+      const token = readFileSync(tokenPath, 'utf8').trim()
+      const response = await fetch(url, { headers: { authorization: `Bearer ${token}` } })
+      if (response.ok) return await response.json()
+      last = `${url} returned ${response.status}`
+    } catch (cause) {
+      last = `${url} failed: ${cause instanceof Error ? cause.message : String(cause)}`
+    }
+    await delay(250)
+  }
+  throw new Error(`Could not read ${last}`)
 }
 
 async function getJson(url, attempts = 30) {

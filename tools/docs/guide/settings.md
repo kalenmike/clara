@@ -6,7 +6,8 @@ sidebar_position: 8
 
 # Settings
 
-Open **Settings** from the sidebar or the start view. The page has seven tabs:
+Open **Settings** from the icon row at the bottom of the sidebar, or from the
+start view. The page has seven tabs:
 Appearance, Preferences, Models, Notifications, Sync, Shortcuts, and Advanced.
 On a narrow screen the tabs become a section menu.
 
@@ -35,7 +36,9 @@ Theme and mode are stored on this device. Press `ctrl+x` then `t` to toggle ligh
 and dark without changing the palette.
 
 The hub panel opened from Clara at `/hub` uses this theme and mode. The
-server-served panel keeps its own Light, Dark, and System switch.
+server-served panel keeps its own Light, Dark, and System switch. Clara Lab at
+`/lab` uses the same theme and mode. The standalone lab service has no client to
+follow, so it follows your system's light or dark setting.
 
 ## Preferences
 

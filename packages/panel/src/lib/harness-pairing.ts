@@ -16,11 +16,34 @@ export type HarnessTransportMode = 'relay' | 'docker' | 'local'
 /** Where a local harness runs, as the person installing the adapter sees it. */
 export type HarnessTarget = 'host' | 'container'
 
+/** The two ways an adapter can reach the hub. */
+export type HarnessConnectionMode = 'relay' | 'direct'
+
+/**
+ * The connection mode the modal starts on. Relay leads when it is configured
+ * and the target cannot use the hub's loopback listener; otherwise Direct is
+ * the least surprising default. The person can always switch.
+ */
+export function defaultHarnessConnectionMode(input: {
+  machine: HarnessMachine
+  target: HarnessTarget
+  containerized: boolean
+  relayUsable: boolean
+  defaultTransport: 'local' | 'relay'
+  containerUrl?: string
+}): HarnessConnectionMode {
+  if (!input.relayUsable) return 'direct'
+  if (resolveHarnessTransport(input) === 'relay') return 'relay'
+  if (input.target === 'container' && !input.containerized && !input.containerUrl) return 'relay'
+  return 'direct'
+}
+
 /**
  * The transport follows from the machine choice, the local target, and the
  * connection carrying the panel. A remote adapter cannot reach the hub's
  * loopback listener, and a client already on the relay should not hand out a
- * hub-local address it cannot reach.
+ * hub-local address it cannot reach. A local container uses the Docker network
+ * whenever one is available; the address is resolved separately.
  */
 export function resolveHarnessTransport(input: {
   machine: HarnessMachine
@@ -31,7 +54,7 @@ export function resolveHarnessTransport(input: {
   if (input.machine === 'remote') return 'relay'
   if (input.target === 'container') {
     if (input.defaultTransport === 'relay') return 'relay'
-    return input.containerized ? 'docker' : 'relay'
+    return 'docker'
   }
   return input.defaultTransport
 }
@@ -41,7 +64,42 @@ export function directHarnessTransport(input: {
   target: HarnessTarget
   containerized: boolean
 }): HarnessTransportMode {
-  return input.target === 'container' && input.containerized ? 'docker' : 'local'
+  return input.target === 'container' ? 'docker' : 'local'
+}
+
+/**
+ * Whether a direct URL points at the hub's own loopback. A remote or container
+ * adapter can only use it through a tunnel; the panel warns but does not block.
+ */
+export function isLoopbackSocketUrl(url: string): boolean {
+  const value = url.trim()
+  if (!value) return false
+  try {
+    const host = new URL(value).hostname.replace(/^\[(.*)\]$/, '$1').toLowerCase()
+    return host === '127.0.0.1' || host === '::1' || host === 'localhost'
+  } catch {
+    return false
+  }
+}
+
+/**
+ * Whether the selected target needs a typed direct address. A remote machine
+ * without a relay, or a local container on a host-process hub without a known
+ * container address, cannot use the hub's default loopback URL.
+ */
+export function harnessNeedsAddress(input: {
+  machine: HarnessMachine
+  target: HarnessTarget
+  containerized: boolean
+  relayUsable: boolean
+  containerUrl?: string
+  direct: boolean
+}): boolean {
+  if (input.direct) return false
+  if (input.machine === 'remote') return !input.relayUsable
+  if (input.target !== 'container') return false
+  if (input.containerized) return false
+  return !input.containerUrl
 }
 
 /**

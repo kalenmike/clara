@@ -34,9 +34,10 @@ describe('adapter argument parsing', () => {
     expect(() => parseAdapterArgs(['--pair', '--json'])).toThrow('needs a value')
   })
 
-  it('only accepts local or relay transports', () => {
+  it('accepts local, relay, and docker transports', () => {
     expect(parseTransport(undefined)).toBe('local')
     expect(parseTransport('relay')).toBe('relay')
-    expect(() => parseTransport('docker')).toThrow('local or relay')
+    expect(parseTransport('docker')).toBe('docker')
+    expect(() => parseTransport('carrier-pigeon')).toThrow('local, relay, or docker')
   })
 })

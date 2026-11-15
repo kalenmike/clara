@@ -22,6 +22,7 @@ services:
       dockerfile: infra/docker/engine.Dockerfile
     restart: unless-stopped
     environment:
+      CLARA_VERSION: ${CLARA_VERSION:-}
       CLARA_ENGINE_HOST: 0.0.0.0
       CLARA_ENGINE_PORT: '8789'
       CLARA_DATA_DIR: /data

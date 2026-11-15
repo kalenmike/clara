@@ -167,6 +167,9 @@ importers:
       '@clara/hub-server':
         specifier: workspace:*
         version: link:../hub/server
+      '@clara/lab-server':
+        specifier: workspace:*
+        version: link:../../packages/lab-server
       '@clara/runner':
         specifier: workspace:*
         version: link:../../packages/adapters/runner
@@ -406,6 +409,9 @@ importers:
       '@clara/shared-types':
         specifier: workspace:*
         version: link:../../packages/contracts/shared-types
+      '@clara/theme':
+        specifier: workspace:*
+        version: link:../../packages/theme
       '@fontsource-variable/geist':
         specifier: ^5.3.0
         version: 5.3.0
@@ -735,6 +741,12 @@ importers:
       '@clara/policy':
         specifier: workspace:*
         version: link:../orchestration/policy
+      '@clara/theme':
+        specifier: workspace:*
+        version: link:../theme
+      '@fontsource-variable/geist':
+        specifier: ^5.3.0
+        version: 5.3.0
       react-markdown:
         specifier: ^10.1.0
         version: 10.1.0(@types/react@19.3.0)(react@19.3.1)
@@ -865,6 +877,9 @@ importers:
       '@clara/shared-types':
         specifier: workspace:*
         version: link:../contracts/shared-types
+      '@clara/theme':
+        specifier: workspace:*
+        version: link:../theme
       '@fontsource-variable/geist':
         specifier: ^5.3.0
         version: 5.3.0
@@ -934,6 +949,8 @@ importers:
       vitest:
         specifier: ^5.0.5
         version: 5.0.5(@opentelemetry/api@1.10.0)(@types/node@24.19.2)(vite@8.3.5(@types/node@24.19.2)(esbuild@0.28.2)(jiti@2.7.0)(terser@5.51.2)(tsx@4.23.15)(yaml@2.9.1))
+
+  packages/theme: {}
 
   tools/cli:
     dependencies:

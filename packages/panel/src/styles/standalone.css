@@ -10,7 +10,7 @@
 
 @import 'tailwindcss';
 @import '@fontsource-variable/geist';
-@import './theme.css';
+@import '@clara/theme/theme.css';
 @import './globals.css';
 @import './shell.css';
 

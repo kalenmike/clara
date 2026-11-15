@@ -131,7 +131,9 @@ pnpm cli:uninstall   # remove the installed command
 ```
 
 `pnpm cli:build` writes `apps/cli/dist/package/<bun-target>/clara` for the host
-target. `pnpm cli:install` never builds: it installs that build under
+target. A checkout build reports `<package version>-dev+<7-character commit>`
+unless `CLARA_VERSION` is set, so `clara status` and the version store identify
+the exact build. `pnpm cli:install` never builds: it installs that build under
 `<data>/versions/<version>/clara`, points the user bin directory at it, and
 writes `install.json` with channel `local`, so `clara doctor`, `clara update`,
 and `clara uninstall` treat it as a normal install. Use `--from <file|dir>`,
@@ -146,6 +148,10 @@ same package at `/hub` over the paired E2EE session. Hosts differ only in the AP
 transport and capability set: the served panel keeps its HttpOnly session
 cookie, while a tunneled panel uses a session bearer token and disables controls
 that would cut its own connection.
+
+`packages/theme` (`@clara/theme`) owns the palettes and type tokens shared by the
+web client, the hub panel, and the lab. Tailwind hosts import `theme.css`; the
+standalone lab imports `tokens.css` directly.
 
 `apps/desktop/host` is the loopback adapter-host sidecar. It reuses
 `packages/adapters/install` for planning, target discovery, and jobs, and it

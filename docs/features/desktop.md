@@ -138,7 +138,8 @@ engine both work.
 - The app is offline from the hub. The panel shows the connection failure and
   the last snapshot is not presented as live.
 - Clara Lab reports that the lab service is unavailable. The hub could not reach
-  it at `CLARA_LAB_URL`; start the lab service next to the engine and check the
+  it at `CLARA_LAB_URL`; on the engine host run `clara start` (the packaged
+  command supervises the Lab as `lab`) or `clara start lab`, and check the
   shared `CLARA_LAB_TOKEN`.
 - A bookmarked `/lab` is opened in the browser or PWA. The route is not
   registered there, so the app does not show Clara Lab.

@@ -58,22 +58,31 @@ run and recovery.
    local clients and adapters are affected. Relay clients keep working. The
    desktop client refreshes its local endpoint and reconnects without
    re-pairing.
-7. The process shuts down on `SIGINT`, `SIGTERM`, `shutdown` on stdin, or stdin
+7. Direct access chooses which interfaces the local listener binds:
+   **loopback** (default), **docker** (loopback plus local Docker bridge
+   addresses), **lan** (all interfaces), or **custom** (loopback plus a typed
+   address). It lives in `server.json`, is overridden by `CLARA_LOCAL_ACCESS`,
+   and is editable from the panel's Network view. Changing it restarts only
+   the local listener; the panel stays up on its own port. The panel reports the
+   resulting loopback, Docker, and LAN URLs for direct adapter pairings.
+8. The process shuts down on `SIGINT`, `SIGTERM`, `shutdown` on stdin, or stdin
    EOF. `CLARA_CONTROL_STDIN=1` enables the stdin control path.
-8. The panel assets are embedded in the Bun executable and extracted once per
+9. The panel assets are embedded in the Bun executable and extracted once per
    build to the cache directory. The shipped hub binary is one file.
-9. The hub issues adapter setup, not installs. It reads the adapter registry and
-   returns the one-time code, manifest, copy command, and `clara://adapter` link
-   when the owner enables adapter setup in the panel. SSH keys and the Docker
-   socket stay on the machine that runs the install.
-10. The hub binary is unchanged by how the panel is opened. It still serves one
+10. The hub issues adapter setup, not installs. It reads the adapter registry and
+    returns the one-time code, manifest, copy command, and `clara://adapter` link
+    when the owner enables adapter setup in the panel. SSH keys and the Docker
+    socket stay on the machine that runs the install.
+11. The hub binary is unchanged by how the panel is opened. It still serves one
     loopback panel page and one local listener; it does not serve the web client
     or a second GUI. The `/v1/hub-panel` bridge is a hub-service route, not a new
     process or port.
-11. The hub bridges the lab, it does not host it. The lab service runs next to
+12. The hub bridges the lab, it does not host it. The lab service runs next to
     the engine; the hub forwards `/v1/lab/*` to it with `CLARA_LAB_URL` and the
     shared `CLARA_LAB_TOKEN`. The hub holds no engine token and runs no lab
-    process. `CLARA_LAB_URL=off` disables the bridge.
+    process; the packaged `clara` command supervises the lab service separately,
+    and the Docker and headless hub deployments leave it to the host.
+    `CLARA_LAB_URL=off` disables the bridge.
 
 ## Commands
 
@@ -81,7 +90,7 @@ run and recovery.
 clara-server serve [--no-panel]
 clara-server setup [--username <name>] [--password-stdin]
 clara-server pair [--no-relay] [--no-qr] [--revoke-all] [--revoke <id>]
-clara-server pair-adapter --kind <kind> [--transport local|relay|docker] [--json]
+clara-server pair-adapter --kind <kind> [--transport local|relay|docker] [--ws-url <url>] [--json]
 clara-server admin reset|setup-token
 clara-server health
 ```
@@ -96,6 +105,14 @@ clara-server health
   the next start shows the setup screen again.
 - **Local port busy**: bind an ephemeral port and publish it. Existing local
   pairings may need a new pairing; relay pairings do not.
+- **Direct access changed**: the local listener rebinds without restarting the
+  hub. Local clients reconnect; relay clients keep working; the panel stays on
+  its own port. **All interfaces** exposes the WebSocket and API to the network,
+  so the host firewall must allow only the intended sources.
+- **Docker access on a host without Docker**: no bridge address exists, so the
+  listener stays on loopback and the panel asks for a direct address or the
+  relay. Restart the hub after the Docker daemon starts if bridge addresses
+  appear later; the listener reads them at startup.
 - **Relay URL without the hub token**: the hub starts local-only. The panel
   marks the token as missing, and saving it in the Relay card starts the relay
   without restarting the process. Startup never fails for an incomplete relay.
@@ -116,8 +133,8 @@ clara-server health
 - **Orchestration**: the hub does not run the engine in-process. Use the
   engine container or `clara start engine`.
 - **The lab service is unreachable**: `/v1/lab/*` returns `503 lab_unavailable`.
-  Start the lab service next to the engine, or fix `CLARA_LAB_URL`; a token
-  mismatch fails the lab's own authentication.
+  Start it next to the engine with `clara start` or `clara start lab`, or fix
+  `CLARA_LAB_URL`; a token mismatch fails the lab's own authentication.
 - **The lab bridge is off**: `CLARA_LAB_URL=off` makes the bridge return
   `503 lab_unavailable` without contacting a service. The hub keeps running.
 - **A remote hub needs the lab on its private network**: set `CLARA_LAB_HOST` and

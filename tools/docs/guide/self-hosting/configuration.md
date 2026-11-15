@@ -102,6 +102,25 @@ devices.
 `CLARA_PAIRING_BASE_URL` overrides the panel value. `CLARA_WEB_PORT` changes the
 default port used when no Web URL is set.
 
+## Direct adapter access
+
+The local WebSocket listener is loopback-only by default. The panel's
+**Network → Local transport → Listen on** setting chooses which interfaces it
+binds:
+
+- **This machine only** — loopback.
+- **This machine and local Docker containers** — loopback plus Docker bridge
+  addresses.
+- **All interfaces** — LAN, Docker, and loopback.
+- **Custom address** — loopback plus an address you type.
+
+`CLARA_LOCAL_ACCESS` (`loopback`, `docker`, `lan`, or `custom`) overrides the
+panel value, and `CLARA_LOCAL_BIND_HOST` supplies the custom address. Changing
+the setting restarts only the local listener; the panel stays up. All interfaces
+exposes the hub WebSocket and API to your network, so keep the port behind your
+firewall. For Docker Desktop, use **All interfaces** and `host.docker.internal`,
+or use the relay. Public and cloud installs should use the relay.
+
 ## Push notifications
 
 The panel's **VAPID contact** is the contact address sent with Web Push. It
@@ -138,6 +157,10 @@ values.
 | `CLARA_PANEL_ALLOW_REMOTE`                                 | Permit a container bridge source; auth is still required       |
 | `CLARA_PANEL_SECURE_COOKIE`                                | Use a secure cookie behind a loopback-preserving HTTPS proxy   |
 | `CLARA_PANEL_DISABLED`                                     | Disable the panel                                              |
+| `CLARA_LOCAL_ACCESS`                                       | Direct access: `loopback`, `docker`, `lan`, or `custom`        |
+| `CLARA_LOCAL_BIND_HOST`                                    | Bind address for custom direct access                          |
+| `CLARA_LOCAL_HOST`                                         | Advertised local host in pairing links                         |
+| `CLARA_LOCAL_PORT`                                         | Local WebSocket port (default `8788`)                          |
 | `CLARA_PAIRING_BASE_URL`                                   | Public web URL used in pairing links                           |
 | `CLARA_VAPID_SUBJECT`                                      | Web Push contact                                               |
 | `CLARA_WEB_PORT`                                           | Default web port for pairing links (default `8080`)            |

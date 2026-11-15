@@ -30,12 +30,16 @@ contacts the harness directly.
    install an adapter; a browser pairs with a `clara1_` code from **Clients →
    Pair Client** or `clara pair`.
 3. Answer **Remote** or **Local** and, for a local harness, whether the adapter
-   runs on the host or in a Docker container. The panel derives the transport
-   from that answer: relay for a remote machine, Docker network for a container
-   on a containerized hub, and the hub's loopback listener for a local host. A
-   container on a host-process hub uses the relay. A direct **WebSocket URL**
-   under **Advanced** overrides the address, so a remote or container target can
-   connect without a relay when it can reach the hub directly.
+   runs on the host or in a Docker container. Relay and Direct are both always
+   available: the panel suggests one from the selected placement but never
+   disables the other. A direct pairing needs an address the target can reach.
+   The hub reports its loopback, Docker bridge, and LAN addresses, and Clara
+   Desktop also reads the selected container's Docker gateway. A local host uses
+   loopback; a local container uses the Docker bridge; a remote machine uses a
+   LAN address, a tunnel, or the relay. Direct access is a hub setting, not a
+   property of the harness: **loopback**, **docker** (loopback plus bridge
+   addresses), **lan** (all interfaces), or **custom**. It is editable from the
+   panel's Network view and from `CLARA_LOCAL_ACCESS`.
 4. A browser-only user copies the command and runs it on the machine that hosts
    the harness. Clara Desktop adds a one-click path: the bundled panel's adapter
    host accepts **This computer**, an **SSH host** from the laptop's
@@ -71,12 +75,15 @@ contacts the harness directly.
 1. The adapter connects out; the hub does not connect to an adapter port.
    Local, Docker, and relay are transport values in the pairing code, not
    separate architectures.
-2. The client asks for a target and the hub picks the transport: the relay for
-   a remote harness, the Docker network for a container on a containerized hub,
-   and loopback for a local harness outside Docker. A container on a
-   host-process hub uses the relay. The user does not choose the transport
-   directly; an advanced WebSocket URL overrides the local address and lets a
-   remote or container target connect without a relay.
+2. The client asks for a target and the hub suggests a transport: the relay for
+   a remote harness or a client already on the relay, the Docker network for a
+   local container, and loopback for a local host. Relay and Direct are always
+   selectable. When the target cannot reach the hub's loopback listener, the
+   panel asks for a reachable WebSocket URL, offers the hub's container and LAN
+   addresses, and lets Clara Desktop use the selected container's Docker
+   gateway. The hub never turns a reachable local path into a relay requirement.
+   A loopback direct URL for a remote or container target is allowed with a
+   warning; the hub cannot verify a remote route.
 3. Adapter pairing uses the same one-time code, fingerprint, expiry, E2EE
    handshake, replay guard, and revocation model as browser pairing. A relay
    code carries a ten-minute enrollment grant; the adapter then receives and
@@ -296,11 +303,38 @@ ask for confirmation run without one, exactly as in the Pi TUI.
   exits; use a supported OS/architecture or run the release archive manually.
 - **Container recreated** — an install into an ephemeral container does not
   survive recreation. Use a mounted config/data path or the adapter container.
+- **Host-process hub, local container** — choose **Local → Docker container**
+  and set **Network → Local transport → Listen on** to **This machine and
+  local Docker containers**. The hub binds its Docker bridge next to loopback
+  and the panel uses that URL. Clara Desktop also reads the selected container's
+  gateway. Without a container-reachable address, the panel asks for one instead
+  of requiring the relay.
+- **Remote machine on the LAN** — set **Listen on** to **All interfaces** (or a
+  custom LAN address), then use the hub's LAN URL for a direct pairing. Open the
+  local WebSocket port in the host firewall; Docker bridge addresses are not
+  reachable from another machine.
+- **Docker Desktop** — Docker Desktop keeps its bridge inside a VM. Use
+  `host.docker.internal` with **All interfaces**, or use the relay.
+- **Remote Docker** — copy the install command and run it inside the container,
+  for example
+  `ssh user@docker-host "docker exec -i <container> sh -lc '<command>'"`.
+  The adapter inside the container must still reach the hub URL: a LAN address
+  when the hub is exposed on the LAN, or the relay. One-click remote Docker
+  installs are not part of this build.
+- **Direct loopback URL for a remote target** — the panel warns but does not
+  block. It only works through an SSH or other tunnel that forwards the hub
+  port.
+- **Direct `wss://` address** — unsupported. A direct hub listener is plain
+  `ws://`; use the relay for a public TLS endpoint.
 
 ## Out of scope
 
 - Running the adapter inside the hub process.
 - An inbound adapter HTTP port.
+- A direct public `wss://` hub endpoint. Cloud and other NAT'd installs use the
+  relay.
+- One-click adapter installs into a remote Docker host; copy or SSH the command
+  instead.
 - A hub-wide default or active harness. Every paired adapter serves the
   workspaces and sessions that belong to it.
 - A Claude Code orchestration binding or shared runner integration.

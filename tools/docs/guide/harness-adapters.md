@@ -28,11 +28,15 @@ Inside the Clara repository you can use
 2. Choose the harness. The hub returns a one-time code, an install command, and
    a link for Clara Desktop. It never runs the install itself.
 3. Answer **Remote** or **Local**, and for a local harness choose **This
-   machine** or **Docker container**. The panel picks the connection that fits:
-   the relay for another machine, the Docker network for a container on a
-   containerized hub, and the hub's own address for a local host. If the
-   adapter can reach the hub at another address, enter it under **Advanced →
-   WebSocket URL**.
+   machine** or **Docker container**. Relay and Direct are both available; the
+   panel suggests the path that fits but lets you change it. A Direct pairing
+   needs an address the harness machine can reach. The panel lists the hub’s
+   loopback, Docker, and LAN addresses, and Clara Desktop also reads the selected
+   container’s Docker gateway. If the hub only listens on loopback, open
+   **Network → Local transport → Listen on** and choose **This machine and
+   local Docker containers** or **All interfaces**. The hub never blocks a
+   pairing because it cannot verify the route; it warns instead, and you can
+   enter the address under **WebSocket URL**.
 4. If you are using Clara Desktop, install from the same panel flow on **This
    computer**, an **SSH host** from your laptop's SSH configuration, or a local
    **Docker container**. The desktop app uses your SSH agent and Docker socket;
@@ -57,6 +61,30 @@ Adapter codes are only for the installer. To pair a browser, use
 **Clients → Pair Client** in the panel, or the separate code or link printed
 by `clara pair`. An adapter code starts with `clara-harness1_`; a browser
 code starts with `clara1_`.
+
+### Direct access
+
+By default the hub accepts local adapters on loopback only. To pair a local
+Docker container, a machine on the same network, or a container on another
+machine without the relay, open **Network → Local transport** and choose:
+
+- **This machine only** — loopback. A harness on the same computer works.
+- **This machine and local Docker containers** — loopback plus the Docker
+  bridge. A local container can reach the hub; other machines cannot.
+- **All interfaces** — the LAN, Docker, and loopback. Use this for an SSH host
+  or a container on another machine on your network. Open the local WebSocket
+  port in your firewall and only expose it to networks you trust.
+- **Custom address** — loopback plus an address you type.
+
+The same choice can be set at startup with `CLARA_LOCAL_ACCESS` (`loopback`,
+`docker`, `lan`, or `custom`) and `CLARA_LOCAL_BIND_HOST` for a custom address.
+Changing it from the panel restarts only the local listener; already paired
+devices reconnect. For Docker Desktop, use **All interfaces** and the
+`host.docker.internal` address, or use the relay. For a container on a remote
+Docker host, run the install command inside the container over SSH, for example
+`ssh user@docker-host "docker exec -i <container> sh -lc '<command>'"`; the
+container still needs a reachable hub address, so use the LAN address or the
+relay. Public or cloud installs should use the relay.
 
 ### Manage the adapter from its machine
 

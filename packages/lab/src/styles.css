@@ -1,48 +1,46 @@
+/*
+ * Workbench tokens alias the shared Clara semantic tokens.
+ *
+ * The lab keeps its compact `--lab-*` vocabulary, but every value comes from
+ * `@clara/theme`. On the desktop route the workbench is mounted inside the
+ * client, so it inherits the chosen mode (`.dark`) and color theme
+ * (`data-theme`) without its own palette. The standalone page imports the same
+ * tokens and applies the Default palette.
+ */
+
 .lab-root {
-  --bg: #0b0d10;
-  --surface: #111419;
-  --surface-2: #161a21;
-  --surface-3: #1c222b;
-  --rail: #0e1116;
-  --hover: #1d232d;
-  --border: #242a34;
-  --border-strong: #36404d;
-  --text: #d9dee7;
-  --muted: #8b94a4;
-  --faint: #5f6876;
-  --accent: #4c9aff;
-  --accent-soft: rgba(76, 154, 255, 0.13);
-  --ok: #3fb950;
-  --bad: #f85149;
-  --warn: #d6a132;
-  --live: #a371f7;
-  --mono:
-    ui-monospace, SFMono-Regular, 'SF Mono', Menlo, Monaco, Consolas, 'Liberation Mono', monospace;
-  --sans: ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
-  color-scheme: dark;
+  --lab-bg: var(--background);
+  --lab-surface: var(--card);
+  --lab-surface-2: var(--muted);
+  --lab-surface-3: var(--accent);
+  --lab-rail: var(--sidebar);
+  --lab-hover: var(--accent);
+  --lab-border: var(--border);
+  --lab-border-strong: color-mix(in oklab, var(--border) 80%, var(--foreground) 20%);
+  --lab-text: var(--foreground);
+  --lab-muted: var(--muted-foreground);
+  --lab-faint: color-mix(in oklab, var(--muted-foreground) 72%, transparent);
+  --lab-accent: var(--primary);
+  --lab-accent-soft: color-mix(in oklab, var(--primary) 12%, transparent);
+  --lab-ok: var(--status-success);
+  --lab-bad: var(--status-danger);
+  --lab-warn: var(--status-warning);
+  --lab-live: var(--status-info);
+  --lab-mono: var(--font-mono);
 }
 
-@media (prefers-color-scheme: light) {
-  .lab-root {
-    --bg: #f6f7f9;
-    --surface: #ffffff;
-    --surface-2: #f6f8fa;
-    --surface-3: #eef1f5;
-    --rail: #f0f2f5;
-    --hover: #eaeef4;
-    --border: #d8dee7;
-    --border-strong: #b8c1cd;
-    --text: #1f2328;
-    --muted: #656d76;
-    --faint: #8b949e;
-    --accent: #0969da;
-    --accent-soft: rgba(9, 105, 218, 0.1);
-    --ok: #1a7f37;
-    --bad: #cf222e;
-    --warn: #9a6700;
-    --live: #8250df;
-    color-scheme: light;
-  }
+/*
+ * Color scheme follows the workbench's dark state: an ancestor `.dark` (the
+ * desktop client) or a `.dark` workbench container (a host that scopes the
+ * theme).
+ */
+:where(.lab-root) {
+  color-scheme: light;
+}
+
+.dark :where(.lab-root),
+:where(.lab-root).dark {
+  color-scheme: dark;
 }
 
 .lab-root * {
@@ -53,11 +51,11 @@
   height: 100%;
   margin: 0;
   overflow: hidden;
-  background: var(--bg);
-  color: var(--text);
-  font-family: var(--sans);
-  font-size: 13px;
-  line-height: 1.45;
+  background: var(--lab-bg);
+  color: var(--lab-text);
+  font-family: var(--font-sans);
+  font-size: 0.875rem;
+  line-height: 1.5;
 }
 
 .lab-root button,
@@ -71,8 +69,8 @@
 .lab-root input,
 .lab-root select,
 .lab-root textarea {
-  background: var(--surface-2);
-  border: 1px solid var(--border);
+  background: var(--lab-surface-2);
+  border: 1px solid var(--lab-border);
   border-radius: 4px;
   padding: 6px 8px;
   min-width: 0;
@@ -81,27 +79,27 @@
 .lab-root input:hover,
 .lab-root select:hover,
 .lab-root textarea:hover {
-  border-color: var(--border-strong);
+  border-color: var(--lab-border-strong);
 }
 
 .lab-root textarea {
   resize: vertical;
-  font-family: var(--mono);
-  font-size: 12px;
+  font-family: var(--lab-mono);
+  font-size: 0.75rem;
 }
 
 .lab-root input:focus,
 .lab-root select:focus,
 .lab-root textarea:focus,
 .lab-root button:focus-visible {
-  outline: 1px solid var(--accent);
+  outline: 1px solid var(--lab-accent);
   outline-offset: 0;
 }
 
 .lab-root code,
 .lab-root pre {
-  font-family: var(--mono);
-  font-size: 12px;
+  font-family: var(--lab-mono);
+  font-size: 0.75rem;
 }
 
 .lab-root h1,
@@ -113,48 +111,48 @@
 }
 
 .lab-root h1 {
-  font-size: 23px;
+  font-size: 1.25rem;
   letter-spacing: -0.02em;
 }
 
 .lab-root h2 {
-  font-size: 14px;
+  font-size: 0.875rem;
 }
 
 .lab-root h3 {
-  font-size: 11px;
-  color: var(--muted);
+  font-size: 0.75rem;
+  color: var(--lab-muted);
   font-weight: 600;
   text-transform: uppercase;
   letter-spacing: 0.07em;
 }
 
 .lab-root h4 {
-  font-size: 10px;
-  color: var(--muted);
+  font-size: 0.625rem;
+  color: var(--lab-muted);
   text-transform: uppercase;
   letter-spacing: 0.06em;
   margin: 10px 0 4px;
 }
 
 .lab-root .muted {
-  color: var(--muted);
+  color: var(--lab-muted);
 }
 
 .lab-root .tone-ok {
-  color: var(--ok);
+  color: var(--lab-ok);
 }
 
 .lab-root .tone-bad {
-  color: var(--bad);
+  color: var(--lab-bad);
 }
 
 .lab-root .tone-warn {
-  color: var(--warn);
+  color: var(--lab-warn);
 }
 
 .lab-root .tone-idle {
-  color: var(--muted);
+  color: var(--lab-muted);
 }
 
 .lab-root .icon {
@@ -175,6 +173,24 @@
   height: 100vh;
 }
 
+/*
+ * The desktop route mounts the lab in a flex column under its app bar, so the
+ * lab fills that slot instead of claiming the viewport. A viewport or percentage
+ * height here resolves against the route's full-viewport column and pushes the
+ * status bar off screen; the standalone `tools/lab` entry keeps `100vh`.
+ */
+.lab-root[data-embedded] {
+  display: flex;
+  flex-direction: column;
+  min-height: 0;
+}
+
+.lab-root[data-embedded] > :is(.shell, .boot) {
+  flex: 1 1 auto;
+  height: auto;
+  min-height: 0;
+}
+
 .lab-root .titlebar {
   grid-area: title;
   display: flex;
@@ -182,8 +198,8 @@
   gap: 14px;
   min-width: 0;
   padding: 0 12px;
-  background: var(--surface-2);
-  border-bottom: 1px solid var(--border);
+  background: var(--lab-surface-2);
+  border-bottom: 1px solid var(--lab-border);
   -webkit-app-region: drag;
   user-select: none;
 }
@@ -202,23 +218,23 @@
   width: 25px;
   height: 25px;
   border-radius: 5px;
-  background: var(--accent);
-  color: #fff;
-  font-size: 13px;
+  background: var(--lab-accent);
+  color: var(--primary-foreground);
+  font-size: 0.875rem;
   font-weight: 700;
 }
 
 .lab-root .titlebar-brand strong {
-  font-size: 13px;
+  font-size: 0.875rem;
   letter-spacing: 0.01em;
 }
 
 .lab-root .titlebar-tag {
-  border: 1px solid var(--border);
+  border: 1px solid var(--lab-border);
   border-radius: 3px;
   padding: 0 5px;
-  color: var(--faint);
-  font-size: 9px;
+  color: var(--lab-faint);
+  font-size: 0.625rem;
   text-transform: uppercase;
   letter-spacing: 0.08em;
 }
@@ -228,8 +244,8 @@
   align-items: center;
   gap: 6px;
   min-width: 0;
-  color: var(--muted);
-  font-size: 11px;
+  color: var(--lab-muted);
+  font-size: 0.75rem;
 }
 
 .lab-root .titlebar-path code {
@@ -237,14 +253,14 @@
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
-  color: var(--muted);
+  color: var(--lab-muted);
 }
 
 .lab-root .titlebar-meta {
   margin-left: auto;
-  color: var(--faint);
-  font-family: var(--mono);
-  font-size: 10px;
+  color: var(--lab-faint);
+  font-family: var(--lab-mono);
+  font-size: 0.625rem;
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
@@ -258,8 +274,8 @@
   align-items: center;
   min-height: 0;
   padding: 8px 0 6px;
-  background: var(--rail);
-  border-right: 1px solid var(--border);
+  background: var(--lab-rail);
+  border-right: 1px solid var(--lab-border);
 }
 
 .lab-root .rail-brand {
@@ -268,11 +284,11 @@
   width: 28px;
   height: 28px;
   margin-bottom: 10px;
-  border: 1px solid var(--border);
+  border: 1px solid var(--lab-border);
   border-radius: 5px;
-  color: var(--faint);
-  font-family: var(--mono);
-  font-size: 11px;
+  color: var(--lab-faint);
+  font-family: var(--lab-mono);
+  font-size: 0.75rem;
   font-weight: 700;
 }
 
@@ -290,7 +306,7 @@
   display: flex;
   justify-content: center;
   padding-top: 8px;
-  border-top: 1px solid var(--border);
+  border-top: 1px solid var(--lab-border);
 }
 
 .lab-root .rail-item {
@@ -306,18 +322,18 @@
   border: 0;
   border-radius: 5px;
   background: transparent;
-  color: var(--muted);
+  color: var(--lab-muted);
   cursor: pointer;
 }
 
 .lab-root .rail-item:hover {
-  background: var(--hover);
-  color: var(--text);
+  background: var(--lab-hover);
+  color: var(--lab-text);
 }
 
 .lab-root .rail-item.active {
-  background: var(--surface-3);
-  color: var(--text);
+  background: var(--lab-surface-3);
+  color: var(--lab-text);
 }
 
 .lab-root .rail-item.active::before {
@@ -328,12 +344,12 @@
   bottom: 9px;
   width: 2px;
   border-radius: 1px;
-  background: var(--accent);
+  background: var(--lab-accent);
 }
 
 .lab-root .rail-item.warn .rail-count {
-  color: var(--warn);
-  border-color: var(--warn);
+  color: var(--lab-warn);
+  border-color: var(--lab-warn);
 }
 
 .lab-root .rail-icon {
@@ -343,7 +359,7 @@
 }
 
 .lab-root .rail-label {
-  font-size: 9px;
+  font-size: 0.625rem;
   font-weight: 600;
   letter-spacing: 0.04em;
   text-transform: uppercase;
@@ -355,13 +371,13 @@
   right: 5px;
   min-width: 15px;
   padding: 0 3px;
-  border: 1px solid var(--border-strong);
+  border: 1px solid var(--lab-border-strong);
   border-radius: 8px;
-  background: var(--surface);
-  color: var(--muted);
-  font-family: var(--mono);
-  font-size: 9px;
-  line-height: 13px;
+  background: var(--lab-surface);
+  color: var(--lab-muted);
+  font-family: var(--lab-mono);
+  font-size: 0.625rem;
+  line-height: 1rem;
   text-align: center;
 }
 
@@ -405,8 +421,8 @@
 
 .lab-root .view-kicker {
   margin-bottom: 3px;
-  color: var(--accent);
-  font-size: 9px;
+  color: var(--lab-accent);
+  font-size: 0.625rem;
   font-weight: 700;
   letter-spacing: 0.13em;
   text-transform: uppercase;
@@ -419,7 +435,7 @@
 .lab-root .view-head p {
   margin: 0;
   max-width: 76ch;
-  font-size: 12px;
+  font-size: 0.75rem;
 }
 
 .lab-root .view-head-actions {
@@ -438,9 +454,9 @@
   gap: 12px;
   min-width: 0;
   padding: 0 8px;
-  background: var(--surface-2);
-  border-top: 1px solid var(--border);
-  font-size: 10px;
+  background: var(--lab-surface-2);
+  border-top: 1px solid var(--lab-border);
+  font-size: 0.625rem;
 }
 
 .lab-root .statusbar-group {
@@ -458,46 +474,46 @@
   padding: 0 7px;
   border: 0;
   background: transparent;
-  color: var(--muted);
+  color: var(--lab-muted);
   cursor: pointer;
-  font-size: 10px;
+  font-size: 0.625rem;
   white-space: nowrap;
 }
 
 .lab-root .status-item:hover {
-  background: var(--hover);
-  color: var(--text);
+  background: var(--lab-hover);
+  color: var(--lab-text);
 }
 
 .lab-root .status-dot {
   width: 6px;
   height: 6px;
   border-radius: 50%;
-  background: var(--muted);
+  background: var(--lab-muted);
 }
 
 .lab-root .status-item.tone-ok .status-dot {
-  background: var(--ok);
+  background: var(--lab-ok);
 }
 
 .lab-root .status-item.tone-bad .status-dot {
-  background: var(--bad);
+  background: var(--lab-bad);
 }
 
 .lab-root .status-item.tone-warn .status-dot {
-  background: var(--warn);
+  background: var(--lab-warn);
 }
 
 .lab-root .status-item.tone-ok .icon {
-  color: var(--ok);
+  color: var(--lab-ok);
 }
 
 .lab-root .status-item.tone-bad .icon {
-  color: var(--bad);
+  color: var(--lab-bad);
 }
 
 .lab-root .status-item.tone-warn .icon {
-  color: var(--warn);
+  color: var(--lab-warn);
 }
 
 .lab-root .statusbar-meta {
@@ -509,15 +525,15 @@
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
-  color: var(--faint);
-  font-family: var(--mono);
+  color: var(--lab-faint);
+  font-family: var(--lab-mono);
 }
 
 /* Shared primitives */
 
 .lab-root .panel {
-  background: var(--surface);
-  border: 1px solid var(--border);
+  background: var(--lab-surface);
+  border: 1px solid var(--lab-border);
   border-radius: 6px;
   padding: 12px;
   min-width: 0;
@@ -539,12 +555,12 @@
 
 .lab-root .panel-head h2,
 .lab-root .section-head h2 {
-  font-size: 13px;
+  font-size: 0.875rem;
 }
 
 .lab-root .section-head p {
   margin: 3px 0 0;
-  font-size: 11px;
+  font-size: 0.75rem;
   max-width: 58ch;
 }
 
@@ -554,19 +570,19 @@
   justify-content: center;
   gap: 5px;
   appearance: none;
-  border: 1px solid var(--border);
-  background: var(--surface-2);
-  color: var(--text);
+  border: 1px solid var(--lab-border);
+  background: var(--lab-surface-2);
+  color: var(--lab-text);
   border-radius: 4px;
   padding: 5px 9px;
   cursor: pointer;
   white-space: nowrap;
-  font-size: 12px;
+  font-size: 0.75rem;
 }
 
 .lab-root .button:hover:not(:disabled) {
-  background: var(--hover);
-  border-color: var(--border-strong);
+  background: var(--lab-hover);
+  border-color: var(--lab-border-strong);
 }
 
 .lab-root .button:disabled {
@@ -575,24 +591,24 @@
 }
 
 .lab-root .button.primary {
-  background: var(--accent);
-  border-color: var(--accent);
-  color: #fff;
+  background: var(--lab-accent);
+  border-color: var(--lab-accent);
+  color: var(--primary-foreground);
 }
 
 .lab-root .button.primary:hover:not(:disabled) {
   filter: brightness(1.08);
-  background: var(--accent);
+  background: var(--lab-accent);
 }
 
 .lab-root .button.danger {
-  border-color: color-mix(in srgb, var(--bad) 50%, var(--border));
-  color: var(--bad);
-  background: color-mix(in srgb, var(--bad) 7%, var(--surface));
+  border-color: color-mix(in srgb, var(--lab-bad) 50%, var(--lab-border));
+  color: var(--lab-bad);
+  background: color-mix(in srgb, var(--lab-bad) 7%, var(--lab-surface));
 }
 
 .lab-root .button.danger:hover:not(:disabled) {
-  background: color-mix(in srgb, var(--bad) 16%, var(--surface));
+  background: color-mix(in srgb, var(--lab-bad) 16%, var(--lab-surface));
 }
 
 .lab-root .button.ghost {
@@ -601,14 +617,14 @@
 
 .lab-root .button.small {
   padding: 2px 6px;
-  font-size: 10px;
+  font-size: 0.625rem;
 }
 
 .lab-root .link {
   appearance: none;
   border: 0;
   background: transparent;
-  color: var(--accent);
+  color: var(--lab-accent);
   cursor: pointer;
   padding: 0;
   text-align: left;
@@ -620,7 +636,7 @@
 }
 
 .lab-root .link.active {
-  color: var(--text);
+  color: var(--lab-text);
   font-weight: 600;
 }
 
@@ -630,34 +646,34 @@
   gap: 4px;
   border-radius: 3px;
   padding: 1px 6px;
-  font-size: 10px;
+  font-size: 0.625rem;
   font-weight: 600;
-  border: 1px solid var(--border);
-  background: var(--surface-2);
-  color: var(--muted);
+  border: 1px solid var(--lab-border);
+  background: var(--lab-surface-2);
+  color: var(--lab-muted);
   white-space: nowrap;
   text-transform: uppercase;
   letter-spacing: 0.03em;
 }
 
 .lab-root .badge-ok {
-  color: var(--ok);
-  border-color: color-mix(in srgb, var(--ok) 50%, var(--border));
+  color: var(--lab-ok);
+  border-color: color-mix(in srgb, var(--lab-ok) 50%, var(--lab-border));
 }
 
 .lab-root .badge-bad {
-  color: var(--bad);
-  border-color: color-mix(in srgb, var(--bad) 50%, var(--border));
+  color: var(--lab-bad);
+  border-color: color-mix(in srgb, var(--lab-bad) 50%, var(--lab-border));
 }
 
 .lab-root .badge-live {
-  color: var(--live);
-  border-color: color-mix(in srgb, var(--live) 50%, var(--border));
+  color: var(--lab-live);
+  border-color: color-mix(in srgb, var(--lab-live) 50%, var(--lab-border));
 }
 
 .lab-root .badge-warn {
-  color: var(--warn);
-  border-color: color-mix(in srgb, var(--warn) 50%, var(--border));
+  color: var(--lab-warn);
+  border-color: color-mix(in srgb, var(--lab-warn) 50%, var(--lab-border));
 }
 
 .lab-root .chips {
@@ -667,56 +683,56 @@
 }
 
 .lab-root .chip {
-  border: 1px solid var(--border);
+  border: 1px solid var(--lab-border);
   border-radius: 3px;
   padding: 0 6px;
-  font-size: 10px;
-  color: var(--muted);
-  background: var(--surface-2);
+  font-size: 0.625rem;
+  color: var(--lab-muted);
+  background: var(--lab-surface-2);
   white-space: nowrap;
 }
 
 .lab-root .chip-warn {
-  color: var(--warn);
-  border-color: color-mix(in srgb, var(--warn) 50%, var(--border));
+  color: var(--lab-warn);
+  border-color: color-mix(in srgb, var(--lab-warn) 50%, var(--lab-border));
 }
 
 .lab-root .banner {
   border-radius: 4px;
   padding: 7px 10px;
   margin: 0 0 10px;
-  border: 1px solid var(--border);
-  background: var(--surface-2);
-  font-size: 12px;
+  border: 1px solid var(--lab-border);
+  background: var(--lab-surface-2);
+  font-size: 0.75rem;
 }
 
 .lab-root .banner.bad {
-  border-color: color-mix(in srgb, var(--bad) 45%, var(--border));
-  background: color-mix(in srgb, var(--bad) 9%, var(--surface));
+  border-color: color-mix(in srgb, var(--lab-bad) 45%, var(--lab-border));
+  background: color-mix(in srgb, var(--lab-bad) 9%, var(--lab-surface));
 }
 
 .lab-root .banner.ok {
-  border-color: color-mix(in srgb, var(--ok) 45%, var(--border));
-  background: color-mix(in srgb, var(--ok) 8%, var(--surface));
+  border-color: color-mix(in srgb, var(--lab-ok) 45%, var(--lab-border));
+  background: color-mix(in srgb, var(--lab-ok) 8%, var(--lab-surface));
 }
 
 .lab-root .banner.warn {
-  border-color: color-mix(in srgb, var(--warn) 45%, var(--border));
-  background: color-mix(in srgb, var(--warn) 8%, var(--surface));
+  border-color: color-mix(in srgb, var(--lab-warn) 45%, var(--lab-border));
+  background: color-mix(in srgb, var(--lab-warn) 8%, var(--lab-surface));
 }
 
 .lab-root .empty {
-  border: 1px dashed var(--border);
+  border: 1px dashed var(--lab-border);
   border-radius: 5px;
   padding: 14px;
-  color: var(--muted);
+  color: var(--lab-muted);
   text-align: center;
-  font-size: 12px;
+  font-size: 0.75rem;
 }
 
 .lab-root .empty.compact {
   padding: 9px;
-  font-size: 11px;
+  font-size: 0.75rem;
 }
 
 .lab-root .row {
@@ -775,23 +791,23 @@
 }
 
 .lab-root .field-label {
-  font-size: 9px;
+  font-size: 0.625rem;
   text-transform: uppercase;
   letter-spacing: 0.06em;
-  color: var(--faint);
+  color: var(--lab-faint);
 }
 
 .lab-root .field-value {
   overflow-wrap: anywhere;
-  font-size: 11px;
+  font-size: 0.75rem;
 }
 
 .lab-root .field-block {
   display: flex;
   flex-direction: column;
   gap: 5px;
-  color: var(--muted);
-  font-size: 11px;
+  color: var(--lab-muted);
+  font-size: 0.75rem;
 }
 
 .lab-root .grow-block {
@@ -802,12 +818,12 @@
   display: inline-flex;
   align-items: center;
   gap: 6px;
-  color: var(--text);
-  font-size: 11px;
+  color: var(--lab-text);
+  font-size: 0.75rem;
 }
 
 .lab-root .check input {
-  accent-color: var(--accent);
+  accent-color: var(--lab-accent);
 }
 
 .lab-root .search-box {
@@ -815,10 +831,10 @@
   align-items: center;
   gap: 6px;
   padding: 0 8px;
-  border: 1px solid var(--border);
+  border: 1px solid var(--lab-border);
   border-radius: 4px;
-  background: var(--surface-2);
-  color: var(--muted);
+  background: var(--lab-surface-2);
+  color: var(--lab-muted);
 }
 
 .lab-root .search-box input {
@@ -834,20 +850,20 @@
 
 .lab-root .segmented {
   display: inline-flex;
-  border: 1px solid var(--border);
+  border: 1px solid var(--lab-border);
   border-radius: 4px;
-  background: var(--surface-2);
+  background: var(--lab-surface-2);
   overflow: hidden;
 }
 
 .lab-root .segmented button {
   border: 0;
-  border-right: 1px solid var(--border);
+  border-right: 1px solid var(--lab-border);
   background: transparent;
-  color: var(--muted);
+  color: var(--lab-muted);
   padding: 5px 10px;
   cursor: pointer;
-  font-size: 11px;
+  font-size: 0.75rem;
 }
 
 .lab-root .segmented button:last-child {
@@ -855,42 +871,42 @@
 }
 
 .lab-root .segmented button:hover {
-  color: var(--text);
-  background: var(--hover);
+  color: var(--lab-text);
+  background: var(--lab-hover);
 }
 
 .lab-root .segmented button.active {
-  color: var(--text);
-  background: var(--surface-3);
-  box-shadow: inset 0 -2px 0 var(--accent);
+  color: var(--lab-text);
+  background: var(--lab-surface-3);
+  box-shadow: inset 0 -2px 0 var(--lab-accent);
 }
 
 .lab-root .segmented button span {
   margin-left: 4px;
-  color: var(--faint);
-  font-family: var(--mono);
-  font-size: 10px;
+  color: var(--lab-faint);
+  font-family: var(--lab-mono);
+  font-size: 0.625rem;
 }
 
 .lab-root .status-pill {
   display: inline-flex;
   align-items: center;
   gap: 5px;
-  border: 1px solid var(--border);
+  border: 1px solid var(--lab-border);
   border-radius: 3px;
   padding: 2px 7px;
-  font-size: 10px;
+  font-size: 0.625rem;
   font-weight: 600;
 }
 
 .lab-root .status-pill.tone-ok {
-  border-color: color-mix(in srgb, var(--ok) 45%, var(--border));
-  background: color-mix(in srgb, var(--ok) 8%, var(--surface));
+  border-color: color-mix(in srgb, var(--lab-ok) 45%, var(--lab-border));
+  background: color-mix(in srgb, var(--lab-ok) 8%, var(--lab-surface));
 }
 
 .lab-root .status-pill.tone-warn {
-  border-color: color-mix(in srgb, var(--warn) 45%, var(--border));
-  background: color-mix(in srgb, var(--warn) 8%, var(--surface));
+  border-color: color-mix(in srgb, var(--lab-warn) 45%, var(--lab-border));
+  background: color-mix(in srgb, var(--lab-warn) 8%, var(--lab-surface));
 }
 
 /* Toolbar and forms */
@@ -907,8 +923,8 @@
   display: flex;
   flex-direction: column;
   gap: 3px;
-  color: var(--muted);
-  font-size: 10px;
+  color: var(--lab-muted);
+  font-size: 0.625rem;
 }
 
 .lab-root .toolbar label.check {
@@ -916,20 +932,20 @@
   align-items: center;
   gap: 6px;
   padding-bottom: 5px;
-  color: var(--text);
-  font-size: 11px;
+  color: var(--lab-text);
+  font-size: 0.75rem;
 }
 
 .lab-root .review-toolbar {
   align-items: flex-end;
   padding: 10px;
-  border: 1px solid var(--border);
+  border: 1px solid var(--lab-border);
   border-radius: 6px;
-  background: var(--surface);
+  background: var(--lab-surface);
 }
 
 .lab-root .review-toolbar label {
-  font-size: 10px;
+  font-size: 0.625rem;
 }
 
 .lab-root .review-toolbar select {
@@ -977,15 +993,15 @@
   align-items: center;
   gap: 8px;
   margin-bottom: 10px;
-  font-size: 12px;
+  font-size: 0.75rem;
 }
 
 .lab-root .pipeline-summary strong {
-  font-size: 13px;
+  font-size: 0.875rem;
 }
 
 .lab-root .package-list details {
-  border-bottom: 1px solid var(--border);
+  border-bottom: 1px solid var(--lab-border);
   padding: 6px 0;
 }
 
@@ -998,14 +1014,14 @@
   justify-content: space-between;
   gap: 8px;
   cursor: pointer;
-  font-size: 12px;
+  font-size: 0.75rem;
 }
 
 .lab-root .package-meta {
   padding: 4px 0 2px;
-  font-size: 10px;
+  font-size: 0.625rem;
   word-break: break-all;
-  color: var(--muted);
+  color: var(--lab-muted);
 }
 
 .lab-root .package-group {
@@ -1013,29 +1029,29 @@
   flex-wrap: wrap;
   gap: 5px;
   padding: 4px 0;
-  font-size: 10px;
+  font-size: 0.625rem;
 }
 
 .lab-root .group-label {
-  color: var(--faint);
+  color: var(--lab-faint);
   text-transform: uppercase;
   letter-spacing: 0.06em;
-  font-size: 9px;
+  font-size: 0.625rem;
 }
 
 .lab-root .stats {
   display: flex;
   flex-wrap: wrap;
   gap: 3px 10px;
-  color: var(--muted);
-  font-size: 10px;
+  color: var(--lab-muted);
+  font-size: 0.625rem;
   margin: 6px 0;
-  font-family: var(--mono);
+  font-family: var(--lab-mono);
 }
 
 .lab-root .hash {
-  color: var(--faint);
-  font-size: 10px;
+  color: var(--lab-faint);
+  font-size: 0.625rem;
 }
 
 .lab-root .diagnostics {
@@ -1046,8 +1062,8 @@
 }
 
 .lab-root .diagnostics-ok {
-  color: var(--ok);
-  font-size: 11px;
+  color: var(--lab-ok);
+  font-size: 0.75rem;
 }
 
 .lab-root .diagnostic {
@@ -1057,27 +1073,27 @@
   gap: 6px;
   padding: 5px 8px;
   border-radius: 3px;
-  background: var(--surface-2);
-  border-left: 3px solid var(--border);
-  font-size: 11px;
+  background: var(--lab-surface-2);
+  border-left: 3px solid var(--lab-border);
+  font-size: 0.75rem;
 }
 
 .lab-root .diagnostic-error {
-  border-left-color: var(--bad);
+  border-left-color: var(--lab-bad);
 }
 
 .lab-root .diagnostic-warning {
-  border-left-color: var(--warn);
+  border-left-color: var(--lab-warn);
 }
 
 .lab-root .diagnostic-info {
-  border-left-color: var(--accent);
+  border-left-color: var(--lab-accent);
 }
 
 .lab-root .diagnostic-code {
-  font-family: var(--mono);
-  font-size: 10px;
-  color: var(--faint);
+  font-family: var(--lab-mono);
+  font-size: 0.625rem;
+  color: var(--lab-faint);
 }
 
 .lab-root .diagnostic-message {
@@ -1099,18 +1115,18 @@
 }
 
 .lab-root .tree-row:hover {
-  background: var(--surface-2);
+  background: var(--lab-surface-2);
 }
 
 .lab-root .tree-row.selected {
-  background: var(--accent-soft);
+  background: var(--lab-accent-soft);
 }
 
 .lab-root .tree-toggle {
   appearance: none;
   border: 0;
   background: transparent;
-  color: var(--muted);
+  color: var(--lab-muted);
   width: 18px;
   padding: 3px 0;
   cursor: pointer;
@@ -1142,9 +1158,9 @@
 }
 
 .lab-root .tree-path {
-  color: var(--faint);
-  font-family: var(--mono);
-  font-size: 9px;
+  color: var(--lab-faint);
+  font-family: var(--lab-mono);
+  font-size: 0.625rem;
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
@@ -1156,13 +1172,13 @@
   flex-wrap: wrap;
   gap: 8px;
   padding: 2px 0;
-  color: var(--muted);
-  font-size: 10px;
+  color: var(--lab-muted);
+  font-size: 0.625rem;
 }
 
 .lab-root .route-when {
-  font-family: var(--mono);
-  color: var(--warn);
+  font-family: var(--lab-mono);
+  color: var(--lab-warn);
 }
 
 .lab-root .route-list {
@@ -1172,7 +1188,7 @@
 }
 
 .lab-root .route-item {
-  border: 1px solid var(--border);
+  border: 1px solid var(--lab-border);
   border-radius: 4px;
   padding: 8px;
 }
@@ -1199,8 +1215,8 @@
 .lab-root .inspector-title h3 {
   text-transform: none;
   letter-spacing: 0;
-  color: var(--text);
-  font-size: 13px;
+  color: var(--lab-text);
+  font-size: 0.875rem;
 }
 
 .lab-root .inspector-body {
@@ -1208,11 +1224,11 @@
 }
 
 .lab-root .source-drawer {
-  border: 1px solid var(--border);
+  border: 1px solid var(--lab-border);
   border-radius: 5px;
   padding: 8px;
   margin: 8px 0;
-  background: var(--surface-2);
+  background: var(--lab-surface-2);
 }
 
 .lab-root .source-head {
@@ -1226,8 +1242,8 @@
 .lab-root .source-code {
   max-height: 460px;
   overflow: auto;
-  background: var(--surface-2);
-  border: 1px solid var(--border);
+  background: var(--lab-surface-2);
+  border: 1px solid var(--lab-border);
   border-radius: 4px;
   padding: 8px 0;
   margin: 0;
@@ -1240,7 +1256,7 @@
 }
 
 .lab-root .source-line:hover {
-  background: var(--accent-soft);
+  background: var(--lab-accent-soft);
 }
 
 .lab-root .source-number {
@@ -1248,15 +1264,15 @@
   width: 42px;
   padding-right: 10px;
   text-align: right;
-  color: var(--faint);
+  color: var(--lab-faint);
   user-select: none;
 }
 
 .lab-root .prompt {
   white-space: pre-wrap;
   overflow-wrap: anywhere;
-  background: var(--surface-2);
-  border: 1px solid var(--border);
+  background: var(--lab-surface-2);
+  border: 1px solid var(--lab-border);
   border-radius: 4px;
   padding: 8px;
   max-height: 420px;
@@ -1266,7 +1282,7 @@
 
 .lab-root .prompt.small {
   max-height: 160px;
-  font-size: 11px;
+  font-size: 0.75rem;
 }
 
 .lab-root .markdown {
@@ -1298,18 +1314,18 @@
 }
 
 .lab-root .markdown h1 {
-  font-size: 18px;
+  font-size: 1.25rem;
 }
 
 .lab-root .markdown h2 {
-  font-size: 16px;
+  font-size: 1.1rem;
 }
 
 .lab-root .markdown h3,
 .lab-root .markdown h4,
 .lab-root .markdown h5,
 .lab-root .markdown h6 {
-  font-size: 14px;
+  font-size: 1rem;
 }
 
 .lab-root .markdown ul,
@@ -1331,8 +1347,8 @@
 }
 
 .lab-root .markdown blockquote {
-  border-left: 2px solid var(--border);
-  color: var(--muted);
+  border-left: 2px solid var(--lab-border);
+  color: var(--lab-muted);
   margin: 8px 0;
   padding-left: 10px;
 }
@@ -1341,39 +1357,39 @@
   border-collapse: collapse;
   margin: 8px 0;
   width: 100%;
-  font-size: 12px;
+  font-size: 0.8rem;
 }
 
 .lab-root .markdown th,
 .lab-root .markdown td {
-  border: 1px solid var(--border);
+  border: 1px solid var(--lab-border);
   padding: 4px 6px;
   text-align: left;
 }
 
 .lab-root .markdown th {
-  background: var(--surface-2);
+  background: var(--lab-surface-2);
   font-weight: 600;
 }
 
 .lab-root .markdown hr {
-  border-color: var(--border);
+  border-color: var(--lab-border);
   margin: 12px 0;
 }
 
 .lab-root .markdown a {
-  color: var(--accent);
+  color: var(--lab-accent);
 }
 
 .lab-root .markdown code {
-  font-family: var(--mono);
-  font-size: 12px;
+  font-family: var(--lab-mono);
+  font-size: 0.75rem;
 }
 
 .lab-root .markdown p code,
 .lab-root .markdown li code {
-  background: var(--surface-2);
-  border: 1px solid var(--border);
+  background: var(--lab-surface-2);
+  border: 1px solid var(--lab-border);
   border-radius: 3px;
   padding: 0 3px;
 }
@@ -1381,8 +1397,8 @@
 .lab-root .markdown pre {
   white-space: pre-wrap;
   overflow-wrap: anywhere;
-  background: var(--surface-2);
-  border: 1px solid var(--border);
+  background: var(--lab-surface-2);
+  border: 1px solid var(--lab-border);
   border-radius: 4px;
   padding: 8px;
   max-height: 420px;
@@ -1398,8 +1414,8 @@
 .lab-root .json {
   white-space: pre-wrap;
   overflow-wrap: anywhere;
-  background: var(--surface-2);
-  border: 1px solid var(--border);
+  background: var(--lab-surface-2);
+  border: 1px solid var(--lab-border);
   border-radius: 4px;
   padding: 8px;
   margin: 4px 0;
@@ -1416,7 +1432,7 @@
 }
 
 .lab-root details > summary {
-  color: var(--text);
+  color: var(--lab-text);
 }
 
 /* Compare */
@@ -1440,22 +1456,22 @@
 }
 
 .lab-root .diff-item {
-  border: 1px solid var(--border);
+  border: 1px solid var(--lab-border);
   border-left-width: 3px;
   border-radius: 4px;
   padding: 6px 8px;
 }
 
 .lab-root .diff-added {
-  border-left-color: var(--ok);
+  border-left-color: var(--lab-ok);
 }
 
 .lab-root .diff-removed {
-  border-left-color: var(--bad);
+  border-left-color: var(--lab-bad);
 }
 
 .lab-root .diff-changed {
-  border-left-color: var(--warn);
+  border-left-color: var(--lab-warn);
 }
 
 .lab-root .diff-item summary {
@@ -1463,8 +1479,8 @@
   flex-wrap: wrap;
   align-items: center;
   gap: 8px;
-  font-family: var(--mono);
-  font-size: 10px;
+  font-family: var(--lab-mono);
+  font-size: 0.625rem;
 }
 
 .lab-root .field-diff {
@@ -1475,13 +1491,13 @@
 }
 
 .lab-root .field-diff-row {
-  border-top: 1px solid var(--border);
+  border-top: 1px solid var(--lab-border);
   padding-top: 4px;
 }
 
 .lab-root .field-diff-value {
-  font-family: var(--mono);
-  font-size: 10px;
+  font-family: var(--lab-mono);
+  font-size: 0.625rem;
   overflow-wrap: anywhere;
 }
 
@@ -1492,8 +1508,8 @@
   margin-top: 12px;
   padding: 0;
   overflow: hidden;
-  border-color: color-mix(in srgb, var(--accent) 36%, var(--border));
-  background: color-mix(in srgb, var(--accent) 3%, var(--surface));
+  border-color: color-mix(in srgb, var(--lab-accent) 36%, var(--lab-border));
+  background: color-mix(in srgb, var(--lab-accent) 3%, var(--lab-surface));
 }
 
 .lab-root .debug-dock-head {
@@ -1506,8 +1522,8 @@
   justify-content: space-between;
   gap: 10px;
   padding: 10px 12px;
-  border-bottom: 1px solid var(--border);
-  background: color-mix(in srgb, var(--accent) 3%, var(--surface));
+  border-bottom: 1px solid var(--lab-border);
+  background: color-mix(in srgb, var(--lab-accent) 3%, var(--lab-surface));
 }
 
 .lab-root .debug-dock.collapsed .debug-dock-head {
@@ -1526,12 +1542,12 @@
 }
 
 .lab-root .debug-dock-title h2 {
-  font-size: 14px;
+  font-size: 0.875rem;
 }
 
 .lab-root .debug-dock-title p {
   margin: 2px 0 0;
-  font-size: 11px;
+  font-size: 0.75rem;
 }
 
 .lab-root .debug-dock-actions {
@@ -1553,8 +1569,8 @@
 }
 
 .lab-root .debug-launch h3 {
-  color: var(--text);
-  font-size: 13px;
+  color: var(--lab-text);
+  font-size: 0.875rem;
   font-weight: 600;
   text-transform: none;
   letter-spacing: 0;
@@ -1566,15 +1582,15 @@
   align-items: flex-end;
   gap: 8px 14px;
   padding: 8px 0;
-  border-top: 1px solid var(--border);
+  border-top: 1px solid var(--lab-border);
 }
 
 .lab-root .debug-run-picker label {
   display: flex;
   flex-direction: column;
   gap: 3px;
-  color: var(--muted);
-  font-size: 10px;
+  color: var(--lab-muted);
+  font-size: 0.625rem;
 }
 
 .lab-root .debug-run-picker select {
@@ -1589,7 +1605,7 @@
   gap: 10px;
   margin: 8px 0 10px;
   padding-top: 8px;
-  border-top: 1px solid var(--border);
+  border-top: 1px solid var(--lab-border);
 }
 
 .lab-root .debug-run-head > div:first-child {
@@ -1612,8 +1628,8 @@
   justify-content: center;
   gap: 8px;
   padding: 18px;
-  color: var(--muted);
-  font-size: 12px;
+  color: var(--lab-muted);
+  font-size: 0.75rem;
 }
 
 .lab-root .debug-advanced {
@@ -1628,8 +1644,8 @@
 
 .lab-root .run-start {
   margin-bottom: 12px;
-  border-color: color-mix(in srgb, var(--accent) 32%, var(--border));
-  background: color-mix(in srgb, var(--accent) 3%, var(--surface));
+  border-color: color-mix(in srgb, var(--lab-accent) 32%, var(--lab-border));
+  background: color-mix(in srgb, var(--lab-accent) 3%, var(--lab-surface));
 }
 
 .lab-root .run-start-head {
@@ -1646,7 +1662,7 @@
 
 .lab-root .run-start-head p {
   margin: 0;
-  font-size: 11px;
+  font-size: 0.75rem;
 }
 
 .lab-root .run-start-row {
@@ -1672,7 +1688,7 @@
   align-items: center;
   gap: 6px 14px;
   margin-top: 7px;
-  font-size: 10px;
+  font-size: 0.625rem;
 }
 
 .lab-root .runs-grid {
@@ -1708,19 +1724,19 @@
 }
 
 .lab-root .run-item:hover {
-  background: var(--surface-2);
-  border-color: var(--border);
+  background: var(--lab-surface-2);
+  border-color: var(--lab-border);
 }
 
 .lab-root .run-item.selected {
-  border-color: color-mix(in srgb, var(--accent) 55%, var(--border));
-  background: var(--accent-soft);
+  border-color: color-mix(in srgb, var(--lab-accent) 55%, var(--lab-border));
+  background: var(--lab-accent-soft);
 }
 
 .lab-root .run-origin {
   margin-top: 2px;
-  font-family: var(--mono);
-  font-size: 9px;
+  font-family: var(--lab-mono);
+  font-size: 0.625rem;
 }
 
 .lab-root .runs-debug-toggle {
@@ -1737,10 +1753,10 @@
   flex-direction: column;
   gap: 6px;
   padding: 8px;
-  border: 1px solid var(--border);
+  border: 1px solid var(--lab-border);
   border-radius: 5px;
-  background: var(--surface-2);
-  font-size: 11px;
+  background: var(--lab-surface-2);
+  font-size: 0.75rem;
 }
 
 .lab-root .run-head {
@@ -1750,7 +1766,7 @@
   gap: 10px;
   margin-bottom: 12px;
   padding-bottom: 10px;
-  border-bottom: 1px solid var(--border);
+  border-bottom: 1px solid var(--lab-border);
 }
 
 .lab-root .run-head > div:first-child {
@@ -1759,7 +1775,7 @@
 }
 
 .lab-root .run-head h2 {
-  font-size: 18px;
+  font-size: 1.25rem;
 }
 
 .lab-root .run-head-actions {
@@ -1778,26 +1794,26 @@
   align-items: center;
   justify-content: center;
   gap: 6px;
-  color: var(--muted);
+  color: var(--lab-muted);
   text-align: center;
 }
 
 .lab-root .run-empty h2 {
-  color: var(--text);
-  font-size: 16px;
+  color: var(--lab-text);
+  font-size: 1rem;
 }
 
 .lab-root .run-empty p {
   max-width: 44ch;
   margin: 0;
-  font-size: 12px;
+  font-size: 0.75rem;
 }
 
 .lab-root .run-tree {
   display: flex;
   flex-direction: column;
   gap: 1px;
-  border: 1px solid var(--border);
+  border: 1px solid var(--lab-border);
   border-radius: 5px;
   padding: 4px;
 }
@@ -1815,15 +1831,15 @@
   text-align: left;
   cursor: pointer;
   border-radius: 3px;
-  font-size: 11px;
+  font-size: 0.75rem;
 }
 
 .lab-root .run-row:hover {
-  background: var(--surface-2);
+  background: var(--lab-surface-2);
 }
 
 .lab-root .run-row.selected {
-  background: var(--accent-soft);
+  background: var(--lab-accent-soft);
 }
 
 .lab-root .run-name {
@@ -1832,13 +1848,13 @@
 
 .lab-root .run-type,
 .lab-root .run-attempt {
-  color: var(--muted);
-  font-size: 10px;
+  color: var(--lab-muted);
+  font-size: 0.625rem;
 }
 
 .lab-root .step-detail {
   margin-top: 10px;
-  border-top: 1px solid var(--border);
+  border-top: 1px solid var(--lab-border);
   padding-top: 8px;
 }
 
@@ -1861,8 +1877,8 @@
 
 .lab-root .step-panel > summary::before {
   content: '▸';
-  color: var(--muted);
-  font-size: 10px;
+  color: var(--lab-muted);
+  font-size: 0.625rem;
 }
 
 .lab-root .step-panel[open] > summary::before {
@@ -1892,7 +1908,7 @@
 }
 
 .lab-root .input-item {
-  border: 1px solid var(--border);
+  border: 1px solid var(--lab-border);
   border-radius: 4px;
   padding: 7px 8px;
 }
@@ -1943,23 +1959,23 @@
 }
 
 .lab-root .alert {
-  border: 1px solid var(--border);
+  border: 1px solid var(--lab-border);
   border-radius: 4px;
   padding: 7px 8px;
-  font-size: 11px;
+  font-size: 0.75rem;
 }
 
 .lab-root .work-card {
-  border: 1px solid var(--border);
+  border: 1px solid var(--lab-border);
   border-radius: 5px;
   padding: 10px;
   margin-bottom: 10px;
-  background: color-mix(in srgb, var(--accent) 3%, var(--surface));
+  background: color-mix(in srgb, var(--lab-accent) 3%, var(--lab-surface));
 }
 
 .lab-root .work-card-primary {
-  border-color: color-mix(in srgb, var(--accent) 55%, var(--border));
-  box-shadow: 0 0 0 1px color-mix(in srgb, var(--accent) 18%, transparent);
+  border-color: color-mix(in srgb, var(--lab-accent) 55%, var(--lab-border));
+  box-shadow: 0 0 0 1px color-mix(in srgb, var(--lab-accent) 18%, transparent);
 }
 
 .lab-root .work-head {
@@ -1984,7 +2000,7 @@
 
 .lab-root .work-hint {
   margin-top: 8px;
-  font-size: 10px;
+  font-size: 0.625rem;
 }
 
 .lab-root .result-input {
@@ -2002,10 +2018,10 @@
   display: flex;
   flex-direction: column;
   gap: 2px;
-  font-size: 9px;
+  font-size: 0.625rem;
   text-transform: uppercase;
   letter-spacing: 0.05em;
-  color: var(--faint);
+  color: var(--lab-faint);
 }
 
 .lab-root .usage-row input {
@@ -2025,28 +2041,28 @@
   flex-direction: column;
   gap: 3px;
   flex: 1;
-  font-size: 10px;
-  color: var(--muted);
+  font-size: 0.625rem;
+  color: var(--lab-muted);
 }
 
 .lab-root .advanced {
-  border-top: 1px solid var(--border);
+  border-top: 1px solid var(--lab-border);
   padding-top: 6px;
   margin-top: 8px;
 }
 
 .lab-root .advanced summary {
   cursor: pointer;
-  color: var(--muted);
-  font-size: 10px;
+  color: var(--lab-muted);
+  font-size: 0.625rem;
   text-transform: uppercase;
   letter-spacing: 0.05em;
 }
 
 .lab-root .message {
   margin-top: 8px;
-  font-size: 11px;
-  color: var(--accent);
+  font-size: 0.75rem;
+  color: var(--lab-accent);
 }
 
 /* Traffic */
@@ -2070,7 +2086,7 @@
 }
 
 .lab-root .call-row {
-  border: 1px solid var(--border);
+  border: 1px solid var(--lab-border);
   border-radius: 4px;
   padding: 5px 8px;
 }
@@ -2082,7 +2098,7 @@
   gap: 8px;
   cursor: pointer;
   list-style: none;
-  font-size: 11px;
+  font-size: 0.75rem;
 }
 
 .lab-root .call-row summary::-webkit-details-marker,
@@ -2091,7 +2107,7 @@
 }
 
 .lab-root .call-error {
-  border-left: 3px solid var(--bad);
+  border-left: 3px solid var(--lab-bad);
 }
 
 .lab-root .call-body {
@@ -2110,10 +2126,10 @@
 }
 
 .lab-root .event-row {
-  border: 1px solid var(--border);
+  border: 1px solid var(--lab-border);
   border-radius: 4px;
   padding: 4px 8px;
-  font-size: 10px;
+  font-size: 0.625rem;
 }
 
 .lab-root .event-row summary {
@@ -2126,9 +2142,9 @@
 }
 
 .lab-root .event-time {
-  color: var(--faint);
-  font-family: var(--mono);
-  font-size: 9px;
+  color: var(--lab-faint);
+  font-family: var(--lab-mono);
+  font-size: 0.625rem;
 }
 
 .lab-root .instructions {
@@ -2170,21 +2186,21 @@
 }
 
 .lab-root .tool-option:hover {
-  background: var(--surface-2);
+  background: var(--lab-surface-2);
 }
 
 .lab-root .tool-option.active {
-  background: var(--accent-soft);
-  border-color: color-mix(in srgb, var(--accent) 40%, var(--border));
+  background: var(--lab-accent-soft);
+  border-color: color-mix(in srgb, var(--lab-accent) 40%, var(--lab-border));
 }
 
 .lab-root .tool-option code {
-  font-size: 11px;
+  font-size: 0.75rem;
 }
 
 .lab-root .tool-option span {
-  color: var(--faint);
-  font-size: 10px;
+  color: var(--lab-faint);
+  font-size: 0.625rem;
 }
 
 .lab-root .recent-calls {
@@ -2206,15 +2222,15 @@
   padding: 4px 6px;
   cursor: pointer;
   text-align: left;
-  font-size: 10px;
+  font-size: 0.625rem;
 }
 
 .lab-root .recent-call:hover {
-  background: var(--surface-2);
+  background: var(--lab-surface-2);
 }
 
 .lab-root .recent-call.bad {
-  border-left: 2px solid var(--bad);
+  border-left: 2px solid var(--lab-bad);
 }
 
 .lab-root .recent-call code {
@@ -2238,13 +2254,13 @@
 }
 
 .lab-root .console-tool-head h2 code {
-  font-size: 15px;
+  font-size: 0.875rem;
 }
 
 .lab-root .console-tool-head p {
   margin: 2px 0 0;
   max-width: 80ch;
-  font-size: 11px;
+  font-size: 0.75rem;
 }
 
 .lab-root .console-input {
@@ -2281,46 +2297,46 @@
   display: flex;
   align-items: baseline;
   gap: 4px;
-  color: var(--text);
-  font-family: var(--mono);
-  font-size: 11px;
+  color: var(--lab-text);
+  font-family: var(--lab-mono);
+  font-size: 0.75rem;
 }
 
 .lab-root .schema-required {
-  color: var(--bad);
+  color: var(--lab-bad);
 }
 
 .lab-root .schema-desc {
   margin: 0;
   max-width: 80ch;
-  color: var(--muted);
-  font-size: 11px;
+  color: var(--lab-muted);
+  font-size: 0.75rem;
 }
 
 .lab-root .schema-hint {
-  color: var(--faint);
-  font-family: var(--mono);
-  font-size: 10px;
+  color: var(--lab-faint);
+  font-family: var(--lab-mono);
+  font-size: 0.625rem;
 }
 
 .lab-root .schema-error {
-  color: var(--bad);
-  font-size: 11px;
+  color: var(--lab-bad);
+  font-size: 0.75rem;
 }
 
 .lab-root .schema-field.has-error input,
 .lab-root .schema-field.has-error select,
 .lab-root .schema-field.has-error textarea {
-  border-color: var(--bad);
+  border-color: var(--lab-bad);
 }
 
 .lab-root .schema-object {
   min-width: 0;
   margin: 0;
   padding: 8px 10px;
-  border: 1px solid var(--border);
+  border: 1px solid var(--lab-border);
   border-radius: 4px;
-  background: color-mix(in srgb, var(--surface-2) 50%, transparent);
+  background: color-mix(in srgb, var(--lab-surface-2) 50%, transparent);
 }
 
 .lab-root .schema-object legend {
@@ -2352,8 +2368,8 @@
 }
 
 .lab-root .detail-list dt {
-  color: var(--faint);
-  font-size: 9px;
+  color: var(--lab-faint);
+  font-size: 0.625rem;
   text-transform: uppercase;
   letter-spacing: 0.06em;
 }
@@ -2364,7 +2380,7 @@
   align-items: center;
   gap: 6px;
   margin: 0;
-  font-size: 11px;
+  font-size: 0.75rem;
   overflow-wrap: anywhere;
 }
 
@@ -2378,8 +2394,8 @@
 }
 
 .lab-root .settings-section {
-  background: var(--surface);
-  border: 1px solid var(--border);
+  background: var(--lab-surface);
+  border: 1px solid var(--lab-border);
   border-radius: 6px;
   padding: 12px;
   min-width: 0;
@@ -2391,7 +2407,7 @@
 
 .lab-root .section-note {
   margin: 8px 0 0;
-  font-size: 10px;
+  font-size: 0.625rem;
 }
 
 .lab-root .path-row {
@@ -2418,15 +2434,15 @@
   align-items: flex-start;
   justify-content: space-between;
   gap: 10px;
-  border: 1px solid var(--border);
+  border: 1px solid var(--lab-border);
   border-radius: 4px;
   padding: 7px 8px;
-  font-size: 11px;
+  font-size: 0.75rem;
 }
 
 .lab-root .adapter-row code {
-  color: var(--faint);
-  font-size: 9px;
+  color: var(--lab-faint);
+  font-size: 0.625rem;
 }
 
 .lab-root .preflight {
@@ -2441,9 +2457,9 @@
   align-items: flex-start;
   gap: 8px;
   padding: 6px 8px;
-  border: 1px solid var(--border);
+  border: 1px solid var(--lab-border);
   border-radius: 4px;
-  background: var(--surface-2);
+  background: var(--lab-surface-2);
 }
 
 .lab-root .preflight-copy {
@@ -2455,11 +2471,11 @@
 }
 
 .lab-root .preflight-copy strong {
-  font-size: 11px;
+  font-size: 0.75rem;
 }
 
 .lab-root .preflight-copy span {
-  font-size: 10px;
+  font-size: 0.625rem;
   overflow-wrap: anywhere;
 }
 
@@ -2480,7 +2496,7 @@
 }
 
 .lab-root .boot h1 {
-  font-size: 20px;
+  font-size: 1.25rem;
 }
 
 .lab-root .boot p {

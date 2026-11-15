@@ -80,7 +80,7 @@ export function HubPanelPage() {
         </Button>
         <span className="truncate text-xs text-muted-foreground">Hub panel</span>
       </header>
-      <div className="panel-root min-h-0 flex-1">
+      <div className="panel-root flex-1">
         <PanelRuntimeProvider
           {...(adapterHostAvailable() ? { adapterHost: desktopAdapterHost } : {})}
           defaultTransport={transport}

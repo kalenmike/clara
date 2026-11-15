@@ -29,12 +29,12 @@ const HELP = `${heading('Clara adapter management')}
 Usage:
   clara adapter search [--json]
   clara adapter list [--json]
-  clara adapter install <kind>[@version] [--pair <code>] [--from <path>] [--reuse-pairing] [--no-start]
+  clara adapter install <kind>[@version] [--pair <code>] [--transport local|relay|docker] [--ws-url <url>] [--from <path>] [--reuse-pairing] [--no-start]
   clara adapter upgrade [kind] [--no-start] [--json]
   clara adapter remove <kind> [--purge]
   clara adapter start|stop|status|logs <kind> [options]
   clara adapter verify <kind> [--directory <path>] [--write] [--json]
-  clara pair adapter --harness <kind> [--transport local|relay] [--install]
+  clara pair adapter --harness <kind> [--transport local|relay|docker] [--ws-url <url>] [--install]
 
 Kinds: ${ADAPTER_KINDS.join(', ')}
 

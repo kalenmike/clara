@@ -25,6 +25,9 @@
     "packages/panel": {
       "project": ["src/**/*.{ts,tsx,css}"]
     },
+    "packages/theme": {
+      "project": ["src/**/*.css"]
+    },
     "tools/docs": {
       "entry": ["src/clientModules/**/*.ts", "src/pages/**/*.tsx", "src/theme/**/*.tsx"],
       "project": ["*.ts", "src/**/*.{ts,tsx}"],
@@ -116,7 +119,11 @@
       "ignoreDependencies": ["ws"]
     }
   },
-  "ignore": ["apps/web/src/components/ui/**", "tools/build/feature-flags.d.mts"],
+  "ignore": [
+    "apps/web/src/components/ui/**",
+    "tools/build/feature-flags.d.mts",
+    "tools/build/version.d.mts"
+  ],
   "ignoreBinaries": ["ss", "rustc", "ldd"],
   "ignoreDependencies": ["yaml", "cloudflare", "better-sqlite3"],
   "rules": {

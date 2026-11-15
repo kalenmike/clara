@@ -24,7 +24,7 @@ export const commands: Command[] = [
   {
     name: 'start',
     summary: 'Start the local stack',
-    usage: '[hub|engine|web] [--foreground] [--open]',
+    usage: '[hub|engine|web|lab] [--foreground] [--open]',
     options: [
       { flags: '--foreground', description: 'run the supervisor in this terminal' },
       { flags: '--open', description: 'open the panel in a browser' },
@@ -34,19 +34,19 @@ export const commands: Command[] = [
   {
     name: 'stop',
     summary: 'Stop the local stack',
-    usage: '[hub|engine|web]',
+    usage: '[hub|engine|web|lab]',
     run: runStop,
   },
   {
     name: 'restart',
     summary: 'Restart the local stack',
-    usage: '[hub|engine|web] [--open]',
+    usage: '[hub|engine|web|lab] [--open]',
     run: runRestart,
   },
   {
     name: 'status',
     summary: 'Show what is running',
-    usage: '[hub|engine|web] [--json] [--open]',
+    usage: '[hub|engine|web|lab] [--json] [--open]',
     options: [
       { flags: '--json', description: 'machine-readable output' },
       { flags: '--open', description: 'open the panel in a browser' },
@@ -56,13 +56,13 @@ export const commands: Command[] = [
   {
     name: 'ps',
     summary: 'Alias for status',
-    usage: '[hub|engine|web] [--json]',
+    usage: '[hub|engine|web|lab] [--json]',
     run: runStatus,
   },
   {
     name: 'logs',
     summary: 'Follow service logs',
-    usage: '[hub|engine|web] [--tail <n>] [--no-follow]',
+    usage: '[hub|engine|web|lab] [--tail <n>] [--no-follow]',
     options: [
       { flags: '--tail <n>', description: 'number of lines to print first (default 80)' },
       { flags: '--no-follow', description: 'print the tail and exit' },
@@ -73,7 +73,7 @@ export const commands: Command[] = [
     name: 'pair',
     summary: 'Print a pairing code',
     usage:
-      'hub [--no-relay] [--no-qr] [--revoke-all|--revoke <id>] | adapter --harness <kind> [--transport local|relay] [--install]',
+      'hub [--no-relay] [--no-qr] [--revoke-all|--revoke <id>] | adapter --harness <kind> [--transport local|relay|docker] [--ws-url <url>] [--install]',
     run: runPair,
   },
   {
@@ -83,6 +83,8 @@ export const commands: Command[] = [
     options: [
       { flags: '--json', description: 'machine-readable output where supported' },
       { flags: '--pair <code>', description: 'pair with an existing code instead of issuing one' },
+      { flags: '--transport <mode>', description: 'local, relay, or docker when issuing a code' },
+      { flags: '--ws-url <url>', description: 'direct hub WebSocket URL for local or docker' },
       { flags: '--from <path>', description: 'install a built adapter package or dist directory' },
       {
         flags: '--reuse-pairing',
@@ -250,6 +252,10 @@ async function serve(name: string | undefined, extra: readonly string[] = []): P
     await (await import('./serve/web.ts')).serveWeb()
     return typeof process.exitCode === 'number' ? process.exitCode : 0
   }
+  if (name === 'lab') {
+    await (await import('./serve/lab.ts')).serveLab()
+    return typeof process.exitCode === 'number' ? process.exitCode : 0
+  }
   if (name === 'runner') {
     await (await import('./serve/runner.ts')).serveRunner(extra)
     return typeof process.exitCode === 'number' ? process.exitCode : 0
@@ -303,7 +309,7 @@ export function renderHelp(commandName?: string): string {
 
   const width = Math.max(...commands.map((item) => item.name.length))
   const lines = [
-    `${bold('Clara')} — run the hub, engine, and web client on this machine.`,
+    `${bold('Clara')} — run the hub, engine, lab, and web client on this machine.`,
     '',
     'Usage:',
     '  clara <command> [options]',

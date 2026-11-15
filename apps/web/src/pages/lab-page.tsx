@@ -65,7 +65,7 @@ export function LabPage() {
         </Button>
         <span className="truncate text-xs text-muted-foreground">Clara Lab</span>
       </header>
-      <div className="lab-root min-h-0 flex-1" data-clara-lab-surface>
+      <div className="lab-root flex-1" data-embedded data-clara-lab-surface>
         {!ready && !error ? (
           <ConnectionSplash label="Opening Clara Lab…" />
         ) : error ? (

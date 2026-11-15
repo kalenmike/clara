@@ -12,7 +12,7 @@ describe('command help', () => {
   it('renders usage and options for one command', () => {
     const help = renderHelp('start')
     expect(help).toContain('Start the local stack')
-    expect(help).toContain('clara start [hub|engine|web]')
+    expect(help).toContain('clara start [hub|engine|web|lab]')
     expect(help).toContain('--foreground')
   })
 
