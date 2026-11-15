@@ -79,6 +79,12 @@ type PeerLimits = { frames: TokenBucket; bytes: TokenBucket }
 export class RelayRoom {
   private readonly state: DurableObjectState
   private readonly peers = new Map<string, PeerLimits>()
+  /**
+   * A refused socket must never forward another frame. Closing is asynchronous,
+   * so frames already queued behind the refused one can still reach the room;
+   * forwarding one of those would leave a hole in the client's sealed sequence.
+   */
+  private readonly refused = new WeakSet<WebSocket>()
 
   constructor(state: DurableObjectState, _env: Env) {
     this.state = state
@@ -152,6 +158,7 @@ export class RelayRoom {
     const tags = this.state.getTags(socket)
     const role = tags.includes('agent') ? 'agent' : tags.includes('client') ? 'client' : null
     if (!role) return
+    if (this.refused.has(socket)) return
 
     if (role === 'agent') {
       for (const client of this.state.getWebSockets('client')) {
@@ -165,7 +172,7 @@ export class RelayRoom {
         ? new TextEncoder().encode(message).byteLength
         : message.byteLength
     if (size > MAX_CLIENT_FRAME_BYTES) {
-      socket.close(FRAME_TOO_LARGE_CODE, 'frame too large')
+      this.refuse(socket, FRAME_TOO_LARGE_CODE, 'frame too large')
       return
     }
 
@@ -180,8 +187,7 @@ export class RelayRoom {
     // The grant id is the identity budget: a reconnecting device shares one
     // bucket instead of resetting its budget on every socket.
     if (!this.withinRate(grantId, size)) {
-      this.peers.delete(grantId)
-      socket.close(CLIENT_LIMIT_CODE, 'rate limit')
+      this.refuse(socket, CLIENT_LIMIT_CODE, 'rate limit')
       return
     }
 
@@ -261,9 +267,27 @@ export class RelayRoom {
     return true
   }
 
+  /**
+   * Stop forwarding this socket and close it. The marker is checked before the
+   * rate budget, so frames already queued behind the refusal cannot slip past
+   * a refreshed bucket and leave a hole in the client's sealed sequence.
+   */
+  private refuse(socket: WebSocket, code: number, reason: string): void {
+    this.refused.add(socket)
+    socket.close(code, reason)
+  }
+
+  /**
+   * Drop the grant budget only when the last socket using it is gone. Two tabs
+   * share one grant, so closing one must not reset the other's budget.
+   */
   private forgetPeer(socket: WebSocket): void {
     const grant = peerAttachment(socket)?.grant
-    if (typeof grant === 'string') this.peers.delete(grant)
+    if (typeof grant !== 'string') return
+    for (const other of this.state.getWebSockets('client')) {
+      if (other !== socket && peerAttachment(other)?.grant === grant) return
+    }
+    this.peers.delete(grant)
   }
 
   /** Hibernation drops in-memory state; the attachment is the source of truth. */
