@@ -1063,6 +1063,7 @@ async function loadGroup(
  * and a cursor that resumes the scan on the next call.
  */
 const ARCHIVED_SCAN_ROW_LIMIT = 500
+const ARCHIVED_SCAN_PAGE_LIMIT = 25
 
 /**
  * Fetch one harness project record. Each record keeps its own cursor, so the
@@ -1094,10 +1095,10 @@ async function loadRecord(
       : undefined
   const rows = new Map<string, ClaraSession>()
   let previous: string | null | undefined
-  let next: string | null = null
+  let next: string | null
   let scanned = 0
 
-  for (;;) {
+  for (let page = 0; ; page += 1) {
     const result: ClaraSessionsResponse = await forwardDtoTo(
       deps,
       harnessID,
@@ -1125,8 +1126,10 @@ async function loadRecord(
     if (
       target === undefined ||
       next === null ||
+      result.data.length === 0 ||
       matched >= target ||
-      scanned >= ARCHIVED_SCAN_ROW_LIMIT
+      scanned >= ARCHIVED_SCAN_ROW_LIMIT ||
+      page + 1 >= ARCHIVED_SCAN_PAGE_LIMIT
     ) {
       return { harnessID, projectID, data, cursor: { previous: previous ?? null, next } }
     }
