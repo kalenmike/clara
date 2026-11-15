@@ -666,6 +666,10 @@ class RelayFetchTransport implements RelayTransport {
         const material = await deriveV4SessionKeys(input)
         this.keys = material.keys
         this.receive = new ReplayGuard()
+        // The ephemeral private key is only needed for this handshake. Drop it
+        // as soon as the session keys exist so forward secrecy does not depend
+        // on the socket close path.
+        this.clientEphemeral = null
       } catch (cause) {
         this.rejectHandshake(cause)
         this.socket?.close(4001, 'handshake failed')
