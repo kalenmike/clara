@@ -111,7 +111,7 @@
     }
   },
   "ignore": ["apps/web/src/components/ui/**", "tools/build/feature-flags.d.mts"],
-  "ignoreBinaries": ["ss", "rustc"],
+  "ignoreBinaries": ["ss", "rustc", "ldd"],
   "ignoreDependencies": ["yaml", "cloudflare", "better-sqlite3"],
   "rules": {
     "exports": "off",
