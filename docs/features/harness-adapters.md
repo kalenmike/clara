@@ -26,16 +26,14 @@ capability flags, not harness kind.
 4. A browser user runs the command on the harness machine. Clara Desktop adds
    **This computer**, an **SSH host**, and a local **Docker container**, so the
    hub host needs no SSH keys or Docker access.
-5. The script detects the platform, downloads the archive, verifies its
-   SHA-256, installs it, and runs the adapter installer.
-6. The installer discovers the harness: OpenCode from flags, environment, or
-   `service.json`; Claude Code from the machine's login; Pi from the installed
-   `pi` binary in RPC mode.
-7. The adapter enrolls, stores its credential, and starts a user service or a
-   background process. The panel shows **Waiting for the adapter to connect…**,
-   then **Connected**; closing before enrollment cancels the code.
-8. Open the web client. Sessions arrive through the adapter; Clara projects are
-   created there and link directories on the adapter.
+5. The script verifies and installs the archive, runs the adapter installer,
+   starts the adapter, and waits for an authenticated hub link.
+6. The installer discovers the harness: OpenCode from flags/env/`service.json`,
+   Claude Code from the machine's login, and Pi from the installed `pi` binary.
+7. The adapter enrolls, stores its credential, and starts a service or background
+   process. The panel shows **Connected** only after an authenticated link; a
+   failed start prints the adapter state and log in the install card.
+8. Open the web client; sessions and Clara projects arrive through the adapter.
 
 ## Core business rules
 
@@ -86,7 +84,8 @@ capability flags, not harness kind.
   adapter codes are named as such, and the web points to the harness machine and
   to **Clients → Pair Client** for a browser.
 - **Adapter offline** — the panel shows **Paired · Offline**, `/v1` returns
-  `harness_offline`, and the adapter reconnects with backoff.
+  `harness_offline`, and the adapter reconnects with backoff; an install that
+  leaves no authenticated process fails with its state and log.
 - **Harness access off** — every harness card shows **Off** and the hub does not
   proxy until the gate is on again.
 - **Adapter setup off or registry unreachable** — the panel cannot read the
@@ -140,7 +139,8 @@ upgrade|remove <kind> [--pair <code>] [--from <path>] [--container <name>]`.
 - Registry: `<registry>/<kind>/manifest.json` and `v<version>-install.sh`;
   `CLARA_ADAPTER_REGISTRY_URL` overrides. `pnpm adapters:build` and
   `pnpm adapters:serve` provide a local registry; releases verify every
-  manifest and artifact digest before deploy.
+  manifest and artifact digest before deploy. The panel's install script starts
+  the adapter and waits for an authenticated `state.json` before success.
 - Protocol frames, capabilities, limits, close codes, and mapping:
   [harness-protocol.md](../architecture/harness-protocol.md). Identity and
   revocation: [E2EE](../architecture/e2ee.md). Routing:

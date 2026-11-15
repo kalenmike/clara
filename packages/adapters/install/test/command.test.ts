@@ -72,6 +72,21 @@ describe('install command helpers', () => {
     expect(script).toContain('checksum did not match')
   })
 
+  it('starts the adapter and waits for an authenticated hub link', () => {
+    const script = buildInstallScript({
+      kind: 'claude',
+      manifest: { ...manifest, harness: 'claude', version: '1.2.3' },
+      installUrl: manifest.install,
+      pairingCode: 'code',
+    })
+    expect(script).toContain("version='1.2.3'")
+    expect(script).toContain('"$binary" start')
+    expect(script).toContain('"status":[[:space:]]*"authenticated"')
+    expect(script).toContain('[[:space:]]*$pid([^0-9]|$)')
+    expect(script).toContain('The adapter was installed but did not start or connect.')
+    expect(script).toContain('tail -n 80 "$data/adapter.log"')
+  })
+
   it('does not pass --no-runner to the Claude adapter', () => {
     const script = buildInstallScript({
       kind: 'claude',
