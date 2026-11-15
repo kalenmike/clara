@@ -38,6 +38,7 @@ packages/adapters/binding            Orchestration binding client, delivery, and
 packages/adapters/runner             Shared script runner for harness adapters
 packages/adapters/install            Adapter install planning, target discovery, and jobs
 packages/panel                       Shared hub panel UI for the served and bundled routes
+packages/theme                       Shared palette and theme tokens for the web, panel, and lab
 packages/lab                         Shared Clara Lab UI mounted by the desktop and the standalone entry
 packages/lab-server                  Lab service: workspace preview, engine token, MCP/SSE, asset cache
 packages/preview                     Pipeline preview, diagnostics, and snapshot diff SDK
