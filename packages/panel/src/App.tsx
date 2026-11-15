@@ -25,7 +25,7 @@ import { TitleBar } from './components/shell/title-bar.tsx'
 
 type SnapshotState = ReturnType<typeof useAgentSnapshot>
 
-export function App() {
+export function PanelApp() {
   const session = useSession()
   const authenticated = session.status?.authenticated === true
   const state = useAgentSnapshot({

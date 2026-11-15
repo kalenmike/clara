@@ -56,6 +56,8 @@ export type ClientControl = {
   send: (action: ClaraAction) => Promise<void>
   subscribePush: (listener: (state: PushStatusState) => void) => () => void
   requestSync: (action: SyncRequestAction) => Promise<SyncResponse>
+  /** The tunnel's path-based fetch, for other typed surfaces on the same session. */
+  fetch: typeof globalThis.fetch
 }
 
 export type ClientHandle = {
@@ -145,6 +147,7 @@ export function createClient(
       send: (action) => transport.sendAction(action),
       subscribePush: (listener) => transport.subscribePush(listener),
       requestSync: (action) => transport.requestSync(action),
+      fetch: transport.fetch,
     },
     subscribeStatus: (listener) => transport.subscribe(listener),
   }

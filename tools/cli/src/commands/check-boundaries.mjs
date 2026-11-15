@@ -29,7 +29,7 @@ const skippedDirs = new Set(['node_modules', 'dist', 'build', 'coverage', '.git'
 const cloudflareFeaturePattern = /features\/cloudflare-deployment\/(?!loader\.(?:ts|tsx))/
 const cloudflareFeatureRoots = [
   'apps/hub/server/src/features/cloudflare-deployment',
-  'apps/hub/panel/src/features/cloudflare-deployment',
+  'packages/panel/src/features/cloudflare-deployment',
 ]
 
 const violations = []

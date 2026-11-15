@@ -26,6 +26,13 @@ A build compiled with `ENABLE_CLOUDFLARE_DEPLOYMENT=true` also deploys the relay
 Worker and Durable Object to the operator's Cloudflare account from the Relay
 card.
 
+The panel UI is `@clara/panel`, so the same surface also ships inside the web and
+desktop client at `/hub`. The bundled panel reaches the hub's loopback listener
+through the paired E2EE session and a `/v1/hub-panel` bridge; it opens no new
+port. It keeps a session bearer token in the app instead of the served page's
+HttpOnly cookie, and it disables controls that would cut its own tunnel. The
+server-served page remains the first-run, headless, and emergency surface.
+
 ## User flow
 
 1. Start the hub after `pnpm build` with `clara start hub --local`, or
@@ -159,7 +166,9 @@ card.
 11. In **Settings**, edit **Web URL** or **VAPID contact** and choose **Save**;
     **Use default** clears the file value. The source tag shows environment,
     `server.json`/`vapid.json`, or default, and an environment value locks the
-    field.
+    field. The bundled panel keeps transport, relay target, and room controls
+    read-only, so a connection change always happens in the server-served panel
+    on the hub.
 12. In **Settings**, use the **Shell commands** switch to enable or block all
     command requests. Enabling makes the header expandable; open it to edit
     **Filter commands**, optionally turn on **Allow Git history**, then choose
@@ -174,7 +183,8 @@ card.
 14. To take every external connection offline, choose **Go offline** at the far
     right of the Overview header and confirm. The Hub tile reads **Connections
     inactive**; the page keeps polling and the banner explains that the panel is
-    still available.
+    still available. This control is disabled in the bundled `/hub` panel, where
+    it would cut the panel's own connection.
 15. Choose **Go online** to restore the saved choices. Feature switches are
     disabled until connections are back online and show red while they are
     stopped, so the offline state is readable from the switch colors alone.
@@ -224,6 +234,15 @@ card.
     use the orchestrator surface.
 21. Leave the page open. It refreshes every five seconds while visible and
     pauses when the tab is hidden. Use **Refresh** for an immediate check.
+22. In Clara, open **Hub** from the connected client. The bundled panel shows
+    the same Overview, Harness, Sessions, Connections, Clients, Traffic,
+    Activity, and Settings views without leaving the app. Sign in with the hub
+    owner account when asked. The app holds the resulting session token for the
+    connection, and its API calls travel over the existing encrypted tunnel.
+    Harness adapter setup still offers a one-time code, copy command, and
+    `clara://adapter` link; Clara Desktop's adapter host runs the install on this
+    computer, an SSH host, or a local container. Controls that would drop the
+    current tunnel stay disabled.
 
 ## Core business rules
 
@@ -317,6 +336,28 @@ card.
     completion, even if a harness or device is later removed. **Settings → Setup**
     is the only restart surface: **Finish setup** while incomplete,
     **Reconfigure connections** and **Replay setup guide** after completion.
+11. **One UI, two hosts.** The panel views and controls live in `@clara/panel`.
+    The hub service mounts the package on its loopback listener; the web and
+    desktop clients mount it at `/hub`. Hosts supply the API transport and a
+    capability set. The served panel allows every control and keeps its
+    HttpOnly session cookie. The bundled panel allows every control except the
+    ones that would cut its own connection or move its own target: **Go
+    offline**, the transport switch carrying the session (local or relay), and
+    relay target or room edits. Harness, device, monitoring, sync, orchestration, and
+    configuration controls remain available.
+12. **Bundled control uses the tunnel.** `/hub` calls the typed bridge under
+    `/v1/hub-panel`; the bridge forwards panel API requests to the loopback
+    listener and does not proxy arbitrary hub URLs. A login over the bridge
+    returns a panel session bearer token that the app holds; the server-served
+    panel keeps its HttpOnly cookie and its existing Host/Origin and fetch
+    metadata checks. The route adds no listener, no published port, and no relay
+    surface. It still requires the hub owner's credentials, so pairing a device
+    does not grant panel access. First run is unchanged: a local hub uses the
+    server-served setup screen once; a remote hub is provisioned with
+    `CLARA_ADMIN_USERNAME` and `CLARA_ADMIN_PASSWORD` or
+    `CLARA_ADMIN_PASSWORD_FILE` before the client pairs; the hub starts no
+    transport until that owner exists, so the app cannot connect and the bundled
+    panel never renders the local setup form.
 
 ## Edge cases
 
@@ -481,11 +522,31 @@ card.
 - **The panel was not built** — the page returns a short instruction to run
   `pnpm build`; the JSON API still works.
 - **Panel port is busy** — the hub service logs `panel unavailable` and continues.
+- **`/hub` is opened without a connection** — the route sends the client to the
+  connect screen. The bundled panel has no loopback fallback of its own.
+- **A remote hub has no owner account** — the hub starts no transport until the
+  owner exists, so the client cannot connect and the bundled panel is unavailable.
+  Create the owner on the hub with `CLARA_ADMIN_*` or the headless setup command.
+  The bundled panel never renders the local setup form.
+- **The panel session token expires or is revoked** — the next bridge request
+  returns unauthorized, the panel returns to its sign-in view, and cached
+  snapshot data is dropped.
+- **The tunnel drops while the panel is open** — the last snapshot stays visible
+  with its error banner while the client reconnects; controls fail until it does.
+- **The connection is local-only and the device moves networks** — the bundled
+  panel disconnects with the rest of Clara. Use a relay pairing for remote use.
+- **A disabled control is pressed** — the bundled panel explains that the action
+  would cut its own connection and points to the server-served panel on the hub.
+- **The hub service is down** — the server-served page is unavailable too; the
+  bundled panel reports the connection failure instead of showing stale controls.
+- **The app or its panel session ends** — the bearer token is not a browser
+  cookie and is held only by the app; sign in again with the owner account.
 
 ## Out of scope
 
 - Non-superadmin panel users and roles; the schema reserves a role column
-- Remote access to the panel through the relay
+- Serving the panel page from the relay or Pages; only typed panel API requests
+  travel the E2EE tunnel
 - Editing the relay room as free text; rooms are generated by the hub and can
   only be regenerated. The panel does not edit other `server.json` fields beyond
   the Web URL, relay URL, and generated room
@@ -586,6 +647,22 @@ card.
 - Required mutation headers: `x-clara-panel: 1`; JSON-body mutations also
   require `content-type: application/json`
 - Assets: `GET /assets/<hashed file>` and `GET /favicon.svg`
+- Bundled panel: `/hub` in the web and desktop router, rendered from
+  `packages/panel` (`@clara/panel`) inside the connected client shell
+- Hub bridge: `/v1/hub-panel` on the paired E2EE session forwards the typed panel
+  API to the loopback listener; it is not a general loopback proxy and adds no
+  listener or published port
+- Bundled auth: a panel login over the bridge returns a panel session bearer
+  token that the app holds. The served page keeps its HttpOnly
+  `clara_panel_session` cookie. Both use the hub's superadmin session policy and
+  are revoked with it
+- Bundled capabilities: `PanelCapabilitiesProvider` in
+  `packages/panel/src/lib/capabilities-provider.tsx` gives the bundled host a
+  reduced capability set. **Go offline**, the active transport switch (local or
+  relay), and relay target/room edits are unavailable; harness, device, monitoring, sync,
+  orchestration, and configuration controls remain available
+- Desktop adapter host: `apps/desktop/host` accepts panel-issued setup offers and
+  runs local, SSH, and Docker installs through `packages/adapters/install`
 - Environment:
   - `CLARA_PANEL_PORT` changes the port (default `8790`)
   - `CLARA_PANEL_BIND_HOST` changes the listener (default `127.0.0.1`)
@@ -607,6 +684,8 @@ card.
 - CLI: `clara-server serve --no-panel`,
   `clara-server setup [--username <name>] [--password-stdin]`,
   `clara-server admin reset|setup-token`
+- Shared UI: `packages/panel/src`; `apps/hub/panel` is the served-panel entry
+  that builds the assets the hub embeds
 - Built assets: `apps/hub/server/dist/panel`, copied from `apps/hub/panel/dist`
 - Open the built panel: `clara status hub --open` opens
   `http://127.0.0.1:${CLARA_PANEL_PORT:-8790}/` in a browser when the hub service is

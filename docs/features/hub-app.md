@@ -11,6 +11,11 @@ loopback panel. The chat client is a separate desktop app, described in
 The app is an alternative to running the hub with Docker or the Node CLI. The
 hub data model, pairing, relay, panel, and adapters are unchanged.
 
+The tray continues to open the server-served panel. That page remains the
+first-run and headless surface, and it works before any client is paired. For
+day-to-day control, Clara Desktop can render the same panel UI at `/hub` over its
+paired E2EE session; the hub app neither hosts nor depends on that route.
+
 ## User flow
 
 1. Launch Clara Hub. The tray icon appears and the sidecar starts.
@@ -25,6 +30,9 @@ hub data model, pairing, relay, panel, and adapters are unchanged.
 6. Use **Quit** to stop the hub. The sidecar checkpoints SQLite and exits.
 7. Install a newer app to update the sidecar and panel together. There is no
    in-app updater yet.
+8. On another machine, pair Clara Desktop and open **Hub** to reach the same
+   panel through the encrypted tunnel. The tray app keeps the loopback page for
+   first run, headless use, and recovery.
 
 ## Core business rules
 
@@ -62,6 +70,10 @@ hub data model, pairing, relay, panel, and adapters are unchanged.
    SSH keys and the Docker socket stay on the machine that runs the install:
    Clara Desktop's adapter host for one-click installs, or the person's terminal
    for the copy command. The hub embeds no adapter artifacts.
+10. The sidecar is unchanged by the bundled panel. It still serves one loopback
+    panel page and one local listener; it does not serve the web client or a
+    second GUI. The `/v1/hub-panel` bridge is a hub-service route, not a new
+    sidecar process or port, and the tray app does not need a paired client.
 
 ## Edge cases
 
@@ -83,6 +95,13 @@ hub data model, pairing, relay, panel, and adapters are unchanged.
 - **Panel build missing**: the sidecar build fails before Tauri bundles.
 - **No panel**: `--no-panel` leaves the tray without a window; the app is not
   useful for normal users.
+- **No client is paired yet**: the tray panel still works. This is the surface
+  that creates the owner and issues the first client code.
+- **The panel is opened from Clara Desktop**: the request reaches the loopback
+  listener through the E2EE bridge. The tray app does not open a second window
+  and the hub keeps one process.
+- **The panel session expires in the bundled panel**: Clara Desktop asks for the
+  owner credentials again. The tray panel's own cookie session is separate.
 - **macOS Cmd+Q**: exits the app and stops the sidecar. Closing the panel window
   only hides it.
 - **Linux tray**: needs libayatana-appindicator at runtime. Installers are
@@ -128,6 +147,10 @@ hub data model, pairing, relay, panel, and adapters are unchanged.
 - `apps/hub/desktop/src/entry.ts` extracts the embedded panel and calls
   `@clara/hub-server/main`. The sidecar uses the `bun` export condition of
   `@clara/sqlite`, so `bun:sqlite` replaces better-sqlite3.
+- The embedded panel builds from `packages/panel` through the
+  `apps/hub/panel` entry. The same package is mounted by Clara Desktop at
+  `/hub`; that route talks to the hub service bridge and never reaches the tray
+  app directly. No new sidecar, port, or Tauri command is involved.
 - `apps/hub/desktop/scripts/build-sidecar.mjs` maps the Rust target triple to a
   Bun target. `TAURI_ENV_TARGET_TRIPLE` overrides the host triple. Relay files
   are embedded when `ENABLE_CLOUDFLARE_DEPLOYMENT` is on.

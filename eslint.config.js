@@ -49,7 +49,11 @@ export default defineConfig([
     },
   },
   {
-    files: ['apps/web/**/*.{ts,tsx}', 'apps/hub/panel/**/*.{ts,tsx}'],
+    files: [
+      'apps/web/**/*.{ts,tsx}',
+      'apps/hub/panel/**/*.{ts,tsx}',
+      'packages/panel/**/*.{ts,tsx}',
+    ],
     extends: [reactHooks.configs.flat.recommended, reactRefresh.configs.vite],
     languageOptions: {
       globals: globals.browser,

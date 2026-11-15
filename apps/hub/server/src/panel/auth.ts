@@ -378,6 +378,17 @@ export class PanelAuth {
     return undefined
   }
 
+  /**
+   * A tunnel request carries the session as a bearer token because the panel
+   * cookie belongs to the panel origin, not the hub API origin. The cookie wins
+   * when both are present so a server-served panel keeps its existing behavior.
+   */
+  static readBearer(header: string | undefined): string | undefined {
+    if (!header) return undefined
+    const match = /^Bearer\s+(.+)$/i.exec(header.trim())
+    return match?.[1]?.trim() || undefined
+  }
+
   private createSession(user: PanelUser): PanelLoginResult {
     const token = randomBytes(SESSION_BYTES).toString('base64url')
     const tokenHash = hashToken(token)

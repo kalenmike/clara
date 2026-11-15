@@ -14,7 +14,7 @@ import {
   type PanelSessionsQuery,
 } from '@clara/shared-types'
 import { SERVER_VERSION } from '../version.ts'
-import { PanelAuth, PanelAuthError, type PanelAuthUser } from './auth.ts'
+import { PanelAuth, PanelAuthError, type PanelAuthUser, type PanelLoginResult } from './auth.ts'
 import { readControlFailure, type PanelControlService } from './controls.ts'
 import { checkPanelRequest } from './security.ts'
 import type { PanelDataSource } from './runtime.ts'
@@ -40,6 +40,7 @@ const INSTALL_PATH = '/panel/api/v1/install'
 const HEALTH_PATH = '/health'
 const ASSETS_PREFIX = '/assets/'
 const PANEL_HEADER = 'x-clara-panel'
+const TUNNEL_HEADER = 'x-clara-panel-transport'
 const MAX_BODY_BYTES = 8 * 1024
 const FEATURE_NAMES: PanelFeatureName[] = ['opencode', 'local', 'relay', 'push']
 
@@ -227,7 +228,7 @@ async function handleRequest(
       return
     }
 
-    const user = context.auth.session(PanelAuth.readCookie(request.headers.cookie))
+    const user = context.auth.session(sessionToken(request))
     if (!user) {
       sendJson(response, method, 401, {
         error: { code: 'unauthorized', message: 'Sign in to the hub panel' },
@@ -473,13 +474,14 @@ async function handleSession(
   method: string
 ): Promise<void> {
   if (method === 'GET' || method === 'HEAD') {
-    const status = context.auth.status(PanelAuth.readCookie(request.headers.cookie))
+    const status = context.auth.status(sessionToken(request))
     sendJson(response, method, 200, status)
     return
   }
 
   if (method === 'DELETE') {
-    const user = context.auth.session(PanelAuth.readCookie(request.headers.cookie))
+    const token = sessionToken(request)
+    const user = context.auth.session(token)
     if (!user) {
       sendJson(response, method, 401, {
         error: { code: 'unauthorized', message: 'Sign in to the hub panel' },
@@ -487,7 +489,7 @@ async function handleSession(
       return
     }
     if (!requireMutationHeader(request, response, method)) return
-    context.auth.logout(PanelAuth.readCookie(request.headers.cookie))
+    context.auth.logout(token)
     sendJson(
       response,
       method,
@@ -528,13 +530,9 @@ async function handleSession(
 
   try {
     const result = await context.auth.login(username, password, requestSource(request))
-    sendJson(
-      response,
-      method,
-      200,
-      { user: result.user },
-      { 'set-cookie': context.auth.cookieHeader(result.token, result.maxAgeSeconds) }
-    )
+    sendJson(response, method, 200, sessionBody(request, result), {
+      'set-cookie': context.auth.cookieHeader(result.token, result.maxAgeSeconds),
+    })
   } catch (cause) {
     sendAuthFailure(response, method, cause)
   }
@@ -587,13 +585,9 @@ async function handleSetup(
     } catch (cause) {
       context.log?.('the hub did not start after owner setup', cause)
     }
-    sendJson(
-      response,
-      method,
-      200,
-      { user: result.user },
-      { 'set-cookie': context.auth.cookieHeader(result.token, result.maxAgeSeconds) }
-    )
+    sendJson(response, method, 200, sessionBody(request, result), {
+      'set-cookie': context.auth.cookieHeader(result.token, result.maxAgeSeconds),
+    })
   } catch (cause) {
     sendAuthFailure(response, method, cause)
   }
@@ -634,13 +628,9 @@ async function handlePassword(
 
   try {
     const result = await context.auth.changePassword(user.id, currentPassword, newPassword)
-    sendJson(
-      response,
-      method,
-      200,
-      { user: result.user },
-      { 'set-cookie': context.auth.cookieHeader(result.token, result.maxAgeSeconds) }
-    )
+    sendJson(response, method, 200, sessionBody(request, result), {
+      'set-cookie': context.auth.cookieHeader(result.token, result.maxAgeSeconds),
+    })
   } catch (cause) {
     sendAuthFailure(response, method, cause)
   }
@@ -1344,6 +1334,31 @@ function sendAuthFailure(response: ServerResponse, method: string, cause: unknow
 
 function authInfo(user: PanelAuthUser): PanelAuthInfo {
   return { username: user.username, role: user.role }
+}
+
+/** The cookie for the served panel, or a bearer token from the tunnel bridge. */
+function sessionToken(request: IncomingMessage): string | undefined {
+  return (
+    PanelAuth.readCookie(request.headers.cookie) ??
+    PanelAuth.readBearer(request.headers.authorization)
+  )
+}
+
+function tunneled(request: IncomingMessage): boolean {
+  return request.headers[TUNNEL_HEADER] === 'tunnel'
+}
+
+/**
+ * A tunnel carries the session as a token because its cookie belongs to the
+ * panel origin. The served panel keeps its cookie-only response.
+ */
+function sessionBody(
+  request: IncomingMessage,
+  result: PanelLoginResult
+): { user: PanelAuthUser; sessionToken?: string } {
+  return tunneled(request)
+    ? { user: result.user, sessionToken: result.token }
+    : { user: result.user }
 }
 
 function requestSource(request: IncomingMessage): string {

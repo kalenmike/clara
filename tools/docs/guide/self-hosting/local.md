@@ -38,6 +38,10 @@ In the panel:
 5. Set **Web URL** if devices should open something other than
    `http://127.0.0.1:8080`; the connection step also exposes it.
 
+After pairing, [Clara Desktop](../desktop.md) can open the panel with **Hub** and
+the owner credentials. The loopback page stays available for first run, headless
+use, and recovery.
+
 For a headless install, create the owner without a browser:
 
 ```bash

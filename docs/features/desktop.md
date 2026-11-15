@@ -14,6 +14,12 @@ adapter installs on this computer, on an SSH host, or in a local Docker
 container. It uses the laptop's SSH agent and Docker socket, so a hosted hub
 never needs either. The browser keeps the copy-command path.
 
+The same window carries the hub panel at `/hub` for the hub it is paired with.
+It is the shared `@clara/panel` UI reached over the existing E2EE session, so
+the operator can administer a remote hub without opening its loopback page. The
+app does not run the hub service, a panel listener, or a second hub sidecar; the
+adapter host remains its only bundled service.
+
 ## User flow
 
 1. Build the app for the host platform, or open an installer produced from the
@@ -31,6 +37,10 @@ never needs either. The browser keeps the copy-command path.
 8. Settings → Harness → Pair harness installs an adapter on **This computer**,
    an **SSH host** from `~/.ssh/config`, or a local **Docker container**. A
    `clara://adapter?code=…` link opens the same flow with the code filled in.
+9. Open **Hub** from the connected app to use the hub panel in the same window.
+   Sign in with the hub owner account. The overview, harness, sessions,
+   connections, clients, traffic, activity, and settings views use the paired
+   hub's live state over the encrypted connection; no loopback page is opened.
 
 ## Core business rules
 
@@ -60,6 +70,16 @@ never needs either. The browser keeps the copy-command path.
 8. `clara://` is registered only for adapter links. The window is
    focused when one arrives; a link received before the webview is ready is
    stored and read on demand. Other schemes never reach the system.
+9. The app is a client, not a hub host. It never starts the hub service, a
+   panel listener, or a relay. `/hub` uses the same E2EE session as chat and
+   reaches the hub's loopback panel through the typed `/v1/hub-panel` bridge.
+   The app holds a panel session bearer token for that connection; it does not
+   receive the served panel's HttpOnly cookie or the hub's harness credentials.
+10. The bundled panel disables controls that would cut its own connection:
+    **Go offline**, the transport switch carrying the session (local or relay),
+    and relay target or room edits. Harness setup, device management, monitoring, sync,
+    orchestration, and configuration stay available. Adapter setup offers are
+    carried out by the adapter host, not by the hub service.
 
 ## Edge cases
 
@@ -85,12 +105,25 @@ never needs either. The browser keeps the copy-command path.
   A remote client that cannot read the file keeps its relay URL.
 - Several app windows can run at once. Each opens its own hub connection from
   the same paired device.
+- A remote hub with no owner account cannot be set up from `/hub`. The hub
+  starts no transport until the owner exists, so the app cannot connect. Create
+  the owner with `CLARA_ADMIN_*` or the headless setup command, then pair the
+  app. The bundled panel never renders the local setup form.
+- The panel session expires while the app stays connected to chat. The panel
+  asks for the owner credentials again; the chat connection is unaffected.
+- The hub has no panel because it was built or started with the panel disabled.
+  `/hub` reports that the panel is unavailable.
+- A control that is disabled in the bundled panel explains why and points at the
+  server-served panel on the hub. The app does not silently hide the control.
+- The app is offline from the hub. The panel shows the connection failure and
+  the last snapshot is not presented as live.
 
 ## Out of scope
 
 - Signed and notarized installers, an auto-updater, and a release pipeline.
 - Native notifications and notification-click routing.
 - `clara://` browser-pairing deep links and single-instance forwarding.
+- Running the hub service, a panel listener, or a relay inside the app.
 - Window-state persistence, tray behavior, and mobile targets.
 
 ## Known gaps
@@ -134,8 +167,16 @@ never needs either. The browser keeps the copy-command path.
 - The shell exposes `hub_runtime` through `withGlobalTauri`. On boot and
   reconnect, `apps/web/src/lib/desktop-runtime.ts` asks for the live local
   `wsUrl` and `connection-provider.tsx` persists it when it changed.
+- The bundled panel route is `/hub`. It renders `@clara/panel` from
+  `packages/panel` and calls the hub bridge under `/v1/hub-panel` through the
+  paired E2EE session. It passes the house capability set that disables **Go
+  offline**, the active transport switch (local or relay), and relay target/room
+  edits.
+  The bridge adds no listener; the app still has no hub-service sidecar.
 - The adapter host lives in `apps/desktop/host` (`@clara/desktop-host`). It
-  reuses `@clara/adapter-install` for planning, target discovery, and jobs.
+  reuses `@clara/adapter-install` from `packages/adapters/install` for planning,
+  target discovery, and jobs. Panel-issued adapter setup offers are the input to
+  this flow; the hub never runs an install.
   `pnpm --filter @clara/desktop-host run bundle` compiles the Bun sidecar into
   `apps/desktop/src-tauri/binaries/clara-adapter-host-<triple>`; the Tauri
   `externalBin` entry packages it. The shell's `adapter_host_runtime` and

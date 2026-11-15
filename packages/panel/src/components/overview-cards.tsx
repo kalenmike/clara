@@ -10,6 +10,11 @@ import type {
   PanelValueSource,
 } from '@clara/shared-types'
 import { CloudflareRelaySlot } from '../features/cloudflare-deployment/loader.tsx'
+import {
+  LOCAL_TRANSPORT_LOCK_REASON,
+  RELAY_TRANSPORT_LOCK_REASON,
+  usePanelCapabilities,
+} from '../lib/capabilities-context.ts'
 import { findFeature, useFeatureControl } from '../lib/feature-control.ts'
 import { RelayEditor } from './relay-editor.tsx'
 import { HubPowerButton } from './hub-power-button.tsx'
@@ -113,7 +118,11 @@ export function LocalCard({
   defaultExpanded?: boolean
 }) {
   const feature = findFeature(controls, 'local')
-  const control = useFeatureControl(feature, controls.stopped, onChanged)
+  const { allowLocalToggle } = usePanelCapabilities()
+  const control = useFeatureControl(feature, controls.stopped, onChanged, {
+    locked: !allowLocalToggle,
+    reason: LOCAL_TRANSPORT_LOCK_REASON,
+  })
   const { masked, redact } = usePeek()
   const tone: Tone = local.active ? 'success' : local.desired ? 'warning' : 'neutral'
   const status = local.active ? 'Listening' : local.desired ? 'Unavailable' : 'Off'
@@ -140,6 +149,10 @@ export function LocalCard({
         control.error ? (
           <div className="px-4 pt-3">
             <Notice tone="danger">{redact(control.error)}</Notice>
+          </div>
+        ) : control.lockReason ? (
+          <div className="px-4 pt-3">
+            <Notice>{control.lockReason}</Notice>
           </div>
         ) : null
       }
@@ -182,7 +195,11 @@ export function RelayCard({
   defaultExpanded?: boolean
 }) {
   const feature = findFeature(controls, 'relay')
-  const control = useFeatureControl(feature, controls.stopped, onChanged)
+  const { allowRelayToggle } = usePanelCapabilities()
+  const control = useFeatureControl(feature, controls.stopped, onChanged, {
+    locked: !allowRelayToggle,
+    reason: RELAY_TRANSPORT_LOCK_REASON,
+  })
   const { masked, redact } = usePeek()
   const tone: Tone =
     relay.status === 'online'
@@ -224,6 +241,10 @@ export function RelayCard({
         control.error ? (
           <div className="px-4 pt-3">
             <Notice tone="danger">{redact(control.error)}</Notice>
+          </div>
+        ) : control.lockReason ? (
+          <div className="px-4 pt-3">
+            <Notice>{control.lockReason}</Notice>
           </div>
         ) : null
       }

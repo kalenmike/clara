@@ -1,0 +1,47 @@
+/*
+ * Document entry for the served hub panel.
+ *
+ * Only this file may import Tailwind preflight or style `html`/`body` for a
+ * panel build: `apps/hub/panel/src/main.tsx` imports it, and the served page
+ * owns its document. The bundled `/hub` route imports `globals.css` and
+ * `shell.css` instead, because the web client owns Tailwind and the document
+ * there.
+ */
+
+@import 'tailwindcss';
+@import './globals.css';
+@import './shell.css';
+
+/* The panel UI lives in this package, outside the served panel's Vite root. */
+@source '../';
+
+@custom-variant dark (&:is(.dark *));
+
+html,
+body,
+#root {
+  height: 100%;
+}
+
+/*
+ * Paint the canvas before the shell mounts. `applyStoredPanelTheme()` runs
+ * before React renders, so `.dark` is already on the document element when
+ * these rules apply.
+ */
+html {
+  @apply bg-neutral-50 text-neutral-950 antialiased;
+  color-scheme: light;
+}
+
+html.dark {
+  @apply bg-neutral-950 text-neutral-50;
+  color-scheme: dark;
+}
+
+body {
+  margin: 0;
+  overflow: hidden;
+  font-family: var(--font-sans);
+  font-size: 13px;
+  line-height: 1.45;
+}

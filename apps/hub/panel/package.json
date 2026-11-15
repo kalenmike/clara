@@ -7,13 +7,10 @@
     "dev": "vite",
     "build": "tsc -b && vite build && node scripts/check-feature-bundle.mjs",
     "preview": "vite preview",
-    "typecheck": "tsc -p tsconfig.json",
-    "test": "vitest run --passWithNoTests"
+    "typecheck": "tsc -p tsconfig.json"
   },
   "dependencies": {
-    "@clara/shared-types": "workspace:*",
-    "lucide-react": "^1.64.0",
-    "qrcode.react": "4.2.0",
+    "@clara/panel": "workspace:*",
     "react": "^19.3.1",
     "react-dom": "^19.3.1"
   },
@@ -23,9 +20,7 @@
     "@types/react": "^19.3.0",
     "@types/react-dom": "^19.3.0",
     "@vitejs/plugin-react": "^6.1.2",
-    "tailwindcss": "^4.3.3",
     "typescript": "~6.0.3",
-    "vite": "^8.3.5",
-    "vitest": "^5.0.5"
+    "vite": "^8.3.5"
   }
 }

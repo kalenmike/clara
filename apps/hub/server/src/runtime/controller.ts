@@ -33,7 +33,7 @@ import { baseURL } from '@clara/service-control'
 import type { WebSocket } from 'ws'
 import { Agent } from '../agent.ts'
 import { createApiApp } from '../api/app.ts'
-import type { ApiApp } from '../api/context.ts'
+import type { ApiApp, PanelEndpoint } from '../api/context.ts'
 import {
   createRelayRoom,
   DEFAULT_ADAPTER_REGISTRY_URL,
@@ -97,6 +97,8 @@ export type ControllerOptions = {
   startedAt: number
   apiToken: string
   secretKey?: SecretKeyInfo
+  /** The live loopback panel listener, or undefined while it is off. */
+  panel?: () => PanelEndpoint | undefined
   /** A panel edit replaced the target, so a managed deployment is now stale. */
   onRelayTargetChanged?: () => void
   /** The local listener started, stopped, or bound a different port. */
@@ -184,6 +186,7 @@ export class RuntimeController {
         sessionCount: () => this.localAgent.sessionCount,
         createAdapterPairing: (input) => this.createAdapterPairing(input),
         adapterManifest: (kind) => this.adapterManifest(kind),
+        ...(options.panel ? { panel: options.panel } : {}),
         log: options.log,
       },
       { token: options.apiToken }

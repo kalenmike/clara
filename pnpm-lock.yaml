@@ -220,15 +220,9 @@ importers:
 
   apps/hub/panel:
     dependencies:
-      '@clara/shared-types':
+      '@clara/panel':
         specifier: workspace:*
-        version: link:../../../packages/contracts/shared-types
-      lucide-react:
-        specifier: ^1.64.0
-        version: 1.64.0(@types/react@19.3.0)(react@19.3.1)
-      qrcode.react:
-        specifier: 4.2.0
-        version: 4.2.0(react@19.3.1)
+        version: link:../../../packages/panel
       react:
         specifier: ^19.3.1
         version: 19.3.1
@@ -251,18 +245,12 @@ importers:
       '@vitejs/plugin-react':
         specifier: ^6.1.2
         version: 6.1.2(vite@8.3.5(@types/node@24.19.2)(esbuild@0.28.2)(jiti@2.7.0)(terser@5.51.2)(tsx@4.23.15)(yaml@2.9.1))
-      tailwindcss:
-        specifier: ^4.3.3
-        version: 4.3.3
       typescript:
         specifier: ~6.0.3
         version: 6.0.3
       vite:
         specifier: ^8.3.5
         version: 8.3.5(@types/node@24.19.2)(esbuild@0.28.2)(jiti@2.7.0)(terser@5.51.2)(tsx@4.23.15)(yaml@2.9.1)
-      vitest:
-        specifier: ^5.0.5
-        version: 5.0.5(@opentelemetry/api@1.10.0)(@types/node@24.19.2)(vite@8.3.5(@types/node@24.19.2)(esbuild@0.28.2)(jiti@2.7.0)(terser@5.51.2)(tsx@4.23.15)(yaml@2.9.1))
 
   apps/hub/server:
     dependencies:
@@ -403,6 +391,9 @@ importers:
       '@clara/crypto':
         specifier: workspace:*
         version: link:../../packages/crypto
+      '@clara/panel':
+        specifier: workspace:*
+        version: link:../../packages/panel
       '@clara/shared-types':
         specifier: workspace:*
         version: link:../../packages/contracts/shared-types
@@ -788,6 +779,34 @@ importers:
 
   packages/orchestration/policy:
     devDependencies:
+      typescript:
+        specifier: ~6.0.3
+        version: 6.0.3
+      vitest:
+        specifier: ^5.0.5
+        version: 5.0.5(@opentelemetry/api@1.10.0)(@types/node@24.19.2)(vite@8.3.5(@types/node@24.19.2)(esbuild@0.28.2)(jiti@2.7.0)(terser@5.51.2)(tsx@4.23.15)(yaml@2.9.1))
+
+  packages/panel:
+    dependencies:
+      '@clara/shared-types':
+        specifier: workspace:*
+        version: link:../contracts/shared-types
+      lucide-react:
+        specifier: ^1.64.0
+        version: 1.64.0(@types/react@19.3.0)(react@19.3.1)
+      qrcode.react:
+        specifier: 4.2.0
+        version: 4.2.0(react@19.3.1)
+    devDependencies:
+      '@types/react':
+        specifier: ^19.3.0
+        version: 19.3.0
+      react:
+        specifier: ^19.3.1
+        version: 19.3.1
+      tailwindcss:
+        specifier: ^4.3.3
+        version: 4.3.3
       typescript:
         specifier: ~6.0.3
         version: 6.0.3

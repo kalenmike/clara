@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useRef, useState } from 'react'
 import { PANEL_API_VERSION, type PanelSnapshot } from '@clara/shared-types'
-import { PanelApiError } from './panel-api.ts'
+import { getPanel, PanelApiError } from './panel-api.ts'
 
 const POLL_MS = 5_000
 
@@ -39,21 +39,11 @@ export function useAgentSnapshot({
     }))
 
     try {
-      const response = await fetch('/panel/api/v1/status', {
-        headers: { accept: 'application/json' },
-        credentials: 'same-origin',
-        cache: 'no-store',
+      // The panel API transport keeps the tunnel route's token and abort the
+      // same as the served panel's cookie.
+      const data = await getPanel<PanelSnapshot>('/panel/api/v1/status', {
         signal: controller.signal,
       })
-      if (response.status === 401) {
-        onUnauthorized()
-        return
-      }
-      if (!response.ok) {
-        throw new Error(await errorMessage(response))
-      }
-
-      const data = (await response.json()) as PanelSnapshot
       if (data.apiVersion !== PANEL_API_VERSION) {
         throw new Error(`The panel UI and hub API versions do not match (${data.apiVersion}).`)
       }
@@ -117,14 +107,4 @@ export function useAgentSnapshot({
       void load()
     },
   }
-}
-
-async function errorMessage(response: Response): Promise<string> {
-  try {
-    const body = (await response.json()) as { error?: { message?: unknown } }
-    if (typeof body.error?.message === 'string') return body.error.message
-  } catch {
-    // Fall through to the status.
-  }
-  return `The panel request failed (${response.status}).`
 }

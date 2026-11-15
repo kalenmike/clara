@@ -1,6 +1,7 @@
 import { useEffect, useId, useState } from 'react'
 import { RefreshCw, Trash2 } from 'lucide-react'
 import type { PanelRelayTransport } from '@clara/shared-types'
+import { RELAY_TARGET_LOCK_REASON, usePanelCapabilities } from '../lib/capabilities-context.ts'
 import { formatTimestamp, sourceLabel } from '../lib/format.ts'
 import { deletePanel, postPanel } from '../lib/panel-api.ts'
 import { usePeek } from '../lib/peek-context.tsx'
@@ -23,6 +24,8 @@ export function RelayEditor({
   onChanged: () => void
 }) {
   const { redact } = usePeek()
+  const { allowRelayTargetEdit } = usePanelCapabilities()
+  const targetLocked = !allowRelayTargetEdit
   const tokenErrorId = useId()
   const [url, setUrl] = useState(relay.url ?? '')
   const [agentToken, setAgentToken] = useState('')
@@ -114,6 +117,8 @@ export function RelayEditor({
 
   return (
     <div className="space-y-2 border-t border-neutral-100 pt-2 dark:border-neutral-800/60">
+      {targetLocked ? <Notice>{RELAY_TARGET_LOCK_REASON}</Notice> : null}
+
       {replacedAt ? (
         <Notice>
           Another hub connected to this room at {replacedAt}. Check for a second hub using the same
@@ -137,7 +142,7 @@ export function RelayEditor({
         <input
           value={url}
           onChange={(event) => setUrl(event.target.value)}
-          disabled={urlFromEnv || pending !== undefined}
+          disabled={urlFromEnv || targetLocked || pending !== undefined}
           spellCheck={false}
           placeholder="wss://relay.example"
           className="mt-1 w-full rounded-md border border-neutral-200 bg-white px-2 py-1.5 font-mono text-xs disabled:opacity-60 dark:border-neutral-700 dark:bg-neutral-900"
@@ -155,7 +160,7 @@ export function RelayEditor({
         <button
           type="button"
           onClick={() => setConfirmAction('room')}
-          disabled={!relay.roomRegeneratable || pending !== undefined}
+          disabled={!relay.roomRegeneratable || targetLocked || pending !== undefined}
           className="inline-flex shrink-0 items-center gap-1 rounded-md border border-neutral-200 px-2 py-1 text-[11px] font-medium disabled:opacity-60 dark:border-neutral-700"
         >
           <RefreshCw className="size-3" aria-hidden="true" />
@@ -174,7 +179,7 @@ export function RelayEditor({
           type="password"
           value={agentToken}
           onChange={(event) => setAgentToken(event.target.value)}
-          disabled={agentFromEnv || pending !== undefined}
+          disabled={agentFromEnv || targetLocked || pending !== undefined}
           autoComplete="off"
           spellCheck={false}
           aria-invalid={agentTokenInvalid || undefined}
@@ -211,7 +216,7 @@ export function RelayEditor({
         <button
           type="button"
           onClick={() => void save()}
-          disabled={!canSave || pending !== undefined}
+          disabled={!canSave || targetLocked || pending !== undefined}
           className="inline-flex items-center gap-1.5 rounded-lg bg-sky-600 px-2.5 py-1.5 text-xs font-semibold text-white shadow-sm transition hover:bg-sky-500 disabled:cursor-not-allowed disabled:opacity-60"
         >
           {pending === 'save' ? 'Saving…' : 'Save and connect'}
@@ -220,7 +225,7 @@ export function RelayEditor({
           <button
             type="button"
             onClick={() => setConfirmAction('clear')}
-            disabled={pending !== undefined}
+            disabled={targetLocked || pending !== undefined}
             className="inline-flex items-center gap-1.5 rounded-lg border border-neutral-200 px-2.5 py-1.5 text-xs font-semibold transition hover:bg-neutral-50 disabled:opacity-60 dark:border-neutral-700 dark:hover:bg-neutral-900"
           >
             <Trash2 className="size-3.5" aria-hidden="true" />

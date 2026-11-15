@@ -6,6 +6,12 @@ import type {
 } from '@clara/shared-types'
 import type { HarnessManager } from '../harness/manager.ts'
 
+/** The live loopback panel listener the tunnel bridge forwards to. */
+export type PanelEndpoint = {
+  host: string
+  port: number
+}
+
 export type ApiDependencies = {
   harness: HarnessManager
   info: AgentInfo
@@ -17,6 +23,11 @@ export type ApiDependencies = {
     method?: AdapterInstallMethod
   }) => Promise<AdapterInstallOffer>
   adapterManifest?: (kind: string) => Promise<PanelInstallManifest>
+  /**
+   * Resolved lazily because the API app is created before the panel server
+   * starts, and the panel may be disabled or fail to bind.
+   */
+  panel?: () => PanelEndpoint | undefined
   log: (message: string, detail?: unknown) => void
 }
 

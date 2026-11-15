@@ -23,3 +23,9 @@ interface ImportMeta {
 
 /** Injected by Vite: the identity a page and its service worker compare. */
 declare const __CLARA_BUILD_ID__: string
+
+/**
+ * Build-time switch for the optional Cloudflare relay deployment feature. The
+ * panel UI reads it when it is compiled into this app for the `/hub` route.
+ */
+declare const __CLARA_CLOUDFLARE_DEPLOYMENT__: boolean

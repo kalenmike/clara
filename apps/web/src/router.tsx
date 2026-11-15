@@ -17,6 +17,14 @@ import { HomePage } from '@/pages/home-page'
 export const router = createBrowserRouter([
   { path: '/connect', element: <ConnectPage />, errorElement: <RouteError /> },
   {
+    // The hub panel is a full-window surface, so it stays outside the app shell
+    // and owns its own connection gate.
+    path: '/hub',
+    lazy: () => import('@/pages/hub-panel-page').then((m) => ({ Component: m.HubPanelPage })),
+    errorElement: <RouteError />,
+    HydrateFallback: () => <ConnectionSplash label="Loading the hub panel…" />,
+  },
+  {
     element: <AppShell />,
     errorElement: <RouteError />,
     // A deep link matches a lazy screen, so the first paint waits for that chunk.

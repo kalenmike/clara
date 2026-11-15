@@ -179,6 +179,20 @@ device key through a one-time code; there is no shared browser key.
   token, and saving it in the Relay card starts the relay without a restart.
   Only explicit relay actions (relay pairing, Cloudflare deployment) reject an
   incomplete relay.
+- Bundled panel: route `/hub` in `apps/web`/`apps/desktop`, package
+  `@clara/panel`, bridge `/v1/hub-panel` on the E2EE session. The bridge reaches
+  the panel listener at its loopback address; it adds no listener and publishes
+  no port. A login over the bridge returns a session bearer token; the served
+  page keeps `clara_panel_session` as an HttpOnly cookie. Both use the hub's
+  superadmin session policy and are revoked with it.
+- Bundled panel controls: `PanelCapabilitiesProvider` disables **Go offline**,
+  the transport switch in use (local or relay), and relay target/room edits,
+  because each would cut or retarget the connection carrying the panel. Harness, device,
+  monitoring, sync, orchestration, and configuration controls stay available.
+- Adapter installs from the bundled panel: the hub issues the one-time code,
+  registry manifest, copy command, and `clara://adapter` link. Clara Desktop's
+  adapter host (`apps/desktop/host`) turns an offer into a local, SSH, or Docker
+  install through `packages/adapters/install`; the hub runs nothing.
 - Docker stack: `clara start` starts the orchestrator, hub, and web client
   together; `start hub`, `start web`, or `start orchestrator` selects one
   target; `restart` recreates the selection.
