@@ -103,6 +103,7 @@ RUN --mount=type=cache,id=clara-cargo-registry,target=/usr/local/cargo/registry 
     && find apps/desktop/src-tauri/target/release/bundle -type f -name '*.AppImage' \
          -exec cp -t /out/ {} + \
     && cp apps/desktop/src-tauri/target/release/clara-desktop /out/ \
+    && cp apps/desktop/src-tauri/binaries/clara-adapter-host-* /out/clara-adapter-host \
     && cp apps/desktop/src-tauri/Cargo.lock /out/Cargo.lock \
     && cd /out \
     && find . -maxdepth 1 -type f ! -name SHA256SUMS -print0 \
