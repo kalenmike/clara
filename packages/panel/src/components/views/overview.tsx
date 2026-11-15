@@ -1,4 +1,6 @@
 import { useState } from 'react'
+import { Button } from '@clara/ui/components/button'
+import { Card, CardContent, CardHeader } from '@clara/ui/components/card'
 import type { PanelEvent, PanelSnapshot, PanelStorageEntry } from '@clara/shared-types'
 import type { PanelTab } from '../../lib/tabs.ts'
 import { formatRelative } from '../../lib/format.ts'
@@ -105,36 +107,40 @@ function RecentActivity({
   const recent = [...events].reverse().slice(0, 5)
 
   return (
-    <section className="panel-card" aria-labelledby="overview-activity-title">
-      <div className="panel-card-head flex items-center justify-between gap-2">
-        <div>
-          <h2 id="overview-activity-title" className="text-sm font-semibold">
-            Recent activity
-          </h2>
-          <p className="panel-muted text-[11px]">In-memory events since the hub service started</p>
-        </div>
-        <button type="button" className="panel-link" onClick={onOpen}>
-          View all
-        </button>
-      </div>
-      <div className="p-3">
-        {recent.length === 0 ? (
-          <EmptyState>No activity has been recorded yet.</EmptyState>
-        ) : (
-          <ol className="panel-mini-list">
-            {recent.map((event, index) => (
-              <li key={`${event.at}:${index}`} className="panel-mini-row">
-                <Badge tone={EVENT_TONE[event.level]}>{event.level}</Badge>
-                <span className="min-w-0 flex-1 break-words">{redact(event.message)}</span>
-                <time className="panel-mini-time" dateTime={event.at}>
-                  {formatRelative(event.at, now)}
-                </time>
-              </li>
-            ))}
-          </ol>
-        )}
-      </div>
-    </section>
+    <Card asChild>
+      <section aria-labelledby="overview-activity-title">
+        <CardHeader className="flex items-center justify-between gap-2">
+          <div>
+            <h2 id="overview-activity-title" className="text-sm font-semibold">
+              Recent activity
+            </h2>
+            <p className="text-[11px] text-muted-foreground">
+              In-memory events since the hub service started
+            </p>
+          </div>
+          <Button type="button" variant="link" className="h-auto p-0 text-xs" onClick={onOpen}>
+            View all
+          </Button>
+        </CardHeader>
+        <CardContent>
+          {recent.length === 0 ? (
+            <EmptyState>No activity has been recorded yet.</EmptyState>
+          ) : (
+            <ol className="panel-mini-list">
+              {recent.map((event, index) => (
+                <li key={`${event.at}:${index}`} className="panel-mini-row">
+                  <Badge tone={EVENT_TONE[event.level]}>{event.level}</Badge>
+                  <span className="min-w-0 flex-1 break-words">{redact(event.message)}</span>
+                  <time className="panel-mini-time" dateTime={event.at}>
+                    {formatRelative(event.at, now)}
+                  </time>
+                </li>
+              ))}
+            </ol>
+          )}
+        </CardContent>
+      </section>
+    </Card>
   )
 }
 
@@ -152,50 +158,54 @@ function StorageSummary({
   const issues = storage.filter((entry) => entry.status !== 'ok').slice(0, 4)
 
   return (
-    <section className="panel-card" aria-labelledby="overview-storage-title">
-      <div className="panel-card-head flex items-center justify-between gap-2">
-        <div>
-          <h2 id="overview-storage-title" className="text-sm font-semibold">
-            Storage
-          </h2>
-          <p className="panel-muted text-[11px]" title={summary.title}>
-            {summary.title}
-          </p>
-        </div>
-        <span className="flex items-center gap-2">
-          <Badge tone={STORAGE_SUMMARY_TONE[summary.tone]}>{summary.label}</Badge>
-          <button type="button" className="panel-link" onClick={onOpen}>
-            View all
-          </button>
-        </span>
-      </div>
-      <div className="p-3">
-        {storage.length === 0 ? (
-          <EmptyState>No storage entries have been reported.</EmptyState>
-        ) : issues.length === 0 ? (
-          <p className="panel-muted text-xs">
-            Every file the hub service reads or writes looks healthy.
-          </p>
-        ) : (
-          <ul className="panel-mini-list">
-            {issues.map((entry) => (
-              <li key={entry.key} className="panel-mini-row">
-                <span className="min-w-0 flex-1">
-                  <strong className="font-medium">{entry.label}</strong>
-                  <span className="panel-faint panel-mono block break-all text-[10px]">
-                    {masked ? PEEK_MASK : entry.path}
+    <Card asChild>
+      <section aria-labelledby="overview-storage-title">
+        <CardHeader className="flex items-center justify-between gap-2">
+          <div>
+            <h2 id="overview-storage-title" className="text-sm font-semibold">
+              Storage
+            </h2>
+            <p className="text-[11px] text-muted-foreground" title={summary.title}>
+              {summary.title}
+            </p>
+          </div>
+          <span className="flex items-center gap-2">
+            <Badge tone={STORAGE_SUMMARY_TONE[summary.tone]}>{summary.label}</Badge>
+            <Button type="button" variant="link" className="h-auto p-0 text-xs" onClick={onOpen}>
+              View all
+            </Button>
+          </span>
+        </CardHeader>
+        <CardContent>
+          {storage.length === 0 ? (
+            <EmptyState>No storage entries have been reported.</EmptyState>
+          ) : issues.length === 0 ? (
+            <p className="text-xs text-muted-foreground">
+              Every file the hub service reads or writes looks healthy.
+            </p>
+          ) : (
+            <ul className="panel-mini-list">
+              {issues.map((entry) => (
+                <li key={entry.key} className="panel-mini-row">
+                  <span className="min-w-0 flex-1">
+                    <strong className="font-medium">{entry.label}</strong>
+                    <span className="text-muted-foreground/70 font-mono block break-all text-[10px]">
+                      {masked ? PEEK_MASK : entry.path}
+                    </span>
+                    {entry.detail ? (
+                      <span className="block text-[10px] text-muted-foreground">
+                        {redact(entry.detail)}
+                      </span>
+                    ) : null}
                   </span>
-                  {entry.detail ? (
-                    <span className="panel-muted block text-[10px]">{redact(entry.detail)}</span>
-                  ) : null}
-                </span>
-                <span className="panel-mini-time">{formatRelative(entry.modifiedAt, now)}</span>
-                <Badge tone={STORAGE_TONE[entry.status]}>{entry.status}</Badge>
-              </li>
-            ))}
-          </ul>
-        )}
-      </div>
-    </section>
+                  <span className="panel-mini-time">{formatRelative(entry.modifiedAt, now)}</span>
+                  <Badge tone={STORAGE_TONE[entry.status]}>{entry.status}</Badge>
+                </li>
+              ))}
+            </ul>
+          )}
+        </CardContent>
+      </section>
+    </Card>
   )
 }

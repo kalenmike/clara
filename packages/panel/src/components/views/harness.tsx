@@ -1,5 +1,6 @@
 import { useEffect, useState } from 'react'
 import type { PanelSnapshot } from '@clara/shared-types'
+import { Button } from '@clara/ui/components/button'
 import { findFeature } from '../../lib/feature-control.ts'
 import { usePeek } from '../../lib/peek-context.tsx'
 import { HarnessConnectionsCard } from '../harness-connections-card.tsx'
@@ -40,9 +41,9 @@ export function HarnessView({
       title="Harness"
       description="Every paired harness is a peer. Workspaces choose the harness they belong to."
       actions={
-        <button type="button" className="panel-button primary" onClick={() => setPairingOpen(true)}>
+        <Button type="button" onClick={() => setPairingOpen(true)}>
           Pair Harness
-        </button>
+        </Button>
       }
     >
       {notice ? (

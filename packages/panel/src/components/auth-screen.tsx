@@ -1,5 +1,9 @@
 import { useState, type FormEvent } from 'react'
-import { CircleAlert, KeyRound, LoaderCircle, LogIn, ShieldCheck } from 'lucide-react'
+import { LoaderCircle, LogIn, ShieldCheck } from 'lucide-react'
+import { Button } from '@clara/ui/components/button'
+import { Card } from '@clara/ui/components/card'
+import { Checkbox } from '@clara/ui/components/checkbox'
+import { Input } from '@clara/ui/components/input'
 import {
   authFormMode,
   canResetWithToken,
@@ -8,6 +12,7 @@ import {
 } from '../lib/auth-form.ts'
 import { getPanelUsername, rememberPanelUsername } from '../lib/panel-session.ts'
 import type { SessionController } from '../lib/use-session.ts'
+import { Notice } from './primitives.tsx'
 
 export function AuthScreen({ session }: { session: SessionController }) {
   const [resetOpen, setResetOpen] = useState(false)
@@ -83,160 +88,142 @@ export function AuthScreen({ session }: { session: SessionController }) {
 
   return (
     <div className="panel-auth flex min-h-screen items-center justify-center bg-background px-4">
-      <main className="panel-card w-full max-w-md p-6">
-        <div className="mb-6 flex items-start gap-3">
-          <div className="flex size-10 shrink-0 items-center justify-center rounded-md bg-primary text-primary-foreground">
-            <ShieldCheck className="size-5" aria-hidden="true" />
+      <Card asChild>
+        <main className="w-full max-w-md p-6">
+          <div className="mb-6 flex items-start gap-3">
+            <div className="flex size-10 shrink-0 items-center justify-center rounded-md bg-primary text-primary-foreground">
+              <ShieldCheck className="size-5" aria-hidden="true" />
+            </div>
+            <div>
+              <h1 className="text-lg font-semibold tracking-tight">{heading}</h1>
+              <p className="mt-1 text-xs text-muted-foreground">{description}</p>
+            </div>
           </div>
-          <div>
-            <h1 className="text-lg font-semibold tracking-tight">{heading}</h1>
-            <p className="mt-1 text-xs text-muted-foreground">{description}</p>
-          </div>
-        </div>
 
-        <form className="space-y-3" onSubmit={(event) => void submit(event)}>
-          {needsTokenField ? (
+          <form className="space-y-3" onSubmit={(event) => void submit(event)}>
+            {needsTokenField ? (
+              <label className="block text-xs font-medium text-foreground">
+                {reset ? 'Reset token' : 'Setup token'}
+                <Input
+                  type="password"
+                  name="token"
+                  autoComplete="one-time-code"
+                  value={token}
+                  onChange={(event) => setToken(event.target.value)}
+                  className="mt-1 font-mono"
+                  required
+                />
+              </label>
+            ) : null}
+
+            {showsUsernameField(mode) ? (
+              <label className="block text-xs font-medium text-foreground">
+                Username
+                <Input
+                  type="text"
+                  name="username"
+                  autoComplete="username"
+                  value={username}
+                  onChange={(event) => setUsername(event.target.value)}
+                  className="mt-1"
+                  required
+                />
+              </label>
+            ) : null}
+
             <label className="block text-xs font-medium text-foreground">
-              {reset ? 'Reset token' : 'Setup token'}
-              <input
+              {credential ? 'New password' : 'Password'}
+              <Input
                 type="password"
-                name="token"
-                autoComplete="one-time-code"
-                value={token}
-                onChange={(event) => setToken(event.target.value)}
-                className="mt-1 w-full rounded-lg border border-border bg-card px-3 py-2 font-mono text-sm outline-none focus:border-ring "
+                name="password"
+                autoComplete={credential ? 'new-password' : 'current-password'}
+                value={password}
+                onChange={(event) => setPassword(event.target.value)}
+                className="mt-1"
+                minLength={credential ? 12 : undefined}
                 required
               />
             </label>
-          ) : null}
 
-          {showsUsernameField(mode) ? (
+            {credential ? (
+              <label className="block text-xs font-medium text-foreground">
+                Confirm password
+                <Input
+                  type="password"
+                  name="confirmPassword"
+                  autoComplete="new-password"
+                  value={confirm}
+                  onChange={(event) => setConfirm(event.target.value)}
+                  className="mt-1"
+                  minLength={12}
+                  required
+                />
+              </label>
+            ) : null}
+
             <label className="block text-xs font-medium text-foreground">
-              Username
-              <input
-                type="text"
-                name="username"
-                autoComplete="username"
-                value={username}
-                onChange={(event) => setUsername(event.target.value)}
-                className="mt-1 w-full rounded-lg border border-border bg-card px-3 py-2 text-sm outline-none focus:border-ring "
-                required
-              />
-            </label>
-          ) : null}
-
-          <label className="block text-xs font-medium text-foreground">
-            {credential ? 'New password' : 'Password'}
-            <input
-              type="password"
-              name="password"
-              autoComplete={credential ? 'new-password' : 'current-password'}
-              value={password}
-              onChange={(event) => setPassword(event.target.value)}
-              className="mt-1 w-full rounded-lg border border-border bg-card px-3 py-2 text-sm outline-none focus:border-ring "
-              minLength={credential ? 12 : undefined}
-              required
-            />
-          </label>
-
-          {credential ? (
-            <label className="block text-xs font-medium text-foreground">
-              Confirm password
-              <input
-                type="password"
-                name="confirmPassword"
-                autoComplete="new-password"
-                value={confirm}
-                onChange={(event) => setConfirm(event.target.value)}
-                className="mt-1 w-full rounded-lg border border-border bg-card px-3 py-2 text-sm outline-none focus:border-ring "
-                minLength={12}
-                required
-              />
-            </label>
-          ) : null}
-
-          <label className="block text-xs font-medium text-foreground">
-            <span className="flex items-start gap-2">
-              <input
-                type="checkbox"
-                name="remember"
-                checked={remember}
-                onChange={(event) => setRemember(event.target.checked)}
-                className="mt-0.5 size-3.5 rounded border-border accent-primary"
-              />
-              <span>
-                Keep me signed in on this device
-                <span className="mt-0.5 block font-normal text-muted-foreground">
-                  Stops asking for your password until you sign out.
+              <span className="flex items-start gap-2">
+                <Checkbox
+                  name="remember"
+                  checked={remember}
+                  onCheckedChange={(value) => setRemember(value === true)}
+                  className="mt-0.5"
+                />
+                <span>
+                  Keep me signed in on this device
+                  <span className="mt-0.5 block font-normal text-muted-foreground">
+                    Stops asking for your password until you sign out.
+                  </span>
                 </span>
               </span>
-            </span>
-          </label>
+            </label>
 
-          {needsTokenField ? (
-            <div className="rounded-lg border border-amber-200 bg-amber-50 px-3 py-2 text-xs text-amber-800 dark:border-amber-900 dark:bg-amber-950/60 dark:text-amber-300">
-              <KeyRound className="mr-1 inline size-3.5" aria-hidden="true" />
-              {reset ? (
-                <>
-                  The reset token is written by the host command{' '}
-                  <span className="font-mono">clara-server admin reset</span>.
-                </>
+            {needsTokenField ? (
+              <Notice tone="warning">
+                {reset ? (
+                  <>
+                    The reset token is written by the host command{' '}
+                    <span className="font-mono">clara-server admin reset</span>.
+                  </>
+                ) : (
+                  <>
+                    This hub was started with a host setup token. Use the value supplied by the host
+                    or the environment.
+                  </>
+                )}
+              </Notice>
+            ) : setup ? (
+              <Notice tone="info">
+                This setup screen is available on the hub machine only. The hub starts after this
+                account is created.
+              </Notice>
+            ) : null}
+
+            {error ? <Notice tone="danger">{error}</Notice> : null}
+
+            <Button type="submit" disabled={pending} className="w-full">
+              {pending ? (
+                <LoaderCircle className="size-4 animate-spin" aria-hidden="true" />
+              ) : credential ? (
+                <ShieldCheck className="size-4" aria-hidden="true" />
               ) : (
-                <>
-                  This hub was started with a host setup token. Use the value supplied by the host
-                  or the environment.
-                </>
+                <LogIn className="size-4" aria-hidden="true" />
               )}
-            </div>
-          ) : setup ? (
-            <div className="rounded-lg border border-border bg-muted px-3 py-2 text-xs text-foreground">
-              <ShieldCheck className="mr-1 inline size-3.5" aria-hidden="true" />
-              This setup screen is available on the hub machine only. The hub starts after this
-              account is created.
-            </div>
-          ) : null}
+              {submitLabel}
+            </Button>
 
-          {error ? (
-            <div className="flex items-start gap-2 rounded-lg border border-red-200 bg-red-50 px-3 py-2 text-xs text-red-800 dark:border-red-900 dark:bg-red-950/60 dark:text-red-300">
-              <CircleAlert className="mt-0.5 size-3.5 shrink-0" aria-hidden="true" />
-              <span>{error}</span>
-            </div>
-          ) : null}
-
-          <button
-            type="submit"
-            disabled={pending}
-            className="inline-flex w-full items-center justify-center gap-2 rounded-md bg-primary px-3 py-2 text-sm font-semibold text-primary-foreground transition hover:brightness-110 disabled:cursor-not-allowed disabled:opacity-60"
-          >
-            {pending ? (
-              <LoaderCircle className="size-4 animate-spin" aria-hidden="true" />
-            ) : credential ? (
-              <ShieldCheck className="size-4" aria-hidden="true" />
-            ) : (
-              <LogIn className="size-4" aria-hidden="true" />
-            )}
-            {submitLabel}
-          </button>
-
-          {reset ? (
-            <button
-              type="button"
-              onClick={closeReset}
-              className="w-full text-center text-xs font-medium text-muted-foreground underline-offset-4 hover:underline"
-            >
-              Back to sign in
-            </button>
-          ) : offerReset ? (
-            <button
-              type="button"
-              onClick={openReset}
-              className="w-full text-center text-xs font-medium text-muted-foreground underline-offset-4 hover:underline"
-            >
-              Lost your password? Use a reset token.
-            </button>
-          ) : null}
-        </form>
-      </main>
+            {reset ? (
+              <Button type="button" variant="link" onClick={closeReset} className="w-full text-xs">
+                Back to sign in
+              </Button>
+            ) : offerReset ? (
+              <Button type="button" variant="link" onClick={openReset} className="w-full text-xs">
+                Lost your password? Use a reset token.
+              </Button>
+            ) : null}
+          </form>
+        </main>
+      </Card>
     </div>
   )
 }

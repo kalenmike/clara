@@ -27,7 +27,7 @@ export function HarnessStep({
     <div className="space-y-4">
       <div>
         <h3 className="text-sm font-semibold">Connect a harness</h3>
-        <p className="panel-muted mt-1 text-xs">
+        <p className="text-muted-foreground mt-1 text-xs">
           An adapter runs next to the harness and connects out to this hub. The hub never contacts
           the harness directly.
         </p>
@@ -63,7 +63,7 @@ export function HarnessStep({
             {snapshot.harnesses.map((harness) => (
               <li key={harness.id} className="flex flex-wrap items-center gap-2 text-[11px]">
                 <span className="font-medium">{harness.label}</span>
-                <span className="panel-muted">{harness.kind}</span>
+                <span className="text-muted-foreground">{harness.kind}</span>
                 <Badge tone={harness.online ? 'success' : 'warning'}>
                   {harness.online ? 'Online' : 'Paired · Offline'}
                 </Badge>

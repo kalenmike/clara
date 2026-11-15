@@ -1,5 +1,7 @@
 import { useState } from 'react'
 import { Pencil, ShieldOff, Smartphone, Trash2 } from 'lucide-react'
+import { Button } from '@clara/ui/components/button'
+import { Input } from '@clara/ui/components/input'
 import { MAX_DEVICE_ALIAS_LENGTH, type PanelDeviceInfo } from '@clara/shared-types'
 import { formatRelative, formatTimestamp, shortId } from '../lib/format.ts'
 import { deletePanel, patchPanel, postPanel } from '../lib/panel-api.ts'
@@ -128,7 +130,7 @@ export function DevicesCard({
                     <td className="px-1 py-2">
                       {editing === device.id ? (
                         <>
-                          <input
+                          <Input
                             type="text"
                             value={draft}
                             onChange={(event) => setDraft(event.target.value)}
@@ -144,7 +146,7 @@ export function DevicesCard({
                             placeholder={device.label}
                             aria-label={`Alias for ${device.label}`}
                             autoFocus
-                            className="w-full min-w-40 rounded-md border border-border bg-card px-2 py-1 text-xs text-foreground outline-none focus:border-ring "
+                            className="min-w-40"
                           />
                           <div className="mt-1 font-mono text-[10px] text-muted-foreground">
                             {masked ? PEEK_MASK : shortId(device.id)}
@@ -190,54 +192,59 @@ export function DevicesCard({
                     </td>
                     <td className="px-1 py-2 text-right">
                       {device.revokedAt ? (
-                        <button
+                        <Button
                           type="button"
+                          variant="destructive"
+                          size="xs"
                           disabled={pending === device.id}
                           onClick={() => void purge(device)}
-                          className="inline-flex items-center gap-1 rounded-md border border-red-200 px-2 py-1 text-[10px] font-medium text-red-700 transition hover:bg-red-50 disabled:opacity-60 dark:border-red-900 dark:text-red-300 dark:hover:bg-red-950/50"
                         >
                           <Trash2 className="size-3" aria-hidden="true" />
                           {pending === device.id ? 'Deleting…' : 'Delete'}
-                        </button>
+                        </Button>
                       ) : editing === device.id ? (
                         <div className="inline-flex items-center gap-1">
-                          <button
+                          <Button
                             type="button"
+                            variant="outline"
+                            size="xs"
                             disabled={pending === device.id}
                             onClick={() => void saveAlias(device)}
-                            className="inline-flex items-center gap-1 rounded-md border border-border px-2 py-1 text-[10px] font-medium text-foreground transition hover:bg-accent disabled:opacity-60"
                           >
                             {pending === device.id ? 'Saving…' : 'Save'}
-                          </button>
-                          <button
+                          </Button>
+                          <Button
                             type="button"
+                            variant="outline"
+                            size="xs"
                             disabled={pending === device.id}
                             onClick={cancelEdit}
-                            className="inline-flex items-center gap-1 rounded-md border border-border px-2 py-1 text-[10px] font-medium text-foreground transition hover:bg-accent disabled:opacity-60"
                           >
                             Cancel
-                          </button>
+                          </Button>
                         </div>
                       ) : (
                         <div className="inline-flex items-center gap-1">
-                          <button
+                          <Button
                             type="button"
+                            variant="outline"
+                            size="xs"
                             disabled={pending === device.id}
                             onClick={() => startEdit(device)}
-                            className="inline-flex items-center gap-1 rounded-md border border-border px-2 py-1 text-[10px] font-medium text-foreground transition hover:bg-accent disabled:opacity-60"
                           >
                             <Pencil className="size-3" aria-hidden="true" />
                             Edit
-                          </button>
-                          <button
+                          </Button>
+                          <Button
                             type="button"
+                            variant="destructive"
+                            size="xs"
                             disabled={pending === device.id}
                             onClick={() => setRevokeTarget(device)}
-                            className="inline-flex items-center gap-1 rounded-md border border-red-200 px-2 py-1 text-[10px] font-medium text-red-700 transition hover:bg-red-50 disabled:opacity-60 dark:border-red-900 dark:text-red-300 dark:hover:bg-red-950/50"
                           >
                             <ShieldOff className="size-3" aria-hidden="true" />
                             {pending === device.id ? 'Revoking…' : 'Revoke'}
-                          </button>
+                          </Button>
                         </div>
                       )}
                     </td>

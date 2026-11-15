@@ -103,7 +103,7 @@ function SessionRow({
             {session.title?.trim() || '(untitled session)'}
           </div>
           <div className="flex flex-wrap items-center gap-1.5 pt-0.5">
-            <code className="panel-mono text-[10px] text-muted-foreground">
+            <code className="font-mono text-[10px] text-muted-foreground">
               {masked ? PEEK_MASK : shortId(session.id)}
             </code>
             {session.archived ? <Badge tone="neutral">archived</Badge> : null}
@@ -112,7 +112,7 @@ function SessionRow({
         </td>
         <td className="px-2 py-2">
           <div className="font-medium">{session.harnessLabel}</div>
-          <div className="panel-mono text-[10px] text-muted-foreground">{session.harnessKind}</div>
+          <div className="font-mono text-[10px] text-muted-foreground">{session.harnessKind}</div>
         </td>
         <td className="px-2 py-2">{session.agent ?? '—'}</td>
         <td

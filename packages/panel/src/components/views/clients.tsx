@@ -1,5 +1,6 @@
 import { useState } from 'react'
 import type { PanelSnapshot } from '@clara/shared-types'
+import { Button } from '@clara/ui/components/button'
 import { PairClientDialog } from '../pair-client-dialog.tsx'
 import { ClientsTable } from '../clients-table.tsx'
 import { DevicesCard } from '../devices-card.tsx'
@@ -24,9 +25,9 @@ export function ClientsView({
       title="Clients"
       description="Live end-to-end encrypted browser sessions and the devices that own them."
       actions={
-        <button type="button" className="panel-button primary" onClick={() => setPairingOpen(true)}>
+        <Button type="button" onClick={() => setPairingOpen(true)}>
           Pair Client
-        </button>
+        </Button>
       }
     >
       <div className="space-y-3">

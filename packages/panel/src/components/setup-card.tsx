@@ -1,4 +1,5 @@
 import { Settings2 } from 'lucide-react'
+import { Button } from '@clara/ui/components/button'
 import type { SetupPreferences, SetupState } from '../lib/onboarding.ts'
 import { Badge, CardBody, CollapsibleCard, Notice } from './primitives.tsx'
 
@@ -42,15 +43,15 @@ export function SetupCard({
               only when you want to change the path or repair a pairing.
             </p>
             <div className="flex flex-wrap gap-2 pt-1">
-              <button type="button" onClick={onOpenReconfigure} className="panel-button">
+              <Button type="button" variant="outline" onClick={onOpenReconfigure}>
                 Reconfigure connections
-              </button>
-              <button type="button" onClick={onOpenGuide} className="panel-button">
+              </Button>
+              <Button type="button" variant="outline" onClick={onOpenGuide}>
                 Replay setup guide
-              </button>
+              </Button>
             </div>
             {preferences.guideSeenAt ? null : (
-              <p className="panel-muted text-[10px]">
+              <p className="text-muted-foreground text-[10px]">
                 The guide has not been viewed yet. Replay it above at any time.
               </p>
             )}
@@ -65,11 +66,11 @@ export function SetupCard({
               Setup is incomplete. The hub works, but a harness or client still needs to be paired.
             </p>
             <div className="flex flex-wrap gap-2 pt-1">
-              <button type="button" onClick={onOpenSetup} className="panel-button primary">
+              <Button type="button" onClick={onOpenSetup}>
                 Finish setup
-              </button>
+              </Button>
             </div>
-            <p className="panel-muted text-[10px]">
+            <p className="text-muted-foreground text-[10px]">
               {setup.progress.done} of {setup.progress.total} required steps complete.
             </p>
           </>

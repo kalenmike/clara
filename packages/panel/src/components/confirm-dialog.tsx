@@ -1,5 +1,13 @@
-import { useEffect, useId, useRef } from 'react'
 import { Loader2 } from 'lucide-react'
+import { Button } from '@clara/ui/components/button'
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+} from '@clara/ui/components/dialog'
 
 export function ConfirmDialog({
   open,
@@ -22,67 +30,39 @@ export function ConfirmDialog({
   onOpenChange: (open: boolean) => void
   onConfirm: () => void
 }) {
-  const dialogRef = useRef<HTMLDialogElement>(null)
-  const titleId = useId()
-  const descriptionId = useId()
-
-  useEffect(() => {
-    const dialog = dialogRef.current
-    if (!dialog) return
-    if (open && !dialog.open) dialog.showModal()
-    if (!open && dialog.open) dialog.close()
-  }, [open])
-
-  if (!open) return null
-
-  const close = () => {
-    if (!pending) onOpenChange(false)
-  }
-
   return (
-    <dialog
-      ref={dialogRef}
-      className="panel-confirm-dialog"
-      aria-labelledby={titleId}
-      aria-describedby={descriptionId}
-      onCancel={(event) => {
-        event.preventDefault()
-        close()
-      }}
-      onMouseDown={(event) => {
-        if (event.target === dialogRef.current) close()
+    <Dialog
+      open={open}
+      onOpenChange={(next) => {
+        if (!pending) onOpenChange(next)
       }}
     >
-      <div className="panel-confirm-card">
-        <div className="panel-confirm-head">
-          <h2 id={titleId} className="text-base font-semibold">
-            {title}
-          </h2>
-          <p id={descriptionId} className="panel-muted mt-1 text-xs">
-            {description}
-          </p>
-        </div>
-        <div className="panel-confirm-foot">
-          <button
+      <DialogContent showCloseButton={false}>
+        <DialogHeader>
+          <DialogTitle>{title}</DialogTitle>
+          <DialogDescription>{description}</DialogDescription>
+        </DialogHeader>
+        <DialogFooter>
+          <Button
             type="button"
-            onClick={close}
+            variant="outline"
+            onClick={() => onOpenChange(false)}
             disabled={pending}
             autoFocus
-            className="panel-button"
           >
             Cancel
-          </button>
-          <button
+          </Button>
+          <Button
             type="button"
+            variant={danger ? 'destructive' : 'default'}
             onClick={onConfirm}
             disabled={pending}
-            className={`panel-button ${danger ? 'danger' : 'primary'}`}
           >
             {pending ? <Loader2 className="size-3.5 animate-spin" aria-hidden="true" /> : null}
             {pending ? pendingLabel : confirmLabel}
-          </button>
-        </div>
-      </div>
-    </dialog>
+          </Button>
+        </DialogFooter>
+      </DialogContent>
+    </Dialog>
   )
 }

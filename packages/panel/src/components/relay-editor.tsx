@@ -1,5 +1,7 @@
 import { useEffect, useId, useState } from 'react'
 import { RefreshCw, Trash2 } from 'lucide-react'
+import { Button } from '@clara/ui/components/button'
+import { Input } from '@clara/ui/components/input'
 import type { PanelRelayTransport } from '@clara/shared-types'
 import { RELAY_TARGET_LOCK_REASON, usePanelCapabilities } from '../lib/capabilities-context.ts'
 import { formatTimestamp, sourceLabel } from '../lib/format.ts'
@@ -139,13 +141,13 @@ export function RelayEditor({
           Relay URL
           {relay.urlSource ? <SourceTag source={sourceLabel(relay.urlSource)} /> : null}
         </span>
-        <input
+        <Input
           value={url}
           onChange={(event) => setUrl(event.target.value)}
           disabled={urlFromEnv || targetLocked || pending !== undefined}
           spellCheck={false}
           placeholder="wss://relay.example"
-          className="mt-1 w-full rounded-md border border-border bg-card px-2 py-1.5 font-mono text-xs disabled:opacity-60 "
+          className="mt-1 font-mono text-xs"
         />
       </label>
 
@@ -157,15 +159,16 @@ export function RelayEditor({
           </span>
           {relay.roomSource ? <SourceTag source={sourceLabel(relay.roomSource)} /> : null}
         </span>
-        <button
+        <Button
           type="button"
+          variant="outline"
+          size="xs"
           onClick={() => setConfirmAction('room')}
           disabled={!relay.roomRegeneratable || targetLocked || pending !== undefined}
-          className="inline-flex shrink-0 items-center gap-1 rounded-md border border-border px-2 py-1 text-[11px] font-medium disabled:opacity-60"
         >
           <RefreshCw className="size-3" aria-hidden="true" />
           {pending === 'room' ? 'Regenerating…' : 'Regenerate room'}
-        </button>
+        </Button>
       </div>
 
       <label className="block text-[11px]">
@@ -175,7 +178,7 @@ export function RelayEditor({
             <SourceTag source={relay.agentTokenSource === 'env' ? 'environment' : 'encrypted'} />
           ) : null}
         </span>
-        <input
+        <Input
           type="password"
           value={agentToken}
           onChange={(event) => setAgentToken(event.target.value)}
@@ -191,7 +194,7 @@ export function RelayEditor({
                 ? 'Saved — leave blank to keep'
                 : 'Required'
           }
-          className="mt-1 w-full rounded-md border border-border bg-card px-2 py-1.5 font-mono text-xs disabled:opacity-60 "
+          className="mt-1 font-mono text-xs"
         />
       </label>
 
@@ -205,32 +208,27 @@ export function RelayEditor({
           <span id={tokenErrorId}>{redact(tokenError)}</span>
         </Notice>
       ) : null}
-      {notice ? (
-        <p className="rounded-md bg-emerald-50 px-2.5 py-2 text-xs text-emerald-700 dark:bg-emerald-950/50 dark:text-emerald-300">
-          {redact(notice)}
-        </p>
-      ) : null}
+      {notice ? <Notice tone="success">{redact(notice)}</Notice> : null}
       {error ? <Notice tone="danger">{redact(error)}</Notice> : null}
 
       <div className="flex flex-wrap gap-2">
-        <button
+        <Button
           type="button"
           onClick={() => void save()}
           disabled={!canSave || targetLocked || pending !== undefined}
-          className="inline-flex items-center gap-1.5 rounded-lg bg-sky-600 px-2.5 py-1.5 text-xs font-semibold text-white shadow-sm transition hover:bg-sky-500 disabled:cursor-not-allowed disabled:opacity-60"
         >
           {pending === 'save' ? 'Saving…' : 'Save and connect'}
-        </button>
+        </Button>
         {hasPanelValues ? (
-          <button
+          <Button
             type="button"
+            variant="outline"
             onClick={() => setConfirmAction('clear')}
             disabled={targetLocked || pending !== undefined}
-            className="inline-flex items-center gap-1.5 rounded-lg border border-border px-2.5 py-1.5 text-xs font-semibold transition hover:bg-accent disabled:opacity-60"
           >
             <Trash2 className="size-3.5" aria-hidden="true" />
             {pending === 'clear' ? 'Clearing…' : 'Clear panel relay'}
-          </button>
+          </Button>
         ) : null}
       </div>
 

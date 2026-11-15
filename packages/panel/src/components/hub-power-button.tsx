@@ -1,5 +1,6 @@
 import { useState } from 'react'
 import { Power } from 'lucide-react'
+import { Button } from '@clara/ui/components/button'
 import { GO_OFFLINE_UNAVAILABLE_REASON, usePanelCapabilities } from '../lib/capabilities-context.ts'
 import { postPanel } from '../lib/panel-api.ts'
 import { ConfirmDialog } from './confirm-dialog.tsx'
@@ -48,13 +49,15 @@ export function HubPowerButton({
 
   return (
     <>
-      <button
+      <Button
         type="button"
         onClick={toggle}
         disabled={pending}
-        className={`inline-flex items-center gap-1.5 rounded-lg px-2.5 py-1.5 text-xs font-semibold text-white shadow-sm transition disabled:cursor-not-allowed disabled:opacity-60 ${
-          stopped ? 'bg-emerald-600 hover:bg-emerald-500' : 'bg-red-600 hover:bg-red-500'
-        }`}
+        className={
+          stopped
+            ? 'bg-emerald-600 text-white hover:bg-emerald-500'
+            : 'bg-red-600 text-white hover:bg-red-500'
+        }
       >
         <Power className="size-3.5" aria-hidden="true" />
         {pending
@@ -64,7 +67,7 @@ export function HubPowerButton({
           : stopped
             ? 'Go online'
             : 'Go offline'}
-      </button>
+      </Button>
 
       <ConfirmDialog
         open={confirmOpen}
@@ -86,17 +89,19 @@ function PowerUnavailable({ stopped }: { stopped: boolean }) {
   const label = stopped ? 'Go online' : 'Go offline'
 
   return (
-    <button
+    <Button
       type="button"
       disabled
       aria-label={`${label}: unavailable in the bundled panel`}
       title={GO_OFFLINE_UNAVAILABLE_REASON}
-      className={`inline-flex items-center gap-1.5 rounded-lg px-2.5 py-1.5 text-xs font-semibold text-white shadow-sm disabled:cursor-not-allowed disabled:opacity-60 ${
-        stopped ? 'bg-emerald-600' : 'bg-red-600'
-      }`}
+      className={
+        stopped
+          ? 'bg-emerald-600 text-white hover:bg-emerald-600'
+          : 'bg-red-600 text-white hover:bg-red-600'
+      }
     >
       <Power className="size-3.5" aria-hidden="true" />
       {label}
-    </button>
+    </Button>
   )
 }

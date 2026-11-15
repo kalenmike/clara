@@ -1,12 +1,12 @@
 import type { ToggleState } from '../components/primitives.tsx'
 
 const TOGGLE_TRACKS: Record<ToggleState, string> = {
-  off: 'border-border bg-muted',
-  pending: 'border-amber-500 bg-amber-500',
-  on: 'border-emerald-600 bg-emerald-600',
+  off: 'data-unchecked:bg-muted border-border',
+  pending: 'data-checked:bg-amber-500 border-amber-500',
+  on: 'data-checked:bg-emerald-600 border-emerald-600',
 }
 
-const STOPPED_ON_TRACK = 'border-red-600 bg-red-600'
+const STOPPED_ON_TRACK = 'data-checked:bg-red-600 border-red-600'
 
 /**
  * Track classes for a switch.

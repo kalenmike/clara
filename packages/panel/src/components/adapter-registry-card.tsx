@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useState } from 'react'
 import { Download, RefreshCw } from 'lucide-react'
+import { Button } from '@clara/ui/components/button'
 import type { PanelConfigInfo, PanelControls, PanelInstallInfo } from '@clara/shared-types'
 import { sourceLabel } from '../lib/format.ts'
 import { fetchInstallInfo } from '../lib/install.ts'
@@ -76,7 +77,7 @@ export function AdapterRegistryCard({
     >
       <CardBody>
         {error ? <Notice tone="danger">{redact(error)}</Notice> : null}
-        <p className="panel-muted text-[11px]">
+        <p className="text-muted-foreground text-[11px]">
           The hub reads the manifest and builds the install command. It never downloads, bundles, or
           runs the adapter; the person runs the command on the harness machine.
         </p>
@@ -96,17 +97,18 @@ export function AdapterRegistryCard({
           onChanged={onChanged}
         />
         <div className="flex flex-wrap items-center gap-2 pt-1">
-          <button
+          <Button
             type="button"
+            variant="outline"
+            size="xs"
             onClick={() => void load()}
             disabled={loading}
-            className="inline-flex cursor-pointer items-center gap-1 rounded-md border border-border px-2 py-1 text-[11px] transition hover:bg-accent disabled:cursor-not-allowed disabled:opacity-50"
           >
             <RefreshCw className={`size-3 ${loading ? 'animate-spin' : ''}`} aria-hidden="true" />
             Check registry
-          </button>
+          </Button>
           {info ? (
-            <span className="panel-muted text-[10px]">
+            <span className="text-muted-foreground text-[10px]">
               {info.available
                 ? 'Install actions are available.'
                 : (info.reason ?? 'Install actions are off.')}
@@ -132,7 +134,7 @@ export function AdapterRegistryCard({
                       installed v{entry.installedVersion}
                     </Badge>
                   ) : null}
-                  <span className="panel-muted">
+                  <span className="text-muted-foreground">
                     {Object.keys(entry.manifest.artifacts).length} platform build
                     {Object.keys(entry.manifest.artifacts).length === 1 ? '' : 's'}
                   </span>
@@ -140,7 +142,7 @@ export function AdapterRegistryCard({
               ) : (
                 <Badge tone="danger">{entry.error ? 'Unavailable' : 'Not checked'}</Badge>
               )}
-              <span className="panel-muted min-w-0 flex-1 truncate text-right font-mono text-[10px]">
+              <span className="text-muted-foreground min-w-0 flex-1 truncate text-right font-mono text-[10px]">
                 {entry.manifestUrl}
               </span>
               {entry.manifest &&

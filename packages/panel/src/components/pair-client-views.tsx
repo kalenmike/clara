@@ -1,4 +1,5 @@
 import { Check, LoaderCircle, QrCode, X } from 'lucide-react'
+import { Button } from '@clara/ui/components/button'
 import { QRCodeSVG } from 'qrcode.react'
 import type { PanelDevicePairing } from '@clara/shared-types'
 import type { BrowserPairingConnection } from '../lib/browser-pairing.ts'
@@ -17,29 +18,31 @@ export function PairClientHeader({
   return (
     <header className="panel-setup-head">
       <div className="min-w-0">
-        <div className="panel-muted text-[10px] font-semibold tracking-[0.08em] uppercase">
+        <div className="text-muted-foreground text-[10px] font-semibold tracking-[0.08em] uppercase">
           Clients
         </div>
         <h2 id="panel-pair-title" className="mt-0.5 text-base font-semibold">
           Pair a client
         </h2>
-        <p className="panel-muted mt-1 text-xs">
+        <p className="text-muted-foreground mt-1 text-xs">
           Create a one-time link, code, or QR for a browser or installed app
         </p>
       </div>
-      <button
+      <Button
         type="button"
+        variant="ghost"
+        size="icon"
         onClick={onClose}
         aria-label="Close pairing dialog"
         disabled={pending !== undefined}
-        className="panel-icon-button shrink-0"
+        className="shrink-0"
       >
         {pending === 'close' ? (
           <LoaderCircle className="size-4 animate-spin" aria-hidden="true" />
         ) : (
           <X className="size-4" aria-hidden="true" />
         )}
-      </button>
+      </Button>
     </header>
   )
 }
@@ -122,7 +125,12 @@ export function PairClientPairingView({
           title="Clara browser pairing QR code"
         />
       </div>
-      <a href={pairing.link} target="_blank" rel="noreferrer" className="panel-link text-xs">
+      <a
+        href={pairing.link}
+        target="_blank"
+        rel="noreferrer"
+        className="text-xs text-primary underline-offset-4 hover:underline"
+      >
         Open Link
       </a>
       <p className="text-[11px] text-muted-foreground">
@@ -159,26 +167,25 @@ export function PairClientFooter({ flow }: { flow: ClientPairingFlow }) {
         <footer className="panel-setup-foot">
           <div className="flex w-full items-center justify-end gap-2">
             {flow.expired ? (
-              <button
+              <Button
                 type="button"
+                variant="outline"
                 onClick={() => void flow.startOver()}
                 disabled={flow.pending !== undefined}
-                className="panel-button"
               >
                 Create new link
-              </button>
+              </Button>
             ) : null}
-            <button
+            <Button
               type="button"
               onClick={() => void flow.close()}
               disabled={flow.pending !== undefined}
-              className="panel-button primary"
             >
               {flow.pending === 'close' ? (
                 <LoaderCircle className="size-3.5 animate-spin" aria-hidden="true" />
               ) : null}
               {flow.expired ? 'Close' : 'Done'}
-            </button>
+            </Button>
           </div>
         </footer>
       )
@@ -207,11 +214,10 @@ export function PairClientFooter({ flow }: { flow: ClientPairingFlow }) {
   return (
     <footer className="panel-setup-foot">
       <div className="flex w-full justify-end">
-        <button
+        <Button
           type="button"
           onClick={() => void flow.create()}
           disabled={!flow.canPair || flow.pending !== undefined}
-          className="panel-button primary"
         >
           {flow.pending === 'create' ? (
             <LoaderCircle className="size-3.5 animate-spin" aria-hidden="true" />
@@ -219,7 +225,7 @@ export function PairClientFooter({ flow }: { flow: ClientPairingFlow }) {
             <QrCode className="size-3.5" aria-hidden="true" />
           )}
           {flow.pending === 'create' ? 'Preparing…' : 'Create pairing link'}
-        </button>
+        </Button>
       </div>
     </footer>
   )

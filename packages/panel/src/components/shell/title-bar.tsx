@@ -1,4 +1,5 @@
 import { Eye, EyeOff, LogOut, RefreshCw } from 'lucide-react'
+import { Button } from '@clara/ui/components/button'
 import type { PanelSnapshot } from '@clara/shared-types'
 import { formatRelative, formatTimestamp } from '../../lib/format.ts'
 import { usePeek } from '../../lib/peek-context.tsx'
@@ -43,38 +44,39 @@ export function TitleBar({
             Updated {formatRelative(updatedIso, now)}
           </span>
         ) : null}
-        <button
+        <Button
           type="button"
           role="switch"
           aria-checked={masked}
           aria-label="Hide sensitive data"
           title={masked ? 'Reveal sensitive data' : 'Hide sensitive data'}
           onClick={toggle}
-          className="panel-icon-button"
+          variant="ghost"
+          size="icon"
         >
           {masked ? (
             <Eye className="size-3.5" aria-hidden="true" />
           ) : (
             <EyeOff className="size-3.5" aria-hidden="true" />
           )}
-        </button>
-        <button
+        </Button>
+        <Button
           type="button"
+          variant="outline"
           onClick={onRefresh}
           disabled={refreshing}
           title="Refresh the hub snapshot"
-          className="panel-button"
         >
           <RefreshCw
             className={`size-3.5 ${refreshing ? 'animate-spin' : ''}`}
             aria-hidden="true"
           />
           <span className="panel-button-label">Refresh</span>
-        </button>
-        <button type="button" onClick={onLogout} className="panel-button">
+        </Button>
+        <Button type="button" variant="outline" onClick={onLogout}>
           <LogOut className="size-3.5" aria-hidden="true" />
           <span className="panel-button-label">Sign out</span>
-        </button>
+        </Button>
       </div>
     </header>
   )

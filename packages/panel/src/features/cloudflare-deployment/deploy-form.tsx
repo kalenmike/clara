@@ -1,5 +1,15 @@
 import { useState } from 'react'
 import { Cloud } from 'lucide-react'
+import { Button } from '@clara/ui/components/button'
+import { Checkbox } from '@clara/ui/components/checkbox'
+import { Input } from '@clara/ui/components/input'
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from '@clara/ui/components/select'
 import type {
   PanelCloudflareAccount,
   PanelCloudflareZone,
@@ -171,7 +181,7 @@ export function DeployForm({
             <label className="block text-[11px] font-medium" htmlFor="cloudflare-token">
               Cloudflare API token
             </label>
-            <input
+            <Input
               id="cloudflare-token"
               type="password"
               value={token}
@@ -179,7 +189,6 @@ export function DeployForm({
               autoComplete="off"
               spellCheck={false}
               placeholder="Paste a Workers-scoped API token"
-              className="w-full rounded-md border border-border bg-card px-2 py-1.5 text-xs "
             />
           </div>
           <a
@@ -196,67 +205,67 @@ export function DeployForm({
             ID manually.
           </p>
           <label className="flex items-center gap-2 text-[11px]">
-            <input
-              type="checkbox"
-              checked={remember}
-              onChange={(event) => setRemember(event.target.checked)}
-            />
+            <Checkbox checked={remember} onCheckedChange={(value) => setRemember(value === true)} />
             Save this token on the hub, encrypted with the hub secret key
           </label>
         </>
       ) : (
         <p className="text-[11px] text-muted-foreground">
           Using the saved Cloudflare token.{' '}
-          <button
+          <Button
             type="button"
+            variant="link"
             onClick={() => setUseStored(false)}
-            className="font-medium text-sky-700 hover:underline dark:text-sky-300"
+            className="h-auto p-0 text-xs"
           >
             Use a different token
-          </button>
+          </Button>
         </p>
       )}
 
       <div className="flex flex-wrap items-end gap-2">
-        <button
+        <Button
           type="button"
+          variant="outline"
+          size="xs"
           onClick={() => void loadAccounts()}
           disabled={pending !== undefined}
-          className="rounded-md border border-border px-2 py-1 text-[11px] font-medium disabled:opacity-60"
         >
           {pending === 'accounts' ? 'Checking…' : accounts ? 'Refresh accounts' : 'Check account'}
-        </button>
+        </Button>
         {accounts && accounts.length > 1 ? (
           <label className="text-[11px]">
             Account
-            <select
-              value={accountId}
-              onChange={(event) => {
-                const next = event.target.value
+            <Select
+              value={accountId || undefined}
+              onValueChange={(next) => {
                 setAccountId(next)
                 setZones(undefined)
                 setZoneId('')
                 if (next) void loadZones(next)
               }}
-              className="ml-1 rounded-md border border-border bg-card px-1.5 py-1 text-[11px] "
             >
-              <option value="">Choose…</option>
-              {accounts.map((account) => (
-                <option key={account.id} value={account.id}>
-                  {account.name}
-                </option>
-              ))}
-            </select>
+              <SelectTrigger className="ml-1">
+                <SelectValue placeholder="Choose…" />
+              </SelectTrigger>
+              <SelectContent>
+                {accounts.map((account) => (
+                  <SelectItem key={account.id} value={account.id}>
+                    {account.name}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
           </label>
         ) : null}
         {!accounts || accounts.length <= 1 ? (
           <label className="text-[11px]">
             Account ID
-            <input
+            <Input
               value={accountId}
               onChange={(event) => setAccountId(event.target.value)}
               placeholder="32-character account ID"
-              className="ml-1 w-56 rounded-md border border-border bg-card px-1.5 py-1 font-mono text-[11px] "
+              className="ml-1 w-56 font-mono text-xs"
             />
           </label>
         ) : null}
@@ -264,50 +273,51 @@ export function DeployForm({
 
       <label className="block text-[11px]">
         Worker name
-        <input
+        <Input
           value={scriptName}
           onChange={(event) => setScriptName(event.target.value)}
-          className="mt-1 w-full rounded-md border border-border bg-card px-2 py-1.5 font-mono text-xs "
+          className="mt-1 font-mono text-xs"
         />
       </label>
 
       <div className="space-y-2 rounded-md border border-border p-2">
         <div className="flex flex-wrap items-end gap-2">
           <p className="text-[11px] font-medium">Custom domain (optional)</p>
-          <button
+          <Button
             type="button"
+            variant="outline"
+            size="xs"
             onClick={() => void loadZones()}
             disabled={pending !== undefined}
-            className="rounded-md border border-border px-2 py-1 text-[11px] font-medium disabled:opacity-60"
           >
             {pending === 'zones' ? 'Loading zones…' : zones ? 'Refresh zones' : 'Load zones'}
-          </button>
+          </Button>
           {zones && zones.length > 0 ? (
             <label className="text-[11px]">
               Zone
-              <select
-                value={zoneId}
-                onChange={(event) => setZoneId(event.target.value)}
-                className="ml-1 rounded-md border border-border bg-card px-1.5 py-1 text-[11px] "
-              >
-                <option value="">Choose…</option>
-                {zones.map((zone) => (
-                  <option key={zone.id} value={zone.id}>
-                    {zone.name}
-                  </option>
-                ))}
-              </select>
+              <Select value={zoneId || undefined} onValueChange={setZoneId}>
+                <SelectTrigger className="ml-1">
+                  <SelectValue placeholder="Choose…" />
+                </SelectTrigger>
+                <SelectContent>
+                  {zones.map((zone) => (
+                    <SelectItem key={zone.id} value={zone.id}>
+                      {zone.name}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
             </label>
           ) : null}
         </div>
-        <input
+        <Input
           value={hostname}
           onChange={(event) => setHostname(event.target.value)}
           placeholder="relay.example.com"
           spellCheck={false}
           autoComplete="off"
           aria-label="Custom domain hostname"
-          className="w-full rounded-md border border-border bg-card px-2 py-1.5 font-mono text-xs "
+          className="font-mono text-xs"
         />
         <p className="text-[10px] text-muted-foreground">
           Enter a bare hostname in one of this account&apos;s zones. Cloudflare issues the
@@ -317,10 +327,9 @@ export function DeployForm({
       </div>
 
       <label className="flex items-center gap-2 text-[11px]">
-        <input
-          type="checkbox"
+        <Checkbox
           checked={replaceExisting}
-          onChange={(event) => setReplaceExisting(event.target.checked)}
+          onCheckedChange={(value) => setReplaceExisting(value === true)}
         />
         Replace an existing Clara relay Worker with this name
       </label>
@@ -331,10 +340,9 @@ export function DeployForm({
         </summary>
         <div className="space-y-1 border-t border-border px-2 py-2">
           <label className="flex items-start gap-2 text-[11px]">
-            <input
-              type="checkbox"
+            <Checkbox
               checked={previewUrls}
-              onChange={(event) => setPreviewUrls(event.target.checked)}
+              onCheckedChange={(value) => setPreviewUrls(value === true)}
               aria-describedby="cloudflare-preview-urls-help"
               className="mt-0.5"
             />
@@ -350,11 +358,10 @@ export function DeployForm({
                 : 'flex items-start gap-2 text-[11px] opacity-60'
             }
           >
-            <input
-              type="checkbox"
+            <Checkbox
               checked={disableWorkersDev && Boolean(customHostname)}
               disabled={!customHostname}
-              onChange={(event) => setDisableWorkersDev(event.target.checked)}
+              onCheckedChange={(value) => setDisableWorkersDev(value === true)}
               aria-describedby="cloudflare-disable-workers-dev-help"
               className="mt-0.5"
             />
@@ -371,15 +378,10 @@ export function DeployForm({
       {notice ? <Notice tone="warning">{redact(notice)}</Notice> : null}
       {error ? <Notice tone="danger">{redact(error)}</Notice> : null}
 
-      <button
-        type="button"
-        onClick={() => void deploy()}
-        disabled={pending !== undefined}
-        className="inline-flex items-center gap-1.5 rounded-lg bg-sky-600 px-2.5 py-1.5 text-xs font-semibold text-white shadow-sm transition hover:bg-sky-500 disabled:cursor-not-allowed disabled:opacity-60"
-      >
+      <Button type="button" onClick={() => void deploy()} disabled={pending !== undefined}>
         <Cloud className="size-3.5" aria-hidden="true" />
         {pending === 'deploy' ? 'Deploying…' : 'Deploy relay'}
-      </button>
+      </Button>
       <p className="text-[10px] text-muted-foreground">
         Deployment usually takes under a minute; a new custom domain can take a few minutes for its
         certificate. Existing devices must pair again after the relay changes.
