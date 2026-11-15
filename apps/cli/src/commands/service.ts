@@ -82,7 +82,7 @@ function parse(args: readonly string[]): Parsed {
       continue
     }
     if (!isServiceName(value)) {
-      throw new Error(`unknown target: ${value} (expected hub, engine, web, or default)`)
+      throw new Error(`unknown target: ${value} (expected hub, engine, lab, web, or default)`)
     }
     names.push(value)
   }
@@ -366,12 +366,14 @@ function printSummary(services: readonly ServiceStatus[]): void {
   const hub = services.find((service) => service.name === 'hub')
   const web = services.find((service) => service.name === 'web')
   const engine = services.find((service) => service.name === 'engine')
+  const lab = services.find((service) => service.name === 'lab')
   console.log('')
   console.log(success(`Clara ${version()} is running`))
   console.log('')
   if (hub) console.log(`  panel   ${cyan(hub.url)}`)
   if (web) console.log(`  web     ${cyan(web.url)}`)
   if (engine) console.log(`  engine  ${cyan(engine.url)}`)
+  if (lab) console.log(`  lab     ${cyan(lab.url)}`)
   console.log('')
   console.log(dim('  logs   clara logs -f'))
   console.log(dim('  pair   clara pair hub'))

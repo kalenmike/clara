@@ -9,7 +9,7 @@ export function autostartEntry(options: ServiceOptions): string {
   return `[Desktop Entry]
 Type=Application
 Name=Clara
-Comment=Start the Clara hub, engine, and web client
+Comment=Start the Clara hub, engine, lab, and web client
 Exec=${quote(options.execPath)} __supervise
 ${variables}
 Terminal=false
