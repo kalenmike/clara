@@ -11,7 +11,7 @@ detail rows that most people leave alone.
 
 1. Open **Settings** from the app header. It opens as a full-window surface: the
    project sidebar and its banners are not shown, and the fixed header keeps its
-   section tabs.
+   section links, folded into a menu on phones.
 2. The page opens on **Appearance**, where the light/dark/system mode and color
    theme live.
 3. Use the tabs to reach **Preferences** for session wording, the per-harness

@@ -99,9 +99,8 @@ start an agent run and move on, so they do not have to watch the sidebar.
     error keep distinct icons, wording, and palette-derived accents, so
     importance is readable without relying on color alone. Error carries the
     strongest tint, warning the next, and success and info the lightest. They
-    start under the fixed app header — 48px on desktop, plus the 44px
-    destination row and safe-area inset below `md` — so they never cover the
-    logo, destinations, or title.
+    start under the fixed app header — one 48px row on every surface, plus the
+    safe-area inset — so they never cover the logo, destinations, or title.
 11. Toasts show no close control. Clicking or tapping anywhere on the toast
     dismisses it, on desktop and touch alike; the surface keeps auto-dismiss
     timing and swipe-away.
