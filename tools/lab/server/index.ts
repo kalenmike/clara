@@ -194,6 +194,9 @@ async function serve(options: Options): Promise<void> {
   const server = await startLabServer({
     runtime,
     port,
+    ...(process.env.CLARA_LAB_HOST?.trim() ? { host: process.env.CLARA_LAB_HOST.trim() } : {}),
+    ...(process.env.CLARA_LAB_TOKEN?.trim() ? { token: process.env.CLARA_LAB_TOKEN.trim() } : {}),
+    ...(process.env.CLARA_LAB_ALLOW_REMOTE?.trim() === '1' ? { allowRemote: true } : {}),
     staticRoots,
     log: (message, detail) => console.error(`[clara-lab] ${message}`, detail ?? ''),
   })

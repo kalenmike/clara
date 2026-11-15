@@ -29,7 +29,16 @@ export interface LabServerOptions {
   runtime: LabRuntime
   port: number
   version?: string
-  /** Directories that may hold the standalone UI. The desktop sidecar omits them. */
+  /** Bind address. Defaults to loopback; set 0.0.0.0 for a hub bridge on another host. */
+  host?: string
+  /**
+   * Shared bridge token. When set, every request must carry
+   * `Authorization: Bearer <token>`. The hub bridge adds it.
+   */
+  token?: string
+  /** Accept a remote bridge with a valid token instead of requiring loopback. */
+  allowRemote?: boolean
+  /** Directories that may hold the standalone UI. The bridge omits them. */
   staticRoots?: string[]
   log?: (message: string, detail?: unknown) => void
 }
@@ -121,7 +130,18 @@ export async function startLabServer(options: LabServerOptions): Promise<LabServ
       response.setHeader(name, value)
     }
 
-    const check = checkLabRequest(request, port)
+    if (options.token) {
+      const authorization = request.headers.authorization
+      if (authorization !== `Bearer ${options.token}`) {
+        failure(response, 401, 'unauthorized', 'A valid lab bridge token is required')
+        return
+      }
+    }
+
+    // A remote hub bridge carries a valid token and may come from another
+    // address. Without a token the loopback/Host/Origin checks still apply.
+    const bridged = Boolean(options.allowRemote && options.token)
+    const check = bridged ? { ok: true as const } : checkLabRequest(request, port)
     if (!check.ok) {
       failure(response, check.status, 'forbidden', check.message)
       return
@@ -414,7 +434,7 @@ export async function startLabServer(options: LabServerOptions): Promise<LabServ
 
   await new Promise<void>((resolve, reject) => {
     server.once('error', reject)
-    server.listen(port, '127.0.0.1', () => {
+    server.listen(port, options.host ?? '127.0.0.1', () => {
       const bound = server.address()
       if (bound && typeof bound !== 'string') port = bound.port
       resolve()
@@ -426,10 +446,12 @@ export async function startLabServer(options: LabServerOptions): Promise<LabServ
   }
   port = address.port
 
+  const host = options.host ?? '127.0.0.1'
+  const advertised = host === '0.0.0.0' || host === '::' ? '127.0.0.1' : host
   return {
     server,
     port,
-    url: `http://127.0.0.1:${port}/`,
+    url: `http://${advertised}:${port}/`,
     async close() {
       watcher.stop()
       for (const stream of streams) stream.end()

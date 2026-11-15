@@ -12,6 +12,12 @@ export type PanelEndpoint = {
   port: number
 }
 
+/** The lab service that runs next to the engine. */
+export type LabEndpoint = {
+  url: string
+  token?: string
+}
+
 export type ApiDependencies = {
   harness: HarnessManager
   info: AgentInfo
@@ -28,6 +34,8 @@ export type ApiDependencies = {
    * starts, and the panel may be disabled or fail to bind.
    */
   panel?: () => PanelEndpoint | undefined
+  /** Resolved lazily; the lab service may be started after the hub. */
+  lab?: () => LabEndpoint | undefined
   log: (message: string, detail?: unknown) => void
 }
 
