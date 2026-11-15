@@ -196,7 +196,11 @@ async function serve(options: Options): Promise<void> {
     port,
     ...(process.env.CLARA_LAB_HOST?.trim() ? { host: process.env.CLARA_LAB_HOST.trim() } : {}),
     ...(process.env.CLARA_LAB_TOKEN?.trim() ? { token: process.env.CLARA_LAB_TOKEN.trim() } : {}),
-    ...(process.env.CLARA_LAB_ALLOW_REMOTE?.trim() === '1' ? { allowRemote: true } : {}),
+    ...(['1', 'true', 'yes', 'on'].includes(
+      process.env.CLARA_LAB_ALLOW_REMOTE?.trim().toLowerCase() ?? ''
+    )
+      ? { allowRemote: true }
+      : {}),
     staticRoots,
     log: (message, detail) => console.error(`[clara-lab] ${message}`, detail ?? ''),
   })
