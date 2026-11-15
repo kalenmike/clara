@@ -81,7 +81,10 @@ work is hidden while a question is waiting.
 ## Fork and forward
 
 The session header can fork the whole session. Each user or assistant message
-has fork and forward actions. On a long reply, **Select part** lets you pick one
+has fork and forward actions in a vertical rail at its right edge. On a long
+message the rail stays pinned below the header until the message ends, so you
+never have to scroll back up to reach it. On a phone, the same actions live in
+the message's overflow menu. **Select part** on a long reply lets you pick one
 paragraph, list, code block, table, quote, or heading section before forwarding.
 
 ## Usage

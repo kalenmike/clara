@@ -16,7 +16,9 @@ every case.
    creates a child session with the full settled transcript, opens it, and
    leaves the source running.
 2. To branch earlier, hover a user or assistant message and choose **Fork from
-   here**. The new session contains that message and everything above it.
+   here** from its action rail. The rail floats at the message's right edge and
+   stays pinned below the header while a long message scrolls, so the actions
+   stay in reach. The new session contains that message and everything above it.
 3. On a phone, open the message's overflow menu to reach the same two actions.
 4. To start a new conversation from one message, choose **Forward to new
    brief**. Clara creates an empty draft in the same project, switches to it,
