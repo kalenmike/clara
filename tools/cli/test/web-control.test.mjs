@@ -79,6 +79,7 @@ test('build info comes from the host checkout', () => {
     const clean = buildInfoEnv(root)
     assert.match(clean.CLARA_COMMIT, /^[0-9a-f]{8,40}$/)
     assert.equal(clean.CLARA_DIRTY, '0')
+    assert.match(clean.CLARA_VERSION, /^0\.0\.0-dev\+[0-9a-f]+$/)
 
     writeFileSync(join(root, 'file.txt'), 'two\n')
     assert.equal(buildInfoEnv(root).CLARA_DIRTY, '1')

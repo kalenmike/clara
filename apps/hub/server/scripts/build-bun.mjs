@@ -12,11 +12,16 @@ import { createHash } from 'node:crypto'
 import { existsSync, mkdirSync, readdirSync, readFileSync, writeFileSync } from 'node:fs'
 import { dirname, join, relative, resolve, sep } from 'node:path'
 import { fileURLToPath } from 'node:url'
+import { buildVersion } from '../../../../tools/build/version.mjs'
 
 const here = dirname(fileURLToPath(import.meta.url))
 const packageRoot = resolve(here, '..')
 const repoRoot = resolve(packageRoot, '../../..')
 const panelDist = join(repoRoot, 'apps', 'hub', 'panel', 'dist')
+const version = buildVersion({
+  packageVersion: readPackageVersion(),
+  commit: git(['rev-parse', '--short=7', 'HEAD']) || 'local',
+})
 const relayDist = join(packageRoot, 'dist', 'relay')
 const generated = join(packageRoot, 'src', 'embedded-assets.generated.mjs')
 const entry = join(packageRoot, 'src', 'bun.ts')
@@ -74,6 +79,8 @@ run(
     `process.env.ENABLE_CLOUDFLARE_DEPLOYMENT=${JSON.stringify(
       cloudflareDeployment ? 'true' : 'false'
     )}`,
+    '--define',
+    `process.env.CLARA_VERSION=${JSON.stringify(version)}`,
     entry,
     '--outfile',
     outfile,
@@ -81,6 +88,20 @@ run(
   repoRoot
 )
 console.log(`Hub binary: ${outfile}`)
+
+function readPackageVersion() {
+  try {
+    const manifest = JSON.parse(readFileSync(join(repoRoot, 'package.json'), 'utf8'))
+    return typeof manifest.version === 'string' ? manifest.version : '0.0.0'
+  } catch {
+    return '0.0.0'
+  }
+}
+
+function git(args) {
+  const result = spawnSync('git', args, { cwd: repoRoot, encoding: 'utf8' })
+  return result.status === 0 ? result.stdout.trim() : ''
+}
 
 function arg(name) {
   const index = process.argv.indexOf(name)

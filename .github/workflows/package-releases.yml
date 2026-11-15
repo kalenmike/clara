@@ -98,6 +98,7 @@ jobs:
       - name: Build the binary
         env:
           CLARA_RELEASE_PUBLIC_KEY: ${{ needs.prepare.outputs.public_key }}
+          CLARA_VERSION: ${{ needs.prepare.outputs.version }}
         run: pnpm --filter @clara/cli run build:binary -- --target=${{ matrix.bun-target }} --outfile=dist/package/${{ matrix.platform }}/clara${{ runner.os == 'Windows' && '.exe' || '' }}
 
       - name: Smoke the binary

@@ -3,9 +3,10 @@
 ## Summary
 
 Clara ships as one `clara` executable for Linux, macOS, and Windows. It contains
-the hub service, the authenticated panel, the engine, the web client, and the
-command that runs them. People install it from a signed release, run
-`clara setup`, and control the local stack without Docker, Node, or a checkout.
+the hub service, the authenticated panel, the engine, the Clara Lab service, the
+web client, and the command that runs them. People install it from a signed
+release, run `clara setup`, and control the local stack without Docker, Node, or
+a checkout.
 
 ## User flow
 
@@ -15,8 +16,8 @@ command that runs them. People install it from a signed release, run
    hub owner account, starts the stack, and optionally installs a login service.
 3. Open the panel URL it prints, or pair a client with the code from
    `clara pair hub`.
-4. Run `clara ps` at any time to see the engine, hub, and web client with their
-   state, endpoint, pid, and uptime.
+4. Run `clara ps` at any time to see the engine, Lab, hub, and web client with
+   their state, endpoint, pid, and uptime.
 5. Run `clara adapter search`, then `clara adapter install <kind>` to pull a
    harness adapter from the release registry. Adapters are never bundled.
 6. Run `clara update` to install a newer release. `clara update --rollback`
@@ -26,17 +27,25 @@ command that runs them. People install it from a signed release, run
 
 ## Core business rules
 
-1. One binary, one version. The command, hub, engine, panel, and web client are
-   compiled together, so they cannot drift apart. Assets are extracted once per
-   build into the cache directory and each service reads its own subtree.
+1. One binary, one version. The command, hub, engine, Lab, panel, and web client
+   are compiled together, so they cannot drift apart. Assets are extracted once per
+   build into the cache directory and each service reads its own subtree. A
+   release reports its release version; a build from a checkout reports
+   `<package version>-dev+<7-character commit>` (for example
+   `0.1.0-dev+abc1234`), so two local builds are distinct artifacts. The
+   packaged command runs the lab service only: Clara Desktop renders the Lab UI
+   at `/lab` and reaches the service through the hub bridge.
 2. One supervisor. `clara start` detaches a single `__supervise` process that
-   starts engine → hub → web, restarts a crashed child a few times, and stops
-   everything in reverse order. A login service runs the same supervisor in the
+   starts engine → Lab → hub → web, restarts a crashed child a few times, and
+   stops everything in reverse order. A login service runs the same supervisor in the
    foreground.
 3. Ports and paths match the existing services. Hub panel `8790`, hub local
-   WebSocket `8788`, engine `8789`, web `8080`; `~/.config/clara`,
+   WebSocket `8788`, engine `8789`, Lab `8791`, web `8080`; `~/.config/clara`,
    `~/.local/share/clara`, and `~/.cache/clara`, with the existing environment
-   overrides. The hub keeps its runtime file and ephemeral-port behavior.
+   overrides. The hub keeps its runtime file and ephemeral-port behavior. The
+   supervisor points the hub's `CLARA_LAB_URL` at the supervised Lab and the
+   lab's `CLARA_ENGINE_URL` at the supervised engine unless the host sets
+   either.
 4. Adapters are pulled, never shipped. The command reads the adapter registry,
    verifies the artifact SHA-256 before extraction, installs under the data
    directory, and runs the adapter's own installer with a pairing code from the
@@ -60,6 +69,10 @@ command that runs them. People install it from a signed release, run
   instead of starting a second supervisor.
 - **A service crashes**: the supervisor restarts it up to three times in a
   minute, then marks it failed and leaves the other services running.
+- **The engine is offline when the Lab starts**: the Lab still serves previews
+  and reports `connected: false`; probe actions retry once the engine is up.
+- **The Lab port is busy**: the Lab child exits and the start fails like any
+  other busy service port; move it with `CLARA_LAB_PORT`.
 - **A stale `services.json`**: a dead supervisor pid is ignored and the state is
   replaced on the next start.
 - **The web or panel build is missing at build time**: the binary build fails
@@ -93,7 +106,7 @@ command that runs them. People install it from a signed release, run
 - Commands: `start`, `stop`, `restart`, `status`/`ps`, `logs`, `pair hub`,
   `setup`, `update`, `service`, `adapter`, `runner`, `doctor`, `uninstall`,
   `version`.
-- Hidden dispatch: `__serve hub|engine|web|runner`, `__supervise`, `__hub`.
+- Hidden dispatch: `__serve hub|engine|lab|web|runner`, `__supervise`, `__hub`.
 - State: `services.json` and `supervisor.pid` under the data directory; logs in
   `<data>/logs/<service>.log`.
 - Release assets: `manifest.json`, `manifest.json.sig`, `install.sh`,
@@ -108,8 +121,9 @@ command that runs them. People install it from a signed release, run
   build without rebuilding it: it stages the binary under
   `<data>/versions/<version>/clara`, links it from the user bin directory, and
   writes `install.json` with channel `local`, so `clara doctor`, `clara update`,
-  and `clara uninstall` work as for a release. `--from`, `--bin-dir`, and
-  `--dry-run` change the source and target; `pnpm cli:uninstall [--purge]`
-  removes the install through `clara uninstall`.
+  and `clara uninstall` work as for a release. The store path uses the full dev
+  version, so installing a different commit leaves the previous build in place.
+  `--from`, `--bin-dir`, and `--dry-run` change the source and target;
+  `pnpm cli:uninstall [--purge]` removes the install through `clara uninstall`.
 
 </details>

@@ -5,10 +5,13 @@
 Clara Lab is a developer console for the engine, opened from Clara Desktop at
 `/lab`. The desktop window is only the UI. The lab service runs on the engine
 host, next to the engine, and the desktop reaches it through the hub's
-authenticated bridge. The service owns the workspace files, compiles a
-workspace's packages so authors can inspect every resolved step, and acts as the
-MCP harness so they can drive the same run by hand. It is for people writing
-custom pipelines, not for end users.
+authenticated bridge. The packaged `clara` command supervises the service as
+`lab`, so `clara start` brings it up with the rest of the stack.
+
+The service owns the workspace files, compiles a workspace's packages so authors
+can inspect every resolved step, and acts as the MCP harness so they can drive
+the same run by hand. It is for people writing custom pipelines, not for end
+users.
 
 The workspace is local to the lab service, not the desktop. The standard
 packages come from the engine, so the preview and a run cannot drift. The UI is
@@ -16,13 +19,13 @@ desktop-only: the deployed web/PWA build contains no lab code.
 
 ## User flow
 
-1. Start the lab service with `clara start lab`, or run `pnpm dev:lab` while
-   editing it. The service opens on `127.0.0.1:8791` in a full-height workbench
-   with one navigation rail: **Review**, **Runs**, **Traffic**, **Console**, and
-   **Settings**. In Clara Desktop, open **Clara Lab** from the sidebar to use the
-   same UI at `/lab` through the hub bridge. The desktop route follows the
-   client's mode and color theme; the standalone page follows the operating
-   system and uses the Default palette.
+1. The packaged command starts the lab service with `clara start`; use
+   `clara start lab` to run only it. A checkout runs `pnpm dev:lab` while
+   editing, which also serves the standalone workbench on `127.0.0.1:8791`. In
+   Clara Desktop, open **Clara Lab** from the sidebar to use the UI at `/lab`
+   through the hub bridge. The desktop route follows the client's mode and color
+   theme; the standalone page follows the operating system and uses the Default
+   palette.
 2. Open **Settings**, choose **Files on this machine** — the repository as the
    lab sees it. Use **Browse…** to pick the folder or type the path. The
    engine's own workspace is reported by the service and shown read-only
@@ -65,7 +68,8 @@ desktop-only: the deployed web/PWA build contains no lab code.
     form from each tool's input schema with required, range, and enum hints
     under every field, keeps the raw JSON editor behind a Form/JSON toggle, and
     loads recent calls back into the form.
-11. Run `clara status lab --check` in CI to compile a target and fail on errors.
+11. Run `clara-dev status lab --check` from a checkout in CI to compile a
+    target and fail on errors.
     Model diagnostics stay static: missing providers, missing models, and unset
     models are reported without reading a live catalog.
 
@@ -83,7 +87,9 @@ The lab has three parts, and only the first is a window:
 2. **The lab service.** `@clara/lab-server` runs next to the engine, not on the
    desktop and not inside the hub process. It owns the workspace files, the
    preview and import graph, the engine token, run and admin calls over MCP and
-   SSE, and the engine std/default asset cache.
+   SSE, and the engine std/default asset cache. The packaged `clara` command
+   supervises it as `lab` and serves the API only; the standalone workbench
+   comes from `pnpm dev:lab` or `clara-dev start lab`.
 3. **The hub bridge.** The hub exposes an authenticated bridge at `/v1/lab/*`
    and forwards it to the lab service's `/api/*`. This is how a remote desktop
    reaches a lab service on the engine host. The hub does not hold the engine
@@ -285,8 +291,10 @@ publish packages to the engine.
 <details>
 <summary>Commands, routes, data, and packages</summary>
 
-- Start: `clara start lab` (serve), `clara status lab --check` (validate). Clara
-  Desktop opens the same UI at `/lab` through the hub bridge.
+- Start: `clara start` (part of the stack), `clara start lab` (only the lab).
+  Clara Desktop opens the UI at `/lab` through the hub bridge.
+- Validate: `clara-dev status lab --check` from a checkout. The packaged command
+  serves the API only, not the standalone workbench.
 - Dev: `pnpm dev:lab` runs Vite on `5175` and the lab server on `8791`.
 - Styling: `packages/lab/src/styles.css` aliases `--lab-*` over the shared
   semantic tokens, so the bundled `/lab` route inherits the client mode and

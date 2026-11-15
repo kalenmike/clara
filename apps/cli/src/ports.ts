@@ -1,13 +1,14 @@
-export type ServiceName = 'hub' | 'engine' | 'web'
+export type ServiceName = 'hub' | 'engine' | 'web' | 'lab'
 
 export type Ports = {
   hubPanel: number
   hubLocal: number
   engine: number
   web: number
+  lab: number
 }
 
-const DEFAULTS: Ports = { hubPanel: 8790, hubLocal: 8788, engine: 8789, web: 8080 }
+const DEFAULTS: Ports = { hubPanel: 8790, hubLocal: 8788, engine: 8789, web: 8080, lab: 8791 }
 
 export function resolvePorts(env: NodeJS.ProcessEnv = process.env): Ports {
   return {
@@ -15,12 +16,14 @@ export function resolvePorts(env: NodeJS.ProcessEnv = process.env): Ports {
     hubLocal: positive(env.CLARA_LOCAL_PORT, DEFAULTS.hubLocal),
     engine: positive(env.CLARA_ENGINE_PORT, DEFAULTS.engine),
     web: positive(env.CLARA_WEB_PORT, DEFAULTS.web),
+    lab: positive(env.CLARA_LAB_PORT, DEFAULTS.lab),
   }
 }
 
 export function portFor(service: ServiceName, ports: Ports): number {
   if (service === 'hub') return ports.hubPanel
   if (service === 'engine') return ports.engine
+  if (service === 'lab') return ports.lab
   return ports.web
 }
 

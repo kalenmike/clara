@@ -119,7 +119,11 @@
       "ignoreDependencies": ["ws"]
     }
   },
-  "ignore": ["apps/web/src/components/ui/**", "tools/build/feature-flags.d.mts"],
+  "ignore": [
+    "apps/web/src/components/ui/**",
+    "tools/build/feature-flags.d.mts",
+    "tools/build/version.d.mts"
+  ],
   "ignoreBinaries": ["ss", "rustc", "ldd"],
   "ignoreDependencies": ["yaml", "cloudflare", "better-sqlite3"],
   "rules": {

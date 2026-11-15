@@ -3,7 +3,7 @@
   "private": true,
   "version": "0.1.0",
   "type": "module",
-  "description": "Packaged Clara command for the hub, engine, and web client.",
+  "description": "Packaged Clara command for the hub, engine, lab, and web client.",
   "bin": {
     "clara": "./src/main.ts"
   },
@@ -24,6 +24,7 @@
   "dependencies": {
     "@clara/engine": "workspace:*",
     "@clara/hub-server": "workspace:*",
+    "@clara/lab-server": "workspace:*",
     "@clara/runner": "workspace:*",
     "@clara/runtime-state": "workspace:*",
     "@clara/shared-types": "workspace:*"

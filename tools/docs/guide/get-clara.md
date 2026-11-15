@@ -47,7 +47,7 @@ Re-running setup repairs missing pieces without duplicating them.
 
 ```bash
 clara ps                 # what is running, with version, protocol, and uptime
-clara logs -f            # follow all three services
+clara logs -f            # follow every service
 clara logs hub -f        # follow one service
 clara pair hub           # print a browser pairing code and QR
 clara restart            # restart the stack
@@ -57,10 +57,11 @@ clara doctor             # paths, versions, ports, and login service
 
 `clara status` asks each running service which version and protocol it loaded,
 so a stack that is still on the previous build after an update is visible before
-you restart it. A value marked with `*` differs from the installed command; a
-service that does not report one shows `-`. `clara status --json` is the
-machine-readable form for scripts. Colors and the spinner are disabled
-automatically when the output is not a terminal.
+you restart it. A build from a checkout reports its commit as well, such as
+`0.1.0-dev+abc1234`, so the exact local build is visible. A value marked with `*`
+differs from the installed command; a service that does not report one shows `-`.
+`clara status --json` is the machine-readable form for scripts. Colors and the
+spinner are disabled automatically when the output is not a terminal.
 
 ## Pair a harness
 

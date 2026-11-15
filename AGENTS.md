@@ -80,7 +80,7 @@ pnpm cli:build      # Build the Bun `clara` binary for the host
 pnpm cli:install    # Install that build for the current user
 pnpm cli:smoke      # Build and smoke the packaged binary
 pnpm cli:uninstall  # Remove the installed command
-clara start|stop|restart|status|ps|logs [hub|engine|web] # Packaged stack lifecycle
+clara start|stop|restart|status|ps|logs [hub|engine|web|lab] # Packaged stack lifecycle
 clara setup         # Create the owner account, start, and optionally add a login service
 clara update        # Verify and install a signed release (--check, --rollback)
 clara adapter search|install|list|upgrade|remove # Pull harness adapters on demand
@@ -102,8 +102,8 @@ clara logs adapter [--harness <name>] # Follow adapter logs
 clara start runner [--workspace <path>] # Start the shared runner service
 clara stop runner [--purge] # Stop the runner service
 clara status runner [--json] # Inspect the runner
-clara start lab [--workspace <path>] # Start Clara Lab
-clara status lab --check # Validate a package target for CI
+clara-dev start lab [--workspace <path>] # Start only Clara Lab from a checkout
+clara-dev status lab --check # Validate a package target for CI
 clara start docs [--build] # Start the documentation site on :5176
 clara status docs --check # Check guide and internal doc indexes and links
 clara status docs --typecheck # Typecheck the documentation site

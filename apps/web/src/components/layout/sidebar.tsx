@@ -1,20 +1,16 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
-import { Link, useLocation, useNavigate, useParams } from 'react-router'
+import { Link, useNavigate, useParams } from 'react-router'
 import {
-  Activity,
   ChevronDown,
   ChevronRight,
   ChevronsDownUp,
   ChevronsUpDown,
-  FlaskConical,
   FolderGit2,
   FolderPlus,
   LayoutGrid,
   Loader2,
   Plus,
   Search,
-  ShieldCheck,
-  Settings,
   X,
 } from 'lucide-react'
 import type { ClaraSession } from '@clara/api-contract'
@@ -35,6 +31,7 @@ import { Skeleton } from '@/components/ui/skeleton'
 import { AddProjectDialog } from '@/components/projects/add-project-dialog'
 import { ProjectAvatar } from '@/components/projects/project-avatar'
 import { SidebarSelectionBar } from '@/components/layout/sidebar-selection-bar'
+import { SidebarNav } from '@/components/layout/sidebar-nav'
 import { SidebarSessionRow } from '@/components/layout/sidebar-session-row'
 import { DeleteSessionDialog } from '@/components/sessions/delete-session-dialog'
 import { useWorkspacePendingPermissions } from '@/features/chat/use-permissions'
@@ -82,7 +79,6 @@ import { useSidebarWidth } from '@/hooks/use-sidebar-width'
 import { claraBuildTitle, claraDisplayVersion } from '@/lib/build-info'
 import { errorMessage } from '@/lib/errors'
 import { isTextEntryTarget } from '@/lib/keyboard'
-import { isDesktop } from '@/lib/runtime'
 import {
   SIDEBAR_WIDTH_MAX,
   SIDEBAR_WIDTH_MIN,
@@ -147,7 +143,6 @@ export function SidebarContent({
   scope?: 'sidebar' | 'drawer'
 }) {
   const navigate = useNavigate()
-  const location = useLocation()
   const params = useParams<{ projectId: string; sessionId?: string }>()
   const { lowerSingular, lowerPlural } = useSessionWording()
   const { reconnect, reconnecting } = useConnection()
@@ -597,9 +592,7 @@ export function SidebarContent({
     })
   }
 
-  const onSettings = location.pathname === '/settings'
   const allSectionsOpen = sections.every((section) => openSections[section.id])
-
   const toggleAllSections = () => {
     const open = !allSectionsOpen
     const next = { ...openSections }
@@ -676,36 +669,6 @@ export function SidebarContent({
             )}
           </div>
         </div>
-        {isDesktop ? (
-          <Button asChild variant="ghost" size="icon" className="size-11 md:size-8">
-            <Link to="/lab" onClick={onNavigate} title="Clara Lab">
-              <FlaskConical className="size-5 md:size-4" />
-              <span className="sr-only">Clara Lab</span>
-            </Link>
-          </Button>
-        ) : null}
-        <Button asChild variant="ghost" size="icon" className="size-11 md:size-8">
-          <Link to="/hub" onClick={onNavigate} title="Hub panel">
-            <ShieldCheck className="size-5 md:size-4" />
-            <span className="sr-only">Hub panel</span>
-          </Link>
-        </Button>
-        <Button asChild variant="ghost" size="icon" className="size-11 md:size-8">
-          <Link to="/activity" onClick={onNavigate} title="Activity">
-            <Activity className="size-5 md:size-4" />
-            <span className="sr-only">Activity</span>
-          </Link>
-        </Button>
-        <Button asChild variant="ghost" size="icon" className="size-11 md:size-8">
-          <Link
-            to={onSettings ? '/' : '/settings'}
-            onClick={onNavigate}
-            title={onSettings ? 'Back to home' : 'Settings'}
-          >
-            <Settings className="size-5 md:size-4" />
-            <span className="sr-only">{onSettings ? 'Back to home' : 'Settings'}</span>
-          </Link>
-        </Button>
         {onNavigate && (
           <Button
             variant="ghost"
@@ -1007,7 +970,9 @@ export function SidebarContent({
           })}
       </ScrollArea>
 
-      <div className="shrink-0 border-t px-3 py-2.5 text-[11px] text-muted-foreground md:py-2 md:text-[10px]">
+      <SidebarNav onNavigate={onNavigate} />
+
+      <div className="shrink-0 px-3 pb-2.5 pt-1 text-[11px] text-muted-foreground md:pb-2 md:text-[10px]">
         <div className="flex justify-end">
           <span className="truncate" title={claraBuildTitle}>
             Clara {claraDisplayVersion}

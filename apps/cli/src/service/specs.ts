@@ -11,8 +11,8 @@ export type ServiceSpec = {
   env: (ports: Ports) => NodeJS.ProcessEnv
 }
 
-export const START_ORDER: readonly ServiceName[] = ['engine', 'hub', 'web']
-export const STOP_ORDER: readonly ServiceName[] = ['web', 'hub', 'engine']
+export const START_ORDER: readonly ServiceName[] = ['engine', 'lab', 'hub', 'web']
+export const STOP_ORDER: readonly ServiceName[] = ['web', 'hub', 'lab', 'engine']
 
 export const SPECS: Record<ServiceName, ServiceSpec> = {
   engine: {
@@ -24,6 +24,22 @@ export const SPECS: Record<ServiceName, ServiceSpec> = {
     url: (ports) => `http://127.0.0.1:${portFor('engine', ports)}`,
     env: (ports) => ({ CLARA_ENGINE_PORT: String(portFor('engine', ports)) }),
   },
+  lab: {
+    name: 'lab',
+    label: 'lab',
+    serviceId: 'clara-lab',
+    healthPath: '/api/health',
+    port: (ports) => portFor('lab', ports),
+    url: (ports) => `http://127.0.0.1:${portFor('lab', ports)}`,
+    env: (ports) => ({
+      CLARA_LAB_PORT: String(portFor('lab', ports)),
+      // Follow the supervised engine's address instead of the fixed default.
+      CLARA_ENGINE_URL:
+        process.env.CLARA_ENGINE_URL?.trim() ||
+        process.env.CLARA_ORCHESTRATION_URL?.trim() ||
+        `http://127.0.0.1:${portFor('engine', ports)}`,
+    }),
+  },
   hub: {
     name: 'hub',
     label: 'hub',
@@ -34,6 +50,9 @@ export const SPECS: Record<ServiceName, ServiceSpec> = {
     env: (ports) => ({
       CLARA_PANEL_PORT: String(ports.hubPanel),
       CLARA_LOCAL_PORT: String(ports.hubLocal),
+      // The bridge target follows the supervised lab unless the host sets it.
+      CLARA_LAB_URL:
+        process.env.CLARA_LAB_URL?.trim() || `http://127.0.0.1:${portFor('lab', ports)}`,
     }),
   },
   web: {
@@ -48,7 +67,7 @@ export const SPECS: Record<ServiceName, ServiceSpec> = {
 }
 
 export function isServiceName(value: string): value is ServiceName {
-  return value === 'hub' || value === 'engine' || value === 'web'
+  return value === 'hub' || value === 'engine' || value === 'web' || value === 'lab'
 }
 
 export function ordered(

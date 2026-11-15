@@ -1,7 +1,7 @@
 import { existsSync, mkdirSync, readFileSync, renameSync, rmSync, writeFileSync } from 'node:fs'
 import { dirname } from 'node:path'
 
-export type ServiceName = 'hub' | 'engine' | 'web'
+export type ServiceName = 'hub' | 'engine' | 'web' | 'lab'
 
 export type ServiceRecord = {
   pid: number | null
