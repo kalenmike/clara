@@ -22,7 +22,12 @@ can be built from the same client; see [desktop.md](desktop.md).
    window installs the update for the next launch.
 6. Settings → App shows the running version and build, reports whether an
    update is ready, and offers **Clear cached app data**.
-7. Offline, a navigation falls back to the cached app shell instead of failing.
+7. Before pairing, and on every boot splash, the bottom of the screen shows the
+   app version, the wire protocol version, and a reload control. On the web the
+   control unregisters the worker, drops every cache, and reloads, so a stale
+   install recovers without reaching Settings; on desktop it reloads the
+   bundled app.
+8. Offline, a navigation falls back to the cached app shell instead of failing.
 
 ### Self-hosted container
 
@@ -71,7 +76,9 @@ cookie jar.
    the page, and a same-build copy are ignored.
 6. The page never reloads on a timer. It reloads after the waiting worker takes
    control; if that does not happen, the banner stays for another attempt
-   instead of reloading onto the build that is already running.
+   instead of reloading onto the build that is already running. The explicit
+   reload control on the pairing screen and boot splash is the only unasked
+   reset, and it clears the worker and caches before reloading.
 7. Every window watches the controller. When one window applies the update, the
    others drop the stale offer instead of showing it again.
 8. API reads, streams, and push payloads never enter a cache. Only app
@@ -107,7 +114,9 @@ cookie jar.
   is applied; a plain browser tab without worker control recovers with one
   reload.
 - **Wedged app**: Settings → App clears the worker registration and every cache,
-  then reloads from the network. Pairing, settings, and drafts are untouched.
+  then reloads from the network. Pairing, settings, and drafts are untouched. A
+  device that is not paired yet does the same from the reload control beside the
+  version at the bottom of the pairing screen or boot splash.
 - **Notifications after clearing**: the push subscription can be dropped; the
   notifications card offers to subscribe again.
 - **Browser tab**: everything works except standalone display and Web Push on
@@ -121,9 +130,10 @@ cookie jar.
 
 ## Known gaps
 
-- A client already stuck on a worker cached before this change cannot be
-  repaired remotely. It recovers when its cached worker script expires (at most
-  four hours after a deploy) and the next launch installs the new worker.
+- A client already stuck on a worker cached before the reload control shipped
+  cannot be repaired remotely. It recovers when its cached worker script expires
+  (at most four hours after a deploy) and the next launch installs the new
+  worker.
 - The worker is built as a classic script, so `importScripts` keeps working and
   iOS does not need module service worker support.
 
@@ -150,6 +160,10 @@ cookie jar.
 - Throttle: `apps/web/src/features/pwa/update-check.ts` (`dueForUpdateCheck`).
 - Banner: `apps/web/src/components/pwa/update-banner.tsx`, rendered under the
   mobile app bar in the app shell.
+- Standalone footer: `apps/web/src/components/pwa/app-footer.tsx` shows the
+  build and wire protocol stamp plus the reload control, and is rendered by the
+  connect screen and `connection-splash.tsx`. `reloadApp` in
+  `apps/web/src/features/updates/app-update.ts` picks the reset for the surface.
 - Reset action and build stamp: `apps/web/src/components/settings/app-card.tsx`.
 - Cache headers: `apps/web/public/_headers` revalidates `/sw.js`,
   `/index.html`, and `/manifest.webmanifest`.

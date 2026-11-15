@@ -96,7 +96,8 @@ Use the hub's own panel for those.
 - The app has its own window, taskbar or dock icon, and install location.
 - Links in messages open in your default browser instead of replacing Clara.
 - There is no install prompt, service worker, offline shell, or update banner.
-  To update, install a newer build.
+  To update, install a newer build. The reload control on the pairing screen
+  reloads the bundled app; it cannot fetch a newer one.
 - Web Push is not available. Inbox sounds and toasts work while the window is
   running; native desktop notifications are not part of this build yet.
 - Pairing and drafts belong to the app installation. Removing the app removes

@@ -103,5 +103,9 @@ Read [Security and privacy](security.md) for the full picture.
 - **Relay offline** — the hub is not connected to its room. Ask the host to check
   the relay card in the hub panel.
 - **Revoked device** — the host revoked this browser. Pair again.
+- **Stale app** — the bottom of the pairing screen shows the app version and
+  protocol version next to a reload control. On the web it resets the installed
+  app's cached files before reloading; on desktop it reloads the app. Pairing is
+  not affected.
 
 More cases are in [Troubleshooting](troubleshooting.md).

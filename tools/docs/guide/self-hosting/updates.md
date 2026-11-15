@@ -56,7 +56,9 @@ than one window, the window that accepts the update reloads and the others pick
 up the new build the next time they navigate.
 
 If the app is wedged, use **Settings → Advanced → Clear cached app data**. It
-resets the service worker and caches but keeps pairing, settings, and drafts.
+resets the service worker and caches but keeps pairing, settings, and drafts. A
+device that is not paired yet uses the reload control at the bottom of the
+pairing screen, beside the app and protocol versions.
 
 ## Back up
 
