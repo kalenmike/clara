@@ -56,7 +56,7 @@ action or `clara-server pair`.
    returns the device id, fingerprint, and first thirty-day device grant. Clara
    stores the non-extractable key in IndexedDB, keeps the grant for relay
    connects, reconnects with the device id, and probes the hub API. Harness
-   information loads separately through the default harness.
+   information loads separately per paired harness.
 6. On success Clara opens the last project. The Settings → Server card shows the
    relay state and device identity. On failure Clara returns to the pair form and
    shows the reason.

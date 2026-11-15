@@ -36,9 +36,9 @@ device key through a one-time code; there is no shared browser key.
    enrollment handshake, stores the device key, reconnects with the device id,
    and calls `/v1/info` through the tunnel to prove the hub is reachable.
 6. On success Clara opens the last project, or the first project the server
-   returns. It fetches `/v1/harness/info` separately; when the default harness
-   adapter is missing or offline, the app stays connected and shows a retryable
-   harness banner instead of failing the connect screen.
+   returns. It reads the paired-harness list separately; when no adapter is
+   paired or every adapter is offline, the app stays connected and shows a
+   retryable harness banner instead of failing the connect screen.
 7. On failure the form explains whether the code, expiry, fingerprint, relay,
    authentication, or reachability failed. A failed pairing link returns to the
    pair form with the reason.
@@ -55,7 +55,7 @@ device key through a one-time code; there is no shared browser key.
 2. The transport never sends a harness password to the browser. The adapter
    adds harness authentication and is the only process that talks to its
    harness; the hub maps each typed `/v1` call to the harness that owns the
-   session or workspace, and to the default harness otherwise.
+   session or workspace, and requires an explicit harness otherwise.
 3. `VITE_CLARA_WS_URL` retargets relay-room pairings; a `local` pairing keeps the
    endpoint from its payload. The panel's local-only option or
    `clara-server pair --no-relay` produces a `local` pairing even when the hub
@@ -67,12 +67,12 @@ device key through a one-time code; there is no shared browser key.
    handshake failures settle first and report their own reason.
 6. The event stream is healthy only while chunks keep arriving. The hub sends
    a heartbeat every 15 seconds; 45 seconds of silence is treated as dead.
-7. The hub resolves its default harness from SQLite and keeps every paired
-   connection in the same table. If none is paired, the tunnel can connect but
-   `/v1/harness/info` returns `503` with `harness_unconfigured`; if the default
-   adapter is paired but offline, it returns `harness_offline`. The connection
-   probe is `/v1/info`, not the harness endpoint, so these states render as a
-   banner instead of a connection error. Pair or start an adapter in the panel
+7. The hub keeps every paired connection in one table and never marks one as
+   default. If none is paired, the tunnel can connect but harness-backed routes
+   return `503` with `harness_unconfigured`; a named adapter that is offline
+   returns `harness_offline`. The connection probe is `/v1/info`, not a harness
+   endpoint, so these states render as a banner instead of a connection error.
+   Pair or start an adapter in the panel
    to use projects and sessions.
 8. Push notifications need the hub's E2EE transport; the control channel
    also carries push subscriptions.

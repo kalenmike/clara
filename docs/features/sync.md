@@ -62,11 +62,15 @@ changes.
 8. **Last project is saved state, not navigation.** A remote last project updates
    the remembered value; it never moves the current screen. The device's next
    project selection can overwrite it normally.
-9. **Models sync as one group.** The separate **Models** category carries
-   `clara.hiddenModels`, which contains the complete provider and model lists. A
-   local toggle rewrites that one value, and a pull replaces the whole group.
-   There are no per-provider or per-model sync entries.
-10. **Single settings are isolated.** The **Single setting** section is not part
+9. **Models sync as one per-harness group.** The separate **Models** category
+   carries `clara.hiddenModels` as
+   `{ version: 2, harnesses: Record<harnessID, { providers, models }> }`. A local
+   toggle rewrites that one value, and a pull replaces the whole group. There
+   are no per-provider or per-model sync entries, and v1 values are rejected.
+10. **Agent defaults are per harness.** `clara.defaultAgent` and
+    `clara.lastAgent` use `{ version: 2, harnesses: Record<harnessID, …> }`.
+    A fixed agent chosen on one harness never applies to another.
+11. **Single settings are isolated.** The **Single setting** section is not part
     of any category. **Orchestrator mode** shares only
     `clara.orchestratorMode`, the per-client choice to use the orchestrator
     surface. Enabling it does not enable any category, and disabling it leaves
@@ -90,8 +94,8 @@ changes.
   conflict snapshot wins.
 - **Invalid server value** — the value is not applied, and the local usable value
   is pushed so the namespace can heal.
-- **Model visibility conflict** — a pull replaces the entire hidden model group;
-  individual toggles from the losing device are not merged.
+- **Model visibility conflict** — a pull replaces the entire per-harness hidden
+  model group; individual toggles from the losing device are not merged.
 - **Missing or extra keys in a choice** — a key the hub lacks is filled from
   the first enabled device. Keys for choices this device did not enable are
   ignored.
@@ -121,9 +125,9 @@ changes.
   `{ namespace, revision, entries: [{ key, value, updatedAt }] }`
 - Categories and keys:
   - Theme: `clara.theme`, `clara.colorTheme`
-  - Preferences: `clara.defaultAgent`, `clara.lastAgent`,
+  - Preferences: `clara.defaultAgent`, `clara.lastAgent` (both v2, per harness),
     `clara.sessionWording`, `clara.costDisplay`
-  - Models: `clara.hiddenModels`
+  - Models: `clara.hiddenModels` (v2, per harness)
   - Notifications: `clara.notifications` (sounds, UI sounds, volume,
     `soundKinds`, `deskIdleMs` only)
   - Project: `clara.lastProject`, `clara.showEmptyProjects`, `clara.showArchivedProjects`

@@ -5,8 +5,9 @@
 Clara reaches a harness through a small adapter daemon. The adapter connects out
 to the hub over the same local or relay WebSocket and E2EE session as a browser
 client, then speaks the Clara Harness Protocol. The hub is harness-neutral: it
-routes typed `/v1` calls to whichever adapter is active and branches on
-capability flags, not harness kind. This repository includes the OpenCode,
+routes typed `/v1` calls to the adapter that owns the workspace or session, and
+branches on capability flags, not harness kind. Every paired adapter is a peer;
+there is no hub-wide default. This repository includes the OpenCode,
 Claude Code, and Pi adapters. Additional adapters can use the same pairing,
 transport, and capability model.
 
@@ -291,8 +292,8 @@ ask for confirmation run without one, exactly as in the Pi TUI.
 
 - Running the adapter inside the hub process.
 - An inbound adapter HTTP port.
-- A per-client active harness; the panel keeps one default backend while every
-  paired adapter serves the workspaces that belong to it.
+- A hub-wide default or active harness. Every paired adapter serves the
+  workspaces and sessions that belong to it.
 - A Claude Code orchestration binding or shared runner integration.
 - A shipped Claude Code container image.
 - A Pi orchestration binding or shared runner integration.
