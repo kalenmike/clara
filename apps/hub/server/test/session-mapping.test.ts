@@ -38,7 +38,15 @@ type FakeHarness = {
   cursors: Map<string, string>
 }
 
-function fakeHarness(options: { projects?: ClaraHarnessProject[] } = {}): FakeHarness {
+type FakeHarnessOptions = {
+  projects?: ClaraHarnessProject[]
+  /** Page `/sessions` from its `limit` and cursor instead of returning one full list. */
+  paged?: boolean
+  /** Session ids the hub overlay reports as archived. */
+  archived?: ReadonlySet<string>
+}
+
+function fakeHarness(options: FakeHarnessOptions = {}): FakeHarness {
   const links = new Map<string, string[]>()
   const requests: HarnessRequest[] = []
   const sessions = new Map<string, ClaraSession[]>()
@@ -119,7 +127,13 @@ function fakeHarness(options: { projects?: ClaraHarnessProject[] } = {}): FakeHa
     lastError: undefined,
     projects: projectStore,
     list: () => [connection],
-    overlaySession: (harnessID: string, item: ClaraSession) => ({ ...item, harnessID }),
+    overlaySession: (harnessID: string, item: ClaraSession) => ({
+      ...item,
+      harnessID,
+      ...(options.archived?.has(item.id)
+        ? { time: { ...item.time, archived: item.time.archived ?? 1 } }
+        : {}),
+    }),
     connection: (harnessId: string) => (harnessId === 'harness-a' ? connection : undefined),
     request: async (action: { path: string; search?: string }) => {
       const search = new URLSearchParams(action.search ?? '')
@@ -136,10 +150,18 @@ function fakeHarness(options: { projects?: ClaraHarnessProject[] } = {}): FakeHa
         const projectID = search.get('project') ?? ''
         const cursor = search.get('cursor')
         if (cursor) cursors.set(projectID, cursor)
-        return json({
-          data: sessions.get(projectID) ?? [],
-          cursor: { previous: null, next: `${projectID}-next` },
-        })
+        const all = sessions.get(projectID) ?? []
+        if (!options.paged) {
+          return json({
+            data: all,
+            cursor: { previous: null, next: `${projectID}-next` },
+          })
+        }
+        const offset = cursor ? Number(cursor.replace('offset:', '')) : 0
+        const limit = Number(search.get('limit') ?? all.length)
+        const page = all.slice(offset, offset + limit)
+        const next = offset + limit < all.length ? `offset:${offset + limit}` : null
+        return json({ data: page, cursor: { previous: null, next } })
       }
       if (action.path === '/worktrees') {
         const projectID = search.get('projectID') ?? ''
@@ -245,6 +267,62 @@ describe('project session mapping', () => {
     expect(fake.requests).toHaveLength(1)
     expect(fake.requests[0]?.search.get('project')).toBe('project-a')
     expect(fake.requests[0]?.search.get('cursor')).toBe('opaque-open-curve')
+  })
+
+  it('scans harness pages until the archived page fills', async () => {
+    const archived = new Set(Array.from({ length: 20 }, (_, index) => `s${index + 41}`))
+    const fake = fakeHarness({ paged: true, archived })
+    fake.links.set('p_demo', ['project-a'])
+    fake.sessions.set(
+      'project-a',
+      Array.from({ length: 60 }, (_, index) => session(`s${index + 1}`, 'project-a', 60 - index))
+    )
+    const api = createTestApi(fake.harness)
+
+    const response = await api.fetch(request('/v1/sessions?project=p_demo&archived=true&limit=20'))
+    expect(response.status).toBe(200)
+    const body = (await response.json()) as {
+      data: ClaraSession[]
+      cursor: { next: string | null }
+    }
+
+    expect(body.data).toHaveLength(20)
+    expect(body.data.every((item) => item.time.archived !== undefined)).toBe(true)
+    expect(body.cursor.next).toBeNull()
+    const reads = fake.requests.filter((item) => item.path === '/sessions')
+    expect(reads).toHaveLength(3)
+    expect(reads.map((item) => item.search.get('cursor'))).toEqual([null, 'offset:20', 'offset:40'])
+  })
+
+  it('resumes an archived scan from the cursor when the bound is reached', async () => {
+    const archived = new Set(Array.from({ length: 20 }, (_, index) => `s${index + 521}`))
+    const fake = fakeHarness({ paged: true, archived })
+    fake.links.set('p_demo', ['project-a'])
+    fake.sessions.set(
+      'project-a',
+      Array.from({ length: 540 }, (_, index) => session(`s${index + 1}`, 'project-a', 540 - index))
+    )
+    const api = createTestApi(fake.harness)
+
+    const first = await api.fetch(request('/v1/sessions?project=p_demo&archived=true&limit=20'))
+    const firstBody = (await first.json()) as {
+      data: ClaraSession[]
+      cursor: { next: string | null }
+    }
+    expect(firstBody.data).toEqual([])
+    expect(firstBody.cursor.next).toBe('offset:500')
+
+    const second = await api.fetch(
+      request(
+        `/v1/sessions?project=p_demo&archived=true&limit=20&cursor=${encodeURIComponent(firstBody.cursor.next!)}`
+      )
+    )
+    const secondBody = (await second.json()) as {
+      data: ClaraSession[]
+      cursor: { next: string | null }
+    }
+    expect(secondBody.data).toHaveLength(20)
+    expect(secondBody.cursor.next).toBeNull()
   })
 
   it('syncs a project workspace from the harness location before failing', async () => {

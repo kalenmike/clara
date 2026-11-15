@@ -69,6 +69,7 @@ function useInvalidateProjects() {
     void queryClient.invalidateQueries({ queryKey: queryKeys.projects })
     void queryClient.invalidateQueries({ queryKey: queryKeys.archivedProjects })
     void queryClient.invalidateQueries({ queryKey: ['sessions'] })
+    void queryClient.invalidateQueries({ queryKey: queryKeys.archivedSessionsRoot })
     void queryClient.invalidateQueries({ queryKey: ['project-presence'] })
     void queryClient.invalidateQueries({ queryKey: ['project-stats'] })
     void queryClient.invalidateQueries({ queryKey: ['git'] })

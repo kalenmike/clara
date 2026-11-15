@@ -1058,9 +1058,21 @@ async function loadGroup(
 }
 
 /**
+ * Archive state is hub-owned, so a harness page can be mostly rows the caller
+ * filters out. Bound how far one request scans before returning a short page
+ * and a cursor that resumes the scan on the next call.
+ */
+const ARCHIVED_SCAN_ROW_LIMIT = 500
+const ARCHIVED_SCAN_PAGE_LIMIT = 25
+
+/**
  * Fetch one harness project record. Each record keeps its own cursor, so the
  * hub can merge the pages without losing or repeating rows. An exhausted record
  * returns no data and stays in the page list so the next cursor marks it done.
+ *
+ * An archived list reads further pages until the record fills the requested
+ * page with matching rows, because the harness does not know which sessions
+ * Clara archived.
  */
 async function loadRecord(
   deps: ApiDependencies,
@@ -1072,30 +1084,56 @@ async function loadRecord(
   passThrough: string | undefined
 ): Promise<SessionPage> {
   const resolved = cursorForRecord(merged, harnessID, projectID)
-  const cursor = resolved === undefined ? passThrough : resolved
+  let cursor = resolved === undefined ? passThrough : resolved
   if (cursor === null) {
     return { harnessID, projectID, data: [], cursor: { previous: null, next: null } }
   }
-  const result = await forwardDtoTo(
-    deps,
-    harnessID,
-    {
-      method: 'GET',
-      path: '/sessions',
-      search: query({
-        ...params,
-        cursor: cursor ?? undefined,
-        project: projectID,
-      }),
-    },
-    signal,
-    parseClaraSessions
-  )
-  return {
-    ...result,
-    harnessID,
-    projectID,
-    data: result.data.map((session) => deps.harness.overlaySession(harnessID, session)),
+
+  const target =
+    params.archived === true && params.limit !== undefined && params.limit > 0
+      ? params.limit
+      : undefined
+  const rows = new Map<string, ClaraSession>()
+  let previous: string | null | undefined
+  let next: string | null
+  let scanned = 0
+
+  for (let page = 0; ; page += 1) {
+    const result: ClaraSessionsResponse = await forwardDtoTo(
+      deps,
+      harnessID,
+      {
+        method: 'GET',
+        path: '/sessions',
+        search: query({
+          ...params,
+          cursor: cursor ?? undefined,
+          project: projectID,
+        }),
+      },
+      signal,
+      parseClaraSessions
+    )
+    if (previous === undefined) previous = result.cursor?.previous
+    next = result.cursor?.next ?? null
+    for (const session of result.data) {
+      const overlaid = deps.harness.overlaySession(harnessID, session)
+      if (!rows.has(overlaid.id)) rows.set(overlaid.id, overlaid)
+    }
+    scanned += result.data.length
+    const data = [...rows.values()]
+    const matched = data.filter((session) => Boolean(session.time.archived)).length
+    if (
+      target === undefined ||
+      next === null ||
+      result.data.length === 0 ||
+      matched >= target ||
+      scanned >= ARCHIVED_SCAN_ROW_LIMIT ||
+      page + 1 >= ARCHIVED_SCAN_PAGE_LIMIT
+    ) {
+      return { harnessID, projectID, data, cursor: { previous: previous ?? null, next } }
+    }
+    cursor = next
   }
 }
 

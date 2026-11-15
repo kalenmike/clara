@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest'
 import type { ClaraSession } from '@clara/api-contract'
-import { groupSessionsByMailbox, mergeSessionLists } from './session-sections'
+import { groupSessionsByMailbox, mergeSessionLists, mergeSessionPages } from './session-sections'
 
 function session(
   id: string,
@@ -76,5 +76,26 @@ describe('groupSessionsByMailbox', () => {
     const merged = mergeSessionLists([active], [archived])
 
     expect(merged).toEqual([archived])
+  })
+})
+
+describe('mergeSessionPages', () => {
+  it('flattens cursor pages in order', () => {
+    const first = session('first', 5)
+    const second = session('second', 4)
+
+    expect(mergeSessionPages([[first], [second]])).toEqual([first, second])
+  })
+
+  it('keeps the first copy when a session repeats across pages', () => {
+    const newest = session('shared', 4)
+    const older = session('older', 3)
+    const repeated = session('shared', 2)
+
+    expect(mergeSessionPages([[newest, older], [repeated]])).toEqual([newest, older])
+  })
+
+  it('returns an empty list when there are no pages', () => {
+    expect(mergeSessionPages([])).toEqual([])
   })
 })

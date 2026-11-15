@@ -27,6 +27,17 @@ export function mergeSessionLists(
   return [...byID.values()]
 }
 
+/** Flatten cursor pages, keeping the first copy of a session that repeats. */
+export function mergeSessionPages(pages: readonly (readonly ClaraSession[])[]): ClaraSession[] {
+  const byID = new Map<string, ClaraSession>()
+  for (const page of pages) {
+    for (const session of page) {
+      if (!byID.has(session.id)) byID.set(session.id, session)
+    }
+  }
+  return [...byID.values()]
+}
+
 /** Split sessions into the sidebar's mailbox sections, newest first. */
 export function groupSessionsByMailbox(
   sessions: ClaraSession[],

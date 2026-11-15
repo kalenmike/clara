@@ -9,8 +9,14 @@ export const queryKeys = {
   harnesses: ['harnesses'] as const,
   projectAvailable: (harnessID?: string) => ['project-available', harnessKey(harnessID)] as const,
   sessions: (projectID: string | null) => ['sessions', projectID ?? 'all'] as const,
+  /**
+   * Archived lists use their own root: chat activity, views, and metadata
+   * invalidate the active list on every turn and must not refetch loaded
+   * archived pages.
+   */
+  archivedSessionsRoot: ['archived-sessions'] as const,
   archivedSessions: (projectID: string | null) =>
-    ['sessions', projectID ?? 'all', 'archived'] as const,
+    ['archived-sessions', projectID ?? 'all'] as const,
   projectPresence: (projectID: string) => ['project-presence', projectID] as const,
   projectStats: (projectID: string | null) =>
     ['project-stats', projectID ?? 'all', 'project'] as const,

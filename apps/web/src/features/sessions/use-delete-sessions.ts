@@ -39,6 +39,7 @@ export async function invalidateDeletedSessions(
   result: DeleteSessionsResult
 ): Promise<void> {
   await queryClient.invalidateQueries({ queryKey: ['sessions'] })
+  await queryClient.invalidateQueries({ queryKey: queryKeys.archivedSessionsRoot })
   await Promise.all(
     result.deleted.map((sessionID) =>
       queryClient.invalidateQueries({ queryKey: queryKeys.session(sessionID) })

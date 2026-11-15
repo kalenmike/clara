@@ -86,6 +86,7 @@ async function recoverMissingLocation<T>(
 
     await client.session.move({ sessionID, directory: baseDirectory })
     void queryClient.invalidateQueries({ queryKey: ['sessions'] })
+    void queryClient.invalidateQueries({ queryKey: queryKeys.archivedSessionsRoot })
     void queryClient.invalidateQueries({ queryKey: queryKeys.session(sessionID) })
     void queryClient.invalidateQueries({ queryKey: queryKeys.messages(sessionID) })
 

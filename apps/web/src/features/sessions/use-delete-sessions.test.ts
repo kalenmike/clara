@@ -113,6 +113,7 @@ describe('invalidateDeletedSessions', () => {
       .map((filters) => filters.queryKey[1])
 
     expect(listCalls).toHaveLength(1)
+    expect(calls).toContainEqual({ queryKey: queryKeys.archivedSessionsRoot })
     expect(sessionIDs).toEqual(['a', 'b'])
     expect(calls.some((filters) => filters.queryKey[1] === 'c')).toBe(false)
     expect(calls).toContainEqual({ queryKey: queryKeys.session('a') })

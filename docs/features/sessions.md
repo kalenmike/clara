@@ -143,8 +143,11 @@ list has no checkbox column or bulk toolbar.
    do not advertise `projects.archive` or `projects.delete` are reported as
    unsupported and never block the Clara-side change.
 5. The active list requests the newest 50 non-archived sessions from every linked
-   record on every harness and shows the merged result; the archived list does
-   the same for archived sessions. A record that cannot be read contributes no
+   record on every harness and shows the merged result. The archived list reads
+   20 at a time with a cursor and a **Load more** action while older rows remain.
+   Archive state is owned by the hub, so the hub keeps reading harness pages
+   until the requested archived page fills, up to a bounded scan, and returns a
+   cursor that resumes the scan. A record that cannot be read contributes no
    rows and is named in the per-harness status instead of failing the list.
 6. A new session inherits the model of the most recent active session in the
    selected workspace, matching both the harness and the workspace that saved
@@ -546,7 +549,10 @@ startupScript?, defaultWorkspaceID? })`.
   linked workspaces, `isWorkspaceStartable` requires `linked && online`
 - Last workspace: `clara:last-workspace:<projectID>` in `localStorage`, written when
   a session starts
-- Archived list: `client.session.list({ project: projectID, search, archived: true, limit: 50 })`
+- Archived list: `client.session.list({ project: projectID, search, archived: true, limit: 20, cursor })`
+  through a `useInfiniteQuery` keyed under `archived-sessions`; the sidebar's
+  **Load more** action reads the next cursor page, and chat activity, session
+  views, and metadata updates do not refetch the loaded pages
 - Mailbox signals: `client.message.list({ sessionID, order: 'desc', limit: 1, type })`
   for `user` and `assistant`, plus `client.session.form.list({ sessionID })`
 - Orchestration metadata: `session.metadata.automation === true` is preserved by
