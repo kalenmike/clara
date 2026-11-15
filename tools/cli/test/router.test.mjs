@@ -5,7 +5,7 @@ import { renderHelp, resolveCommand } from '../src/lib/router.mjs'
 const tree = {
   name: 'demo',
   summary: 'Demo tools',
-  examples: ['pnpm demo run'],
+  examples: ['demo run'],
   commands: [
     {
       name: 'run',
@@ -31,10 +31,10 @@ const tree = {
 test('renders root help with commands, examples, and version', () => {
   const help = renderHelp(tree)
   assert.match(help, /Demo tools/)
-  assert.match(help, /pnpm demo <command> \[options\]/)
+  assert.match(help, /demo <command> \[options\]/)
   assert.match(help, /run\s+Run something/)
   assert.match(help, /-v, --version/)
-  assert.match(help, /pnpm demo run/)
+  assert.match(help, /demo run/)
 })
 
 test('groups commands under their headings in first-appearance order', () => {
@@ -72,9 +72,43 @@ test('aligns grouped command columns to the widest name', () => {
 
 test('renders leaf usage and options', () => {
   const help = renderHelp(tree, ['run'])
-  assert.match(help, /pnpm demo run \[name\]/)
+  assert.match(help, /demo run \[name\]/)
   assert.match(help, /--now\s+Run immediately/)
   assert.doesNotMatch(help, /--version/)
+})
+
+test('renders a custom executable name and several usage forms', () => {
+  const custom = {
+    name: 'demo',
+    bin: 'demo-cli',
+    summary: 'Demo tools',
+    usage: ['one [options]', 'two <archive>'],
+    version: false,
+    options: [{ flags: '--now', description: 'Run immediately' }],
+  }
+  const help = renderHelp(custom)
+  assert.match(help, /^Usage:\n {2}demo-cli one \[options\]\n {2}demo-cli two <archive>$/m)
+  assert.doesNotMatch(help, /--version/)
+})
+
+test('renders sections with aligned columns', () => {
+  const sectioned = {
+    name: 'demo',
+    summary: 'Demo tools',
+    sections: [
+      {
+        label: 'Targets',
+        items: [
+          { name: 'run', description: 'Run it' },
+          { name: 'orchestrator', description: 'Orchestrate' },
+        ],
+      },
+    ],
+    options: [{ flags: '--now', description: 'Run immediately' }],
+  }
+  const help = renderHelp(sectioned)
+  assert.match(help, /Targets:\n {2}run {11}Run it\n {2}orchestrator {2}Orchestrate/)
+  assert.match(help, /\nOptions:\n {2}--now {2,}Run immediately\n {2}-h, --help {2,}Show help/)
 })
 
 test('resolves nested commands and leaves arguments alone', () => {

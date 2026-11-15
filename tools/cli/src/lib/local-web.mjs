@@ -1,6 +1,6 @@
 // Static server for the built web client in local mode.
 //
-// `pnpm clara start web --local` spawns this file so the local stack serves the
+// `clara start web --local` spawns this file so the local stack serves the
 // same `apps/web/dist` output as the container, including the `/healthz`
 // contract the status and rebuild probes expect.
 

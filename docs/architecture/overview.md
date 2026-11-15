@@ -15,7 +15,7 @@ The home-side installation is the **hub**. Three names cover it:
 | Name        | Meaning                                                                                                                            |
 | ----------- | ---------------------------------------------------------------------------------------------------------------------------------- |
 | Hub         | The Clara installation on the machine that runs the hub service: one process, one database, one panel, and at most one relay room. |
-| Hub service | The Node process that implements the hub (`apps/hub/server`, `pnpm clara start hub`, the `clara-server` container).                |
+| Hub service | The Node process that implements the hub (`apps/hub/server`, `clara start hub`, the `clara-server` container).                     |
 | Hub panel   | The authenticated loopback dashboard served by the hub service (`apps/hub/panel`).                                                 |
 
 Other terms:

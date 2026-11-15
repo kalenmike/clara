@@ -30,14 +30,14 @@ Cloudflare Pages is optional. To serve the SPA from the checkout:
 
 ```bash
 docker network create clara      # once, or reuse the server stack
-pnpm clara start web --docker --build
+clara start web --docker --build
 ```
 
 Open [127.0.0.1:8080](http://127.0.0.1:8080). The image builds the same bundle as
 `pnpm --filter @clara/web build`, and `infra/docker/web.nginx.conf` mirrors
 `apps/web/public/_headers`: the worker and app shell revalidate, hashed assets
 cache for a year, and the CSP, referrer, permissions, and nosniff headers match.
-`pnpm clara rebuild` captures the container and recreates it with a fresh build.
+`clara rebuild` captures the container and recreates it with a fresh build.
 
 Local pairing works from `http://127.0.0.1:8080` or an SSH tunnel. The default
 Web URL is `http://127.0.0.1:8080`, so local codes print a link to this
