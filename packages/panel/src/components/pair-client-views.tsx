@@ -112,12 +112,13 @@ export function PairClientPairingView({
 
   return (
     <div className="flex flex-col items-center gap-3 text-center">
-      <div className="w-fit rounded-lg bg-white p-3">
+      <div className="w-fit max-w-full rounded-lg bg-white p-3">
         <QRCodeSVG
           value={pairing.link}
-          size={200}
-          level="M"
-          marginSize={1}
+          size={288}
+          level="L"
+          marginSize={2}
+          className="h-auto max-w-full"
           title="Clara browser pairing QR code"
         />
       </div>
