@@ -85,12 +85,12 @@ one paragraph, list, or section. See [fork.md](fork.md).
     input, output, reasoning, and cache tokens, the cost in the selected display
     mode, and how long ago the session started. It sits below the composer.
 12. When a Plan run ends with a final reply, the composer tab carries a request
-    badge. The plan-ready card sits above the editor. With an empty
-    editor, the secondary **Start** button switches to the working agent and
+    badge. The send menu offers **Start work** while no question form is
+    pending. With an empty editor, Start work switches to the working agent and
     sends a short synthetic handoff, which appears as a **User confirmed.
-    Starting work.** system row. Typing a message disables Start; Send sends
-    that message to the Plan agent as an adjustment instead. Click the card
-    header to fold it to its title until you are ready to act.
+    Starting work.** system row. With text in the editor, Start work sends that
+    text to the working agent as the first Build prompt. Send instead delivers
+    the message to the Plan agent as an adjustment.
 13. Open a session with a saved draft. The queued user message appears in the
     thread and a Start card appears above it. Click **Start** to send a short
     synthetic approval, deliver the draft, and begin the run; the handoff
@@ -217,14 +217,14 @@ one paragraph, list, or section. See [fork.md](fork.md).
 14. The plan-ready handoff is part of the composer. It appears only while the
     session is idle, the session agent is Plan, and the newest user or assistant
     message is a Plan reply that finished with `stop` and no error. It is absent
-    on archived sessions and in worker mode. The secondary **Start** button
-    switches the agent to Build before sending the synthetic handoff; it is
-    disabled once the editor has a message. Send with a typed message leaves the
-    agent alone and sends the message to the Plan agent as an ordinary
-    adjustment. Both requests disable while they are in flight. Once started,
-    Build advances the Monitor Inbox like Send does. The card is selected from
-    the composer stack; folding it does not cancel a start request already in
-    flight.
+    on archived sessions and in worker mode. The send menu's **Start work**
+    item switches the agent to Build before sending the synthetic handoff or the
+    typed message as the first Build prompt; it is hidden while a question form
+    is pending. Send with a typed message leaves the agent alone and sends the
+    message to the Plan agent as an ordinary adjustment. Both requests disable
+    while they are in flight. Once started, Build advances the Monitor Inbox
+    like Send does. Start work lives in the send menu, so the chevron opens
+    beside Send while it is available.
 15. The Start card appears only while the session is idle, not archived, and the
     server reports pending user items in the session inbox. Pending inbox user
     messages are merged into the thread by message ID, so a draft is visible
@@ -399,10 +399,10 @@ one paragraph, list, or section. See [fork.md](fork.md).
   message; the previous reply collapses unless it was opened by hand.
 - **Plan reply without `stop`** — a Plan run that ends on a tool call, an error,
   or a non-stop finish does not show the plan-ready handoff.
-- **Stale plan handoff** — the composer card requires the session agent and the
-  newest reply to be Plan; switching agents or opening an archived session hides
-  it.
-- **Plan Start request fails** — a failed switch leaves the card in place; if
+- **Stale plan handoff** — the composer's Start work item requires the session
+  agent and the newest reply to be Plan; switching agents or opening an archived
+  session hides it.
+- **Plan Start request fails** — a failed switch leaves Start work in place; if
   the switch succeeds but the handoff cannot be sent, a toast asks the person to
   send a message from the reply box, and Monitor Inbox does not advance.
 - **Snooze clear fails** — the reply, draft, or answer still goes through, a
@@ -527,12 +527,15 @@ metadata, delivery: 'steer' })`
   message replies without a prompt.
 - Request cards: `src/components/chat/request-card.tsx` renders the header
   toggle, per-card expanded state, and top-anchored reveal shared by the
-  draft-start, question, and permission cards. The composer's plan-ready and
-  question cards use `src/components/chat/composer-request-list.tsx`.
+  draft-start, question, and permission cards. The composer's question cards use
+  `src/components/chat/composer-request-list.tsx`.
 - Plan handoff: `src/features/chat/plan-ready.ts` detects the handoff;
   `src/features/chat/use-start-work.ts` switches the agent and sends the
-  synthetic approval. Start plays `playStartWorkSound`
-  from `src/features/notifications/sounds.ts` when UI sounds are on.
+  synthetic approval or the typed message as the first Build prompt. The send
+  menu's Start work item is chosen by `src/features/chat/composer-actions.ts`
+  and rendered by `src/components/chat/composer.tsx`. Start plays
+  `playStartWorkSound` from `src/features/notifications/sounds.ts` when UI
+  sounds are on.
 - Plan handoff APIs: `client.session.switchAgent({ sessionID, agent: 'build' })`,
   then `client.session.synthetic({ sessionID, text, description, metadata,
 delivery: 'steer' })` for Start. Send with a typed message calls

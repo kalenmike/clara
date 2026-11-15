@@ -73,9 +73,11 @@ cancels a part selection, and only then interrupts the run.
 
 ## Plan handoff
 
-When a Plan run finishes, the composer shows a plan-ready card. With an empty
-editor, **Start** switches to the working agent and begins. Typing a message
-disables Start; Send then delivers that message to the planner as an adjustment.
+When a Plan run finishes, the send button's chevron menu offers **Start work**.
+With an empty editor, Start work switches to the working agent and begins. With
+a message in the editor, Start work sends that message to the working agent as
+the first prompt; Send instead delivers it to the planner as an adjustment. Start
+work is hidden while a question is waiting.
 
 ## Fork and forward
 

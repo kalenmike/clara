@@ -47,7 +47,6 @@ import { useSessionWording } from '@/features/sessions/use-wording'
 import type { ComposerDraft } from '@/features/chat/composer-tabs'
 import {
   composerCanSend,
-  composerSecondaryAction,
   initialFormAnswers,
   resolveComposerSelection,
   type ComposerRequestAnswers,
@@ -172,18 +171,12 @@ export function Composer({
   const skills = useMemo(() => skillsQuery.data ?? [], [skillsQuery.data])
   const references = useMemo(() => referencesQuery.data ?? [], [referencesQuery.data])
   const forms = useMemo(() => formsQuery.data ?? [], [formsQuery.data])
-  const activeSelection = resolveComposerSelection(forms, planReady, selection)
+  const activeSelection = resolveComposerSelection(forms, selection)
   const activeForm =
     activeSelection !== null && activeSelection !== 'none' && activeSelection.kind === 'form'
       ? forms.find((form) => form.id === activeSelection.formID)
       : undefined
-  const planSelected =
-    activeSelection !== null && activeSelection !== 'none' && activeSelection.kind === 'plan'
   const activeFormTouched = activeForm ? Boolean(touchedForms[activeForm.id]) : false
-  const secondaryAction = composerSecondaryAction({
-    hasActiveForm: activeForm != null,
-    planSelected,
-  })
   const hasText = text.trim().length > 0
 
   useEffect(() => {
@@ -425,11 +418,12 @@ export function Composer({
     )
   }
 
-  /** The secondary Start button hands off without a message. */
+  /** The send menu's Start work hands the plan to the working agent. */
   const startPlan = async () => {
-    if (disabled || sendRef.current || hasText || !planSelected) return
+    if (disabled || sendRef.current || !planReady || activeForm) return
+    const value = text.trim()
     sendRef.current = true
-    const started = await startWork.start()
+    const started = await startWork.start(value ? { text: value, files } : undefined)
     releaseSend()
     if (started) clear()
   }
@@ -623,6 +617,8 @@ export function Composer({
     snoozed,
     hasText,
     canSaveDraft: menuMode === 'draft',
+    planReady,
+    formWaiting: forms.length > 0,
   })
 
   const finishSession = () => {
@@ -757,25 +753,9 @@ export function Composer({
       : activeFormTouched
         ? 'Send the form answers'
         : 'Answer the form or add a message'
-    : planSelected
-      ? hasText
-        ? 'Send an adjustment to the plan'
-        : 'Type a message to adjust the plan'
-      : busy
-        ? 'Send and steer the active run'
-        : 'Send and start a run'
-  const secondaryLabel = secondaryAction === 'skip' ? 'Skip' : 'Start'
-  const secondaryHint =
-    secondaryAction === 'skip'
-      ? 'Skip this question'
-      : secondaryAction === 'start'
-        ? hasText
-          ? 'Clear the message to start now'
-          : 'Start work with the plan'
-        : ''
-  const secondaryPending = secondaryAction === 'skip' ? rejectForm.isPending : startWork.pending
-  const secondaryDisabled =
-    secondaryAction === null || pending || (secondaryAction === 'start' && hasText)
+    : busy
+      ? 'Send and steer the active run'
+      : 'Send and start a run'
 
   return (
     <div className="flex min-h-0 flex-1 flex-col">
@@ -834,7 +814,6 @@ export function Composer({
         <div className="flex min-h-0 flex-1 flex-col overflow-y-auto overscroll-contain">
           <ComposerRequestList
             forms={forms}
-            planReady={planReady}
             selection={activeSelection}
             answers={formAnswers}
             touchedForms={touchedForms}
@@ -949,7 +928,7 @@ export function Composer({
             onOpenChange={setAgentOpen}
           />
 
-          {secondaryAction && (
+          {activeForm && (
             <Tooltip>
               <TooltipTrigger asChild>
                 <Button
@@ -957,20 +936,18 @@ export function Composer({
                   variant="outline"
                   size="sm"
                   className="h-8 gap-1 max-md:h-11"
-                  onClick={secondaryAction === 'skip' ? skipQuestion : () => void startPlan()}
-                  disabled={secondaryDisabled}
+                  onClick={skipQuestion}
+                  disabled={pending}
                 >
-                  {secondaryPending ? (
+                  {rejectForm.isPending ? (
                     <span className="size-3.5 animate-spin rounded-full border-2 border-current border-t-transparent max-md:size-5" />
-                  ) : secondaryAction === 'skip' ? (
-                    <SkipForward className="size-3.5 max-md:size-4" />
                   ) : (
-                    <Play className="size-3.5 max-md:size-4" />
+                    <SkipForward className="size-3.5 max-md:size-4" />
                   )}
-                  {secondaryLabel}
+                  Skip
                 </Button>
               </TooltipTrigger>
-              <TooltipContent>{secondaryHint}</TooltipContent>
+              <TooltipContent>Skip this question</TooltipContent>
             </Tooltip>
           )}
 
@@ -1018,6 +995,9 @@ export function Composer({
                     <ComposerActionItem
                       key={action}
                       action={action}
+                      hasText={hasText}
+                      starting={startWork.pending}
+                      onStartPlan={() => void startPlan()}
                       onDone={finishSession}
                       onSaveDraft={saveDraftMessage}
                       onQueue={queueMessage}
@@ -1037,6 +1017,9 @@ export function Composer({
 
 function ComposerActionItem({
   action,
+  hasText,
+  starting,
+  onStartPlan,
   onDone,
   onSaveDraft,
   onQueue,
@@ -1044,12 +1027,30 @@ function ComposerActionItem({
   onReopen,
 }: {
   action: ComposerAction
+  hasText: boolean
+  starting: boolean
+  onStartPlan: () => void
   onDone: () => void
   onSaveDraft: () => void
   onQueue: () => void
   onDelete: () => void
   onReopen: () => void
 }) {
+  if (action === 'start-plan') {
+    return (
+      <DropdownMenuItem onSelect={onStartPlan} disabled={starting}>
+        {starting ? (
+          <span className="size-3.5 animate-spin rounded-full border-2 border-current border-t-transparent" />
+        ) : (
+          <Play className="size-3.5" />
+        )}
+        <span className="flex-1">Start work</span>
+        <span className="text-[10px] text-muted-foreground">
+          {hasText ? 'with message' : 'from plan'}
+        </span>
+      </DropdownMenuItem>
+    )
+  }
   if (action === 'save-draft') {
     return (
       <DropdownMenuItem onSelect={onSaveDraft}>

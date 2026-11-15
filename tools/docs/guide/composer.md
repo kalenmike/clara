@@ -90,6 +90,8 @@ hidden when the model has no variants.
 
 The send button's chevron menu holds everything that is not the primary send:
 
+- **Start work** when a plan is ready hands the plan to the working agent. A
+  message in the editor becomes the first Build prompt.
 - **Save as draft** before the first reply stores the prompt without starting.
 - **Send as queued** while the agent works waits for the current run to settle.
 - **Done** archives an idle session and returns to the start view.
@@ -100,13 +102,14 @@ The send button's chevron menu holds everything that is not the primary send:
 ## Answer requests in the composer
 
 A session tab shows a badge when a question form or a finished plan is waiting.
-Select the tab to see those cards stacked above the editor.
+Select the tab to see those question cards stacked above the editor.
 
 - A question card can be answered alone, with a message, or skipped.
 - A tall question form scrolls with the composer. Scroll down to reach the
   message box and type a custom message or a plan adjustment.
-- A plan-ready card offers **Start** when the editor is empty. A typed message
-  becomes an adjustment to the plan.
+- A finished plan offers **Start work** in the send menu. A typed message
+  becomes an adjustment when you press Send, or the first Build prompt when you
+  choose Start work.
 
 ## Work across sessions
 

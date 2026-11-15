@@ -10,11 +10,28 @@ const base = {
   snoozed: false,
   hasText: true,
   canSaveDraft: false,
+  planReady: false,
+  formWaiting: false,
 }
 
 describe('composer send actions', () => {
   it('offers Done on an idle session with messages', () => {
     expect(composerActions(base)).toEqual(['done'])
+  })
+
+  it('offers Start work first when a plan is ready', () => {
+    expect(composerActions({ ...base, planReady: true })).toEqual(['start-plan', 'done'])
+  })
+
+  it('hides Start work while a question is waiting', () => {
+    expect(composerActions({ ...base, planReady: true, formWaiting: true })).toEqual(['done'])
+  })
+
+  it('offers Start work for a snoozed session with a ready plan', () => {
+    expect(composerActions({ ...base, planReady: true, snoozed: true })).toEqual([
+      'start-plan',
+      'reopen',
+    ])
   })
 
   it('offers Save as draft before the first reply', () => {
