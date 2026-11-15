@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useRef, useState } from 'react'
-import { ArrowDown, SquareTerminal } from 'lucide-react'
+import { ArrowDown, ChevronRight, SquareTerminal } from 'lucide-react'
 import type { ClaraSessionMessage } from '@clara/api-contract'
 import type { ChatSnapshot } from '@/features/chat/chat-store'
 import {
@@ -28,13 +28,24 @@ export function PairTerminal({
   const scrollRef = useRef<HTMLDivElement>(null)
   const { lowerSingular } = useSessionWording()
   const [follow, setFollow] = useState(true)
+  const [expanded, setExpanded] = useState<ReadonlySet<string>>(() => new Set())
   const log = useMemo(() => buildTerminalLog(messages), [messages])
   const live = useEventStream().live
   const running = status.type !== 'idle'
 
   useEffect(() => {
     setFollow(true)
+    setExpanded(new Set())
   }, [sessionID])
+
+  const toggle = (id: string) => {
+    setExpanded((current) => {
+      const next = new Set(current)
+      if (next.has(id)) next.delete(id)
+      else next.add(id)
+      return next
+    })
+  }
 
   useEffect(() => {
     if (!follow) return
@@ -110,7 +121,14 @@ export function PairTerminal({
           {log.entries.length === 0 ? (
             <EmptyTerminal running={running} />
           ) : (
-            log.entries.map((entry) => <TerminalEntryView key={entry.id} entry={entry} />)
+            log.entries.map((entry) => (
+              <TerminalEntryView
+                key={entry.id}
+                entry={entry}
+                expanded={expanded.has(entry.id)}
+                onToggle={() => toggle(entry.id)}
+              />
+            ))
           )}
         </div>
 
@@ -142,7 +160,15 @@ function EmptyTerminal({ running }: { running: boolean }) {
   )
 }
 
-function TerminalEntryView({ entry }: { entry: TerminalEntry }) {
+export function TerminalEntryView({
+  entry,
+  expanded,
+  onToggle,
+}: {
+  entry: TerminalEntry
+  expanded: boolean
+  onToggle: () => void
+}) {
   if (entry.kind === 'prompt') {
     return (
       <div className="mt-3 flex gap-2 first:mt-0">
@@ -153,30 +179,23 @@ function TerminalEntryView({ entry }: { entry: TerminalEntry }) {
   }
 
   if (entry.kind === 'command') {
-    return (
-      <div className="mt-3 first:mt-0">
+    const details = entry.output !== undefined || entry.error !== undefined
+    const detailsID = `terminal-result-${entry.id}`
+
+    const row = (
+      <>
         {entry.description && (
-          <div className="mb-0.5 pl-4 text-[10px] text-zinc-600">{entry.description}</div>
+          <span className="mb-0.5 block pl-4 text-[10px] text-zinc-600">{entry.description}</span>
         )}
-        <div className="flex gap-2">
+        <span className="flex gap-2">
           <span className="shrink-0 select-none text-emerald-400">$</span>
           <span className="min-w-0 whitespace-pre-wrap break-words text-zinc-100">
             {entry.command}
           </span>
-        </div>
-        {entry.output && (
-          <pre className="mt-1 ml-4 whitespace-pre-wrap break-words border-l border-white/10 pl-3 text-zinc-300">
-            {entry.output}
-          </pre>
-        )}
-        {entry.error && (
-          <div className="mt-1 ml-4 border-l border-rose-500/30 pl-3 text-rose-400">
-            {entry.error}
-          </div>
-        )}
-        <div
+        </span>
+        <span
           className={cn(
-            'mt-1 ml-4 flex items-center gap-1.5 text-[10px]',
+            'mt-1 flex items-center gap-1.5 pl-4 text-[10px]',
             commandTone(entry.status)
           )}
         >
@@ -184,7 +203,47 @@ function TerminalEntryView({ entry }: { entry: TerminalEntry }) {
             <span className="size-1.5 animate-pulse rounded-full bg-current motion-reduce:animate-none" />
           )}
           {commandStatus(entry)}
-        </div>
+          {details && (
+            <ChevronRight
+              aria-hidden
+              className={cn(
+                'size-3 shrink-0 text-zinc-600 transition-transform',
+                expanded && 'rotate-90'
+              )}
+            />
+          )}
+        </span>
+      </>
+    )
+
+    return (
+      <div className="mt-3 first:mt-0">
+        {details ? (
+          <button
+            type="button"
+            onClick={onToggle}
+            aria-expanded={expanded}
+            aria-controls={expanded ? detailsID : undefined}
+            className="-mx-2 flex w-[calc(100%+1rem)] cursor-pointer flex-col rounded-sm px-2 py-0.5 text-left outline-none transition-colors hover:bg-white/5 focus-visible:bg-white/5 focus-visible:ring-1 focus-visible:ring-emerald-400/40"
+          >
+            {row}
+          </button>
+        ) : (
+          <div>{row}</div>
+        )}
+        {details && expanded && (
+          <div
+            id={detailsID}
+            className="mt-1.5 ml-4 border-l border-white/10 pl-3 whitespace-pre-wrap break-words"
+          >
+            {entry.output && (
+              <pre className="whitespace-pre-wrap break-words text-zinc-300">{entry.output}</pre>
+            )}
+            {entry.error && (
+              <div className={cn(entry.output && 'mt-1', 'text-rose-400')}>{entry.error}</div>
+            )}
+          </div>
+        )}
       </div>
     )
   }
