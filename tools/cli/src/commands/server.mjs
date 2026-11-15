@@ -6,9 +6,7 @@
 //   clara restart hub [--local|--docker] [--build]
 //   clara status hub
 //   clara status hub --open
-//   clara-server setup-token [--docker|--local]
-//   clara-server admin reset [--docker|--local]
-//   clara pair [--no-relay] [--docker|--local]
+//   clara pair hub [--no-relay] [--docker|--local]
 //   clara logs hub [--local|--docker]
 
 import { existsSync } from 'node:fs'
@@ -82,7 +80,7 @@ const serverService = {
       console.log(`panel: ${panelURL()}/`)
       console.log(`  logs:  ${logPath('server')}`)
       console.log('If this is the first run, create the owner account in the panel or run:')
-      console.log('  clara-server setup --local --password-stdin')
+      console.log('  clara-server setup --password-stdin')
       console.log('Stop it with `clara stop hub --local`.')
     },
   },
@@ -97,7 +95,7 @@ const serverService = {
     onStarted: () => {
       console.log(`panel: ${panelURL()}/`)
       console.log('If this is the first run, create the owner account in the panel or run:')
-      console.log('  clara-server setup --docker --password-stdin')
+      console.log('  clara-server setup --password-stdin')
       console.log('The hub starts no transports until the owner account exists.')
     },
   },
