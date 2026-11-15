@@ -1,0 +1,4 @@
+id: session
+name: Session
+version: 1
+description: Reusable wrappers that isolate a pipeline in a git worktree and merge it back.

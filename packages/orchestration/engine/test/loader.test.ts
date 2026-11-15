@@ -51,9 +51,21 @@ describe('package loader', () => {
       'research',
       'diagnostics',
     ])
-    expect(
-      run.root.routes?.find((route) => route.when === 'software-development')?.target?.kind
-    ).toBe('router')
+    const software = run.root.routes?.find((route) => route.when === 'software-development')?.target
+    expect(software?.kind).toBe('group')
+    expect(software?.name).toBe('wrapper:worktree')
+    expect(software?.children?.map((child) => child.name)).toEqual([
+      'start_session',
+      'work',
+      'remove_session',
+    ])
+    expect(software?.children?.[1].workspace?.field).toBe('path')
+    expect(software?.children?.[1].children?.[0].kind).toBe('router')
+    expect(software?.children?.[1].children?.[0].routes?.map((route) => route.when)).toEqual([
+      'feature',
+      'bug',
+      'documentation',
+    ])
   })
 
   it('resolves standard packages bundled with the engine from any workspace', () => {

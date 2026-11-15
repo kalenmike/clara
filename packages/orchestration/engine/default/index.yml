@@ -5,7 +5,9 @@ description: Default entry point and routing for the bundled standard packages.
 
 imports:
   std:
+    - path: session
     - path: software
+      wrap: std:session/worktree
     - path: content
     - path: research
     - path: diagnostics

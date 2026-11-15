@@ -22,6 +22,9 @@ permissions:
   - action: shell
     resource: 'pnpm exec prettier *'
     effect: allow
+  - action: shell
+    resource: 'git *'
+    effect: allow
 limits:
   turns:
     initial: 100
@@ -45,4 +48,5 @@ Apply the documentation impact for the completed request.
 - Never edit generated `docs/records/**`.
 - Update `docs/features/capabilities.md` when shipped scope changes.
 - Keep relative links resolving and follow `docs/features/GUIDE.md` for feature specs.
+- Commit the documentation changes with a Conventional Commit message.
 - Return the files changed and the reasoning.

@@ -37,6 +37,9 @@ permissions:
   - action: shell
     resource: 'git status *'
     effect: allow
+  - action: shell
+    resource: 'git *'
+    effect: allow
 limits:
   turns:
     initial: 100
@@ -59,6 +62,7 @@ Write the test that reproduces the identified bug before the fix exists.
 - If `# Previous attempt` is present, continue from its handoff.
 - One focused test that fails on the current code for the reported reason.
 - Name it after the failed behavior, not the fix.
+- Commit the regression test with a Conventional Commit message.
 - Stay inside tests and test files. Do not edit source.
 - Run the test and capture the failure output.
 - If the bug cannot be reproduced, stop and report why.
