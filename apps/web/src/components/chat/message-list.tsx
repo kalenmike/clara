@@ -2,14 +2,14 @@ import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } fr
 import { useVirtualizer } from '@tanstack/react-virtual'
 import { ArrowDown, ArrowUp } from 'lucide-react'
 import type { ClaraSessionMessage } from '@clara/api-contract'
-import { Button } from '@/components/ui/button'
+import { Button } from '@clara/ui/components/button'
 import { HiddenActivityRow } from '@/components/chat/hidden-activity-row'
 import { MessageItem } from '@/components/chat/message-item'
 import { SystemEventRow } from '@/components/chat/system-event-row'
 import { stepMessageIndex, type MessageStepDirection } from '@/features/chat/message-navigation'
 import { canForwardMessage } from '@/features/sessions/forward'
 import type { TimelineItem } from '@/features/chat/timeline'
-import { cn } from '@/lib/utils'
+import { cn } from '@clara/ui/lib/utils'
 
 /** A second press inside this window turns a step into an edge jump. */
 const STEP_TAP_WINDOW = 250

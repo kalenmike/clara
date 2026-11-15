@@ -3,7 +3,7 @@ import type { ClaraSessionMessage } from '@clara/api-contract'
 import { ListTodo, Loader2, RefreshCw } from 'lucide-react'
 import { toast } from 'sonner'
 import { PlanTodoList } from '@/components/chat/plan-todo-list'
-import { Button } from '@/components/ui/button'
+import { Button } from '@clara/ui/components/button'
 import { isLocationRecoveryError } from '@/features/chat/location-recovery'
 import {
   findLatestPlanRequest,

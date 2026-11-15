@@ -5,8 +5,8 @@ import type { ClaraProject, ClaraProjectWorkspace } from '@clara/api-contract'
 import { AddWorkspaceDialog } from '@/components/projects/add-workspace-dialog'
 import { ProjectActionsMenu } from '@/components/projects/project-actions'
 import { ProjectAvatar } from '@/components/projects/project-avatar'
-import { Badge } from '@/components/ui/badge'
-import { Button } from '@/components/ui/button'
+import { Badge } from '@clara/ui/components/badge'
+import { Button } from '@clara/ui/components/button'
 import {
   Card,
   CardAction,
@@ -14,7 +14,7 @@ import {
   CardDescription,
   CardHeader,
   CardTitle,
-} from '@/components/ui/card'
+} from '@clara/ui/components/card'
 import {
   Dialog,
   DialogContent,
@@ -22,9 +22,9 @@ import {
   DialogFooter,
   DialogHeader,
   DialogTitle,
-} from '@/components/ui/dialog'
-import { Separator } from '@/components/ui/separator'
-import { Skeleton } from '@/components/ui/skeleton'
+} from '@clara/ui/components/dialog'
+import { Separator } from '@clara/ui/components/separator'
+import { Skeleton } from '@clara/ui/components/skeleton'
 import { projectLabel, projectWorkspaceSummary } from '@/features/projects/project-list'
 import { describePartialHarnesses } from '@/features/projects/project-stats'
 import {
@@ -35,7 +35,7 @@ import {
 import { useProjectStats } from '@/features/projects/use-project-stats'
 import { useSessionWording } from '@/features/sessions/use-wording'
 import { formatCount, formatDateTime } from '@/lib/format'
-import { cn } from '@/lib/utils'
+import { cn } from '@clara/ui/lib/utils'
 
 export function ProjectInfoCard({ project }: { project: ClaraProject }) {
   const statsQuery = useProjectStats(project.id)

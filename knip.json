@@ -28,6 +28,9 @@
     "packages/theme": {
       "project": ["src/**/*.css"]
     },
+    "packages/ui": {
+      "project": ["src/**/*.{ts,tsx}"]
+    },
     "tools/docs": {
       "entry": ["src/clientModules/**/*.ts", "src/pages/**/*.tsx", "src/theme/**/*.tsx"],
       "project": ["*.ts", "src/**/*.{ts,tsx}"],
@@ -120,7 +123,7 @@
     }
   },
   "ignore": [
-    "apps/web/src/components/ui/**",
+    "packages/ui/src/components/**",
     "tools/build/feature-flags.d.mts",
     "tools/build/version.d.mts"
   ],

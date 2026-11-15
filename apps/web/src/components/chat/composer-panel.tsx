@@ -15,7 +15,7 @@ import { useSessionWording } from '@/features/sessions/use-wording'
 import { useComposerHeight } from '@/hooks/use-composer-height'
 import { useIsTouchDevice } from '@/hooks/use-is-touch-device'
 import { COMPOSER_HEIGHT_MIN, readDraft } from '@/lib/storage'
-import { cn } from '@/lib/utils'
+import { cn } from '@clara/ui/lib/utils'
 
 export function ComposerPanel({
   harnessID,

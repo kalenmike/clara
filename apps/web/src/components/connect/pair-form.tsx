@@ -1,9 +1,9 @@
 import type { FormEvent } from 'react'
 import { Link2, Loader2, QrCode } from 'lucide-react'
 import type { PairingPayload } from '@clara/shared-types'
-import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert'
-import { Button } from '@/components/ui/button'
-import { Input } from '@/components/ui/input'
+import { Alert, AlertDescription, AlertTitle } from '@clara/ui/components/alert'
+import { Button } from '@clara/ui/components/button'
+import { Input } from '@clara/ui/components/input'
 import type { RelayTransportStatus } from '@/lib/transport/relay'
 
 export function PairForm({

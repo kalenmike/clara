@@ -1,7 +1,7 @@
 import { useState } from 'react'
 import { Loader2, RotateCw } from 'lucide-react'
 import { PROTOCOL_VERSION } from '@clara/shared-types'
-import { Button } from '@/components/ui/button'
+import { Button } from '@clara/ui/components/button'
 import { reloadApp } from '@/features/updates/app-update'
 import { claraBuildTitle, claraVersionLabel } from '@/lib/build-info'
 import { isDesktop } from '@/lib/runtime'

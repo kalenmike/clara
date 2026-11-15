@@ -21,15 +21,15 @@ import {
 } from 'lucide-react'
 import type { ClaraSessionInboxUser, ClaraSession } from '@clara/api-contract'
 import { toast } from 'sonner'
-import { Badge } from '@/components/ui/badge'
-import { Button } from '@/components/ui/button'
+import { Badge } from '@clara/ui/components/badge'
+import { Button } from '@clara/ui/components/button'
 import {
   DropdownMenu,
   DropdownMenuContent,
   DropdownMenuItem,
   DropdownMenuTrigger,
-} from '@/components/ui/dropdown-menu'
-import { Tooltip, TooltipContent, TooltipTrigger } from '@/components/ui/tooltip'
+} from '@clara/ui/components/dropdown-menu'
+import { Tooltip, TooltipContent, TooltipTrigger } from '@clara/ui/components/tooltip'
 import { AgentPicker } from '@/components/chat/agent-picker'
 import { ComposerRequestList } from '@/components/chat/composer-request-list'
 import { ModelPicker, VariantPicker } from '@/components/chat/model-picker'
@@ -73,7 +73,7 @@ import { useIsTouchDevice } from '@/hooks/use-is-touch-device'
 import { describeConnectionError } from '@/lib/client'
 import { saveDraft } from '@/lib/storage'
 import { useConnection } from '@/providers/connection-provider'
-import { cn } from '@/lib/utils'
+import { cn } from '@clara/ui/lib/utils'
 
 type MenuItem = {
   id: string

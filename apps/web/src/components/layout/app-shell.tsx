@@ -1,7 +1,7 @@
 import { useEffect, useState } from 'react'
 import { Navigate, Outlet, useLocation } from 'react-router'
 import { ConnectionSplash } from '@/components/connect/connection-splash'
-import { Sheet, SheetContent, SheetDescription, SheetTitle } from '@/components/ui/sheet'
+import { Sheet, SheetContent, SheetDescription, SheetTitle } from '@clara/ui/components/sheet'
 import { AppHeader } from '@/components/layout/app-header'
 import { AppStatusBar } from '@/components/layout/app-status-bar'
 import { HarnessBanner } from '@/components/layout/harness-banner'

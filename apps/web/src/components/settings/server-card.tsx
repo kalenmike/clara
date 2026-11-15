@@ -1,10 +1,16 @@
 import { useNavigate } from 'react-router'
 import { Loader2, LogOut, RefreshCw, Server } from 'lucide-react'
 import { toast } from 'sonner'
-import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert'
-import { Button } from '@/components/ui/button'
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
-import { Separator } from '@/components/ui/separator'
+import { Alert, AlertDescription, AlertTitle } from '@clara/ui/components/alert'
+import { Button } from '@clara/ui/components/button'
+import {
+  Card,
+  CardContent,
+  CardDescription,
+  CardHeader,
+  CardTitle,
+} from '@clara/ui/components/card'
+import { Separator } from '@clara/ui/components/separator'
 import { useHarnesses } from '@/features/projects/use-projects'
 import { connectionUrl } from '@/lib/client'
 import { useConnection } from '@/providers/connection-provider'

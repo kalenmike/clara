@@ -2,8 +2,8 @@ import { Link } from 'react-router'
 import { ArrowUpRight, ListTodo } from 'lucide-react'
 import type { ClaraActivityHarness, ClaraActivitySession } from '@clara/api-contract'
 import { PlanTodoList } from '@/components/chat/plan-todo-list'
-import { Badge } from '@/components/ui/badge'
-import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
+import { Badge } from '@clara/ui/components/badge'
+import { Card, CardContent, CardHeader, CardTitle } from '@clara/ui/components/card'
 import { formatCost, formatRelativeTime, formatTokens } from '@/lib/format'
 
 export function ActivityCard({

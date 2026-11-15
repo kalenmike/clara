@@ -1,6 +1,6 @@
 import { ListFilter } from 'lucide-react'
-import { Button } from '@/components/ui/button'
-import { Label } from '@/components/ui/label'
+import { Button } from '@clara/ui/components/button'
+import { Label } from '@clara/ui/components/label'
 import {
   Popover,
   PopoverContent,
@@ -8,8 +8,8 @@ import {
   PopoverHeader,
   PopoverTitle,
   PopoverTrigger,
-} from '@/components/ui/popover'
-import { Switch } from '@/components/ui/switch'
+} from '@clara/ui/components/popover'
+import { Switch } from '@clara/ui/components/switch'
 import { useSimplifySettings } from '@/features/settings/use-simplify-settings'
 
 export function SettingsFilter() {

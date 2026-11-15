@@ -1,5 +1,4 @@
 import type { KeyboardEvent, MouseEvent } from 'react'
-import { useTheme } from 'next-themes'
 import { Toaster as Sonner, toast, type ToasterProps } from 'sonner'
 import {
   CircleCheckIcon,
@@ -31,9 +30,7 @@ const findToast = (target: Element) => {
   return active[active.length - 1 - onScreen.indexOf(element)]
 }
 
-const Toaster = ({ ...props }: ToasterProps) => {
-  const { theme = 'system' } = useTheme()
-
+const Toaster = ({ theme = 'system', ...props }: ToasterProps) => {
   /*
    * Toasts carry no close control: clicking or tapping the notification itself
    * dismisses it, and so does Enter or Space on a focused toast, so the surface

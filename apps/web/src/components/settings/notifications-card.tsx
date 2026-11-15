@@ -13,18 +13,24 @@ import {
   VolumeX,
 } from 'lucide-react'
 import { toast } from 'sonner'
-import { Button } from '@/components/ui/button'
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
-import { Separator } from '@/components/ui/separator'
-import { Slider } from '@/components/ui/slider'
-import { Switch } from '@/components/ui/switch'
+import { Button } from '@clara/ui/components/button'
+import {
+  Card,
+  CardContent,
+  CardDescription,
+  CardHeader,
+  CardTitle,
+} from '@clara/ui/components/card'
+import { Separator } from '@clara/ui/components/separator'
+import { Slider } from '@clara/ui/components/slider'
+import { Switch } from '@clara/ui/components/switch'
 import {
   Select,
   SelectContent,
   SelectItem,
   SelectTrigger,
   SelectValue,
-} from '@/components/ui/select'
+} from '@clara/ui/components/select'
 import {
   ATTENTION_DESCRIPTIONS,
   ATTENTION_KINDS,

@@ -1,7 +1,7 @@
 import { useId } from 'react'
 import { CircleDot, Inbox } from 'lucide-react'
-import { Label } from '@/components/ui/label'
-import { Switch } from '@/components/ui/switch'
+import { Label } from '@clara/ui/components/label'
+import { Switch } from '@clara/ui/components/switch'
 import { useInboxMonitor } from '@/features/sessions/inbox-monitor'
 import { useSessionWording } from '@/features/sessions/use-wording'
 

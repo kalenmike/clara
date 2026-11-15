@@ -11,7 +11,7 @@ import {
 } from 'lucide-react'
 import type { SystemEvent, SystemEventKind } from '@/features/chat/system-events'
 import { formatDateTime, formatRelativeTime } from '@/lib/format'
-import { cn } from '@/lib/utils'
+import { cn } from '@clara/ui/lib/utils'
 
 /**
  * A system row is a part of the transcript that did not come from a person

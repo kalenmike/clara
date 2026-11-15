@@ -1,9 +1,15 @@
 import { useId, useState } from 'react'
 import { RotateCcw, Type } from 'lucide-react'
-import { Button } from '@/components/ui/button'
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
-import { Input } from '@/components/ui/input'
-import { Label } from '@/components/ui/label'
+import { Button } from '@clara/ui/components/button'
+import {
+  Card,
+  CardContent,
+  CardDescription,
+  CardHeader,
+  CardTitle,
+} from '@clara/ui/components/card'
+import { Input } from '@clara/ui/components/input'
+import { Label } from '@clara/ui/components/label'
 import { useSessionWording } from '@/features/sessions/use-wording'
 import { MAX_SESSION_WORD_LENGTH } from '@/features/sessions/wording'
 

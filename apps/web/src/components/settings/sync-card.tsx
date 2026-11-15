@@ -1,9 +1,15 @@
 import { useState } from 'react'
 import { Cloud, Loader2, RefreshCw } from 'lucide-react'
-import { Button } from '@/components/ui/button'
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
-import { Separator } from '@/components/ui/separator'
-import { Switch } from '@/components/ui/switch'
+import { Button } from '@clara/ui/components/button'
+import {
+  Card,
+  CardContent,
+  CardDescription,
+  CardHeader,
+  CardTitle,
+} from '@clara/ui/components/card'
+import { Separator } from '@clara/ui/components/separator'
+import { Switch } from '@clara/ui/components/switch'
 import { SYNC_CATEGORIES, SYNC_CATEGORY_INFO, type SyncCategory } from '@/features/sync/categories'
 import {
   SYNC_STANDALONE,

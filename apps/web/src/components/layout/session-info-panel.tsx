@@ -1,8 +1,8 @@
 import { useMemo } from 'react'
 import { BarChart3, Coins, MessagesSquare, Timer } from 'lucide-react'
 import type { ClaraSession } from '@clara/api-contract'
-import { Badge } from '@/components/ui/badge'
-import { Separator } from '@/components/ui/separator'
+import { Badge } from '@clara/ui/components/badge'
+import { Separator } from '@clara/ui/components/separator'
 import { useModels } from '@/features/catalog/use-catalog'
 import type { ChatSnapshot } from '@/features/chat/chat-store'
 import { isSyntheticMessage } from '@/features/chat/message-attribution'
@@ -17,7 +17,7 @@ import {
   formatDuration,
   formatTokens,
 } from '@/lib/format'
-import { cn } from '@/lib/utils'
+import { cn } from '@clara/ui/lib/utils'
 
 export function SessionInfoPanel({
   session,

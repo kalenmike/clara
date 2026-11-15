@@ -2,7 +2,7 @@ import { useEffect, useState, type FormEvent } from 'react'
 import { Loader2 } from 'lucide-react'
 import { toast } from 'sonner'
 import type { ClaraProject } from '@clara/api-contract'
-import { Button } from '@/components/ui/button'
+import { Button } from '@clara/ui/components/button'
 import {
   Dialog,
   DialogContent,
@@ -10,8 +10,8 @@ import {
   DialogFooter,
   DialogHeader,
   DialogTitle,
-} from '@/components/ui/dialog'
-import { Input } from '@/components/ui/input'
+} from '@clara/ui/components/dialog'
+import { Input } from '@clara/ui/components/input'
 import { projectLabel } from '@/features/projects/project-list'
 import { useUpdateProject } from '@/features/projects/use-projects'
 

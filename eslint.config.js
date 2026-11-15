@@ -13,7 +13,7 @@ export default defineConfig([
     '**/node_modules/**',
     '**/.turbo/**',
     '**/.wrangler/**',
-    'apps/web/src/components/ui/**',
+    'packages/ui/src/components/**',
     'apps/**/src-tauri/**',
     'tools/docs/.docusaurus/**',
     'tools/docs/build/**',
@@ -54,6 +54,7 @@ export default defineConfig([
       'apps/web/**/*.{ts,tsx}',
       'apps/hub/panel/**/*.{ts,tsx}',
       'packages/panel/**/*.{ts,tsx}',
+      'packages/ui/src/patterns/**/*.{ts,tsx}',
     ],
     extends: [reactHooks.configs.flat.recommended, reactRefresh.configs.vite],
     languageOptions: {

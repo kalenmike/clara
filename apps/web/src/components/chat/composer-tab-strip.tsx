@@ -10,8 +10,8 @@ import {
   X,
 } from 'lucide-react'
 import { SessionStatusIcon } from '@/components/sessions/session-status-icon'
-import { Button } from '@/components/ui/button'
-import { Tooltip, TooltipContent, TooltipTrigger } from '@/components/ui/tooltip'
+import { Button } from '@clara/ui/components/button'
+import { Tooltip, TooltipContent, TooltipTrigger } from '@clara/ui/components/tooltip'
 import { useComposerTabStatus } from '@/features/chat/use-composer-tab-status'
 import type { ComposerMode } from '@/features/chat/composer-session'
 import { composerReturnPath, composerSessionTitle } from '@/features/chat/composer-session'
@@ -19,7 +19,7 @@ import type { ComposerTab } from '@/features/chat/composer-tabs'
 import { useSessionForms } from '@/features/chat/use-forms'
 import { useSessionWording } from '@/features/sessions/use-wording'
 import { useSession } from '@/features/sessions/use-sessions'
-import { cn } from '@/lib/utils'
+import { cn } from '@clara/ui/lib/utils'
 
 export function ComposerTabStrip({
   tabs,

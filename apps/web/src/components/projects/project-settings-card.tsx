@@ -3,10 +3,16 @@ import { Check, ImagePlus, Loader2, Settings2, Trash2 } from 'lucide-react'
 import { toast } from 'sonner'
 import type { ClaraProject } from '@clara/api-contract'
 import { ProjectAvatar } from '@/components/projects/project-avatar'
-import { Button } from '@/components/ui/button'
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
-import { Input } from '@/components/ui/input'
-import { Label } from '@/components/ui/label'
+import { Button } from '@clara/ui/components/button'
+import {
+  Card,
+  CardContent,
+  CardDescription,
+  CardHeader,
+  CardTitle,
+} from '@clara/ui/components/card'
+import { Input } from '@clara/ui/components/input'
+import { Label } from '@clara/ui/components/label'
 import {
   PROJECT_AVATAR_COLORS,
   isProjectAvatarColor,
@@ -14,7 +20,7 @@ import {
 } from '@/features/projects/project-avatar'
 import { ProjectIconError, projectIconDataURL } from '@/features/projects/project-icon'
 import { useUpdateProject } from '@/features/projects/use-projects'
-import { cn } from '@/lib/utils'
+import { cn } from '@clara/ui/lib/utils'
 
 const COLOR_SWATCHES: Record<ProjectAvatarColor, string> = {
   pink: 'bg-pink-500',

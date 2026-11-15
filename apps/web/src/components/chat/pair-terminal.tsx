@@ -9,7 +9,7 @@ import {
 } from '@/features/chat/terminal-log'
 import { useSessionWording } from '@/features/sessions/use-wording'
 import { formatDuration } from '@/lib/format'
-import { cn } from '@/lib/utils'
+import { cn } from '@clara/ui/lib/utils'
 import { useEventStream } from '@/providers/event-provider'
 
 export function PairTerminal({

@@ -1,17 +1,23 @@
 import { useMemo } from 'react'
 import { Bot, CircleAlert, History } from 'lucide-react'
 import type { ClaraAgent } from '@clara/api-contract'
-import { Badge } from '@/components/ui/badge'
-import { Button } from '@/components/ui/button'
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
-import { Label } from '@/components/ui/label'
+import { Badge } from '@clara/ui/components/badge'
+import { Button } from '@clara/ui/components/button'
+import {
+  Card,
+  CardContent,
+  CardDescription,
+  CardHeader,
+  CardTitle,
+} from '@clara/ui/components/card'
+import { Label } from '@clara/ui/components/label'
 import {
   Select,
   SelectContent,
   SelectItem,
   SelectTrigger,
   SelectValue,
-} from '@/components/ui/select'
+} from '@clara/ui/components/select'
 import { useDefaultAgent } from '@/features/agents/use-default-agent'
 import { primaryAgents } from '@/features/agents/default-agent'
 import { useAgentsForHarnessDetails } from '@/features/catalog/use-catalog'

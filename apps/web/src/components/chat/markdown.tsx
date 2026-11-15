@@ -4,9 +4,9 @@ import ReactMarkdown, { type Components } from 'react-markdown'
 import remarkBreaks from 'remark-breaks'
 import remarkGfm from 'remark-gfm'
 import { useMarkdownSelection } from '@/components/chat/markdown-selection'
-import { Button } from '@/components/ui/button'
+import { Button } from '@clara/ui/components/button'
 import { headingLevel } from '@/features/chat/markdown-blocks'
-import { cn } from '@/lib/utils'
+import { cn } from '@clara/ui/lib/utils'
 
 type HastNode = {
   tagName?: string

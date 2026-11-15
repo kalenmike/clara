@@ -1,7 +1,13 @@
 import { Loader2, RefreshCw, Trash2 } from 'lucide-react'
-import { Button } from '@/components/ui/button'
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
-import { Separator } from '@/components/ui/separator'
+import { Button } from '@clara/ui/components/button'
+import {
+  Card,
+  CardContent,
+  CardDescription,
+  CardHeader,
+  CardTitle,
+} from '@clara/ui/components/card'
+import { Separator } from '@clara/ui/components/separator'
 import { clearCachedAppData } from '@/features/pwa/update-store'
 import { applyAppUpdate, useAppUpdate } from '@/features/updates/app-update'
 import { claraBuildLabel, claraBuildTitle, claraVersionLabel } from '@/lib/build-info'

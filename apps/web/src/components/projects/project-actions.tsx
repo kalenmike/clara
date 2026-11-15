@@ -19,7 +19,7 @@ import type {
 } from '@clara/api-contract'
 import { AddWorkspaceDialog } from '@/components/projects/add-workspace-dialog'
 import { RenameProjectDialog } from '@/components/projects/rename-project-dialog'
-import { Button } from '@/components/ui/button'
+import { Button } from '@clara/ui/components/button'
 import {
   Dialog,
   DialogContent,
@@ -27,14 +27,14 @@ import {
   DialogFooter,
   DialogHeader,
   DialogTitle,
-} from '@/components/ui/dialog'
+} from '@clara/ui/components/dialog'
 import {
   DropdownMenu,
   DropdownMenuContent,
   DropdownMenuItem,
   DropdownMenuSeparator,
   DropdownMenuTrigger,
-} from '@/components/ui/dropdown-menu'
+} from '@clara/ui/components/dropdown-menu'
 import { projectLabel } from '@/features/projects/project-list'
 import { useArchiveProject, useDeleteProject } from '@/features/projects/use-projects'
 

@@ -6,7 +6,7 @@ import {
   type ComposerRequestSelection,
 } from '@/features/chat/composer-requests'
 import type { FormAnswerValue } from '@/features/chat/use-forms'
-import { cn } from '@/lib/utils'
+import { cn } from '@clara/ui/lib/utils'
 
 /**
  * Pending question forms stacked above the composer's editor. One form is

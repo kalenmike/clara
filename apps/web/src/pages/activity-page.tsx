@@ -5,10 +5,10 @@ import type { ClaraActivityHarness, ClaraProject } from '@clara/api-contract'
 import { ActivityHarnessSection } from '@/components/activity/activity-harness-section'
 import { PageShell } from '@/components/layout/page-shell'
 import { FullWindowShell } from '@/components/layout/full-window-shell'
-import { Badge } from '@/components/ui/badge'
-import { Button } from '@/components/ui/button'
-import { Card, CardContent } from '@/components/ui/card'
-import { Skeleton } from '@/components/ui/skeleton'
+import { Badge } from '@clara/ui/components/badge'
+import { Button } from '@clara/ui/components/button'
+import { Card, CardContent } from '@clara/ui/components/card'
+import { Skeleton } from '@clara/ui/components/skeleton'
 import {
   groupActivitySessions,
   sumActivityUsage,

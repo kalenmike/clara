@@ -1,15 +1,15 @@
 import { Link, useLocation } from 'react-router'
 import { Check, Menu } from 'lucide-react'
-import { Button } from '@/components/ui/button'
+import { Button } from '@clara/ui/components/button'
 import {
   DropdownMenu,
   DropdownMenuContent,
   DropdownMenuItem,
   DropdownMenuTrigger,
-} from '@/components/ui/dropdown-menu'
+} from '@clara/ui/components/dropdown-menu'
 import { visibleAppNavItems, type AppNavItem } from '@/components/layout/app-nav'
 import { isDesktop } from '@/lib/runtime'
-import { cn } from '@/lib/utils'
+import { cn } from '@clara/ui/lib/utils'
 
 /**
  * Fixed chrome for every connected surface. The desktop row pairs the Clara

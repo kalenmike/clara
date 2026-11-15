@@ -14,7 +14,7 @@ import {
 } from 'react'
 import { createPortal } from 'react-dom'
 import { ChevronUp, Forward, TextSelect, X } from 'lucide-react'
-import { Button } from '@/components/ui/button'
+import { Button } from '@clara/ui/components/button'
 import {
   buildOutline,
   describeSelection,
@@ -30,7 +30,7 @@ import {
   type MarkdownRange,
   type OutlineNode,
 } from '@/features/chat/markdown-blocks'
-import { cn } from '@/lib/utils'
+import { cn } from '@clara/ui/lib/utils'
 
 type PartBlock = MarkdownBlock & { element: HTMLElement }
 

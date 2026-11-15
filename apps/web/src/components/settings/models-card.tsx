@@ -1,16 +1,22 @@
 import { useMemo, useState, useSyncExternalStore } from 'react'
 import { CircleAlert, Cpu, Eye, EyeOff } from 'lucide-react'
 import type { ClaraModel } from '@clara/api-contract'
-import { Badge } from '@/components/ui/badge'
-import { Button } from '@/components/ui/button'
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
+import { Badge } from '@clara/ui/components/badge'
+import { Button } from '@clara/ui/components/button'
+import {
+  Card,
+  CardContent,
+  CardDescription,
+  CardHeader,
+  CardTitle,
+} from '@clara/ui/components/card'
 import {
   Select,
   SelectContent,
   SelectItem,
   SelectTrigger,
   SelectValue,
-} from '@/components/ui/select'
+} from '@clara/ui/components/select'
 import { ModelProviderRow } from '@/components/settings/model-provider-row'
 import {
   useModelsForHarnessDetails,

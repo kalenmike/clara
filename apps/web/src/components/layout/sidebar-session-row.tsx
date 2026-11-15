@@ -5,7 +5,7 @@ import { SessionStatusIcon } from '@/components/sessions/session-status-icon'
 import type { SessionStatusKind } from '@/features/sessions/session-status'
 import { useSessionWording } from '@/features/sessions/use-wording'
 import { formatRelativeTime } from '@/lib/format'
-import { cn } from '@/lib/utils'
+import { cn } from '@clara/ui/lib/utils'
 
 export function SidebarSessionRow({
   session,

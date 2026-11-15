@@ -2,13 +2,17 @@ import { useState } from 'react'
 import { Brain, ChevronRight, ShieldAlert, ShieldCheck, ShieldX } from 'lucide-react'
 import type { ClaraPermissionRequest, ClaraSessionMessage } from '@clara/api-contract'
 import { RequestCard } from '@/components/chat/request-card'
-import { Badge } from '@/components/ui/badge'
-import { Button } from '@/components/ui/button'
-import { Collapsible, CollapsibleContent, CollapsibleTrigger } from '@/components/ui/collapsible'
+import { Badge } from '@clara/ui/components/badge'
+import { Button } from '@clara/ui/components/button'
+import {
+  Collapsible,
+  CollapsibleContent,
+  CollapsibleTrigger,
+} from '@clara/ui/components/collapsible'
 import { Markdown } from '@/components/chat/markdown'
 import { findPermissionThinking } from '@/features/chat/permission-thinking'
 import { usePendingPermissions, useReplyPermission } from '@/features/chat/use-permissions'
-import { cn } from '@/lib/utils'
+import { cn } from '@clara/ui/lib/utils'
 
 export function PermissionPanel({
   sessionID,
