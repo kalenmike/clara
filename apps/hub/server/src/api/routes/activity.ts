@@ -3,15 +3,17 @@ import { describeRoute, resolver, validator } from 'hono-openapi'
 import { z } from 'zod'
 import { claraActivitySessionsResponseSchema } from '@clara/api-contract'
 import { ActivitySessionsService } from '../../activity/sessions.ts'
+import type { SessionSignalsService } from '../../activity/session-signals.ts'
 import type { ApiDependencies, ApiVariables } from '../context.ts'
 import { optionalBooleanQuery } from '../query.ts'
 import { jsonResponse, responses } from '../schemas.ts'
 
 export function registerActivityRoutes(
   app: Hono<{ Variables: ApiVariables }>,
-  deps: ApiDependencies
+  deps: ApiDependencies,
+  signals: SessionSignalsService
 ): void {
-  const service = new ActivitySessionsService(deps)
+  const service = new ActivitySessionsService(deps, signals)
 
   app.get(
     '/v1/activity/sessions',

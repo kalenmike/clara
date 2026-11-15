@@ -27,6 +27,7 @@ import type {
   ClaraSessionInterruptResponse,
   ClaraSessionMessage,
   ClaraSessionMessagesResponse,
+  ClaraSessionSignalsResponse,
   ClaraSessionsResponse,
   ClaraSkillListOutput,
   ClaraVcsBaseOutput,
@@ -304,6 +305,15 @@ export function createClaraClient(options: ClaraClientOptions): ClaraClient {
       active: (input, requestOptions) =>
         request<ClaraSessionActiveOutput>('GET', '/v1/sessions/active', {
           query: { harnessID: input?.harnessID },
+          options: requestOptions,
+        }),
+      signals: (input, requestOptions) =>
+        request<ClaraSessionSignalsResponse>('GET', '/v1/sessions/signals', {
+          query: {
+            sessions: input.sessions
+              .map((session) => `${session.sessionID}@${session.updated}`)
+              .join(','),
+          },
           options: requestOptions,
         }),
       form: {

@@ -19,11 +19,11 @@ export function useSessionMailboxSignals(sessions: ClaraSession[]) {
   return useQueries({
     queries: sessions.map((session) => ({
       queryKey: queryKeys.sessionMailbox(session.id),
-      queryFn: ({ signal }) => loadSessionMailboxSignals(client!, session.id, signal),
+      queryFn: ({ signal }) =>
+        loadSessionMailboxSignals(client!, session.id, session.time.updated, signal),
       enabled: Boolean(client),
-      // One lookup fans out to three requests, so keep it off the remount and
-      // focus paths: a mailbox signal is refreshed by the events that change
-      // it, and a stale one only affects grouping for a moment.
+      // The lookups are coalesced into one request per render, so a stale
+      // signal only affects grouping for a moment and needs no remount refetch.
       staleTime: 5 * 60_000,
       refetchOnWindowFocus: false,
       retry: 1,

@@ -59,6 +59,25 @@ describe('Clara API client', () => {
     )
   })
 
+  it('batches session signals into one read', async () => {
+    const fake = fakeFetch(() => json({ data: [] }))
+    const client = createClaraClient({ fetch: fake.fetch })
+
+    await expect(
+      client.session.signals({
+        sessions: [
+          { sessionID: 's/1', updated: 10 },
+          { sessionID: 's2', updated: 20 },
+        ],
+      })
+    ).resolves.toEqual({ data: [] })
+
+    expect(fake.requests[0]?.method).toBe('GET')
+    const url = new URL(fake.requests[0]!.url)
+    expect(url.pathname).toBe('/v1/sessions/signals')
+    expect(url.searchParams.get('sessions')).toBe('s/1@10,s2@20')
+  })
+
   it('sends a prompt to the session endpoint', async () => {
     const fake = fakeFetch(() => json({ id: 'inbox-1' }))
     const client = createClaraClient({ fetch: fake.fetch })

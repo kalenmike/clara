@@ -272,10 +272,12 @@ list has no checkbox column or bulk toolbar.
     archive hides a project. Reconciling a workspace through the harness
     location can unarchive the harness record, but it never removes the Clara
     container.
-24. Mailbox lookups run within a shared request budget instead of launching
-    three requests per session at once. A failed background refresh keeps the
-    last list visible with a compact refresh notice; the full retry state appears
-    only when no list is cached.
+24. Mailbox signals load in one batched request per screen. The browser coalesces
+    each render's per-session lookups, sends each session's `time.updated` with
+    the batch, and the hub fans out to the owning harnesses with bounded
+    concurrency, so a device only spends one relay frame on the whole sidebar.
+    A failed background refresh keeps the last list visible with a compact
+    refresh notice; the full retry state appears only when no list is cached.
 25. New brief picks a workspace in this order: the workspace last used for this
     project, the project's default workspace when it is online, the first online
     workspace, then the first linked workspace. The last-used workspace wins even

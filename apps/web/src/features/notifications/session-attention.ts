@@ -25,8 +25,8 @@ export async function loadSessionAttention(
   const session = await getSessionInfo(client, queryClient, sessionID)
   if (isArchivedSession(session) || isSnoozedSession(session)) return null
 
-  const signals = await loadSessionMailboxSignals(client, sessionID)
-  const kind = resolveAttentionKind(signals, session.agent, false)
+  const signals = await loadSessionMailboxSignals(client, sessionID, session.time.updated)
+  const kind = resolveAttentionKind(signals ?? undefined, session.agent, false)
   return kind ? { kind, session } : null
 }
 
