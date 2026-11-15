@@ -3,9 +3,9 @@ import { Button } from '@/components/ui/button'
 import { applyAppUpdate, dismissAppUpdate, useAppUpdate } from '@/features/updates/app-update'
 
 /**
- * Sits in the flow under the mobile app bar. An installed app can resume for
- * days without a navigation, so the update is offered instead of forced: a
- * reload would drop an open chat.
+ * Sits in the flow under the app header. An installed app can resume for days
+ * without a navigation, so the update is offered instead of forced: a reload
+ * would drop an open chat.
  */
 export function UpdateBanner() {
   const { status, dismissed } = useAppUpdate()

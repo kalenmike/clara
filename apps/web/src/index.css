@@ -191,14 +191,18 @@ body {
  */
 
 /*
- * Below `md` the app bar owns the top edge, so top toasts start underneath it
- * instead of behind the menu and title. The bar is 48px tall plus the
- * status-bar inset, and `1rem` keeps the toaster's own mobile gap below it.
- * Desktop and tablet have no bar and keep Sonner's default offset.
+ * The app header owns the top edge on every surface. Toasts start underneath
+ * it instead of behind the logo and destinations: one 48px row on desktop, plus
+ * the 44px phone tab row below `md`. The header itself absorbs the status-bar
+ * inset, and `1rem` keeps the toaster's own gap below that.
  */
+[data-sonner-toaster].toaster[data-y-position='top'] {
+  top: calc(3rem + env(safe-area-inset-top) + 1rem);
+}
+
 @media (width < 48rem) {
   [data-sonner-toaster].toaster[data-y-position='top'] {
-    top: calc(3rem + env(safe-area-inset-top) + 1rem);
+    top: calc(5.75rem + env(safe-area-inset-top) + 1rem);
   }
 }
 
