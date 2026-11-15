@@ -14,19 +14,19 @@ typing in a text field, except where noted.
 Press `ctrl+x` with focus outside a text field. Clara waits two seconds for the
 next key.
 
-| Key     | Action                                  |
-| ------- | --------------------------------------- |
-| `n`     | New session and open its composer       |
-| `l`     | Project session list                    |
-| `s`     | Toggle the right panel on its Info tab  |
-| `g`     | Open the Git tab                        |
-| `` ` `` | Open the pair terminal                  |
-| `m`     | Model picker (opens the composer first) |
-| `a`     | Agent picker (opens the composer first) |
-| `c`     | Compact the context                     |
-| `y`     | Copy the last reply                     |
-| `h`     | Fold or open every message              |
-| `t`     | Toggle light and dark mode              |
+| Key     | Action                                 |
+| ------- | -------------------------------------- |
+| `n`     | New session and focus its composer tab |
+| `l`     | Project session list                   |
+| `s`     | Toggle the right panel on its Info tab |
+| `g`     | Open the Git tab                       |
+| `` ` `` | Open the pair terminal                 |
+| `m`     | Model picker (restores the composer)   |
+| `a`     | Agent picker (restores the composer)   |
+| `c`     | Compact the context                    |
+| `y`     | Copy the last reply                    |
+| `h`     | Fold or open every message             |
+| `t`     | Toggle light and dark mode             |
 
 The leader expires silently after two seconds. An unknown key resets it.
 

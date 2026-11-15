@@ -81,7 +81,7 @@ Clara works; the guide describes how to use it.
 | [chat.md](features/chat.md)                                             | You are working on messages, streaming, tools, or permissions            |
 | [fork.md](features/fork.md)                                             | You are working on forking a session or forwarding a message             |
 | [pair-terminal.md](features/pair-terminal.md)                           | You are working on the read-only terminal that follows a running session |
-| [composer.md](features/composer.md)                                     | You are working on the reply window, commands, mentions, or attachments  |
+| [composer.md](features/composer.md)                                     | You are working on the composer, tabs, or attachments                    |
 | [models.md](features/models.md)                                         | You are working on model visibility, the Models tab, or model details    |
 | [session-info.md](features/session-info.md)                             | You are working on cost, tokens, context, or message counts              |
 | [notifications.md](features/notifications.md)                           | You are working on Inbox alerts, desktop notifications, or alert sounds  |
