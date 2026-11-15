@@ -1,5 +1,6 @@
 #!/usr/bin/env node
-import { existsSync, readFileSync, unlinkSync, writeFileSync } from 'node:fs'
+import { existsSync, readFileSync } from 'node:fs'
+import { pathToFileURL } from 'node:url'
 import { fileURLToPath } from 'node:url'
 import {
   analyzeDatabaseFile,
@@ -7,8 +8,6 @@ import {
   readRunEvidenceFile,
   runIdFromRequest,
   summarizeDiagnostics,
-  Runtime,
-  Store,
   type AlertRow,
   type DiagnosticsResult,
   type RunEvidence,
@@ -19,14 +18,10 @@ import {
 import {
   baseURL,
   collectStatus,
-  configPath,
   dbPath,
   ensureToken,
   formatStatus,
-  host,
   logPath,
-  pidPath,
-  port,
   readComposeLogs,
   readPidState,
   startDockerService,
@@ -36,12 +31,8 @@ import {
   tokenPath,
   workspace,
 } from '@clara/service-control'
-import { createEngineServer } from './server.ts'
-
-/** Read a Clara engine variable, falling back to its historical name. */
-function engineEnv(name: string, legacy: string): string | undefined {
-  return process.env[name]?.trim() || process.env[legacy]?.trim()
-}
+import { engineEnv } from './env.ts'
+import { serveEngine } from './serve.ts'
 
 function selfCommand(): string[] {
   const entry = fileURLToPath(import.meta.url)
@@ -49,63 +40,6 @@ function selfCommand(): string[] {
     return [process.execPath, '--experimental-strip-types', '--no-warnings', entry]
   }
   return [process.execPath, entry]
-}
-
-function writePid(): void {
-  writeFileSync(pidPath(), `${process.pid}\n`, { mode: 0o600 })
-}
-
-function removePid(): void {
-  try {
-    unlinkSync(pidPath())
-  } catch {
-    // Already gone.
-  }
-}
-
-async function serve(): Promise<void> {
-  const store = new Store(dbPath())
-  const runtime = new Runtime({
-    store,
-    ...(configPath() ? { configPath: configPath() } : {}),
-    stalledMs: Number(
-      engineEnv('CLARA_ENGINE_STALLED_MS', 'CLARA_ORCHESTRATION_STALLED_MS') ?? 5 * 60_000
-    ),
-    leaseMs: Number(
-      engineEnv('CLARA_ENGINE_LEASE_MS', 'CLARA_ORCHESTRATION_LEASE_MS') ?? 30 * 60_000
-    ),
-    runnerWaitMs: Number(process.env.CLARA_RUNNER_WAIT_MS ?? 60_000),
-  })
-  const token = ensureToken()
-  const app = createEngineServer({
-    runtime,
-    token,
-    host: host(),
-    port: port(),
-    workspace: workspace(),
-    ...(configPath() ? { configPath: configPath() } : {}),
-  })
-  writePid()
-  await new Promise<void>((resolve, reject) => {
-    app.server.once('error', reject)
-    app.server.listen(port(), host(), () => resolve())
-  })
-  console.log(`[clara-engine] listening on ${baseURL()}`)
-  console.log(`[clara-engine] database ${dbPath()}`)
-  console.log(`[clara-engine] workspace ${workspace()}`)
-  console.log(
-    `[clara-engine] token file ${engineEnv('CLARA_ENGINE_TOKEN_FILE', 'CLARA_ORCHESTRATION_TOKEN_FILE') ?? 'default'}`
-  )
-  console.log('[clara-engine] MCP endpoint /mcp, REST /v1, events /v1/events')
-  const shutdown = async () => {
-    console.log('[clara-engine] shutting down')
-    await app.close()
-    store.db.close()
-    removePid()
-    process.exit(0)
-  }
-  process.once('SIGINT', () => void shutdown())
-  process.once('SIGTERM', () => void shutdown())
 }
 
 async function startDocker(build: boolean): Promise<void> {
@@ -723,9 +657,9 @@ function renderHelp(command?: string): boolean {
   return true
 }
 
-async function main(): Promise<void> {
-  const command = process.argv[2] ?? 'help'
-  const args = process.argv.slice(3)
+export async function main(argv: readonly string[] = process.argv.slice(2)): Promise<void> {
+  const command = argv[0] ?? 'help'
+  const args = [...argv.slice(1)]
 
   if (command === 'help' || command === '--help' || command === '-h') {
     const target = command === 'help' ? args.find((arg) => !arg.startsWith('-')) : undefined
@@ -748,7 +682,7 @@ async function main(): Promise<void> {
     return
   }
 
-  if (command === 'serve') return serve()
+  if (command === 'serve') return serveEngine()
   if (command === 'start') return start(args)
   if (command === 'stop') return stop(args)
   if (command === 'status') return status()
@@ -763,7 +697,12 @@ async function main(): Promise<void> {
   process.exitCode = 1
 }
 
-void main().catch((error) => {
-  console.error(`[clara-engine] ${error instanceof Error ? error.message : String(error)}`)
-  process.exit(1)
-})
+const invokedDirectly =
+  process.argv[1] !== undefined && pathToFileURL(process.argv[1]).href === import.meta.url
+
+if (invokedDirectly) {
+  void main().catch((error) => {
+    console.error(`[clara-engine] ${error instanceof Error ? error.message : String(error)}`)
+    process.exit(1)
+  })
+}

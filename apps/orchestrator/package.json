@@ -3,6 +3,10 @@
   "private": true,
   "version": "0.1.0",
   "type": "module",
+  "exports": {
+    ".": "./src/index.ts",
+    "./serve": "./src/serve.ts"
+  },
   "bin": {
     "clara-engine": "./dist/index.js",
     "clara-orchestrator": "./dist/index.js"
