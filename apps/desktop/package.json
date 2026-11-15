@@ -9,6 +9,8 @@
     "bundle": "pnpm --filter @clara/desktop-host run bundle && tauri build",
     "bundle:app": "pnpm --filter @clara/desktop-host run bundle && tauri build --no-bundle",
     "build:docker": "node scripts/build-docker.mjs",
+    "install:app": "node scripts/install.mjs",
+    "uninstall:app": "node scripts/install.mjs --uninstall",
     "host": "pnpm --filter @clara/desktop-host run build",
     "icons": "tauri icon ../web/public/clara-mark.png"
   },

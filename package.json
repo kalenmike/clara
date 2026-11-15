@@ -28,6 +28,8 @@
     "desktop:build": "pnpm --filter @clara/desktop bundle",
     "desktop:build:app": "pnpm --filter @clara/desktop bundle:app",
     "desktop:build:docker": "pnpm --filter @clara/desktop build:docker",
+    "desktop:install": "node apps/desktop/scripts/install.mjs",
+    "desktop:uninstall": "node apps/desktop/scripts/install.mjs --uninstall",
     "desktop:icons": "pnpm --filter @clara/desktop icons",
     "hub:binary": "pnpm --filter @clara/hub-server build:bun",
     "hub:headless": "pnpm --filter @clara/hub-server headless",
