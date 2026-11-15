@@ -343,6 +343,7 @@ async function runServe(
     config,
     registry: installRegistry,
     isEnabled: () => settings.getInstall(),
+    installedVersion: (kind) => newestAdapterVersion(harness.list(), kind),
     log,
   })
 
@@ -936,6 +937,24 @@ function advertisedHost(configured: string, bindHost: string): string {
     return bindHost === '0.0.0.0' ? '127.0.0.1' : bindHost
   }
   return configured
+}
+
+/**
+ * The adapter version reported by the most recently seen connection for a
+ * kind. A re-paired adapter can leave an older connection row offline, so the
+ * panel compares against the newest one instead of any match.
+ */
+function newestAdapterVersion(
+  connections: ReadonlyArray<{ kind: string; adapterVersion?: string; lastSeenAt?: number }>,
+  kind: string
+): string | undefined {
+  let newest: { version: string; seen: number } | undefined
+  for (const connection of connections) {
+    if (connection.kind !== kind || !connection.adapterVersion) continue
+    const seen = connection.lastSeenAt ?? 0
+    if (!newest || seen > newest.seen) newest = { version: connection.adapterVersion, seen }
+  }
+  return newest?.version
 }
 
 function formatHost(host: string): string {

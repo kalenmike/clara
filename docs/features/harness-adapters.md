@@ -284,6 +284,9 @@ ask for confirmation run without one, exactly as in the Pi TUI.
   local execution.
 - **Registry unreachable** — the panel names the manifest error and does not
   create a code. The manual repository commands still work from a checkout.
+- **Adapter behind the registry** — the Adapter setup card shows the connected
+  adapter version beside the published one and names the reinstall when they
+  differ. The hub never upgrades an adapter by itself.
 - **SSH host missing** — an alias that is not in the client machine's
   `~/.ssh/config` is rejected; enter the user, host, and port manually instead.
 - **SSH authentication** — Clara Desktop installs use key or agent

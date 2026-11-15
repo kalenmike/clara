@@ -217,6 +217,8 @@ export type PanelInstallRegistryEntry = {
   ok: boolean
   checkedAt: string
   manifest?: PanelInstallManifest
+  /** The version the paired adapter reports, when one has connected. */
+  installedVersion?: string
   error?: string
 }
 
