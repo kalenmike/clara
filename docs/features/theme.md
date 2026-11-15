@@ -11,6 +11,9 @@ taste without giving up automatic appearance changes.
 The hub panel shares the same palettes and type tokens. The server-served panel
 keeps its own Light, Dark, and System switch in the panel browser; the bundled
 `/hub` panel follows the client's mode and color theme and hides that switch.
+Clara Lab at `/lab` follows the same client theme; the standalone lab service
+has no client to inherit from, so it follows the operating system and uses the
+Default palette.
 
 ## User flow
 
@@ -98,13 +101,16 @@ keeps its own Light, Dark, and System switch in the panel browser; the bundled
 - Appearance card: `src/components/settings/theme-card.tsx`
 - Theme catalog and local store: `src/features/theme/color-theme.ts`
 - React binding: `src/features/theme/use-color-theme.ts`
-- Palette CSS: `packages/panel/src/styles/theme.css`, imported by the web
-  `src/index.css` and the panel `standalone.css`
-- Default palette: `:root` and `.dark` in
-  `packages/panel/src/styles/theme.css`
+- Palette CSS: `packages/theme/src/theme.css` for Tailwind hosts and
+  `packages/theme/src/tokens.css` for plain CSS hosts, imported by the web
+  `src/index.css`, the panel `standalone.css`, and the lab `standalone.css`
+- Default palette: `:root` and `.dark` in `packages/theme/src/tokens.css`
 - Panel tokens: `packages/panel/src/styles/globals.css` aliases `--panel-*` to
   the semantic tokens so the served panel uses the Default palette and the
   bundled `/hub` panel inherits the client mode and color theme
+- Lab tokens: `packages/lab/src/styles.css` aliases `--lab-*` to the semantic
+  tokens; the bundled `/lab` route inherits the client theme and the standalone
+  entry applies the Default palette from the system preference
 - Mode provider: `src/providers/theme-provider.tsx` (wraps `next-themes`)
 - Storage keys: `clara.theme` (mode), `clara.colorTheme` (palette); both are
   eligible for optional client settings sync

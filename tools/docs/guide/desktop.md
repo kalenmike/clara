@@ -120,7 +120,8 @@ Use the hub's own panel for those.
 
 Clara Lab is a developer workbench for the orchestration engine. It previews a
 package's steps, prompts, policy, and source files, and it lets you drive a run
-by hand. It is for people writing custom pipelines, not for everyday chat.
+by hand. It is for people writing custom pipelines, not for everyday chat. It
+follows Clara's theme and mode, so it matches the window around it.
 
 Clara Lab needs a lab service running next to the engine. Start it on the engine
 host:

@@ -2,7 +2,7 @@
 @import 'tw-animate-css';
 @import 'shadcn/tailwind.css';
 @import '@fontsource-variable/geist';
-@import '@clara/panel/styles/theme.css';
+@import '@clara/theme/theme.css';
 
 /*
  * The `/hub` route renders `@clara/panel`, which lives outside this Vite root.

@@ -149,6 +149,10 @@ transport and capability set: the served panel keeps its HttpOnly session
 cookie, while a tunneled panel uses a session bearer token and disables controls
 that would cut its own connection.
 
+`packages/theme` (`@clara/theme`) owns the palettes and type tokens shared by the
+web client, the hub panel, and the lab. Tailwind hosts import `theme.css`; the
+standalone lab imports `tokens.css` directly.
+
 `apps/desktop/host` is the loopback adapter-host sidecar. It reuses
 `packages/adapters/install` for planning, target discovery, and jobs, and it
 remains the surface that runs local, SSH, and Docker adapter installs.
