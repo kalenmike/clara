@@ -276,9 +276,13 @@ sequenceDiagram
 ### Relay limits
 
 The relay keys its per-peer frame and byte budgets by grant id, not by the old
-shared token. A reconnecting device shares one identity budget, while the room
-cap (32 clients), per-IP cap (8), 60 frames/s, 512 KiB/s, and 128 KiB frame cap
-are unchanged. A refusal closes with `4008`, or `4009` for an oversized frame.
+shared token. A reconnecting device shares one identity budget. Browser grants
+keep 60 frames/s and 512 KiB/s; adapter grants get 600 frames/s and 4 MiB/s
+because one adapter socket carries every proxied browser request and event
+stream. Both use a one-second frame burst and a two-second byte burst. The room
+cap (32 clients), per-IP cap (8), and 128 KiB frame cap are unchanged. A refusal
+closes with `4008`, or `4009` for an oversized frame, and the room forwards no
+further frame from that socket so the sealed sequence cannot skip.
 
 ### Rollout
 

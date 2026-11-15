@@ -602,6 +602,7 @@ async function runPairAdapter(args: string[]): Promise<void> {
           id: pairing.id,
           agentToken: relay.agentToken,
           ttlSeconds: ENROLLMENT_GRANT_TTL_SECONDS,
+          kind: 'adapter',
         })
       : undefined
     const payload: HarnessPairingPayload = {

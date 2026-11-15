@@ -161,6 +161,59 @@ async function states(
 }
 
 describe('adapter sessions', () => {
+  it('replaces the previous session for the same adapter id', async () => {
+    const frames: WireFrame[] = []
+    const live = new Map<string, (request: Request) => Promise<Response>>()
+    let setLiveCalls = 0
+    const adapters: AdapterSessionHandler = {
+      pairingToken: async () => undefined,
+      credential: async (id) =>
+        id === 'adapter-a'
+          ? { adapterId: 'adapter-a', harnessId: 'harness-a', key: ADAPTER_KEY }
+          : undefined,
+      enroll: async () => {
+        throw new Error('not used')
+      },
+      setLive: async (harnessId, fetch) => {
+        setLiveCalls += 1
+        live.set(harnessId, fetch)
+      },
+      clearLive: async (harnessId, fetch) => {
+        // Mirror the manager: a late clear from the old session must not
+        // remove the fetch that replaced it.
+        if (fetch && live.get(harnessId) !== fetch) return
+        live.delete(harnessId)
+      },
+    }
+    const agent = new Agent({
+      api: api(),
+      devices: devices(),
+      info: { version: 'test', protocol: PROTOCOL_VERSION },
+      send: (frame) => frames.push(frame),
+      adapters,
+    })
+
+    try {
+      const first = await connect(agent, frames, { adapterId: 'adapter-a', key: ADAPTER_KEY })
+      await waitFor(() => (setLiveCalls === 1 ? true : undefined))
+      const firstLive = live.get('harness-a')
+      expect(firstLive).toBeDefined()
+
+      const second = await connect(agent, frames, { adapterId: 'adapter-a', key: ADAPTER_KEY })
+      await waitFor(() => (setLiveCalls === 2 ? true : undefined))
+
+      // An adapter reconnect uses a fresh sid. Only the newest session stays
+      // live, and the old session's clear must not unbind the replacement.
+      expect(agent.sessionCount).toBe(1)
+      expect(agent.getSnapshot().map((session) => session.sid)).toEqual([second.sid])
+      expect(agent.getSnapshot()[0]?.sid).not.toBe(first.sid)
+      expect(live.get('harness-a')).toBeDefined()
+      expect(live.get('harness-a')).not.toBe(firstLive)
+    } finally {
+      agent.close()
+    }
+  })
+
   it('enrolls an adapter through the one-time pairing token', async () => {
     const frames: WireFrame[] = []
     const enrolled: AdapterEnrollAction[] = []

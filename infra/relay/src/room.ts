@@ -3,6 +3,7 @@ import {
   RELAY_GRANT_MAX_ID_LENGTH,
   RELAY_SUBPROTOCOL,
   RELAY_WIRE_VERSION,
+  type RelayGrantKind,
   type RouteFrameV3,
 } from '@clara/shared-types'
 import type { Env } from './env.ts'
@@ -24,21 +25,41 @@ export const MAX_CLIENT_SOCKETS_PER_ROOM = 32
  */
 export const MAX_CLIENT_SOCKETS_PER_IP = 8
 
+type PeerBudget = {
+  framesPerSecond: number
+  frameBurst: number
+  bytesPerSecond: number
+  byteBurst: number
+}
+
 /**
- * Sustained per-peer frame budget with a one-second burst. The byte budget
- * already limits a 32 KiB adapter stream to sixteen chunks per second, so 60
- * frames/s comfortably covers browsers and adapters while still catching a
- * flood; a higher ceiling would let a stolen token sustain more work unnoticed.
+ * A browser grant is one interactive client. Its frame and byte ceilings stay
+ * tight because a stolen device grant is the main abuse case.
  */
-const CLIENT_FRAMES_PER_SECOND = 60
-export const CLIENT_FRAME_BURST = CLIENT_FRAMES_PER_SECOND
+const DEVICE_BUDGET: PeerBudget = {
+  framesPerSecond: 60,
+  frameBurst: 60,
+  bytesPerSecond: 512 * 1024,
+  byteBurst: 1024 * 1024,
+}
+
 /**
- * Sustained per-peer byte budget with a two-second burst. 512 KiB/s matches
- * sixteen 32 KiB adapter chunks per second and 1 MiB absorbs a short upload
- * without throttling ordinary traffic.
+ * An adapter multiplexes every proxied browser request and event stream, so one
+ * adapter socket carries the work of the whole household. The byte budget still
+ * bounds egress, but a browser-side frame ceiling would throttle an ordinary UI
+ * load and force the hub to tear down the adapter session.
  */
-const CLIENT_BYTES_PER_SECOND = 512 * 1024
-const CLIENT_BYTE_BURST = CLIENT_BYTES_PER_SECOND * 2
+const ADAPTER_BUDGET: PeerBudget = {
+  framesPerSecond: 600,
+  frameBurst: 600,
+  bytesPerSecond: 4 * 1024 * 1024,
+  byteBurst: 8 * 1024 * 1024,
+}
+
+/** Browser frame burst; tests and documentation use this value. */
+export const CLIENT_FRAME_BURST = DEVICE_BUDGET.frameBurst
+/** Adapter frame burst; tests use this value. */
+export const ADAPTER_FRAME_BURST = ADAPTER_BUDGET.frameBurst
 
 const REPLACED_CODE = 4002
 /** Client limit refusals share one code; the close reason names the limit. */
@@ -58,6 +79,14 @@ type Attachment = {
   ip?: string
   /** Grant id the Worker verified before the upgrade; tags every frame. */
   grant?: string
+  /** Device or adapter, from the signed grant; selects the rate budget. */
+  kind?: RelayGrantKind
+  /**
+   * Set when the room refuses this socket. Closing is asynchronous, so frames
+   * already queued behind the refusal can still reach the room; forwarding one
+   * would leave a hole in the client's sealed sequence.
+   */
+  refused?: boolean
 }
 
 type TokenBucket = { tokens: number; at: number }
@@ -131,7 +160,8 @@ export class RelayRoom {
         // The peer id and grant id are both per-connection, so they must
         // survive hibernation in the attachment. Only clients carry them.
         const ip = normalizeIp(request.headers.get('cf-connecting-ip'))
-        const attachment: Attachment = { peer: randomPeerId() }
+        const kind = normalizeGrantKind(request.headers.get('x-clara-grant-kind'))
+        const attachment: Attachment = { peer: randomPeerId(), kind }
         if (clientGrant) attachment.grant = clientGrant
         if (ip) attachment.ip = ip
         server.serializeAttachment(attachment)
@@ -152,6 +182,7 @@ export class RelayRoom {
     const tags = this.state.getTags(socket)
     const role = tags.includes('agent') ? 'agent' : tags.includes('client') ? 'client' : null
     if (!role) return
+    if (peerAttachment(socket)?.refused === true) return
 
     if (role === 'agent') {
       for (const client of this.state.getWebSockets('client')) {
@@ -165,12 +196,13 @@ export class RelayRoom {
         ? new TextEncoder().encode(message).byteLength
         : message.byteLength
     if (size > MAX_CLIENT_FRAME_BYTES) {
-      socket.close(FRAME_TOO_LARGE_CODE, 'frame too large')
+      this.refuse(socket, FRAME_TOO_LARGE_CODE, 'frame too large')
       return
     }
 
     const peer = this.peerOf(socket)
-    const grantId = peerAttachment(socket)?.grant
+    const attachment = peerAttachment(socket)
+    const grantId = attachment?.grant
     if (typeof grantId !== 'string' || grantId.length === 0) {
       // Without the verified grant id the hub could not bind the identity, so
       // drop the peer rather than forward an unattributable frame.
@@ -179,9 +211,8 @@ export class RelayRoom {
     }
     // The grant id is the identity budget: a reconnecting device shares one
     // bucket instead of resetting its budget on every socket.
-    if (!this.withinRate(grantId, size)) {
-      this.peers.delete(grantId)
-      socket.close(CLIENT_LIMIT_CODE, 'rate limit')
+    if (!this.withinRate(grantId, attachment?.kind ?? 'device', size)) {
+      this.refuse(socket, CLIENT_LIMIT_CODE, 'rate limit')
       return
     }
 
@@ -241,19 +272,20 @@ export class RelayRoom {
   }
 
   /** Refill both buckets for the elapsed time, then charge the frame once. */
-  private withinRate(identity: string, size: number): boolean {
+  private withinRate(identity: string, kind: RelayGrantKind, size: number): boolean {
+    const budget = kind === 'adapter' ? ADAPTER_BUDGET : DEVICE_BUDGET
     const now = Date.now()
     let limits = this.peers.get(identity)
     if (!limits) {
       limits = {
-        frames: { tokens: CLIENT_FRAME_BURST, at: now },
-        bytes: { tokens: CLIENT_BYTE_BURST, at: now },
+        frames: { tokens: budget.frameBurst, at: now },
+        bytes: { tokens: budget.byteBurst, at: now },
       }
       this.peers.set(identity, limits)
     }
 
-    const frames = refill(limits.frames, CLIENT_FRAME_BURST, CLIENT_FRAMES_PER_SECOND, now)
-    const bytes = refill(limits.bytes, CLIENT_BYTE_BURST, CLIENT_BYTES_PER_SECOND, now)
+    const frames = refill(limits.frames, budget.frameBurst, budget.framesPerSecond, now)
+    const bytes = refill(limits.bytes, budget.byteBurst, budget.bytesPerSecond, now)
     if (frames < 1 || bytes < size) return false
 
     limits.frames.tokens -= 1
@@ -261,9 +293,30 @@ export class RelayRoom {
     return true
   }
 
+  /**
+   * Stop forwarding this socket and close it. The marker is checked before the
+   * rate budget, so frames already queued behind the refusal cannot slip past
+   * a refreshed bucket and leave a hole in the client's sealed sequence.
+   */
+  private refuse(socket: WebSocket, code: number, reason: string): void {
+    const attachment = peerAttachment(socket) ?? {}
+    // Persist the marker in the attachment so a hibernated room keeps dropping
+    // frames until the close completes.
+    socket.serializeAttachment({ ...attachment, refused: true } satisfies Attachment)
+    socket.close(code, reason)
+  }
+
+  /**
+   * Drop the grant budget only when the last socket using it is gone. Two tabs
+   * share one grant, so closing one must not reset the other's budget.
+   */
   private forgetPeer(socket: WebSocket): void {
     const grant = peerAttachment(socket)?.grant
-    if (typeof grant === 'string') this.peers.delete(grant)
+    if (typeof grant !== 'string') return
+    for (const other of this.state.getWebSockets('client')) {
+      if (other !== socket && peerAttachment(other)?.grant === grant) return
+    }
+    this.peers.delete(grant)
   }
 
   /** Hibernation drops in-memory state; the attachment is the source of truth. */
@@ -328,6 +381,11 @@ function normalizeIp(value: string | null): string | undefined {
 function normalizeGrantId(value: string | null): string | undefined {
   const grant = value?.trim()
   return grant && grant.length <= RELAY_GRANT_MAX_ID_LENGTH ? grant : undefined
+}
+
+/** Unknown or absent kinds fall back to the tighter browser budget. */
+function normalizeGrantKind(value: string | null): RelayGrantKind {
+  return value === 'adapter' ? 'adapter' : 'device'
 }
 
 /** Refill a bucket for the elapsed time, charge nothing, and return its tokens. */

@@ -4,6 +4,7 @@ import {
   RELAY_ROLE_PREFIX,
   RELAY_SUBPROTOCOL,
   verifyRelayGrant,
+  type RelayGrantKind,
   type RelayRole,
 } from '@clara/shared-types'
 import type { Env } from './env.ts'
@@ -54,6 +55,10 @@ export default {
     // than trust one a client supplied. The hub binds the hello identity to it.
     headers.delete('x-clara-grant-id')
     if (authorization.grantId) headers.set('x-clara-grant-id', authorization.grantId)
+    // The grant kind selects the per-connection budget in the room. It is
+    // signed by the hub, so the Worker stamps it rather than trusting a client.
+    headers.delete('x-clara-grant-kind')
+    if (authorization.grantKind) headers.set('x-clara-grant-kind', authorization.grantKind)
     const forwardedProtocols = forwardedProtocolHeader(headers.get('sec-websocket-protocol'))
     if (forwardedProtocols) headers.set('sec-websocket-protocol', forwardedProtocols)
     else headers.delete('sec-websocket-protocol')
@@ -85,7 +90,7 @@ function parseProtocols(header: string | null): ParsedProtocols | null {
   return { version, role, token: token ?? '' }
 }
 
-type Authorization = { ok: true; grantId?: string } | { ok: false }
+type Authorization = { ok: true; grantId?: string; grantKind?: RelayGrantKind } | { ok: false }
 
 /**
  * The hub authenticates with the shared agent token; clients present a grant
@@ -108,7 +113,9 @@ async function authorize(
 
   try {
     const verified = await verifyRelayGrant(credential, { agentToken, room })
-    return verified.ok ? { ok: true, grantId: verified.payload.id } : { ok: false }
+    return verified.ok
+      ? { ok: true, grantId: verified.payload.id, grantKind: verified.payload.kind }
+      : { ok: false }
   } catch {
     // WebCrypto or a malformed input must fail closed, not surface a 500.
     return { ok: false }
