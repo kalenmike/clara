@@ -12,6 +12,7 @@ export {
   tokenPath,
   workspace,
 } from './config.ts'
+export { fetchEngineAssets, readCachedAsset, useEngineAssets, type EngineAssets } from './assets.ts'
 export { EventRelay } from './engine-events.ts'
 export { startLabServer } from './http.ts'
 export type { LabServer, LabServerOptions } from './http.ts'

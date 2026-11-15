@@ -5,6 +5,7 @@ import {
   type CompiledNode,
   type PreviewInput,
 } from '@clara/pipeline-preview'
+import { fetchEngineAssets, useEngineAssets, type EngineAssets } from './assets.ts'
 import { EventRelay } from './engine-events.ts'
 import { McpClient, type ToolResult } from './mcp.ts'
 import { LabState, workKey } from './state.ts'
@@ -85,6 +86,12 @@ export class LabRuntime {
   private beating = false
   private reconnectInFlight = false
   private adaptersLoaded = false
+  private assets: EngineAssets | undefined
+
+  /** The engine std/default bundle currently backing previews. */
+  get stdAssets(): EngineAssets | undefined {
+    return this.assets
+  }
 
   constructor(options: { url: string; token: string; workspace: string }) {
     this.url = options.url
@@ -108,6 +115,7 @@ export class LabRuntime {
       this.state.setConnection(true)
       await this.loadTools()
       await this.loadConfig()
+      await this.loadAssets()
       this.events.start()
       await this.refreshAdapters(this.engineWorkspace()).catch(() => {})
     } catch (error) {
@@ -127,6 +135,7 @@ export class LabRuntime {
       this.state.setConnection(true)
       await this.loadTools()
       await this.loadConfig()
+      await this.loadAssets()
       this.events.start()
       if (!this.adaptersLoaded) await this.refreshAdapters(this.engineWorkspace())
     } catch (error) {
@@ -155,6 +164,7 @@ export class LabRuntime {
       this.state.setConnection(true)
       await this.loadTools()
       await this.loadConfig()
+      await this.loadAssets()
       this.events.start()
       await this.refreshAdapters(this.engineWorkspace())
     } catch (error) {
@@ -188,6 +198,17 @@ export class LabRuntime {
     } catch {
       // Offline is normal; preflight reports the connection state.
     }
+  }
+
+  /**
+   * The engine owns the std/default packages. Cache its exact bundle and point
+   * the preview loader at it so the lab never compiles against a stale copy.
+   */
+  private async loadAssets(): Promise<void> {
+    const assets = await fetchEngineAssets({ url: this.url, token: this.token })
+    if (!assets) return
+    this.assets = assets
+    useEngineAssets(assets)
   }
 
   private engineWorkspace(): string {

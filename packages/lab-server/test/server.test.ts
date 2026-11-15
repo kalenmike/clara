@@ -182,8 +182,13 @@ describe('lab server', () => {
   })
 
   it('only reads files that belong to the preview', async () => {
-    await post('/api/preview', { workspace, target: 'std:maintenance/rebuild' })
-    const allowed = await get(`/api/source?path=${encodeURIComponent(config)}`)
+    const preview = await post('/api/preview', {
+      workspace,
+      target: 'std:maintenance/rebuild',
+    })
+    const previewConfig = (preview.value as { workspace: { configPath: string } }).workspace
+      .configPath
+    const allowed = await get(`/api/source?path=${encodeURIComponent(previewConfig)}`)
     expect(allowed.response.status).toBe(200)
     expect((allowed.value as { text: string }).text).toContain('classifier')
 
