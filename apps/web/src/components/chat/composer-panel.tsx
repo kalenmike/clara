@@ -137,7 +137,7 @@ function ConnectedComposer({
       className={cn(
         'relative flex flex-col overflow-hidden border bg-popover text-popover-foreground',
         displayMode === 'maximized'
-          ? 'fixed inset-0 z-50 rounded-none border-0'
+          ? 'fixed inset-0 z-50 rounded-none border-0 pt-[var(--safe-top)]'
           : 'w-full shrink-0 rounded-none border-x-0 border-b-0 shadow-[0_-12px_24px_-16px_rgba(0,0,0,0.35)]'
       )}
       onPointerEnter={() => setHovered(true)}
