@@ -15,8 +15,8 @@ import { isRuntimeLive, readRuntimeState } from '@clara/runtime-state'
 import { installCommand, removeCommand } from '../lib/clara-command.mjs'
 import {
   dockerTokenPath,
-  orchestratorContainerRunning,
-  readDockerToken,
+  engineContainerRunning,
+  readEngineToken,
 } from '../lib/stack-control.mjs'
 
 const root = resolve(dirname(fileURLToPath(import.meta.url)), '..', '..', '..', '..')
@@ -30,8 +30,13 @@ const claraConfigDir = process.env.CLARA_CONFIG_DIR?.trim() || join(configHome, 
 const dataHome = process.env.XDG_DATA_HOME?.trim() || join(homedir(), '.local', 'share')
 const dataDir = process.env.CLARA_DATA_DIR?.trim() || join(dataHome, 'clara')
 const tokenFile =
-  process.env.CLARA_ORCHESTRATION_TOKEN_FILE?.trim() || join(dataDir, 'orchestrator.token')
-const baseURL = process.env.CLARA_ORCHESTRATION_URL?.trim() || 'http://127.0.0.1:8789'
+  process.env.CLARA_ENGINE_TOKEN_FILE?.trim() ||
+  process.env.CLARA_ORCHESTRATION_TOKEN_FILE?.trim() ||
+  join(dataDir, 'engine.token')
+const baseURL =
+  process.env.CLARA_ENGINE_URL?.trim() ||
+  process.env.CLARA_ORCHESTRATION_URL?.trim() ||
+  'http://127.0.0.1:8789'
 const configuredApiURL = process.env.CLARA_API_URL?.trim()
 const liveRuntime = readRuntimeState()
 const apiBaseURL =
@@ -216,12 +221,12 @@ function runtimeEnvironment() {
 }
 
 function activeTokenFile() {
-  return orchestratorContainerRunning() ? dockerTokenPath() : tokenFile
+  return engineContainerRunning() ? dockerTokenPath() : tokenFile
 }
 
 function readToken() {
-  if (orchestratorContainerRunning()) {
-    const dockerToken = readDockerToken(root)
+  if (engineContainerRunning()) {
+    const dockerToken = readEngineToken(root)
     if (dockerToken) return dockerToken
   }
   if (!existsSync(tokenFile)) return ''
