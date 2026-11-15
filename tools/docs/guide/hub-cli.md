@@ -63,11 +63,12 @@ For an unattended install, set `CLARA_ADMIN_USERNAME` and
 ## Panel appearance
 
 Open **Settings → Appearance** to choose **Light**, **Dark**, or **System** for
-the hub panel. **System** follows the operating system setting. The choice is
-stored in the panel on this device and also applies to the sign-in screen.
+the served hub panel. **System** follows the operating system setting. The choice
+is stored in the panel on this device and also applies to the sign-in screen.
 
-The web and desktop clients have their own Appearance settings; changing the
-panel does not change them.
+The panel uses the same palette, fonts, and text sizes as Clara. When you open it
+from the web or desktop client at `/hub`, it follows that client's mode and color
+theme instead and hides the panel's own switch.
 
 ## Ports
 

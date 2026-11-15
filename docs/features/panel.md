@@ -30,8 +30,11 @@ The panel UI is `@clara/panel`, so the same surface also ships inside the web an
 desktop client at `/hub`. The bundled panel reaches the hub's loopback listener
 through the paired E2EE session and a `/v1/hub-panel` bridge; it opens no new
 port. It keeps a session bearer token in the app instead of the served page's
-HttpOnly cookie, and it disables controls that would cut its own tunnel. The
-server-served page remains the first-run, headless, and emergency surface.
+HttpOnly cookie, and it disables controls that would cut its own tunnel. Both
+hosts use the same color, font, and type tokens: the served page keeps its
+Light, Dark, and System switch, while the bundled panel follows the client's mode
+and color theme and hides that switch. The server-served page remains the
+first-run, headless, and emergency surface.
 
 ## User flow
 
