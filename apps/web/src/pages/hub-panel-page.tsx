@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useState } from 'react'
-import { Navigate, useLocation } from 'react-router'
+import { useLocation } from 'react-router'
 import {
   PanelApp,
   PanelCapabilitiesProvider,
@@ -11,7 +11,7 @@ import {
 import '@clara/panel/styles/globals.css'
 import '@clara/panel/styles/shell.css'
 import { ConnectionSplash } from '@/components/connect/connection-splash'
-import { AppHeader } from '@/components/layout/app-header'
+import { FullWindowShell } from '@/components/layout/full-window-shell'
 import {
   clearPendingAdapterLink,
   readPendingAdapterLink,
@@ -28,7 +28,7 @@ import { useConnection } from '@/providers/connection-provider'
  * no new port. Controls that would cut or retarget that connection stay disabled.
  */
 export function HubPanelPage() {
-  const { status, booting, config, control } = useConnection()
+  const { status, config, control } = useConnection()
   const location = useLocation()
   // The panel reads its transport from module state on mount, so the first
   // render waits until this effect has installed it.
@@ -61,16 +61,14 @@ export function HubPanelPage() {
   const transport = hubPanelTransport(config?.room)
   const capabilities = useMemo(() => hubPanelCapabilities(transport), [transport])
 
-  if (booting) return <ConnectionSplash label="Checking connection…" />
-  if (status === 'connecting') return <ConnectionSplash label="Connecting to the hub…" />
-  if (status !== 'connected' || !control) {
-    return <Navigate to="/connect" replace state={{ from: location.pathname }} />
+  // The shell gates the connection; once it is up, wait for this effect to
+  // install the panel transport before mounting the panel.
+  if (status === 'connected' && (!control || configured !== control)) {
+    return <ConnectionSplash label="Opening the hub panel…" />
   }
-  if (configured !== control) return <ConnectionSplash label="Opening the hub panel…" />
 
   return (
-    <div className="flex h-dvh flex-col bg-background text-foreground">
-      <AppHeader />
+    <FullWindowShell>
       <div className="panel-root min-h-0 flex-1">
         <PanelRuntimeProvider
           {...(adapterHostAvailable() ? { adapterHost: desktopAdapterHost } : {})}
@@ -81,6 +79,6 @@ export function HubPanelPage() {
           </PanelCapabilitiesProvider>
         </PanelRuntimeProvider>
       </div>
-    </div>
+    </FullWindowShell>
   )
 }
