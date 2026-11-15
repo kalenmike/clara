@@ -8,7 +8,10 @@ listener. There is no direct HTTP mode. The browser tunnels to the hub even
 before a harness adapter is online; harness-backed requests wait for the adapter
 that owns the session or workspace. Only the adapter discovers the harness; the
 hub never reads its service file or contacts it. Each browser enrolls its own
-device key through a one-time code; there is no shared browser key.
+device key through a one-time code; there is no shared browser key. The same
+encrypted session also carries the bundled hub panel: a paired client that signs
+in as the hub owner can read state and use controls without opening the hub's
+loopback page or exposing a new port.
 
 ## User flow
 
@@ -47,6 +50,10 @@ device key through a one-time code; there is no shared browser key.
    stored device. The sidebar health control offers the same action.
 9. **Settings → Disconnect** forgets the device in this browser and returns here.
    Revoke it in the panel if the credential should stop working everywhere.
+10. Open **Hub** in the connected app and sign in with the hub owner account.
+    The panel loads over the same connection. Use the app's panel for normal
+    administration; open the hub's own loopback page for first run, headless
+    recovery, or a control the bundled panel disables.
 
 ## Core business rules
 
@@ -82,6 +89,15 @@ device key through a one-time code; there is no shared browser key.
    64 concurrent requests.
 10. Each device key is revocable on its own. A revoked device is rejected on the
     next handshake or action.
+11. Panel control is one more typed surface on the same session. Requests under
+    `/v1/hub-panel` reach the hub's loopback panel listener through the bridge;
+    the client does not open a second socket, learn the panel port, or expose
+    one. A login returns a session bearer token scoped to this connection, while
+    the server-served page keeps its HttpOnly cookie.
+12. The panel surface needs the hub owner's credentials. Pairing a device grants
+    harness access through the hub, not panel administration. The bridge forwards
+    only panel API requests, and the panel's own secret allowlist still decides
+    what the snapshot contains.
 
 ## Edge cases
 
@@ -123,6 +139,19 @@ device key through a one-time code; there is no shared browser key.
 - **Provider failure** — a run that fails at the model provider is not a
   connection failure. The assistant message shows the error and the stream stays
   live.
+- **Panel sign-in fails** — the bundled panel reports the credential or setup
+  error without dropping the chat connection. A remote hub with no owner account
+  must be provisioned with `CLARA_ADMIN_*` first.
+- **The panel session expires** — the panel asks for the owner credentials again;
+  the paired device and chat session stay connected.
+- **The tunnel drops with the panel open** — the panel shows its connection
+  error and recovers with the transport. It never falls back to a direct
+  loopback URL.
+- **A panel control would cut the tunnel** — **Go offline**, the local transport
+  switch carrying the session, and relay target or room edits are disabled in
+  the bundled panel. The server-served page performs them.
+- **The hub has no panel** — `/v1/hub-panel` reports that the panel is
+  unavailable and chat keeps working.
 
 ## Out of scope
 
@@ -130,6 +159,8 @@ device key through a one-time code; there is no shared browser key.
 - Multiple saved server profiles or switching without disconnecting
 - OAuth or provider credential management
 - A public HTTP proxy shipped with Clara
+- Serving the hub panel page from the relay; only typed panel API requests use
+  the E2EE tunnel
 
 ## Known gaps
 
@@ -179,6 +210,20 @@ device key through a one-time code; there is no shared browser key.
   token, and saving it in the Relay card starts the relay without a restart.
   Only explicit relay actions (relay pairing, Cloudflare deployment) reject an
   incomplete relay.
+- Bundled panel: route `/hub` in `apps/web`/`apps/desktop`, package
+  `@clara/panel`, bridge `/v1/hub-panel` on the E2EE session. The bridge reaches
+  the panel listener at its loopback address; it adds no listener and publishes
+  no port. A login over the bridge returns a session bearer token; the served
+  page keeps `clara_panel_session` as an HttpOnly cookie. Both use the hub's
+  superadmin session policy and are revoked with it.
+- Bundled panel controls: `PanelCapabilitiesProvider` disables **Go offline**,
+  the local transport switch in use, and relay target/room edits, because each
+  would cut or retarget the connection carrying the panel. Harness, device,
+  monitoring, sync, orchestration, and configuration controls stay available.
+- Adapter installs from the bundled panel: the hub issues the one-time code,
+  registry manifest, copy command, and `clara://adapter` link. Clara Desktop's
+  adapter host (`apps/desktop/host`) turns an offer into a local, SSH, or Docker
+  install through `packages/adapters/install`; the hub runs nothing.
 - Docker stack: `pnpm clara start` starts the orchestrator, hub, and web client
   together; `start hub`, `start web`, or `start orchestrator` selects one
   target; `restart` recreates the selection.
