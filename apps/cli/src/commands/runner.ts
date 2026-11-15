@@ -4,6 +4,7 @@ import { readRunnerConfig, engineToken } from '@clara/runner'
 import { resolvePorts } from '../ports.ts'
 import { join } from 'node:path'
 import { resolvePaths } from '../paths.ts'
+import { detectRole } from '../state/role.ts'
 import { selfCommand } from '../self.ts'
 import {
   clearRunnerPid,
@@ -15,6 +16,7 @@ import {
 } from '../state/runner.ts'
 import { dim, green } from '../ui/color.ts'
 import { success, warn } from '../ui/index.ts'
+import { runnerStartGuard } from './role-guard.ts'
 
 type StartOptions = {
   workspace?: string
@@ -54,6 +56,11 @@ export async function runRunnerCommand(args: readonly string[]): Promise<number>
 export async function runRunnerStart(args: readonly string[]): Promise<number> {
   const options = parseStart(args)
   const paths = resolvePaths()
+  const guard = runnerStartGuard(detectRole(paths))
+  if (guard) {
+    console.error(guard)
+    return 1
+  }
   const current = runnerProcess(paths)
   if (current.running) {
     console.log(`The runner is already running (pid ${current.pid}).`)

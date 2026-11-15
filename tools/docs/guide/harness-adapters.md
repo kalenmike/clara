@@ -59,6 +59,16 @@ Adapter codes are only for the installer. To pair a browser, use
 by `clara pair`. An adapter code starts with `clara-harness1_`; a browser
 code starts with `clara1_`.
 
+### Manage the adapter from its machine
+
+On a machine that only carries an adapter, use
+`clara adapter install <kind> --pair <code>` with a code from the hub host.
+`clara adapter list`, `start`, `stop`, `logs`, and `upgrade` stay local.
+`clara status` shows the hub endpoints reported by the adapter, but the service
+commands belong to the hub host; run `clara start`, `clara stop`, or
+`clara restart` there. `clara setup` is the explicit way to create a hub on the
+adapter machine too.
+
 ### OpenCode
 
 If the installer cannot find OpenCode, it asks for the OpenCode URL, username,

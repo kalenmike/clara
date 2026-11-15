@@ -1327,7 +1327,15 @@ describe('agent adapter enrollment', () => {
       const agent = new Agent({
         api: fakeApi(fake),
         devices: testDevices(generateKey()),
-        info: { version: 'test', protocol: PROTOCOL_VERSION },
+        info: {
+          version: 'test',
+          protocol: PROTOCOL_VERSION,
+          endpoints: {
+            web: 'https://clara.example.com',
+            hub: 'http://127.0.0.1:8788',
+            engine: 'http://127.0.0.1:8789',
+          },
+        },
         send: (frame) => frames.push(frame),
         adapters,
       })
@@ -1381,6 +1389,11 @@ describe('agent adapter enrollment', () => {
         const payloads = await readPayloads(adapterClient, frames)
         return payloads.find((payload) => payload.type === 'ready')
       })
+      expect(ready.type === 'ready' ? ready.agent.endpoints : undefined).toEqual({
+        web: 'https://clara.example.com',
+        hub: 'http://127.0.0.1:8788',
+        engine: 'http://127.0.0.1:8789',
+      })
       const refreshed = ready.type === 'ready' ? ready.relayGrant : undefined
       expect(refreshed).toBeDefined()
       const verifiedRefresh = await verifyRelayGrant(refreshed!.grant, {
@@ -1391,6 +1404,35 @@ describe('agent adapter enrollment', () => {
         ok: true,
         payload: expect.objectContaining({ id: 'adapter-a', kind: 'adapter' }),
       })
+    } finally {
+      await fake.close()
+    }
+  })
+
+  it('keeps controller endpoints off browser sessions', async () => {
+    const fake = await startFakeOpenCode()
+    try {
+      const key = generateKey()
+      const frames: WireFrame[] = []
+      const agent = new Agent({
+        api: fakeApi(fake),
+        devices: testDevices(key),
+        info: {
+          version: 'test',
+          protocol: PROTOCOL_VERSION,
+          endpoints: { web: 'https://clara.example.com' },
+        },
+        send: (frame) => frames.push(frame),
+      })
+      agents.push(agent)
+
+      const client = await openClient(agent, frames, key, { deviceId: DEVICE_ID })
+      const ready = await waitFor(async () => {
+        const payloads = await readPayloads(client, frames)
+        return payloads.find((payload) => payload.type === 'ready')
+      })
+
+      expect(ready.type === 'ready' ? ready.agent.endpoints : undefined).toBeUndefined()
     } finally {
       await fake.close()
     }

@@ -84,6 +84,11 @@ device key through a one-time code; there is no shared browser key.
    64 concurrent requests.
 10. Each device key is revocable on its own. A revoked device is rejected on the
     next handshake or action.
+11. The hub advertises its web, hub, and engine endpoints to harness adapters in
+    `ready.agent` and `agent.status`; browser sessions never receive that block.
+    An adapter keeps the report in its live state so `clara status` on an
+    adapter-only machine can show where the services run without a second API
+    credential or a local probe.
 
 ## Edge cases
 
@@ -112,6 +117,9 @@ device key through a one-time code; there is no shared browser key.
   budget refused the socket; `4009` means one sealed frame exceeded 128 KiB. The
   adapter backs off and retries, and a persistent loop means the adapter is
   sending too much or a response was not split.
+- **Adapter host shows no service endpoints** — the adapter predates endpoint
+  advertisement or has not completed a handshake yet. Upgrade or start it; the
+  CLI still shows the hub link and harness from the adapter's live state.
 - **Stored device cannot connect** — Clara falls back to the pair form; it does
   not silently try another hub. Revoke the stale entry in the panel.
 - **Pairing link fails** — the connecting splash gives way to the pair form,

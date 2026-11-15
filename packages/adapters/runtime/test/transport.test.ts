@@ -14,7 +14,12 @@ import {
   type V4SessionKeys,
   type V4EphemeralKeyPair,
 } from '@clara/crypto'
-import { PROTOCOL_VERSION, RELAY_AUTH_PREFIX, type RelayGrantState } from '@clara/shared-types'
+import {
+  PROTOCOL_VERSION,
+  RELAY_AUTH_PREFIX,
+  type AgentInfo,
+  type RelayGrantState,
+} from '@clara/shared-types'
 import { REINSTALL_GRANT_MESSAGE } from '../src/config'
 import { AdapterTransport } from '../src/transport'
 
@@ -75,6 +80,47 @@ describe('AdapterTransport authentication', () => {
 
     await hub.sendSealed(hello, { type: 'ready', agent: { version: 'test', protocol: 4 } })
     await waitFor(() => logs.includes('adapter authenticated'))
+    transport.close()
+  })
+
+  it('keeps the controller endpoints from ready and agent.status', async () => {
+    const hub = await startHub()
+    const logs: string[] = []
+    const infos: AgentInfo[] = []
+    const transport = createTransport(hub, logs, undefined, {
+      onHubInfo: (info) => infos.push(info),
+    })
+
+    transport.start()
+    const hello = await hub.hello()
+    await waitFor(() => logs.includes('adapter handshake complete'))
+
+    await hub.sendSealed(hello, {
+      type: 'ready',
+      agent: {
+        version: 'test',
+        protocol: 4,
+        endpoints: { web: 'https://clara.example.com' },
+      },
+    })
+    await waitFor(() => (infos.length > 0 ? infos[0] : undefined))
+    expect(infos[0]?.endpoints?.web).toBe('https://clara.example.com')
+
+    await hub.sendSealed(
+      hello,
+      {
+        type: 'agent.status',
+        online: true,
+        agent: {
+          version: 'test',
+          protocol: 4,
+          endpoints: { web: 'https://clara.example.org' },
+        },
+      },
+      { seq: 1 }
+    )
+    await waitFor(() => (infos.length > 1 ? infos[1] : undefined))
+    expect(infos[1]?.endpoints?.web).toBe('https://clara.example.org')
     transport.close()
   })
 
@@ -380,7 +426,11 @@ function createTransport(
   logs: string[],
   handler: (request: Request) => Promise<Response> = async () =>
     new Response('{}', { status: 200 }),
-  options: { grant?: string; onRelayGrant?: (grant: RelayGrantState) => void } = {}
+  options: {
+    grant?: string
+    onRelayGrant?: (grant: RelayGrantState) => void
+    onHubInfo?: (info: AgentInfo) => void
+  } = {}
 ): AdapterTransport {
   return new AdapterTransport({
     wsUrl: hub.wsUrl,
@@ -391,6 +441,7 @@ function createTransport(
     info: { adapterVersion: 'test', protocolVersion: 1, capabilities: {} },
     handler,
     ...(options.onRelayGrant ? { onRelayGrant: options.onRelayGrant } : {}),
+    ...(options.onHubInfo ? { onHubInfo: options.onHubInfo } : {}),
     log: (message) => logs.push(message),
   })
 }

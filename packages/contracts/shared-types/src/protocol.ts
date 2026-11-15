@@ -30,6 +30,20 @@ export const RELAY_ROLE_PREFIX = 'clara.role.'
 
 export type RelayRole = 'agent' | 'client'
 
+/**
+ * Controller-side service endpoints. Delivered to harness adapters so an
+ * adapter host can show where the Clara services run; browser clients already
+ * know how to reach the hub.
+ */
+export type AgentEndpoints = {
+  /** Public web client base URL. */
+  web?: string
+  /** Hub listener base URL on the hub host. */
+  hub?: string
+  /** Orchestration engine base URL on the hub host. */
+  engine?: string
+}
+
 export type AgentInfo = {
   version: string
   protocol: number
@@ -43,6 +57,8 @@ export type AgentInfo = {
   syncIntervalMs?: number
   /** True while the Clara orchestration service is reachable. */
   orchestration?: boolean
+  /** Controller-side service endpoints; adapters only. */
+  endpoints?: AgentEndpoints
 }
 
 /**

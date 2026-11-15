@@ -32,6 +32,10 @@ export function registerMetaRoutes(
       responses: responses(jsonResponse(resolver(apiInfoSchema), 'Hub information')),
     }),
     (c) => {
+      // Controller-side endpoints are for adapters only; the browser already
+      // knows how it reached the hub.
+      const agent = { ...deps.info }
+      delete agent.endpoints
       const info: ApiInfo = {
         server: {
           version: SERVER_VERSION,
@@ -46,7 +50,7 @@ export function registerMetaRoutes(
           online: deps.harness.list().filter((connection) => connection.online).length,
           lastError: deps.harness.lastError ?? null,
         },
-        agent: deps.info,
+        agent,
         api: {
           version: 'v1',
           openapi: '/openapi.json',

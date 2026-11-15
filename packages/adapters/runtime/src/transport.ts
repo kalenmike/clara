@@ -26,6 +26,7 @@ import {
   type AdapterAction,
   type AdapterRequestAction,
   type AdapterResponseState,
+  type AgentInfo,
   type ClaraAction,
   type ClaraState,
   type RelayGrantState,
@@ -72,6 +73,8 @@ export type AdapterTransportOptions = {
   handler: (request: Request) => Promise<Response>
   /** Persist a refreshed grant after an authenticated `ready`. */
   onRelayGrant?: (grant: RelayGrantState) => void
+  /** Keep the hub's description so local status can show its endpoints. */
+  onHubInfo?: (info: AgentInfo) => void
   log?: (message: string, detail?: unknown) => void
 }
 
@@ -447,11 +450,23 @@ export class AdapterTransport {
             this.options.log?.('could not persist the refreshed relay grant', cause)
           }
         }
+        this.rememberHubInfo(payload.agent)
         await this.send({ type: 'ready.ack', agent: payload.agent })
         return
       }
+      case 'agent.status':
+        if (payload.agent) this.rememberHubInfo(payload.agent)
+        return
       default:
         return
+    }
+  }
+
+  private rememberHubInfo(info: AgentInfo): void {
+    try {
+      this.options.onHubInfo?.(info)
+    } catch (cause) {
+      this.options.log?.('could not persist the hub info', cause)
     }
   }
 

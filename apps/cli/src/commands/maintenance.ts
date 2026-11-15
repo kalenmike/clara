@@ -5,6 +5,10 @@ import { isCompiled } from '../self.ts'
 import { resolvePaths } from '../paths.ts'
 import { resolvePorts } from '../ports.ts'
 import { statusStack, stopStack } from '../service/lifecycle.ts'
+import { adapterHubLinks } from '../adapters/hubs.ts'
+import { adapterListReport } from './adapters.ts'
+import { detectRole, roleLabel } from '../state/role.ts'
+import { serviceInstallGuard } from './role-guard.ts'
 import { releaseBaseUrl } from '../release/manifest.ts'
 import { defaultBinDir, installsDir, readInstallInfo } from '../release/version-store.ts'
 import {
@@ -25,6 +29,13 @@ import { parseFlags } from './flags.ts'
 export function runServiceCommand(args: readonly string[]): number {
   const parsed = parseFlags(args)
   const action = parsed.positionals[0] ?? 'status'
+  if (action === 'install') {
+    const guard = serviceInstallGuard(detectRole(resolvePaths()))
+    if (guard) {
+      console.error(guard)
+      return 1
+    }
+  }
   const kind = detectService()
   const options = serviceOptions()
 
@@ -103,9 +114,10 @@ export async function runUninstallCommand(args: readonly string[]): Promise<numb
 export async function runDoctorCommand(): Promise<number> {
   const paths = resolvePaths()
   const ports = resolvePorts()
-  const state = await statusStack(paths, ports, ['engine', 'hub', 'web'])
+  const role = detectRole(paths)
   const current = readInstallInfo(paths)
   console.log(bold(`Clara ${version()}`))
+  console.log(`role         ${roleLabel(role)}`)
   console.log(`command      ${process.execPath}`)
   console.log(`config       ${paths.configDir}`)
   console.log(`data         ${paths.dataDir}`)
@@ -113,6 +125,22 @@ export async function runDoctorCommand(): Promise<number> {
   console.log(`release      ${releaseBaseUrl()}`)
   console.log(`login        ${detectService()}`)
   console.log(`installed    ${current?.version ?? 'source checkout'}`)
+
+  if (role === 'adapter') {
+    const hubs = adapterHubLinks(adapterListReport(paths))
+    if (hubs.length === 0) {
+      console.log('hub          no adapter connection reported yet')
+    }
+    for (const hub of hubs) {
+      console.log(`hub link     ${hub.url} ${hub.status}`)
+      if (hub.endpoints.web) console.log(`hub web      ${hub.endpoints.web}`)
+      if (hub.endpoints.hub) console.log(`hub api      ${hub.endpoints.hub}`)
+      if (hub.endpoints.engine) console.log(`hub engine   ${hub.endpoints.engine}`)
+    }
+    return 0
+  }
+
+  const state = await statusStack(paths, ports, ['engine', 'hub', 'web'])
   for (const service of state.services) {
     console.log(`service      ${service.name} ${service.state} ${service.url}`)
   }

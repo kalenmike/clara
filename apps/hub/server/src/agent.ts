@@ -668,7 +668,7 @@ export class Agent {
         : await this.issueRelayGrant(identity, kind === 'adapter' ? 'adapter' : 'device')
     this.enqueue(session, {
       type: 'ready',
-      agent: this.options.info,
+      agent: this.agentInfoFor(session),
       ...(relayGrant ? { relayGrant } : {}),
     })
     if (kind === 'adapter' && harnessId && session.adapterBridge) {
@@ -1290,11 +1290,28 @@ export class Agent {
     return this.options.policy?.canSync?.() ?? true
   }
 
+  /**
+   * The hub description one session may see. Adapters get the controller-side
+   * endpoints so an adapter-only machine can show where the services run;
+   * browser clients do not need them.
+   */
+  private agentInfoFor(session: Session): AgentInfo {
+    if (session.kind === 'adapter' || !this.options.info.endpoints) return this.options.info
+    const info = { ...this.options.info }
+    delete info.endpoints
+    return info
+  }
+
   /** Tell every connected client that the hub info changed. */
   broadcastAgentInfo(): void {
     if (this.sessions.size === 0) return
-    const payload = { type: 'agent.status' as const, online: true, agent: this.options.info }
-    for (const session of this.sessions.values()) this.enqueue(session, payload)
+    for (const session of this.sessions.values()) {
+      this.enqueue(session, {
+        type: 'agent.status',
+        online: true,
+        agent: this.agentInfoFor(session),
+      })
+    }
   }
 
   /** Send one state to every connected client on this transport. */

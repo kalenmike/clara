@@ -72,6 +72,24 @@ clara adapter remove pi --purge
 
 The hub still prints a copy command for adapters you install on another machine.
 
+## Run adapters only
+
+A machine can carry a harness adapter without running the Clara services. Get a
+pairing code on the hub host, then install the adapter here:
+
+```bash
+clara adapter install opencode --pair <code>
+```
+
+`clara status` recognizes the adapter-only machine, shows the hub's reported web,
+hub, and engine endpoints, and lists the local adapters. `clara status --open`
+opens the hub's web client when an adapter has reported it.
+
+The service commands stay on the hub host. `clara start`, `clara stop`,
+`clara restart`, `clara logs`, and `clara pair` refuse here and explain where to
+run them. `clara setup` is the explicit way to create a hub on this machine as
+well. Adapter search, install, start, stop, logs, and upgrades remain local.
+
 ## Run scripts
 
 The shared runner is part of the command; it does not need a separate download.
