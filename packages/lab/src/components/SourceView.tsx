@@ -1,4 +1,5 @@
 import { useEffect, useState } from 'react'
+import { Empty } from './Badge'
 import { getSource } from '../api'
 import { CopyButton } from './Json'
 
@@ -25,9 +26,9 @@ export function SourceView({ path }: { path?: string }) {
     }
   }, [path])
 
-  if (!path) return <div className="empty">No source file is recorded for this node.</div>
-  if (error) return <div className="empty">{error}</div>
-  if (!source) return <div className="empty">Loading {path}…</div>
+  if (!path) return <Empty>No source file is recorded for this node.</Empty>
+  if (error) return <Empty>{error}</Empty>
+  if (!source) return <Empty>Loading {path}…</Empty>
 
   const lines = source.text.split('\n')
   return (

@@ -1,4 +1,14 @@
 import type { FieldSpec, FieldValues } from '../lib/schema'
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from '@clara/ui/components/select'
+import { Textarea } from '@clara/ui/components/textarea'
+import { Input } from '@clara/ui/components/input'
+import { Empty } from './Badge'
 import { fieldHints, isFieldValues } from '../lib/schema'
 
 export function ToolForm({
@@ -15,7 +25,7 @@ export function ToolForm({
   onChange: (path: string[], value: string) => void
 }) {
   if (!fields.length) {
-    return <div className="empty compact">This tool takes no arguments. Call it directly.</div>
+    return <Empty>This tool takes no arguments. Call it directly.</Empty>
   }
   return (
     <div className="schema-form">
@@ -145,27 +155,35 @@ function FieldControl({
   switch (field.kind) {
     case 'boolean':
       return (
-        <select {...common} onChange={(event) => update(event.target.value)}>
-          <option value="">— not set</option>
-          <option value="true">true</option>
-          <option value="false">false</option>
-        </select>
+        <Select value={value || undefined} onValueChange={update} disabled={disabled}>
+          <SelectTrigger id={id} aria-describedby={describedBy} aria-invalid={invalid || undefined}>
+            <SelectValue placeholder="— not set" />
+          </SelectTrigger>
+          <SelectContent>
+            <SelectItem value="true">true</SelectItem>
+            <SelectItem value="false">false</SelectItem>
+          </SelectContent>
+        </Select>
       )
     case 'enum':
       return (
-        <select {...common} onChange={(event) => update(event.target.value)}>
-          <option value="">Select…</option>
-          {(field.enumValues ?? []).map((entry) => (
-            <option key={entry} value={entry}>
-              {entry}
-            </option>
-          ))}
-        </select>
+        <Select value={value || undefined} onValueChange={update} disabled={disabled}>
+          <SelectTrigger id={id} aria-describedby={describedBy} aria-invalid={invalid || undefined}>
+            <SelectValue placeholder="Select…" />
+          </SelectTrigger>
+          <SelectContent>
+            {(field.enumValues ?? []).map((entry) => (
+              <SelectItem key={entry} value={entry}>
+                {entry}
+              </SelectItem>
+            ))}
+          </SelectContent>
+        </Select>
       )
     case 'integer':
     case 'number':
       return (
-        <input
+        <Input
           {...common}
           type="text"
           inputMode={field.kind === 'integer' ? 'numeric' : 'decimal'}
@@ -175,7 +193,7 @@ function FieldControl({
       )
     case 'array':
       return (
-        <textarea
+        <Textarea
           {...common}
           rows={3}
           placeholder="One value per line"
@@ -185,7 +203,7 @@ function FieldControl({
       )
     case 'json':
       return (
-        <textarea
+        <Textarea
           {...common}
           rows={3}
           placeholder="JSON value"
@@ -195,7 +213,7 @@ function FieldControl({
       )
     case 'string':
       return (
-        <input
+        <Input
           {...common}
           type="text"
           spellCheck={false}

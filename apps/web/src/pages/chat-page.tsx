@@ -8,8 +8,8 @@ import type {
   ClaraSessionMessageAssistant,
   ClaraSessionMessage,
 } from '@clara/api-contract'
-import { Button } from '@/components/ui/button'
-import { Sheet, SheetContent, SheetDescription, SheetTitle } from '@/components/ui/sheet'
+import { Button } from '@clara/ui/components/button'
+import { Sheet, SheetContent, SheetDescription, SheetTitle } from '@clara/ui/components/sheet'
 import { ChatHeader } from '@/components/chat/chat-header'
 import { DraftStartPanel } from '@/components/chat/draft-start-panel'
 import { DraftSessionView } from '@/components/chat/draft-session-view'

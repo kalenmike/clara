@@ -1,7 +1,13 @@
 import { PanelBottom } from 'lucide-react'
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
-import { Label } from '@/components/ui/label'
-import { Switch } from '@/components/ui/switch'
+import {
+  Card,
+  CardContent,
+  CardDescription,
+  CardHeader,
+  CardTitle,
+} from '@clara/ui/components/card'
+import { Label } from '@clara/ui/components/label'
+import { Switch } from '@clara/ui/components/switch'
 import { useComposerAutoHide } from '@/features/settings/use-composer-auto-hide'
 
 export function ComposerCard() {

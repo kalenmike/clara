@@ -1,5 +1,12 @@
 import { useMemo, useState } from 'react'
 import { RefreshCw } from 'lucide-react'
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from '@clara/ui/components/select'
 import { SYNC_INTERVAL_PRESETS_MS, type PanelSyncControl } from '@clara/shared-types'
 import { postPanel } from '../lib/panel-api.ts'
 import { usePeek } from '../lib/peek-context.tsx'
@@ -91,21 +98,24 @@ export function ClientSyncCard({
               Applies to every connected client and every new pairing.
             </p>
           </div>
-          <select
-            id="client-sync-interval"
-            value={sync.intervalMs}
-            onChange={(event) =>
-              void update({ ...sync, intervalMs: Number(event.target.value) }, 'interval')
+          <Select
+            value={String(sync.intervalMs)}
+            onValueChange={(value) =>
+              void update({ ...sync, intervalMs: Number(value) }, 'interval')
             }
             disabled={pending !== undefined}
-            className="rounded-lg border border-border bg-card px-2.5 py-1.5 text-xs text-foreground shadow-sm outline-none transition focus:border-ring disabled:cursor-not-allowed disabled:bg-muted disabled:text-muted-foreground"
           >
-            {intervals.map((interval) => (
-              <option key={interval} value={interval}>
-                {formatInterval(interval)}
-              </option>
-            ))}
-          </select>
+            <SelectTrigger id="client-sync-interval" className="w-40">
+              <SelectValue />
+            </SelectTrigger>
+            <SelectContent>
+              {intervals.map((interval) => (
+                <SelectItem key={interval} value={String(interval)}>
+                  {formatInterval(interval)}
+                </SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
         </div>
 
         <p className="pt-2 text-[11px] text-muted-foreground">

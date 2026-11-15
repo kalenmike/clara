@@ -1,4 +1,4 @@
-import { cn } from '@/lib/utils'
+import { cn } from '@clara/ui/lib/utils'
 import { claraBuildTitle, claraVersionLabel } from '@/lib/build-info'
 import { useConnection } from '@/providers/connection-provider'
 import { useEventStream } from '@/providers/event-provider'

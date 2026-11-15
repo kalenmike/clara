@@ -1,8 +1,14 @@
 import { useMemo, useState } from 'react'
+import { Badge, Empty } from './Badge'
+import { Card } from '@clara/ui/components/card'
+import { SectionCard } from '@clara/ui/patterns/section-card'
+import { Input } from '@clara/ui/components/input'
+import { Checkbox } from '@clara/ui/components/checkbox'
+import { Notice } from '@clara/ui/patterns/notice'
+import { Button } from '@clara/ui/components/button'
 import type { CallRecord } from '../types'
 import type { LabStream } from '../useLab'
 import { clock, duration, json, short } from '../lib/format'
-import { Badge } from './Badge'
 import { Icon } from './Icon'
 import { CopyButton, JsonView } from './Json'
 
@@ -61,9 +67,9 @@ export function Traffic({ stream }: { stream: LabStream }) {
         </div>
         <div className="view-head-actions">
           {errorCount ? <Badge tone="bad">{errorCount} failed</Badge> : null}
-          <button type="button" className="button" onClick={download}>
+          <Button type="button" onClick={download} variant="outline">
             Download JSONL
-          </button>
+          </Button>
         </div>
       </header>
 
@@ -86,7 +92,7 @@ export function Traffic({ stream }: { stream: LabStream }) {
         </div>
         <label className="search-box grow">
           <Icon name="search" size={14} />
-          <input
+          <Input
             value={filter}
             onChange={(event) => setFilter(event.target.value)}
             placeholder="Filter by tool, source, event type, run, or payload"
@@ -94,17 +100,16 @@ export function Traffic({ stream }: { stream: LabStream }) {
         </label>
         {tab === 'calls' ? (
           <label className="check">
-            <input
-              type="checkbox"
+            <Checkbox
               checked={hideHeartbeats}
-              onChange={(event) => setHideHeartbeats(event.target.checked)}
+              onCheckedChange={(value) => setHideHeartbeats(value === true)}
             />
             Hide heartbeats
           </label>
         ) : null}
       </div>
 
-      <div className="panel traffic-panel">
+      <Card className="traffic-panel">
         {tab === 'calls' ? (
           <div className="call-list">
             {calls.length ? (
@@ -113,7 +118,7 @@ export function Traffic({ stream }: { stream: LabStream }) {
                 .reverse()
                 .map((call) => <CallRow key={call.id} call={call} />)
             ) : (
-              <div className="empty">No MCP calls yet.</div>
+              <Empty>No MCP calls yet.</Empty>
             )}
           </div>
         ) : null}
@@ -140,16 +145,15 @@ export function Traffic({ stream }: { stream: LabStream }) {
                   </details>
                 ))
             ) : (
-              <div className="empty">No events yet.</div>
+              <Empty>No events yet.</Empty>
             )}
           </div>
         ) : null}
-      </div>
+      </Card>
 
-      <details className="panel instructions">
-        <summary>MCP server instructions</summary>
+      <SectionCard title="MCP server instructions" collapsible>
         <pre className="prompt">{stream.snapshot?.instructions ?? 'No instructions loaded.'}</pre>
-      </details>
+      </SectionCard>
     </div>
   )
 }
@@ -182,7 +186,7 @@ function CallRow({ call }: { call: CallRecord }) {
             <h4>{call.error ? 'Error' : 'Result'}</h4>
             <CopyButton value={call.error ?? call.result} />
           </div>
-          {call.error ? <div className="banner bad">{call.error}</div> : null}
+          {call.error ? <Notice tone="danger">{call.error}</Notice> : null}
           <JsonView value={call.result} maxHeight={360} />
         </div>
       </div>

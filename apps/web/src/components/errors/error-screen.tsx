@@ -1,7 +1,7 @@
 import { useState } from 'react'
 import { Check, Copy, Home, RotateCw, TriangleAlert } from 'lucide-react'
-import { Button } from '@/components/ui/button'
-import { Card, CardContent, CardFooter, CardHeader } from '@/components/ui/card'
+import { Button } from '@clara/ui/components/button'
+import { Card, CardContent, CardFooter, CardHeader } from '@clara/ui/components/card'
 
 type ErrorScreenProps = {
   detail?: string

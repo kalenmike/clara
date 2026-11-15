@@ -1,5 +1,15 @@
 import { useMemo, useState } from 'react'
 import { ListChecks, RefreshCw, Search } from 'lucide-react'
+import { Button } from '@clara/ui/components/button'
+import { Card, CardHeader } from '@clara/ui/components/card'
+import { Input } from '@clara/ui/components/input'
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from '@clara/ui/components/select'
 import type { PanelSession, PanelSessionHarness, PanelSessionsResponse } from '@clara/shared-types'
 import { usePeek } from '../../lib/peek-context.tsx'
 import { usePanelSessions } from '../../lib/use-panel-sessions.ts'
@@ -36,13 +46,13 @@ export function SessionsView({ active, now }: { active: boolean; now: number }) 
           <Badge tone={online > 0 ? 'success' : 'neutral'}>
             {online}/{data?.harnesses.length ?? 0} online
           </Badge>
-          <button type="button" className="panel-button" onClick={refresh} disabled={!active}>
+          <Button type="button" variant="outline" onClick={refresh} disabled={!active}>
             <RefreshCw
               className={`size-3.5 ${refreshing ? 'animate-spin' : ''}`}
               aria-hidden="true"
             />
             <span className="panel-button-label">{refreshing ? 'Refreshing' : 'Refresh'}</span>
-          </button>
+          </Button>
         </>
       }
     >
@@ -55,8 +65,8 @@ export function SessionsView({ active, now }: { active: boolean; now: number }) 
 
         <HarnessSummary harnesses={data?.harnesses ?? []} />
 
-        <div className="panel-card">
-          <div className="panel-card-head flex flex-wrap items-end justify-between gap-3">
+        <Card>
+          <CardHeader className="flex flex-wrap items-end justify-between gap-3">
             <div className="flex min-w-0 flex-1 flex-wrap items-end gap-2">
               <label className="relative min-w-[220px] flex-1 text-[11px]">
                 <span className="sr-only">Search sessions</span>
@@ -64,27 +74,28 @@ export function SessionsView({ active, now }: { active: boolean; now: number }) 
                   className="pointer-events-none absolute top-1/2 left-2 size-3.5 -translate-y-1/2 text-muted-foreground"
                   aria-hidden="true"
                 />
-                <input
+                <Input
                   value={search}
                   onChange={(event) => setSearch(event.target.value)}
                   placeholder="Filter by title, agent, directory, ID, or harness"
-                  className="w-full rounded-md border border-border bg-card py-1.5 pr-2 pl-7 text-xs "
+                  className="pl-7"
                 />
               </label>
               <label className="text-[11px]">
                 <span className="sr-only">Filter by harness</span>
-                <select
-                  value={harnessID}
-                  onChange={(event) => setHarnessID(event.target.value)}
-                  className="rounded-md border border-border bg-card px-2 py-1.5 text-xs "
-                >
-                  <option value="all">All harnesses</option>
-                  {(data?.harnesses ?? []).map((harness) => (
-                    <option key={harness.harnessID} value={harness.harnessID}>
-                      {harness.label}
-                    </option>
-                  ))}
-                </select>
+                <Select value={harnessID} onValueChange={setHarnessID}>
+                  <SelectTrigger className="w-44">
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="all">All harnesses</SelectItem>
+                    {(data?.harnesses ?? []).map((harness) => (
+                      <SelectItem key={harness.harnessID} value={harness.harnessID}>
+                        {harness.label}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
               </label>
               <label className="flex items-center gap-2 text-[11px] text-foreground">
                 <Toggle
@@ -108,14 +119,14 @@ export function SessionsView({ active, now }: { active: boolean; now: number }) 
               {sessions.length} shown
               {data?.truncated ? ' · capped' : ''}
             </div>
-          </div>
+          </CardHeader>
 
           <SessionMonitorTable
             sessions={sessions}
             now={now}
             empty={emptyMessage(data, loading, Boolean(search), harnessID !== 'all')}
           />
-        </div>
+        </Card>
       </div>
     </View>
   )
@@ -125,9 +136,9 @@ function HarnessSummary({ harnesses }: { harnesses: PanelSessionHarness[] }) {
   const { redact } = usePeek()
   if (harnesses.length === 0) {
     return (
-      <div className="panel-card px-3 py-2.5 text-xs text-muted-foreground">
+      <Card className="px-3 py-2.5 text-xs text-muted-foreground">
         No harness is paired. Add one from Harness.
-      </div>
+      </Card>
     )
   }
 
@@ -136,13 +147,13 @@ function HarnessSummary({ harnesses }: { harnesses: PanelSessionHarness[] }) {
       {harnesses.map((harness) => {
         const tone = !harness.online ? 'danger' : harness.ok ? 'success' : 'warning'
         return (
-          <div key={harness.harnessID} className="panel-card px-3 py-2.5">
+          <Card key={harness.harnessID} className="px-3 py-2.5">
             <div className="flex items-start justify-between gap-2">
               <div className="min-w-0">
                 <div className="flex flex-wrap items-center gap-2">
                   <span className="truncate text-xs font-semibold">{harness.label}</span>
                 </div>
-                <div className="panel-mono text-[10px] text-muted-foreground">{harness.kind}</div>
+                <div className="font-mono text-[10px] text-muted-foreground">{harness.kind}</div>
               </div>
               <Badge tone={tone}>
                 {!harness.online
@@ -161,7 +172,7 @@ function HarnessSummary({ harnesses }: { harnesses: PanelSessionHarness[] }) {
             {harness.message ? (
               <p className="mt-1 text-[10px] text-muted-foreground">{redact(harness.message)}</p>
             ) : null}
-          </div>
+          </Card>
         )
       })}
     </div>

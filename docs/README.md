@@ -86,6 +86,7 @@ Clara works; the guide describes how to use it.
 | [session-info.md](features/session-info.md)                             | You are working on cost, tokens, context, or message counts              |
 | [notifications.md](features/notifications.md)                           | You are working on Inbox alerts, desktop notifications, or alert sounds  |
 | [theme.md](features/theme.md)                                           | You are working on appearance, color themes, or light/dark mode          |
+| [ui.md](features/ui.md)                                                 | You are adding or changing a shared component or pattern                 |
 | [settings.md](features/settings.md)                                     | You are working on the Settings page, tabs, or simplified view           |
 | [git.md](features/git.md)                                               | You are working on the branch and change summary in the right panel      |
 | [orchestration.md](features/orchestration.md)                           | You are working on the engine service, packages, or MCP adapter          |

@@ -1,4 +1,5 @@
 import { ExternalLink, QrCode } from 'lucide-react'
+import { Button } from '@clara/ui/components/button'
 import type { PanelSnapshot } from '@clara/shared-types'
 import type { PairingTransport } from '../../lib/client-pairing.ts'
 import type { SetupState } from '../../lib/onboarding.ts'
@@ -36,7 +37,7 @@ export function ClientStep({
     <div className="space-y-4">
       <div>
         <h3 className="text-sm font-semibold">Pair a client</h3>
-        <p className="panel-muted mt-1 text-xs">
+        <p className="text-muted-foreground mt-1 text-xs">
           Create a one-time link or QR code, then open it on the phone, tablet, or browser you want
           to use. The code enrolls one device.
         </p>
@@ -86,15 +87,17 @@ function PairedClients({ devices, webUrl }: { devices: PanelSnapshot['devices'];
         {devices.map((device) => (
           <li key={device.id} className="flex flex-wrap items-center gap-2 text-[11px]">
             <span className="font-medium">{device.alias ?? device.label}</span>
-            <span className="panel-muted font-mono">{device.id.slice(0, 8)}</span>
-            <span className="panel-muted">{device.transport ?? 'not connected'}</span>
+            <span className="text-muted-foreground font-mono">{device.id.slice(0, 8)}</span>
+            <span className="text-muted-foreground">{device.transport ?? 'not connected'}</span>
           </li>
         ))}
       </ul>
-      <a href={webUrl} target="_blank" rel="noreferrer" className="panel-button mt-2 inline-flex">
-        <ExternalLink className="size-3.5" aria-hidden="true" />
-        Open Clara
-      </a>
+      <Button asChild variant="outline" className="mt-2">
+        <a href={webUrl} target="_blank" rel="noreferrer">
+          <ExternalLink className="size-3.5" aria-hidden="true" />
+          Open Clara
+        </a>
+      </Button>
     </div>
   )
 }

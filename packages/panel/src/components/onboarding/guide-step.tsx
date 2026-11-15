@@ -1,4 +1,5 @@
 import { type ReactNode } from 'react'
+import { Button } from '@clara/ui/components/button'
 import { ArrowLeftRight, Cable, Cloud, ExternalLink, Laptop, Server } from 'lucide-react'
 import type { PanelSnapshot } from '@clara/shared-types'
 import type { SetupState } from '../../lib/onboarding.ts'
@@ -32,31 +33,33 @@ export function GuideStep({ snapshot, setup }: { snapshot: PanelSnapshot; setup:
         </div>
         <dl className="mt-2 grid gap-x-4 gap-y-1 text-[11px] sm:grid-cols-3">
           <div>
-            <dt className="panel-muted">Connection path</dt>
+            <dt className="text-muted-foreground">Connection path</dt>
             <dd className="font-medium">{pathLabel}</dd>
           </div>
           <div>
-            <dt className="panel-muted">Harness</dt>
+            <dt className="text-muted-foreground">Harness</dt>
             <dd className="font-medium">
               {snapshot.harnesses.length > 0 ? `${snapshot.harnesses.length} paired` : 'Not paired'}
             </dd>
           </div>
           <div>
-            <dt className="panel-muted">Clients</dt>
+            <dt className="text-muted-foreground">Clients</dt>
             <dd className="font-medium">
               {snapshot.devices.filter((device) => device.revokedAt === undefined).length} paired
             </dd>
           </div>
         </dl>
-        <a href={webUrl} target="_blank" rel="noreferrer" className="panel-button mt-2 inline-flex">
-          <ExternalLink className="size-3.5" aria-hidden="true" />
-          Open Clara
-        </a>
+        <Button asChild variant="outline" className="mt-2">
+          <a href={webUrl} target="_blank" rel="noreferrer">
+            <ExternalLink className="size-3.5" aria-hidden="true" />
+            Open Clara
+          </a>
+        </Button>
       </div>
 
       <div>
         <h3 className="text-sm font-semibold">How Clara works</h3>
-        <p className="panel-muted mt-1 text-xs">
+        <p className="text-muted-foreground mt-1 text-xs">
           Clara has a hub on your machine, an adapter next to each harness, and paired clients that
           connect out to the hub.
         </p>
@@ -103,13 +106,13 @@ export function GuideStep({ snapshot, setup }: { snapshot: PanelSnapshot; setup:
           {TAB_GUIDE.map(([label, body]) => (
             <div key={label} className="flex gap-3 px-3 py-1.5">
               <dt className="w-20 shrink-0 font-medium">{label}</dt>
-              <dd className="panel-muted">{body}</dd>
+              <dd className="text-muted-foreground">{body}</dd>
             </div>
           ))}
         </dl>
       </div>
 
-      <p className="panel-muted text-[10px]">
+      <p className="text-muted-foreground text-[10px]">
         Keep the panel on loopback or behind an SSH tunnel. Pair devices from Clients; use the relay
         for remote access. Reconfigure this flow from Settings → Setup.
       </p>
@@ -130,7 +133,7 @@ function Concept({ title, body }: { title: string; body: string }) {
   return (
     <div className="rounded-lg border border-border p-2.5">
       <p className="text-[11px] font-semibold">{title}</p>
-      <p className="panel-muted mt-0.5 text-[11px]">{body}</p>
+      <p className="text-muted-foreground mt-0.5 text-[11px]">{body}</p>
     </div>
   )
 }

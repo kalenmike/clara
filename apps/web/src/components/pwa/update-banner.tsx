@@ -1,5 +1,5 @@
 import { Loader2, RefreshCw } from 'lucide-react'
-import { Button } from '@/components/ui/button'
+import { Button } from '@clara/ui/components/button'
 import { applyAppUpdate, dismissAppUpdate, useAppUpdate } from '@/features/updates/app-update'
 
 /**

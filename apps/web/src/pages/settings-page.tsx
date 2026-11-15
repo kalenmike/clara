@@ -2,8 +2,14 @@ import { useEffect, useState } from 'react'
 import { Check, ChevronDown } from 'lucide-react'
 import { PageShell } from '@/components/layout/page-shell'
 import { FullWindowShell } from '@/components/layout/full-window-shell'
-import { Button } from '@/components/ui/button'
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
+import { Button } from '@clara/ui/components/button'
+import {
+  Card,
+  CardContent,
+  CardDescription,
+  CardHeader,
+  CardTitle,
+} from '@clara/ui/components/card'
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -11,8 +17,8 @@ import {
   DropdownMenuLabel,
   DropdownMenuSeparator,
   DropdownMenuTrigger,
-} from '@/components/ui/dropdown-menu'
-import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs'
+} from '@clara/ui/components/dropdown-menu'
+import { Tabs, TabsContent, TabsList, TabsTrigger } from '@clara/ui/components/tabs'
 import { AgentCard } from '@/components/settings/agent-card'
 import { AppCard } from '@/components/settings/app-card'
 import { ComposerCard } from '@/components/settings/composer-card'

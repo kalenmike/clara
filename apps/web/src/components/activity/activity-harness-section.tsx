@@ -1,7 +1,7 @@
 import { WifiOff } from 'lucide-react'
 import type { ClaraActivityHarness, ClaraActivitySession, ClaraProject } from '@clara/api-contract'
 import { ActivityCard } from '@/components/activity/activity-card'
-import { Badge } from '@/components/ui/badge'
+import { Badge } from '@clara/ui/components/badge'
 import { activitySessionPath } from '@/features/activity/activity-sessions'
 import { projectLabel } from '@/features/projects/project-list'
 

@@ -1,7 +1,7 @@
 import { useState } from 'react'
+import { Badge, Empty } from './Badge'
 import type { CompiledNode, StepSummary } from '../types'
 import { ago, formatTokens, modelLabel, statusTone } from '../lib/format'
-import { Badge } from './Badge'
 
 function kindTone(kind: string): 'ok' | 'bad' | 'live' | 'idle' | 'warn' {
   if (kind === 'agent') return 'live'
@@ -131,7 +131,7 @@ export function RunTree({
   selected?: string
   onSelect: (step: StepSummary) => void
 }) {
-  if (!steps.length) return <div className="empty">No steps yet.</div>
+  if (!steps.length) return <Empty>No steps yet.</Empty>
   return (
     <div className="run-tree">
       {steps.map((step) => {

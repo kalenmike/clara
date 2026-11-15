@@ -1,6 +1,6 @@
 import { useId, useState, type ReactNode } from 'react'
 import { ChevronDown, type LucideIcon } from 'lucide-react'
-import { cn } from '@/lib/utils'
+import { cn } from '@clara/ui/lib/utils'
 
 export type RequestCardTone = 'primary' | 'sky' | 'amber'
 

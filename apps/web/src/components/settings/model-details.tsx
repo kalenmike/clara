@@ -1,5 +1,5 @@
 import type { ClaraModel } from '@clara/api-contract'
-import { Badge } from '@/components/ui/badge'
+import { Badge } from '@clara/ui/components/badge'
 import { formatTokens } from '@/lib/format'
 import { formatPricePerMillion, isFreeModel } from '@/features/models/visibility'
 

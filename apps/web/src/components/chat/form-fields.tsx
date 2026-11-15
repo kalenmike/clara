@@ -1,13 +1,13 @@
 import type { ClaraFormField } from '@clara/api-contract'
-import { Checkbox } from '@/components/ui/checkbox'
-import { Input } from '@/components/ui/input'
+import { Checkbox } from '@clara/ui/components/checkbox'
+import { Input } from '@clara/ui/components/input'
 import {
   Select,
   SelectContent,
   SelectItem,
   SelectTrigger,
   SelectValue,
-} from '@/components/ui/select'
+} from '@clara/ui/components/select'
 import type { FormAnswerValue } from '@/features/chat/use-forms'
 
 const CLEAR_SELECTION = '__clear__'

@@ -5,13 +5,13 @@ import { PairTerminal } from '@/components/chat/pair-terminal'
 import { GitPanel } from '@/components/layout/git-panel'
 import { SessionInfoPanel } from '@/components/layout/session-info-panel'
 import { SessionPlanDock } from '@/components/layout/session-plan-dock'
-import { Button } from '@/components/ui/button'
-import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs'
+import { Button } from '@clara/ui/components/button'
+import { Tabs, TabsContent, TabsList, TabsTrigger } from '@clara/ui/components/tabs'
 import type { ChatSnapshot } from '@/features/chat/chat-store'
 import { lastSessionActivity, type CommitWindow } from '@/features/git/use-git'
 import { useSidePanelWidth } from '@/hooks/use-side-panel-width'
 import { SIDE_PANEL_WIDTH_MAX, SIDE_PANEL_WIDTH_MIN, type SidePanelTab } from '@/lib/storage'
-import { cn } from '@/lib/utils'
+import { cn } from '@clara/ui/lib/utils'
 
 export function SidePanel({
   session,

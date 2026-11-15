@@ -1,7 +1,7 @@
 import { useMemo } from 'react'
 import { Check, Cpu, SlidersHorizontal } from 'lucide-react'
 import type { ClaraModel, ClaraSession } from '@clara/api-contract'
-import { Button } from '@/components/ui/button'
+import { Button } from '@clara/ui/components/button'
 import {
   Command,
   CommandEmpty,
@@ -9,14 +9,14 @@ import {
   CommandInput,
   CommandItem,
   CommandList,
-} from '@/components/ui/command'
+} from '@clara/ui/components/command'
 import {
   Dialog,
   DialogContent,
   DialogDescription,
   DialogHeader,
   DialogTitle,
-} from '@/components/ui/dialog'
+} from '@clara/ui/components/dialog'
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -24,7 +24,7 @@ import {
   DropdownMenuLabel,
   DropdownMenuSeparator,
   DropdownMenuTrigger,
-} from '@/components/ui/dropdown-menu'
+} from '@clara/ui/components/dropdown-menu'
 import { useModels } from '@/features/catalog/use-catalog'
 import { useSwitchModel } from '@/features/chat/use-chat'
 import { useModelVisibility } from '@/features/models/use-model-visibility'

@@ -105,44 +105,6 @@
   white-space: nowrap;
 }
 
-.panel-button,
-.panel-icon-button {
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  gap: 5px;
-  appearance: none;
-  border: 1px solid var(--panel-border);
-  background: var(--panel-surface);
-  color: var(--panel-text);
-  border-radius: 4px;
-  cursor: pointer;
-  font-size: 0.75rem;
-  white-space: nowrap;
-}
-
-.panel-button {
-  padding: 5px 9px;
-}
-
-.panel-icon-button {
-  width: 28px;
-  height: 28px;
-  padding: 0;
-}
-
-.panel-button:hover:not(:disabled),
-.panel-icon-button:hover:not(:disabled) {
-  background: var(--panel-hover);
-  border-color: var(--panel-border-strong);
-}
-
-.panel-button:disabled,
-.panel-icon-button:disabled {
-  cursor: not-allowed;
-  opacity: 0.55;
-}
-
 /* Activity rail */
 
 .panel-rail {
@@ -346,46 +308,6 @@
   align-items: center;
   gap: 6px;
   padding-top: 4px;
-}
-
-/* Cards and small building blocks */
-
-.panel-card {
-  min-width: 0;
-  background: var(--panel-surface);
-  border: 1px solid var(--panel-border);
-  border-radius: 6px;
-}
-
-.panel-card-head {
-  border-bottom: 1px solid var(--panel-border);
-  padding: 8px 12px;
-}
-
-.panel-muted {
-  color: var(--panel-muted);
-}
-
-.panel-faint {
-  color: var(--panel-faint);
-}
-
-.panel-mono {
-  font-family: var(--panel-mono);
-}
-
-.panel-link {
-  appearance: none;
-  border: 0;
-  background: transparent;
-  color: var(--panel-accent);
-  cursor: pointer;
-  padding: 0;
-  font-size: 0.75rem;
-}
-
-.panel-link:hover {
-  text-decoration: underline;
 }
 
 .panel-banner {
@@ -657,15 +579,6 @@
   color: var(--panel-muted);
 }
 
-.panel-empty {
-  border: 1px dashed var(--panel-border);
-  border-radius: 5px;
-  padding: 14px;
-  color: var(--panel-muted);
-  text-align: center;
-  font-size: 0.875rem;
-}
-
 /* Responsive */
 
 @media (max-width: 1280px) {
@@ -728,10 +641,6 @@
   .panel-button-label {
     display: none;
   }
-
-  .panel-button {
-    padding: 6px;
-  }
 }
 
 /* Setup modal */
@@ -753,50 +662,12 @@
   max-width: 560px;
 }
 
-.panel-setup-dialog::backdrop,
-.panel-confirm-dialog::backdrop {
+.panel-setup-dialog::backdrop {
   background: rgb(15 23 42 / 0.55);
   backdrop-filter: blur(2px);
 }
 
 /* Confirmation dialog */
-
-.panel-confirm-dialog {
-  width: min(440px, calc(100vw - 32px));
-  max-width: 440px;
-  max-height: calc(100dvh - 32px);
-  margin: auto;
-  padding: 0;
-  border: 0;
-  background: transparent;
-  color: var(--panel-text);
-  overflow: visible;
-}
-
-.panel-confirm-card {
-  display: flex;
-  flex-direction: column;
-  overflow: hidden;
-  background: var(--panel-surface);
-  border: 1px solid var(--panel-border-strong);
-  border-radius: 12px;
-  box-shadow: 0 24px 80px rgb(0 0 0 / 0.35);
-}
-
-.panel-confirm-head {
-  padding: 16px 18px 8px;
-}
-
-.panel-confirm-foot {
-  display: flex;
-  flex-wrap: wrap;
-  align-items: center;
-  justify-content: flex-end;
-  gap: 8px;
-  padding: 12px 18px;
-  background: var(--panel-surface-2);
-  border-top: 1px solid var(--panel-border);
-}
 
 .panel-setup-card {
   display: flex;
@@ -846,29 +717,6 @@
   border-top: 1px solid var(--panel-border);
 }
 
-.panel-button.primary {
-  border-color: var(--panel-accent);
-  background: var(--panel-accent);
-  color: var(--primary-foreground);
-}
-
-.panel-button.primary:hover:not(:disabled) {
-  border-color: var(--panel-accent);
-  background: var(--panel-accent);
-  filter: brightness(1.08);
-}
-
-.panel-button.danger {
-  border-color: color-mix(in oklab, var(--destructive) 45%, var(--panel-border));
-  background: color-mix(in oklab, var(--destructive) 12%, var(--panel-surface));
-  color: var(--destructive);
-}
-
-.panel-button.danger:hover:not(:disabled) {
-  border-color: color-mix(in oklab, var(--destructive) 65%, var(--panel-border));
-  background: color-mix(in oklab, var(--destructive) 18%, var(--panel-surface));
-}
-
 @media (max-width: 640px) {
   .panel-setup-dialog {
     width: 100vw;
@@ -882,10 +730,5 @@
     max-height: none;
     border: 0;
     border-radius: 0;
-  }
-
-  .panel-confirm-dialog {
-    width: calc(100vw - 24px);
-    max-width: none;
   }
 }

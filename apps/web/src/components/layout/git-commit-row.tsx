@@ -1,9 +1,13 @@
 import { useState } from 'react'
 import { ChevronRight } from 'lucide-react'
-import { Collapsible, CollapsibleContent, CollapsibleTrigger } from '@/components/ui/collapsible'
+import {
+  Collapsible,
+  CollapsibleContent,
+  CollapsibleTrigger,
+} from '@clara/ui/components/collapsible'
 import { parseConventionalHeader, splitCommitBody, type GitCommit } from '@/features/git/use-git'
 import { formatCommitDate } from '@/lib/format'
-import { cn } from '@/lib/utils'
+import { cn } from '@clara/ui/lib/utils'
 
 const TYPE_COLOR: Record<string, string> = {
   feat: 'text-emerald-600 dark:text-emerald-400',

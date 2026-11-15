@@ -1,6 +1,6 @@
 import { Bot, Check } from 'lucide-react'
 import type { ClaraSession } from '@clara/api-contract'
-import { Button } from '@/components/ui/button'
+import { Button } from '@clara/ui/components/button'
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -8,7 +8,7 @@ import {
   DropdownMenuLabel,
   DropdownMenuSeparator,
   DropdownMenuTrigger,
-} from '@/components/ui/dropdown-menu'
+} from '@clara/ui/components/dropdown-menu'
 import { useAgents } from '@/features/catalog/use-catalog'
 import { primaryAgents, subagents } from '@/features/agents/default-agent'
 import { useSwitchAgent } from '@/features/chat/use-chat'

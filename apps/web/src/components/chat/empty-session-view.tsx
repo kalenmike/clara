@@ -1,6 +1,6 @@
 import type { ReactNode } from 'react'
 import { Loader2 } from 'lucide-react'
-import { Button } from '@/components/ui/button'
+import { Button } from '@clara/ui/components/button'
 
 export function EmptySessionView({
   title,

@@ -1,6 +1,6 @@
 import { Loader2, QrCode, RefreshCw } from 'lucide-react'
-import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert'
-import { Button } from '@/components/ui/button'
+import { Alert, AlertDescription, AlertTitle } from '@clara/ui/components/alert'
+import { Button } from '@clara/ui/components/button'
 import {
   Dialog,
   DialogContent,
@@ -8,7 +8,7 @@ import {
   DialogFooter,
   DialogHeader,
   DialogTitle,
-} from '@/components/ui/dialog'
+} from '@clara/ui/components/dialog'
 import { useQrScanner } from '@/features/connect/use-qr-scanner'
 import type { QrScanStage } from '@/lib/qr-scan'
 

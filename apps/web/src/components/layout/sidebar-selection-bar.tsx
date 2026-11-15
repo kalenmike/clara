@@ -1,6 +1,6 @@
 import type { Ref } from 'react'
 import type { ClaraSession } from '@clara/api-contract'
-import { Button } from '@/components/ui/button'
+import { Button } from '@clara/ui/components/button'
 import { useSessionWording } from '@/features/sessions/use-wording'
 
 export function SidebarSelectionBar({

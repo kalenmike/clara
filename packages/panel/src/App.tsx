@@ -1,5 +1,7 @@
 import { useEffect, useMemo } from 'react'
 import { CircleAlert, LoaderCircle } from 'lucide-react'
+import { Button } from '@clara/ui/components/button'
+import { Card } from '@clara/ui/components/card'
 import type { PanelSnapshot } from '@clara/shared-types'
 import { collectSecrets } from './lib/peek.ts'
 import { PeekProvider, usePeek } from './lib/peek-context.tsx'
@@ -91,9 +93,14 @@ function Panel({
             <CircleAlert className="mt-0.5 size-3.5 shrink-0" aria-hidden="true" />
             <span>
               External connections are off. Open{' '}
-              <button type="button" className="panel-link" onClick={() => setTab('overview')}>
+              <Button
+                type="button"
+                variant="link"
+                className="inline h-auto p-0 text-xs"
+                onClick={() => setTab('overview')}
+              >
                 Overview
-              </button>{' '}
+              </Button>{' '}
               to go online.
             </span>
           </div>
@@ -234,7 +241,7 @@ function LoadingState() {
       aria-label="Loading hub status"
     >
       {Array.from({ length: 6 }, (_, index) => (
-        <div key={index} className="panel-card h-40 animate-pulse" />
+        <Card key={index} className="h-40 animate-pulse" />
       ))}
     </div>
   )
@@ -242,17 +249,21 @@ function LoadingState() {
 
 function ErrorState({ error, onRetry }: { error?: string; onRetry: () => void }) {
   return (
-    <div className="panel-card mx-auto mt-10 w-full max-w-lg p-6 text-center">
-      <CircleAlert className="mx-auto size-6 text-red-500" aria-hidden="true" />
-      <h2 className="mt-3 text-sm font-semibold">Could not read the hub status</h2>
-      <p className="panel-muted mt-1 text-xs">{error ?? 'The panel API did not answer.'}</p>
-      <button type="button" onClick={onRetry} className="panel-button mt-4">
-        <LoaderCircle className="size-3.5" aria-hidden="true" />
-        Try again
-      </button>
-      <p className="panel-muted mt-3 text-[11px]">
-        Make sure the hub service is running and the panel is enabled on its loopback port.
-      </p>
-    </div>
+    <Card asChild>
+      <div className="mx-auto mt-10 w-full max-w-lg p-6 text-center">
+        <CircleAlert className="mx-auto size-6 text-red-500" aria-hidden="true" />
+        <h2 className="mt-3 text-sm font-semibold">Could not read the hub status</h2>
+        <p className="mt-1 text-xs text-muted-foreground">
+          {error ?? 'The panel API did not answer.'}
+        </p>
+        <Button type="button" variant="outline" onClick={onRetry} className="mt-4">
+          <LoaderCircle className="size-3.5" aria-hidden="true" />
+          Try again
+        </Button>
+        <p className="mt-3 text-[11px] text-muted-foreground">
+          Make sure the hub service is running and the panel is enabled on its loopback port.
+        </p>
+      </div>
+    </Card>
   )
 }

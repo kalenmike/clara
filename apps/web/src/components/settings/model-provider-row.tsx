@@ -1,11 +1,15 @@
 import { useState } from 'react'
 import { ChevronRight, Cpu } from 'lucide-react'
 import type { ClaraModel } from '@clara/api-contract'
-import { Badge } from '@/components/ui/badge'
-import { Collapsible, CollapsibleContent, CollapsibleTrigger } from '@/components/ui/collapsible'
-import { Switch } from '@/components/ui/switch'
+import { Badge } from '@clara/ui/components/badge'
+import {
+  Collapsible,
+  CollapsibleContent,
+  CollapsibleTrigger,
+} from '@clara/ui/components/collapsible'
+import { Switch } from '@clara/ui/components/switch'
 import { ModelDetails } from '@/components/settings/model-details'
-import { cn } from '@/lib/utils'
+import { cn } from '@clara/ui/lib/utils'
 
 export function ModelProviderRow({
   providerID,

@@ -20,7 +20,7 @@ import {
 import { toast } from 'sonner'
 import type { ClaraSession } from '@clara/api-contract'
 import { useMobileActions } from '@/components/layout/mobile-actions'
-import { Button } from '@/components/ui/button'
+import { Button } from '@clara/ui/components/button'
 import {
   Dialog,
   DialogContent,
@@ -28,15 +28,15 @@ import {
   DialogFooter,
   DialogHeader,
   DialogTitle,
-} from '@/components/ui/dialog'
+} from '@clara/ui/components/dialog'
 import {
   DropdownMenu,
   DropdownMenuContent,
   DropdownMenuItem,
   DropdownMenuSeparator,
   DropdownMenuTrigger,
-} from '@/components/ui/dropdown-menu'
-import { Input } from '@/components/ui/input'
+} from '@clara/ui/components/dropdown-menu'
+import { Input } from '@clara/ui/components/input'
 import { DeleteSessionDialog } from '@/components/sessions/delete-session-dialog'
 import { useCompactSession, useInterruptSession } from '@/features/chat/use-chat'
 import { isArchivedSession } from '@/features/sessions/session-archive'
@@ -51,7 +51,7 @@ import {
 import { useSessionWording } from '@/features/sessions/use-wording'
 import { useMediaQuery } from '@/hooks/use-media-query'
 import type { ChatSnapshot } from '@/features/chat/chat-store'
-import { cn } from '@/lib/utils'
+import { cn } from '@clara/ui/lib/utils'
 
 export function ChatHeader({
   session,

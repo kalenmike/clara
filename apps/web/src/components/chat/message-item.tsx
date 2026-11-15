@@ -15,10 +15,14 @@ import type {
   ClaraSessionMessage,
   ClaraSessionMessageShell,
 } from '@clara/api-contract'
-import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert'
-import { Avatar, AvatarFallback } from '@/components/ui/avatar'
-import { Badge } from '@/components/ui/badge'
-import { Collapsible, CollapsibleContent, CollapsibleTrigger } from '@/components/ui/collapsible'
+import { Alert, AlertDescription, AlertTitle } from '@clara/ui/components/alert'
+import { Avatar, AvatarFallback } from '@clara/ui/components/avatar'
+import { Badge } from '@clara/ui/components/badge'
+import {
+  Collapsible,
+  CollapsibleContent,
+  CollapsibleTrigger,
+} from '@clara/ui/components/collapsible'
 import { Markdown } from '@/components/chat/markdown'
 import { MarkdownSelectionProvider } from '@/components/chat/markdown-selection'
 import { MessageActions } from '@/components/chat/message-actions'
@@ -28,7 +32,7 @@ import { assistantHasContent, assistantHasFailed } from '@/features/chat/message
 import { formatUsageSummary, type UsageSummary } from '@/features/chat/usage-summary'
 import type { DisplayCost } from '@/features/cost/estimate'
 import { formatCost, formatDateTime, formatRelativeTime, formatTokens } from '@/lib/format'
-import { cn } from '@/lib/utils'
+import { cn } from '@clara/ui/lib/utils'
 
 export type MessageItemActions = {
   onFork: () => void

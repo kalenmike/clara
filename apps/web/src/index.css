@@ -10,6 +10,8 @@
  * classes it uses; the panel package scans itself for the served panel build.
  */
 @source '../../../packages/panel/src';
+@source '../../../packages/lab/src';
+@source '../../../packages/ui/src';
 
 @layer base {
   * {

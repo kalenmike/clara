@@ -16,7 +16,7 @@ import { useComposerHeight } from '@/hooks/use-composer-height'
 import { useElementHeight } from '@/hooks/use-element-height'
 import { useIsTouchDevice } from '@/hooks/use-is-touch-device'
 import { COMPOSER_HEIGHT_MIN, readDraft } from '@/lib/storage'
-import { cn } from '@/lib/utils'
+import { cn } from '@clara/ui/lib/utils'
 
 /** Matches the shell height transition, so the shape fade ends with it. */
 const COMPOSER_SHAPE_MS = 150

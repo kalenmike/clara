@@ -1,5 +1,14 @@
 import type { ReactNode } from 'react'
 import { Check, ExternalLink, Globe2, LoaderCircle, Wifi, X } from 'lucide-react'
+import { Button } from '@clara/ui/components/button'
+import { Input } from '@clara/ui/components/input'
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from '@clara/ui/components/select'
 import type { AdapterInstallJob } from '@clara/shared-types'
 import { HARNESS_KINDS } from '../lib/harness-pairing.ts'
 import { formatRelative } from '../lib/format.ts'
@@ -16,29 +25,31 @@ export function HarnessPairHeader({
   return (
     <header className="panel-setup-head">
       <div className="min-w-0">
-        <div className="panel-muted text-[10px] font-semibold tracking-[0.08em] uppercase">
+        <div className="text-muted-foreground text-[10px] font-semibold tracking-[0.08em] uppercase">
           Harnesses
         </div>
         <h2 id="panel-harness-pair-title" className="mt-0.5 text-base font-semibold">
           Pair a harness
         </h2>
-        <p className="panel-muted mt-1 text-xs">
+        <p className="text-muted-foreground mt-1 text-xs">
           Pair an adapter from the machine that runs the harness
         </p>
       </div>
-      <button
+      <Button
         type="button"
+        variant="ghost"
+        size="icon"
         onClick={onClose}
         aria-label="Close harness pairing"
         disabled={pending !== undefined}
-        className="panel-icon-button shrink-0"
+        className="shrink-0"
       >
         {pending === 'close' ? (
           <LoaderCircle className="size-4 animate-spin" aria-hidden="true" />
         ) : (
           <X className="size-4" aria-hidden="true" />
         )}
-      </button>
+      </Button>
     </header>
   )
 }
@@ -59,17 +70,18 @@ function SetupStep({ flow }: { flow: HarnessPairingFlow }) {
     <div className="space-y-4">
       <label className="grid gap-1 text-[11px] font-medium text-foreground">
         Harness
-        <select
-          value={flow.kind}
-          onChange={(event) => flow.setKind(event.target.value)}
-          className="w-full rounded-md border border-border bg-card px-2 py-1.5 text-xs"
-        >
-          {HARNESS_KINDS.map((item) => (
-            <option key={item.kind} value={item.kind}>
-              {item.label}
-            </option>
-          ))}
-        </select>
+        <Select value={flow.kind} onValueChange={flow.setKind}>
+          <SelectTrigger className="w-full">
+            <SelectValue />
+          </SelectTrigger>
+          <SelectContent>
+            {HARNESS_KINDS.map((item) => (
+              <SelectItem key={item.kind} value={item.kind}>
+                {item.label}
+              </SelectItem>
+            ))}
+          </SelectContent>
+        </Select>
       </label>
 
       <div>
@@ -177,12 +189,12 @@ function SetupStep({ flow }: { flow: HarnessPairingFlow }) {
       {flow.kind === 'opencode' ? (
         <label className="grid gap-1 text-[11px] font-medium text-foreground">
           OpenCode URL <span className="font-normal text-muted-foreground">(optional)</span>
-          <input
+          <Input
             value={flow.opencodeUrl}
             onChange={(event) => flow.setOpencodeUrl(event.target.value)}
             placeholder="http://127.0.0.1:4096"
             spellCheck={false}
-            className="w-full rounded-md border border-border bg-card px-2 py-1.5 font-mono text-[11px]"
+            className="font-mono text-xs"
           />
           <span className="text-[10px] font-normal text-muted-foreground">
             Set this when the installer cannot discover OpenCode on the harness machine.
@@ -245,43 +257,43 @@ function InstallTargetFields({ flow }: { flow: HarnessPairingFlow }) {
         {flow.targetsError ? <Notice>{flow.targetsError}</Notice> : null}
         <label className="grid gap-1 text-[11px] font-medium text-foreground">
           Host
-          <select
-            value={flow.sshHost}
-            onChange={(event) => flow.setSshHost(event.target.value)}
-            className="w-full rounded-md border border-border bg-card px-2 py-1.5 text-xs"
-          >
-            <option value="">Choose a host from ~/.ssh/config</option>
-            {flow.sshHosts.map((item) => (
-              <option key={item.alias} value={item.alias}>
-                {item.alias} — {item.user ? `${item.user}@` : ''}
-                {item.hostname}
-              </option>
-            ))}
-            <option value={MANUAL_SSH_HOST}>Enter manually…</option>
-          </select>
+          <Select value={flow.sshHost} onValueChange={flow.setSshHost}>
+            <SelectTrigger className="w-full">
+              <SelectValue placeholder="Choose a host from ~/.ssh/config" />
+            </SelectTrigger>
+            <SelectContent>
+              {flow.sshHosts.map((item) => (
+                <SelectItem key={item.alias} value={item.alias}>
+                  {item.alias} — {item.user ? `${item.user}@` : ''}
+                  {item.hostname}
+                </SelectItem>
+              ))}
+              <SelectItem value={MANUAL_SSH_HOST}>Enter manually…</SelectItem>
+            </SelectContent>
+          </Select>
         </label>
         {manual ? (
           <div className="grid grid-cols-3 gap-2">
-            <input
+            <Input
               value={flow.sshHostname}
               onChange={(event) => flow.setSshHostname(event.target.value)}
               placeholder="server.example"
               spellCheck={false}
-              className="rounded-md border border-border bg-card px-2 py-1.5 font-mono text-[11px]"
+              className="font-mono text-xs"
             />
-            <input
+            <Input
               value={flow.sshUser}
               onChange={(event) => flow.setSshUser(event.target.value)}
               placeholder="user"
               spellCheck={false}
-              className="rounded-md border border-border bg-card px-2 py-1.5 font-mono text-[11px]"
+              className="font-mono text-xs"
             />
-            <input
+            <Input
               value={flow.sshPort}
               onChange={(event) => flow.setSshPort(event.target.value)}
               placeholder="22"
               inputMode="numeric"
-              className="rounded-md border border-border bg-card px-2 py-1.5 font-mono text-[11px]"
+              className="font-mono text-xs"
             />
           </div>
         ) : null}
@@ -296,18 +308,18 @@ function InstallTargetFields({ flow }: { flow: HarnessPairingFlow }) {
       {flow.targetsError ? <Notice>{flow.targetsError}</Notice> : null}
       <label className="grid gap-1 text-[11px] font-medium text-foreground">
         Container
-        <select
-          value={flow.container}
-          onChange={(event) => flow.setContainer(event.target.value)}
-          className="w-full rounded-md border border-border bg-card px-2 py-1.5 text-xs"
-        >
-          <option value="">Choose a running container</option>
-          {flow.containers.map((item) => (
-            <option key={item.id} value={item.name}>
-              {item.name} — {item.image}
-            </option>
-          ))}
-        </select>
+        <Select value={flow.container} onValueChange={flow.setContainer}>
+          <SelectTrigger className="w-full">
+            <SelectValue placeholder="Choose a running container" />
+          </SelectTrigger>
+          <SelectContent>
+            {flow.containers.map((item) => (
+              <SelectItem key={item.id} value={item.name}>
+                {item.name} — {item.image}
+              </SelectItem>
+            ))}
+          </SelectContent>
+        </Select>
       </label>
     </div>
   )
@@ -328,29 +340,26 @@ function WebSocketField({
         <span className="font-normal text-amber-600 dark:text-amber-400">required</span>
       ) : null}
       <div className="flex gap-2">
-        <input
+        <Input
           value={flow.wsUrl}
           onChange={(event) => flow.setWsUrl(event.target.value)}
           placeholder={flow.defaultWsUrl}
           spellCheck={false}
-          className="min-w-0 flex-1 rounded-md border border-border bg-card px-2 py-1.5 font-mono text-[11px]"
+          className="min-w-0 flex-1 font-mono text-xs"
         />
         {candidates.length > 0 ? (
-          <select
-            value=""
-            onChange={(event) => {
-              if (event.target.value) flow.setWsUrl(event.target.value)
-            }}
-            aria-label="Use a detected address"
-            className="max-w-[45%] rounded-md border border-border bg-card px-2 py-1.5 text-[11px]"
-          >
-            <option value="">Detected…</option>
-            {candidates.map((candidate) => (
-              <option key={candidate.url} value={candidate.url}>
-                {candidateLabel(candidate.scope)} · {candidate.url}
-              </option>
-            ))}
-          </select>
+          <Select onValueChange={flow.setWsUrl}>
+            <SelectTrigger className="max-w-[45%]" aria-label="Use a detected address">
+              <SelectValue placeholder="Detected…" />
+            </SelectTrigger>
+            <SelectContent>
+              {candidates.map((candidate) => (
+                <SelectItem key={candidate.url} value={candidate.url}>
+                  {candidateLabel(candidate.scope)} · {candidate.url}
+                </SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
         ) : null}
       </div>
       <span className="text-[10px] font-normal text-muted-foreground">
@@ -486,11 +495,11 @@ function OfferStep({ flow, now }: { flow: HarnessPairingFlow; now: number }) {
       ) : null}
 
       {flow.adapterHost && offer.manifest ? (
-        <button
+        <Button
           type="button"
           onClick={() => void flow.install()}
           disabled={!flow.canInstall || flow.pending !== undefined}
-          className="panel-button primary w-full justify-center"
+          className="w-full justify-center"
         >
           {flow.pending === 'install' || flow.job?.state === 'running' ? (
             <LoaderCircle className="size-3.5 animate-spin" aria-hidden="true" />
@@ -500,7 +509,7 @@ function OfferStep({ flow, now }: { flow: HarnessPairingFlow; now: number }) {
             : flow.pending === 'install'
               ? 'Starting…'
               : `Install on ${targetLabel}`}
-        </button>
+        </Button>
       ) : null}
 
       {flow.job ? <JobLog job={flow.job} onCancel={() => void flow.cancelInstall()} /> : null}
@@ -549,9 +558,9 @@ function JobLog({ job, onCancel }: { job: AdapterInstallJob; onCancel: () => voi
           {job.state}
         </Badge>
         {job.state === 'running' ? (
-          <button type="button" onClick={onCancel} className="panel-button">
+          <Button type="button" variant="outline" onClick={onCancel}>
             Cancel
-          </button>
+          </Button>
         ) : null}
       </div>
       <pre className="max-h-40 overflow-auto rounded-md bg-neutral-950 p-2 text-[11px] whitespace-pre-wrap text-neutral-100">
@@ -573,17 +582,16 @@ export function HarnessPairFooter({ flow }: { flow: HarnessPairingFlow }) {
     return (
       <footer className="panel-setup-foot">
         <div className="flex w-full justify-end">
-          <button
+          <Button
             type="button"
             onClick={() => void flow.begin()}
             disabled={!flow.canContinue || flow.pending !== undefined}
-            className="panel-button primary"
           >
             {flow.pending === 'create' ? (
               <LoaderCircle className="size-3.5 animate-spin" aria-hidden="true" />
             ) : null}
             {flow.pending === 'create' ? 'Preparing…' : 'Create code'}
-          </button>
+          </Button>
         </div>
       </footer>
     )
@@ -594,26 +602,25 @@ export function HarnessPairFooter({ flow }: { flow: HarnessPairingFlow }) {
       <footer className="panel-setup-foot">
         <div className="flex w-full items-center justify-end gap-2">
           {flow.expired ? (
-            <button
+            <Button
               type="button"
+              variant="outline"
               onClick={() => void flow.startOver()}
               disabled={flow.pending !== undefined}
-              className="panel-button"
             >
               Create new code
-            </button>
+            </Button>
           ) : null}
-          <button
+          <Button
             type="button"
             onClick={() => void flow.close()}
             disabled={flow.pending !== undefined}
-            className="panel-button primary"
           >
             {flow.pending === 'close' ? (
               <LoaderCircle className="size-3.5 animate-spin" aria-hidden="true" />
             ) : null}
             {flow.expired ? 'Close' : 'Done'}
-          </button>
+          </Button>
         </div>
       </footer>
     )

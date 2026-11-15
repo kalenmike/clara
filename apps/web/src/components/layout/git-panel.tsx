@@ -5,18 +5,18 @@ import type { ClaraVcsFileStatus } from '@clara/api-contract'
 import { GitCommitList } from '@/components/layout/git-commit-list'
 import { GitPanelMessage } from '@/components/layout/git-panel-parts'
 import { GitWorktreeList } from '@/components/layout/git-worktree-list'
-import { Badge } from '@/components/ui/badge'
-import { Button } from '@/components/ui/button'
+import { Badge } from '@clara/ui/components/badge'
+import { Button } from '@clara/ui/components/button'
 import {
   Select,
   SelectContent,
   SelectItem,
   SelectTrigger,
   SelectValue,
-} from '@/components/ui/select'
-import { Separator } from '@/components/ui/separator'
-import { Skeleton } from '@/components/ui/skeleton'
-import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs'
+} from '@clara/ui/components/select'
+import { Separator } from '@clara/ui/components/separator'
+import { Skeleton } from '@clara/ui/components/skeleton'
+import { Tabs, TabsContent, TabsList, TabsTrigger } from '@clara/ui/components/tabs'
 import {
   useGitBase,
   useGitChanges,
@@ -27,7 +27,7 @@ import {
 import { useSessionWording } from '@/features/sessions/use-wording'
 import { errorMessage } from '@/lib/errors'
 import { formatCount } from '@/lib/format'
-import { cn } from '@/lib/utils'
+import { cn } from '@clara/ui/lib/utils'
 import { useConnection } from '@/providers/connection-provider'
 
 const STATUS_COLOR: Record<ClaraVcsFileStatus['status'], string> = {

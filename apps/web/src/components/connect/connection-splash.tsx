@@ -1,6 +1,6 @@
 import { Loader2 } from 'lucide-react'
 import { AppFooter } from '@/components/pwa/app-footer'
-import { cn } from '@/lib/utils'
+import { cn } from '@clara/ui/lib/utils'
 
 export function ConnectionSplash({ label, className }: { label: string; className?: string }) {
   return (

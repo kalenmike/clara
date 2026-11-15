@@ -1,7 +1,7 @@
 import { Brain } from 'lucide-react'
 import { formatUsageDetail, type UsageSummary } from '@/features/chat/usage-summary'
 import { formatCount } from '@/lib/format'
-import { cn } from '@/lib/utils'
+import { cn } from '@clara/ui/lib/utils'
 
 /**
  * Closes a turn that ended on hidden work. The next visible reply normally

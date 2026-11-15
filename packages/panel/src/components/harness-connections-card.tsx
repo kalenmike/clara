@@ -1,5 +1,6 @@
 import { useState } from 'react'
 import { Cable, FlaskConical, Trash2 } from 'lucide-react'
+import { Button } from '@clara/ui/components/button'
 import type { PanelHarness, PanelHarnessTestResult } from '@clara/shared-types'
 import { formatRelative, formatTimestamp, shortId } from '../lib/format.ts'
 import { harnessState } from '../lib/harness-state.ts'
@@ -193,32 +194,35 @@ export function HarnessConnectionsCard({
                       </td>
                       <td className="px-1 py-2 text-right">
                         <div className="inline-flex flex-wrap items-center justify-end gap-1">
-                          <button
+                          <Button
                             type="button"
+                            variant="outline"
+                            size="xs"
                             onClick={() => void runTest(connection)}
                             disabled={pending !== undefined}
-                            className="inline-flex items-center gap-1 rounded-md border border-border px-2 py-1 text-[10px] font-medium transition hover:bg-accent disabled:opacity-50"
                           >
                             <FlaskConical className="size-3" aria-hidden="true" />
                             {pending === `test:${connection.id}` ? 'Testing…' : 'Test'}
-                          </button>
-                          <button
+                          </Button>
+                          <Button
                             type="button"
+                            variant="destructive"
+                            size="xs"
                             onClick={() => setRemoveTarget({ connection, forget: false })}
                             disabled={pending !== undefined}
-                            className="inline-flex items-center gap-1 rounded-md border border-red-200 px-2 py-1 text-[10px] font-medium text-red-700 transition hover:bg-red-50 disabled:opacity-50 dark:border-red-900 dark:text-red-300 dark:hover:bg-red-950/40"
                           >
                             <Trash2 className="size-3" aria-hidden="true" />
                             {pending === `delete:${connection.id}` ? 'Deleting…' : 'Delete'}
-                          </button>
-                          <button
+                          </Button>
+                          <Button
                             type="button"
+                            variant="outline"
+                            size="xs"
                             onClick={() => setRemoveTarget({ connection, forget: true })}
                             disabled={pending !== undefined}
-                            className="rounded-md border border-border px-2 py-1 text-[10px] font-medium text-foreground transition hover:bg-accent disabled:opacity-50"
                           >
                             {pending === `forget:${connection.id}` ? 'Forgetting…' : 'Forget'}
-                          </button>
+                          </Button>
                         </div>
                       </td>
                     </tr>

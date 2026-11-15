@@ -1,6 +1,6 @@
 /* eslint-disable react-refresh/only-export-components */
 import { createContext, useContext, useState, type ReactNode } from 'react'
-import { cn } from '@/lib/utils'
+import { cn } from '@clara/ui/lib/utils'
 
 type MobileActionsContextValue = {
   node: HTMLDivElement | null

@@ -15,8 +15,12 @@ import {
 } from 'lucide-react'
 import type { ClaraSession } from '@clara/api-contract'
 import { toast } from 'sonner'
-import { Button } from '@/components/ui/button'
-import { Collapsible, CollapsibleContent, CollapsibleTrigger } from '@/components/ui/collapsible'
+import { Button } from '@clara/ui/components/button'
+import {
+  Collapsible,
+  CollapsibleContent,
+  CollapsibleTrigger,
+} from '@clara/ui/components/collapsible'
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -24,10 +28,10 @@ import {
   DropdownMenuLabel,
   DropdownMenuSeparator,
   DropdownMenuTrigger,
-} from '@/components/ui/dropdown-menu'
-import { Input } from '@/components/ui/input'
-import { ScrollArea } from '@/components/ui/scroll-area'
-import { Skeleton } from '@/components/ui/skeleton'
+} from '@clara/ui/components/dropdown-menu'
+import { Input } from '@clara/ui/components/input'
+import { ScrollArea } from '@clara/ui/components/scroll-area'
+import { Skeleton } from '@clara/ui/components/skeleton'
 import { AddProjectDialog } from '@/components/projects/add-project-dialog'
 import { ProjectAvatar } from '@/components/projects/project-avatar'
 import { SidebarSelectionBar } from '@/components/layout/sidebar-selection-bar'
@@ -92,7 +96,7 @@ import {
   saveSidebarSections,
   type SidebarSection,
 } from '@/lib/storage'
-import { cn } from '@/lib/utils'
+import { cn } from '@clara/ui/lib/utils'
 
 type SidebarSectionView = {
   id: SidebarSection

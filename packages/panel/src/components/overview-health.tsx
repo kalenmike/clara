@@ -1,3 +1,4 @@
+import { Button } from '@clara/ui/components/button'
 import {
   Bell,
   Cable,
@@ -78,9 +79,14 @@ export function AttentionBanner({
         {items.map((item, index) => (
           <span key={item.key}>
             {index > 0 ? ' · ' : null}
-            <button type="button" className="panel-link" onClick={() => onSelect(item.tab)}>
+            <Button
+              type="button"
+              variant="link"
+              className="inline h-auto p-0 text-xs"
+              onClick={() => onSelect(item.tab)}
+            >
               {item.label}: {item.status}
-            </button>
+            </Button>
           </span>
         ))}
       </span>

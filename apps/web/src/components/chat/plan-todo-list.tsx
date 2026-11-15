@@ -1,6 +1,6 @@
 import { Circle, CircleCheck, CircleDot, CircleSlash } from 'lucide-react'
 import type { PlanTodo, PlanTodoStatus } from '@/features/chat/session-plan'
-import { cn } from '@/lib/utils'
+import { cn } from '@clara/ui/lib/utils'
 
 /** Read-only checklist shared by the session Plan dock and running agents. */
 export function PlanTodoList({

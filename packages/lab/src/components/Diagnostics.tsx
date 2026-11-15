@@ -1,4 +1,5 @@
 import type { Diagnostic } from '../types'
+import { Button } from '@clara/ui/components/button'
 import { Badge } from './Badge'
 
 export function Diagnostics({
@@ -36,13 +37,14 @@ export function Diagnostics({
           <span className="diagnostic-code">{diagnostic.code}</span>
           <span className="diagnostic-message">{diagnostic.message}</span>
           {diagnostic.path && onOpenSource ? (
-            <button
+            <Button
               type="button"
-              className="link"
+              variant="link"
+              className="inline h-auto p-0 text-xs"
               onClick={() => onOpenSource(diagnostic.path as string)}
             >
               {diagnostic.path}
-            </button>
+            </Button>
           ) : diagnostic.path ? (
             <span className="muted">{diagnostic.path}</span>
           ) : null}

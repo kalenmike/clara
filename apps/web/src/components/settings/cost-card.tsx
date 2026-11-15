@@ -1,7 +1,13 @@
 import { Check, Coins } from 'lucide-react'
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
+import {
+  Card,
+  CardContent,
+  CardDescription,
+  CardHeader,
+  CardTitle,
+} from '@clara/ui/components/card'
 import { useCostDisplay } from '@/features/cost/use-cost-display'
-import { cn } from '@/lib/utils'
+import { cn } from '@clara/ui/lib/utils'
 
 const SOURCES = [
   {

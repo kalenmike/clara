@@ -11,10 +11,14 @@ import {
   Wrench,
 } from 'lucide-react'
 import type { ClaraSessionMessageAssistantTool, ClaraToolContent } from '@clara/api-contract'
-import { Badge } from '@/components/ui/badge'
-import { Collapsible, CollapsibleContent, CollapsibleTrigger } from '@/components/ui/collapsible'
+import { Badge } from '@clara/ui/components/badge'
+import {
+  Collapsible,
+  CollapsibleContent,
+  CollapsibleTrigger,
+} from '@clara/ui/components/collapsible'
 import { formatDuration } from '@/lib/format'
-import { cn } from '@/lib/utils'
+import { cn } from '@clara/ui/lib/utils'
 
 function toolIcon(name: string) {
   switch (name) {

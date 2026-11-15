@@ -1,5 +1,14 @@
 import { Suspense, useEffect, useState } from 'react'
 import { Bell, Radio, Server, Settings2 } from 'lucide-react'
+import { Button } from '@clara/ui/components/button'
+import { Input } from '@clara/ui/components/input'
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from '@clara/ui/components/select'
 import type {
   LocalAccessMode,
   PanelAgentInfo,
@@ -239,26 +248,30 @@ function LocalAccessControl({
       <div className="mt-2 grid gap-2 rounded-md border border-border p-2">
         <label className="grid gap-1 text-[11px] font-medium text-foreground">
           Listen on
-          <select
+          <Select
             value={mode}
-            onChange={(event) => setMode(event.target.value as LocalAccessMode)}
+            onValueChange={(value) => setMode(value as LocalAccessMode)}
             disabled={locked || saving}
-            className="w-full rounded-md border border-border bg-card px-2 py-1.5 text-xs"
           >
-            <option value="loopback">This machine only (127.0.0.1)</option>
-            <option value="docker">This machine and local Docker containers</option>
-            <option value="lan">All interfaces (LAN and Docker)</option>
-            <option value="custom">Custom address</option>
-          </select>
+            <SelectTrigger className="w-full">
+              <SelectValue />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value="loopback">This machine only (127.0.0.1)</SelectItem>
+              <SelectItem value="docker">This machine and local Docker containers</SelectItem>
+              <SelectItem value="lan">All interfaces (LAN and Docker)</SelectItem>
+              <SelectItem value="custom">Custom address</SelectItem>
+            </SelectContent>
+          </Select>
         </label>
         {mode === 'custom' ? (
-          <input
+          <Input
             value={custom}
             onChange={(event) => setCustom(event.target.value)}
             placeholder="192.168.1.20"
             spellCheck={false}
             disabled={locked || saving}
-            className="w-full rounded-md border border-border bg-card px-2 py-1.5 font-mono text-[11px]"
+            className="font-mono text-xs"
           />
         ) : null}
         {wildcard ? (
@@ -275,14 +288,14 @@ function LocalAccessControl({
         ) : null}
         {error ? <Notice tone="danger">{redact(error)}</Notice> : null}
         <div className="flex justify-end">
-          <button
+          <Button
             type="button"
+            variant="outline"
             onClick={save}
             disabled={locked || saving || (mode === 'custom' && !custom.trim())}
-            className="panel-button"
           >
             {saving ? 'Saving…' : 'Save direct access'}
-          </button>
+          </Button>
         </div>
       </div>
       {addresses.length > 0 ? (
@@ -493,22 +506,22 @@ export function PushCard({
         {push.storageError ? <Notice>{redact(push.storageError)}</Notice> : null}
         {canManageStorage ? (
           <div className="flex flex-wrap items-center gap-2 pt-3">
-            <button
+            <Button
               type="button"
-              className="panel-button"
+              variant="outline"
               onClick={storage.reload}
               disabled={storage.pending !== null}
             >
               {storage.pending === 'reload' ? 'Checking…' : 'Retry storage'}
-            </button>
-            <button
+            </Button>
+            <Button
               type="button"
-              className="panel-button danger"
+              variant="destructive"
               onClick={() => setConfirmReset(true)}
               disabled={storage.pending !== null}
             >
               Reset subscriptions
-            </button>
+            </Button>
           </div>
         ) : null}
         {push.error ? <Notice>{redact(push.error)}</Notice> : null}
@@ -723,7 +736,7 @@ export function ConfigEditorRow({
         <SourceTag source={sourceText} />
       </div>
       <div className="mt-1.5 flex flex-wrap items-center gap-2">
-        <input
+        <Input
           id={id}
           type="text"
           inputMode="url"
@@ -734,24 +747,26 @@ export function ConfigEditorRow({
             setDraft(event.target.value)
             setDirty(true)
           }}
-          className={`min-w-0 flex-1 rounded-lg border border-border bg-card px-2.5 py-1.5 text-xs text-foreground shadow-sm outline-none transition focus:border-ring disabled:cursor-not-allowed disabled:bg-muted disabled:text-muted-foreground ${mono ? 'font-mono' : ''}`}
+          className={`min-w-0 flex-1 ${mono ? 'font-mono' : ''}`}
         />
-        <button
+        <Button
           type="button"
+          variant="outline"
+          size="xs"
           onClick={save}
           disabled={disabled || !dirty}
-          className="inline-flex items-center rounded-md border border-border px-2 py-1 text-[11px] font-medium transition hover:bg-accent disabled:cursor-not-allowed disabled:opacity-50"
         >
           Save
-        </button>
-        <button
+        </Button>
+        <Button
           type="button"
+          variant="outline"
+          size="xs"
           onClick={clear}
           disabled={disabled || source === 'default'}
-          className="inline-flex items-center rounded-md border border-border px-2 py-1 text-[11px] font-medium transition hover:bg-accent disabled:cursor-not-allowed disabled:opacity-50"
         >
           Use default
-        </button>
+        </Button>
       </div>
       <p className="mt-1 text-[11px] text-muted-foreground">
         {locked ? envHint : source === 'file' ? `${hint} ${savedHint}` : `${hint} ${defaultHint}`}

@@ -1,11 +1,17 @@
 import { useTheme } from 'next-themes'
 import { Check, Monitor, Moon, Palette, Sun } from 'lucide-react'
-import { Button } from '@/components/ui/button'
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
-import { Separator } from '@/components/ui/separator'
+import { Button } from '@clara/ui/components/button'
+import {
+  Card,
+  CardContent,
+  CardDescription,
+  CardHeader,
+  CardTitle,
+} from '@clara/ui/components/card'
+import { Separator } from '@clara/ui/components/separator'
 import { COLOR_THEMES } from '@/features/theme/color-theme'
 import { useColorTheme } from '@/features/theme/use-color-theme'
-import { cn } from '@/lib/utils'
+import { cn } from '@clara/ui/lib/utils'
 
 const MODES = [
   { value: 'light', label: 'Light', icon: Sun },

@@ -1,7 +1,7 @@
 import { useRef, type ComponentProps } from 'react'
 import type { ClaraSession } from '@clara/api-contract'
 import { Loader2 } from 'lucide-react'
-import { Button } from '@/components/ui/button'
+import { Button } from '@clara/ui/components/button'
 import {
   Dialog,
   DialogContent,
@@ -9,7 +9,7 @@ import {
   DialogFooter,
   DialogHeader,
   DialogTitle,
-} from '@/components/ui/dialog'
+} from '@clara/ui/components/dialog'
 import { useSessionWording } from '@/features/sessions/use-wording'
 
 export function DeleteSessionDialog({

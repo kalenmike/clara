@@ -1,4 +1,7 @@
 import { useState } from 'react'
+import { Badge, Empty, Field } from './Badge'
+import { SectionCard } from '@clara/ui/patterns/section-card'
+import { Notice } from '@clara/ui/patterns/notice'
 import type { OrcEvent, StepDetail } from '../types'
 import {
   clock,
@@ -9,7 +12,6 @@ import {
   short,
   statusTone,
 } from '../lib/format'
-import { Badge, Field } from './Badge'
 import { InputList } from './Inputs'
 import { CopyButton, JsonView } from './Json'
 import { Markdown } from './Markdown'
@@ -65,7 +67,7 @@ export function RunStepDetail({ step }: { step?: StepDetail }) {
   const [promptFormat, setPromptFormat] = useState<PromptFormat>('md')
   const [resultFormat, setResultFormat] = useState<ResultFormat>('md')
 
-  if (!step) return <div className="empty">Select a step in the tree.</div>
+  if (!step) return <Empty>Select a step in the tree.</Empty>
 
   const prompt = step.prompt ?? ''
   const resultText = step.result ?? ''
@@ -99,11 +101,11 @@ export function RunStepDetail({ step }: { step?: StepDetail }) {
         />
       </div>
 
-      {step.error ? <div className="banner bad">{step.error}</div> : null}
+      {step.error ? <Notice tone="danger">{step.error}</Notice> : null}
 
-      <details className="panel step-panel">
-        <summary>
-          <span>Prompt</span>
+      <SectionCard
+        title="Prompt"
+        control={
           <FormatToggle
             label="Prompt format"
             value={promptFormat}
@@ -113,7 +115,9 @@ export function RunStepDetail({ step }: { step?: StepDetail }) {
             ]}
             onChange={setPromptFormat}
           />
-        </summary>
+        }
+        collapsible
+      >
         <div className="step-panel-body">
           {prompt ? (
             promptFormat === 'md' ? (
@@ -125,11 +129,11 @@ export function RunStepDetail({ step }: { step?: StepDetail }) {
             <div className="muted">(no prompt)</div>
           )}
         </div>
-      </details>
+      </SectionCard>
 
-      <details className="panel step-panel">
-        <summary>
-          <span>Result</span>
+      <SectionCard
+        title="Result"
+        control={
           <FormatToggle
             label="Result format"
             value={resultFormat}
@@ -140,7 +144,9 @@ export function RunStepDetail({ step }: { step?: StepDetail }) {
             ]}
             onChange={setResultFormat}
           />
-        </summary>
+        }
+        collapsible
+      >
         <div className="step-panel-body">
           {resultText ? (
             resultFormat === 'md' ? (
@@ -161,15 +167,13 @@ export function RunStepDetail({ step }: { step?: StepDetail }) {
             <div className="muted">No result recorded.</div>
           )}
         </div>
-      </details>
+      </SectionCard>
 
-      <details className="panel step-panel">
-        <summary>
-          <span>Inputs</span>
-          <span className="muted">
-            {step.inputs.length ? `${step.inputs.length} declared` : 'none'}
-          </span>
-        </summary>
+      <SectionCard
+        title="Inputs"
+        description={step.inputs.length ? `${step.inputs.length} declared` : 'none'}
+        collapsible
+      >
         <div className="step-panel-body">
           <InputList
             inputs={step.inputs}
@@ -177,10 +181,9 @@ export function RunStepDetail({ step }: { step?: StepDetail }) {
             empty="No inputs are declared for this step."
           />
         </div>
-      </details>
+      </SectionCard>
 
-      <details className="panel step-panel">
-        <summary>Policy, limits, and raw step</summary>
+      <SectionCard title="Policy, limits, and raw step" collapsible>
         <div className="step-panel-body">
           <h4>Policy</h4>
           <JsonView value={parseMaybeJson(step.policy ?? '')} empty="No policy recorded." />
@@ -192,13 +195,13 @@ export function RunStepDetail({ step }: { step?: StepDetail }) {
           </div>
           <JsonView value={step} />
         </div>
-      </details>
+      </SectionCard>
     </div>
   )
 }
 
 export function RunEvents({ events }: { events: OrcEvent[] }) {
-  if (!events.length) return <div className="empty">No events for this run yet.</div>
+  if (!events.length) return <Empty>No events for this run yet.</Empty>
   return (
     <div className="event-list">
       {events

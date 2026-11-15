@@ -1,10 +1,10 @@
 import { useMemo, useState } from 'react'
+import { Badge, Empty, Field } from './Badge'
 import { computeBudget } from '@clara/policy'
 import type { CompiledNode } from '../types'
 import { modelLabel } from '../lib/format'
 import { findCompiledNode } from '../lib/tree'
 import { JsonView, CopyButton } from './Json'
-import { Badge, Field } from './Badge'
 import { SourceView } from './SourceView'
 
 const TABS = ['prompt', 'inputs', 'policy', 'limits', 'routes', 'source', 'raw'] as const
@@ -15,7 +15,7 @@ export function Inspector({ node, root }: { node?: CompiledNode; root?: Compiled
   const budget = useMemo(() => (node ? computeBudget(node.limits, 1) : undefined), [node])
 
   if (!node) {
-    return <div className="empty">Select a step to inspect it.</div>
+    return <Empty>Select a step to inspect it.</Empty>
   }
 
   return (
@@ -147,7 +147,7 @@ export function Inspector({ node, root }: { node?: CompiledNode; root?: Compiled
               ))}
             </div>
           ) : (
-            <div className="empty">This node has no routes.</div>
+            <Empty>This node has no routes.</Empty>
           )}
         </div>
       ) : null}

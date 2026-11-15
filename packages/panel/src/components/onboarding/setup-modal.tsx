@@ -1,5 +1,6 @@
 import { useEffect, useRef, useState } from 'react'
 import { Check, ChevronLeft, ChevronRight, X } from 'lucide-react'
+import { Button } from '@clara/ui/components/button'
 import type { PanelSnapshot } from '@clara/shared-types'
 import type { SetupPath, SetupState } from '../../lib/onboarding.ts'
 import type { SetupModalMode } from '../../lib/use-onboarding.ts'
@@ -108,22 +109,24 @@ export function SetupModal({
       <div className="panel-setup-card">
         <header className="panel-setup-head">
           <div className="min-w-0">
-            <div className="panel-muted text-[10px] font-semibold tracking-[0.08em] uppercase">
+            <div className="text-muted-foreground text-[10px] font-semibold tracking-[0.08em] uppercase">
               Clara hub
             </div>
             <h2 id="panel-setup-title" className="mt-0.5 text-base font-semibold">
               {title}
             </h2>
-            <p className="panel-muted mt-1 text-xs">{description}</p>
+            <p className="text-muted-foreground mt-1 text-xs">{description}</p>
           </div>
-          <button
+          <Button
             type="button"
+            variant="ghost"
+            size="icon"
             onClick={onClose}
             aria-label="Close setup"
-            className="panel-icon-button shrink-0"
+            className="shrink-0"
           >
             <X className="size-4" aria-hidden="true" />
-          </button>
+          </Button>
         </header>
 
         {isGuide ? null : (
@@ -146,7 +149,7 @@ export function SetupModal({
                   <span
                     key={item.id}
                     className={`flex items-center gap-1.5 text-[11px] ${
-                      item.id === step ? 'font-semibold text-foreground' : 'panel-muted'
+                      item.id === step ? 'font-semibold text-foreground' : 'text-muted-foreground'
                     }`}
                   >
                     <span
@@ -164,7 +167,7 @@ export function SetupModal({
                 )
               })}
             </div>
-            <span className="panel-muted text-[10px]">
+            <span className="text-muted-foreground text-[10px]">
               {setup.progress.done} of {setup.progress.total} required steps
             </span>
           </div>
@@ -191,36 +194,31 @@ export function SetupModal({
         <footer className="panel-setup-foot">
           <div>
             {isGuide ? (
-              <button type="button" onClick={onFinish} className="panel-button">
+              <Button type="button" variant="outline" onClick={onFinish}>
                 Close
-              </button>
+              </Button>
             ) : (
-              <button type="button" onClick={onClose} className="panel-link text-xs">
+              <Button type="button" variant="link" onClick={onClose} className="h-auto p-0 text-xs">
                 Skip for now
-              </button>
+              </Button>
             )}
           </div>
           <div className="flex items-center gap-2">
             {!isGuide && stepIndex > 0 ? (
-              <button type="button" onClick={back} className="panel-button">
+              <Button type="button" variant="outline" onClick={back}>
                 <ChevronLeft className="size-3.5" aria-hidden="true" />
                 Back
-              </button>
+              </Button>
             ) : null}
             {isGuide ? (
-              <button type="button" onClick={onFinish} className="panel-button primary">
+              <Button type="button" onClick={onFinish}>
                 Done
-              </button>
+              </Button>
             ) : (
-              <button
-                type="button"
-                onClick={next}
-                disabled={!canContinue}
-                className="panel-button primary"
-              >
+              <Button type="button" onClick={next} disabled={!canContinue}>
                 {step === 'ready' ? 'Done' : 'Continue'}
                 {step === 'ready' ? null : <ChevronRight className="size-3.5" aria-hidden="true" />}
-              </button>
+              </Button>
             )}
           </div>
         </footer>

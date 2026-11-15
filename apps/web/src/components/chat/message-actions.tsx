@@ -1,11 +1,11 @@
 import { Forward, GitFork, MoreHorizontal, TextSelect } from 'lucide-react'
-import { Button } from '@/components/ui/button'
+import { Button } from '@clara/ui/components/button'
 import {
   DropdownMenu,
   DropdownMenuContent,
   DropdownMenuItem,
   DropdownMenuTrigger,
-} from '@/components/ui/dropdown-menu'
+} from '@clara/ui/components/dropdown-menu'
 import { useSessionWording } from '@/features/sessions/use-wording'
 
 export function MessageActions({

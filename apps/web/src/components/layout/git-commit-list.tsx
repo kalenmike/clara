@@ -1,6 +1,6 @@
 import { AlertCircle, GitCommitHorizontal } from 'lucide-react'
-import { Button } from '@/components/ui/button'
-import { Skeleton } from '@/components/ui/skeleton'
+import { Button } from '@clara/ui/components/button'
+import { Skeleton } from '@clara/ui/components/skeleton'
 import { gitHistoryFailure, useGitCommits, type CommitWindow } from '@/features/git/use-git'
 import { errorMessage } from '@/lib/errors'
 import { GitCommitRow } from './git-commit-row'

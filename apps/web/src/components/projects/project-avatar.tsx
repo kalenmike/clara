@@ -7,7 +7,7 @@ import {
   type ProjectAvatarColor,
   type ProjectAvatarSource,
 } from '@/features/projects/project-avatar'
-import { cn } from '@/lib/utils'
+import { cn } from '@clara/ui/lib/utils'
 
 const SIZES = {
   xs: { box: 'size-5 rounded', icon: 'size-3', text: 'text-[10px]', ring: 'ring-1' },

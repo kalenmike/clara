@@ -1,27 +1,15 @@
-import { useEffect, useId, useState, type ReactNode } from 'react'
-import { Check, ChevronDown, CircleAlert, Copy } from 'lucide-react'
+import type { ReactNode } from 'react'
+import { Badge as UiBadge } from '@clara/ui/components/badge'
+import { Switch } from '@clara/ui/components/switch'
+import { CopyButton as SharedCopyButton } from '@clara/ui/patterns/copy-button'
+import { EmptyState as SharedEmptyState } from '@clara/ui/patterns/empty-state'
+import { KeyValue as SharedKeyValue } from '@clara/ui/patterns/key-value'
+import { Notice as SharedNotice } from '@clara/ui/patterns/notice'
+import { SectionCard } from '@clara/ui/patterns/section-card'
+import { StatusBadge, type StatusTone } from '@clara/ui/patterns/status-badge'
 import { toggleTrackClasses } from '../lib/toggle-accent.ts'
 
-export type Tone = 'neutral' | 'success' | 'warning' | 'danger' | 'info'
-
-const TONE_CLASSES: Record<Tone, string> = {
-  neutral: 'border-border bg-muted text-foreground',
-  success:
-    'border-emerald-200 bg-emerald-50 text-emerald-700 dark:border-emerald-900 dark:bg-emerald-950 dark:text-emerald-300',
-  warning:
-    'border-amber-200 bg-amber-50 text-amber-800 dark:border-amber-900 dark:bg-amber-950 dark:text-amber-300',
-  danger:
-    'border-red-200 bg-red-50 text-red-700 dark:border-red-900 dark:bg-red-950 dark:text-red-300',
-  info: 'border-sky-200 bg-sky-50 text-sky-700 dark:border-sky-900 dark:bg-sky-950 dark:text-sky-300',
-}
-
-const DOT_CLASSES: Record<Tone, string> = {
-  neutral: 'bg-muted-foreground',
-  success: 'bg-emerald-500',
-  warning: 'bg-amber-500',
-  danger: 'bg-red-500',
-  info: 'bg-sky-500',
-}
+export type Tone = StatusTone
 
 export function CollapsibleCard({
   title,
@@ -46,54 +34,29 @@ export function CollapsibleCard({
   notice?: ReactNode
   children: ReactNode
 }) {
-  const bodyId = useId()
-  const [expanded, setExpanded] = useState(defaultExpanded)
-
-  useEffect(() => {
-    if (!expandable) setExpanded(false)
-  }, [expandable])
-
   return (
-    <section className="panel-card">
-      <div className="panel-card-head flex items-start justify-between gap-3">
-        <div
-          className={`relative flex min-w-0 flex-1 items-start gap-2 ${expandable ? 'cursor-pointer' : ''}`}
-        >
-          {expandable ? (
-            <button
-              type="button"
-              onClick={() => setExpanded((value) => !value)}
-              aria-expanded={expanded}
-              aria-controls={bodyId}
-              aria-label={`${expanded ? 'Collapse' : 'Expand'} ${title}`}
-              className="absolute inset-0 rounded-md focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-ring"
-            />
-          ) : null}
-          <span className="mt-0.5 shrink-0">{icon}</span>
-          <div className="min-w-0 flex-1">
-            <h2 className="flex flex-wrap items-center gap-2 text-sm font-semibold text-foreground">
-              {title}
-              {action}
-              {expandable ? (
-                <ChevronDown
-                  className={`size-3.5 shrink-0 text-muted-foreground transition ${expanded ? 'rotate-180' : ''}`}
-                  aria-hidden="true"
-                />
-              ) : null}
-            </h2>
-            {description ? <p className="panel-muted mt-0.5 text-[11px]">{description}</p> : null}
-          </div>
-        </div>
-        {control ? <div className="relative z-10 shrink-0">{control}</div> : null}
-      </div>
-      {notice}
-      {expandable && expanded ? <div id={bodyId}>{children}</div> : null}
-    </section>
+    <SectionCard
+      as="section"
+      title={
+        <>
+          {title}
+          {action}
+        </>
+      }
+      description={description}
+      icon={icon}
+      control={control}
+      notice={notice}
+      collapsible={expandable}
+      defaultOpen={defaultExpanded}
+    >
+      {expandable ? children : null}
+    </SectionCard>
   )
 }
 
 export function CardBody({ children }: { children: ReactNode }) {
-  return <div className="space-y-1 px-3 py-2.5">{children}</div>
+  return <div className="space-y-1">{children}</div>
 }
 
 export type ToggleState = 'off' | 'pending' | 'on'
@@ -117,90 +80,58 @@ export function Toggle({
   title?: string
 }) {
   return (
-    <button
-      type="button"
-      role="switch"
-      aria-checked={checked}
+    <Switch
+      checked={checked}
+      onCheckedChange={onChange}
       aria-label={label}
       title={title}
-      onClick={onChange}
       disabled={disabled}
-      className={`relative inline-flex h-6 w-11 shrink-0 items-center rounded-full border transition disabled:cursor-not-allowed disabled:opacity-50 ${toggleTrackClasses(state, stopped)}`}
-    >
-      <span
-        className={`inline-block size-4 rounded-full bg-white shadow transition ${
-          checked ? 'translate-x-6' : 'translate-x-1'
-        }`}
-      />
-    </button>
+      className={toggleTrackClasses(state, stopped)}
+    />
   )
 }
 
 export function Notice({
   children,
   tone = 'warning',
+  title,
 }: {
   children: ReactNode
-  tone?: 'warning' | 'danger' | 'success'
+  tone?: 'warning' | 'danger' | 'success' | 'info'
+  title?: ReactNode
 }) {
-  const classes =
-    tone === 'danger'
-      ? 'bg-red-50 text-red-700 dark:bg-red-950/50 dark:text-red-300'
-      : tone === 'success'
-        ? 'bg-emerald-50 text-emerald-700 dark:bg-emerald-950/50 dark:text-emerald-300'
-        : 'bg-amber-50 text-amber-800 dark:bg-amber-950/50 dark:text-amber-300'
   return (
-    <p className={`flex items-start gap-1.5 rounded-md px-2.5 py-2 text-xs ${classes}`}>
-      <CircleAlert className="mt-0.5 size-3.5 shrink-0" aria-hidden="true" />
-      <span>{children}</span>
-    </p>
+    <SharedNotice tone={tone} title={title}>
+      {children}
+    </SharedNotice>
   )
 }
 
 export function Badge({ children, tone = 'neutral' }: { children: ReactNode; tone?: Tone }) {
-  return (
-    <span
-      className={`inline-flex items-center gap-1.5 rounded-[3px] border px-1.5 py-0.5 text-[10px] font-semibold uppercase tracking-wide ${TONE_CLASSES[tone]}`}
-    >
-      <span className={`size-1.5 rounded-full ${DOT_CLASSES[tone]}`} aria-hidden="true" />
-      {children}
-    </span>
-  )
+  return <StatusBadge tone={tone}>{children}</StatusBadge>
 }
 
-export function KeyValue({
-  label,
-  children,
-  mono = false,
-  title,
-}: {
-  label: string
+export function KeyValue(props: {
+  label: ReactNode
   children: ReactNode
   mono?: boolean
   title?: string
 }) {
-  return (
-    <div className="flex items-start justify-between gap-4 border-b border-border py-1 text-xs last:border-0">
-      <span className="shrink-0 text-muted-foreground">{label}</span>
-      <span
-        className={`min-w-0 break-words text-right text-foreground ${mono ? 'panel-mono text-[11px]' : ''}`}
-        title={title}
-      >
-        {children}
-      </span>
-    </div>
-  )
+  return <SharedKeyValue {...props} />
 }
 
 export function Muted({ children }: { children: ReactNode }) {
-  return <span className="panel-muted">{children}</span>
+  return <span className="text-muted-foreground">{children}</span>
 }
 
 export function SourceTag({ source }: { source: string }) {
   return (
-    <span className="rounded-[3px] border border-border px-1.5 py-0.5 text-[10px] font-medium uppercase tracking-wide text-muted-foreground">
+    <UiBadge
+      variant="outline"
+      className="rounded px-1.5 py-0.5 text-[10px] font-medium tracking-wide uppercase"
+    >
       {source}
-    </span>
+    </UiBadge>
   )
 }
 
@@ -215,45 +146,9 @@ export function CopyButton({
   onError?: (message: string) => void
   variant?: 'compact' | 'block'
 }) {
-  const [state, setState] = useState<'idle' | 'copied' | 'error'>('idle')
-
-  useEffect(() => {
-    if (state === 'idle') return
-    const timer = window.setTimeout(() => setState('idle'), 2_000)
-    return () => window.clearTimeout(timer)
-  }, [state])
-
-  const copy = async () => {
-    try {
-      await navigator.clipboard.writeText(value)
-      setState('copied')
-    } catch {
-      setState('error')
-      onError?.('Could not copy to the clipboard')
-    }
-  }
-
-  return (
-    <button
-      type="button"
-      onClick={() => void copy()}
-      className={
-        variant === 'block'
-          ? 'panel-button w-full'
-          : 'inline-flex cursor-pointer items-center gap-1 rounded-md border border-border px-1.5 py-1 text-[11px] text-foreground transition hover:border-border hover:bg-accent active:translate-y-px focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-ring'
-      }
-      aria-label={label}
-    >
-      {state === 'copied' ? (
-        <Check className="size-3" aria-hidden="true" />
-      ) : (
-        <Copy className="size-3" aria-hidden="true" />
-      )}
-      {state === 'copied' ? 'Copied' : state === 'error' ? 'Failed' : label}
-    </button>
-  )
+  return <SharedCopyButton value={value} label={label} onError={onError} variant={variant} />
 }
 
 export function EmptyState({ children }: { children: ReactNode }) {
-  return <p className="panel-empty">{children}</p>
+  return <SharedEmptyState>{children}</SharedEmptyState>
 }

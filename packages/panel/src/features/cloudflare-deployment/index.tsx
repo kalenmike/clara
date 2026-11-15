@@ -1,5 +1,6 @@
 import { useState } from 'react'
 import { Cloud, RefreshCw, Trash2 } from 'lucide-react'
+import { Button } from '@clara/ui/components/button'
 import { formatRelative, formatTimestamp } from '../../lib/format.ts'
 import { postPanel } from '../../lib/panel-api.ts'
 import { usePeek } from '../../lib/peek-context.tsx'
@@ -115,24 +116,16 @@ export default function CloudflareRelaySlot({ relay, now, onChanged }: Cloudflar
         </Notice>
       ) : null}
       {notice ? <Notice tone="warning">{redact(notice)}</Notice> : null}
-      {success ? (
-        <p className="rounded-md bg-emerald-50 px-2.5 py-2 text-xs text-emerald-700 dark:bg-emerald-950/50 dark:text-emerald-300">
-          {redact(success)}
-        </p>
-      ) : null}
+      {success ? <Notice tone="success">{redact(success)}</Notice> : null}
       {error ? <Notice tone="danger">{redact(error)}</Notice> : null}
 
       <div className="flex flex-wrap gap-2 pt-1">
         {canDeploy ? (
-          <button
+          <Button
             type="button"
+            variant={cloudflare.managed ? 'outline' : 'default'}
             onClick={() => setOpen((value) => !value)}
             disabled={forgetting}
-            className={
-              cloudflare.managed
-                ? 'inline-flex items-center gap-1.5 rounded-lg border border-border px-2.5 py-1.5 text-xs font-semibold transition hover:bg-accent disabled:opacity-60'
-                : 'inline-flex items-center gap-1.5 rounded-lg bg-sky-600 px-2.5 py-1.5 text-xs font-semibold text-white shadow-sm transition hover:bg-sky-500 disabled:cursor-not-allowed disabled:opacity-60'
-            }
           >
             {cloudflare.managed ? (
               <RefreshCw className="size-3.5" aria-hidden="true" />
@@ -140,18 +133,18 @@ export default function CloudflareRelaySlot({ relay, now, onChanged }: Cloudflar
               <Cloud className="size-3.5" aria-hidden="true" />
             )}
             {open ? 'Close' : cloudflare.managed ? 'Deploy again' : 'Deploy relay to Cloudflare'}
-          </button>
+          </Button>
         ) : null}
         {cloudflare.tokenStored ? (
-          <button
+          <Button
             type="button"
+            variant="outline"
             onClick={() => void forget()}
             disabled={forgetting}
-            className="inline-flex items-center gap-1.5 rounded-lg border border-border px-2.5 py-1.5 text-xs font-semibold transition hover:bg-accent disabled:opacity-60"
           >
             <Trash2 className="size-3.5" aria-hidden="true" />
             {forgetting ? 'Forgetting…' : 'Forget token'}
-          </button>
+          </Button>
         ) : null}
       </div>
 
