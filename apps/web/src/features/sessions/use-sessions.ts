@@ -1,4 +1,4 @@
-import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
+import { useInfiniteQuery, useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import type { ClaraSession } from '@clara/api-contract'
 import {
   isSnoozedSession,
@@ -7,6 +7,9 @@ import {
 } from '@/features/sessions/session-snooze'
 import { queryKeys } from '@/lib/query-keys'
 import { useConnection } from '@/providers/connection-provider'
+
+/** Archived rows are older and read on demand instead of with the active list. */
+export const ARCHIVED_SESSIONS_PAGE_SIZE = 20
 
 export function useSessions(projectID: string | null, search: string, enabled = true) {
   const { client } = useConnection()
@@ -25,15 +28,18 @@ export function useSessions(projectID: string | null, search: string, enabled = 
 
 export function useArchivedSessions(projectID: string | null, search: string, enabled = true) {
   const { client } = useConnection()
-  return useQuery({
+  return useInfiniteQuery({
     queryKey: [...queryKeys.archivedSessions(projectID), search],
-    queryFn: () =>
+    queryFn: ({ pageParam }) =>
       client!.session.list({
         project: projectID ?? undefined,
         search: search.trim() || undefined,
         archived: true,
-        limit: 50,
+        limit: ARCHIVED_SESSIONS_PAGE_SIZE,
+        cursor: pageParam,
       }),
+    initialPageParam: undefined as string | undefined,
+    getNextPageParam: (lastPage) => lastPage.cursor?.next ?? undefined,
     enabled: Boolean(client) && enabled,
   })
 }

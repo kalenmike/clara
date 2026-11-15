@@ -53,7 +53,11 @@ import {
 import { findProject, useProjects } from '@/features/projects/use-projects'
 import { resolveDeleteFocusTarget } from '@/features/sessions/delete-focus'
 import { isArchivedSession } from '@/features/sessions/session-archive'
-import { groupSessionsByMailbox, mergeSessionLists } from '@/features/sessions/session-sections'
+import {
+  groupSessionsByMailbox,
+  mergeSessionLists,
+  mergeSessionPages,
+} from '@/features/sessions/session-sections'
 import { resolveSessionStatus } from '@/features/sessions/session-status'
 import {
   pruneSelection,
@@ -94,6 +98,8 @@ type SidebarSectionView = {
   id: SidebarSection
   label: string
   sessions: ClaraSession[]
+  /** Older rows are available from the next cursor page. */
+  hasMore?: boolean
 }
 
 export function Sidebar() {
@@ -234,7 +240,10 @@ export function SidebarContent({
   }, [selectedProject])
 
   const sessions = useMemo(() => sessionsQuery.data?.data ?? [], [sessionsQuery.data])
-  const archivedSessions = useMemo(() => archivedQuery.data?.data ?? [], [archivedQuery.data])
+  const archivedSessions = useMemo(
+    () => mergeSessionPages(archivedQuery.data?.pages.map((page) => page.data) ?? []),
+    [archivedQuery.data]
+  )
   const allSessions = useMemo(
     () => mergeSessionLists(sessions, archivedSessions),
     [sessions, archivedSessions]
@@ -275,9 +284,14 @@ export function SidebarContent({
       { id: 'outbox', label: 'Outbox', sessions: grouped.outbox },
       { id: 'drafts', label: 'Drafts', sessions: grouped.drafts },
       { id: 'snoozed', label: 'Snoozed', sessions: grouped.snoozed },
-      { id: 'archived', label: 'Archived', sessions: grouped.archived },
+      {
+        id: 'archived',
+        label: 'Archived',
+        sessions: grouped.archived,
+        hasMore: archivedQuery.hasNextPage,
+      },
     ],
-    [grouped]
+    [archivedQuery.hasNextPage, grouped]
   )
 
   const renderedIDs = useMemo(() => {
@@ -932,10 +946,32 @@ export function SidebarContent({
                     />
                     <span>{section.label}</span>
                     <span className="ml-auto min-w-4 pr-1 text-right tabular-nums">
-                      {section.sessions.length}
+                      {section.hasMore ? `${section.sessions.length}+` : section.sessions.length}
                     </span>
                   </CollapsibleTrigger>
-                  <CollapsibleContent>{renderSessionRows(section)}</CollapsibleContent>
+                  <CollapsibleContent>
+                    {renderSessionRows(section)}
+                    {section.id === 'archived' && archivedQuery.hasNextPage && (
+                      <div className="px-2 pb-1">
+                        <Button
+                          variant="ghost"
+                          size="sm"
+                          className="h-8 w-full justify-center text-xs text-muted-foreground"
+                          onClick={() => void archivedQuery.fetchNextPage()}
+                          disabled={archivedQuery.isFetchingNextPage}
+                        >
+                          {archivedQuery.isFetchingNextPage ? (
+                            <>
+                              <Loader2 className="size-3.5 animate-spin" />
+                              Loading…
+                            </>
+                          ) : (
+                            'Load more'
+                          )}
+                        </Button>
+                      </div>
+                    )}
+                  </CollapsibleContent>
                 </Collapsible>
               </div>
             )
