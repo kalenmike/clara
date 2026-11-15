@@ -252,6 +252,10 @@ connection keeps that state; use **Forget** only when you want to discard it.
   run the installer by hand.
 - **The adapter release is unavailable** — the registry manifest could not be
   read. Check **Settings → Adapter downloads** and the registry URL.
+- **The adapter is behind the registry** — **Settings → Adapter downloads**
+  shows the installed version beside the published one when they differ.
+  Reinstall the adapter with a new pairing code to update it; the hub never
+  upgrades an adapter by itself.
 - **OpenCode needs a password over SSH** — the one-click install cannot prompt.
   Set `OPENCODE_PASSWORD` on the target, or run the manual installer
   interactively.
