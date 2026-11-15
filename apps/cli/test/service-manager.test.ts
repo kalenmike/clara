@@ -77,6 +77,6 @@ describe('service plans', () => {
 
   it('prints the unit for hosts without a supported manager', () => {
     expect(printService('systemd', options)).toContain('ExecStart=')
-    expect(printService('none', options)).toContain('No supported login service')
+    expect(printService('none', options)).toContain('No supported login manager')
   })
 })

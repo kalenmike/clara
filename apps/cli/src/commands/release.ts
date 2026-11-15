@@ -93,10 +93,16 @@ export async function runUpdateCommand(args: readonly string[]): Promise<number>
 
   if (parsed.options.has('file')) return installFromFile(parsed, wasRunning)
 
-  const check = await checkForUpdate({
-    paths,
-    ...(parsed.options.has('base-url') ? { baseUrl: parsed.options.get('base-url') } : {}),
-  })
+  let check
+  try {
+    check = await checkForUpdate({
+      paths,
+      ...(parsed.options.has('base-url') ? { baseUrl: parsed.options.get('base-url') } : {}),
+    })
+  } catch (cause) {
+    console.error(failure(cause instanceof Error ? cause.message : String(cause)))
+    return 1
+  }
 
   if (parsed.flags.has('check')) {
     console.log(`current   ${check.current}`)

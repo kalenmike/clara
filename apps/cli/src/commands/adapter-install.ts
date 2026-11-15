@@ -47,7 +47,10 @@ export async function runAdapterInstall(args: readonly string[]): Promise<number
     if (spinner) spinner.succeed(`Installed ${record.kind} ${record.version} (${record.platform})`)
     else console.log(success(`Installed ${record.kind} ${record.version} (${record.platform})`))
     printRecord(record)
-    if (record.lastError) console.log(warn(record.lastError))
+    if (record.lastError) {
+      console.log(warn(record.lastError))
+      return 1
+    }
     return 0
   } catch (cause) {
     if (!json) spinner?.fail(`The ${spec.kind} adapter did not install.`)

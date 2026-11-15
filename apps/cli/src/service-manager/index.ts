@@ -102,7 +102,12 @@ export function printService(kind: ServiceKind, options: ServiceOptions): string
   if (kind === 'launchd') return launchdInstallPlan(options).writes[0]?.content ?? ''
   if (kind === 'xdg-autostart') return autostartInstallPlan(options).writes[0]?.content ?? ''
   if (kind === 'task-scheduler') return windowsCommand(options)
-  return 'No supported login service on this host.'
+  return [
+    '# No supported login manager was detected on this host.',
+    '# Install this unit with your init system (systemd shown):',
+    '#   ~/.config/systemd/user/clara.service',
+    systemdInstallPlan(options).writes[0]?.content ?? '',
+  ].join('\n')
 }
 
 function runAction(action: ServiceAction): number {
