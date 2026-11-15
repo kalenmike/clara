@@ -9,9 +9,9 @@ harness and want to see both work in progress and sessions waiting for them.
 
 ## User flow
 
-1. Choose the activity icon in the sidebar header. The page follows the project
-   currently shown in the sidebar: the last project you opened, or the first
-   project when none has been used yet.
+1. Choose **Activity** in the app header. The page follows the project you
+   opened last (or the first project when none has been used yet) and opens as a
+   full-window surface without the project sidebar.
 2. Read the summary for active sessions, Inbox and Outbox counts, harnesses,
    tokens, and reported spend.
 3. Read each harness section. Only harnesses with a workspace in the active
@@ -53,8 +53,8 @@ harness and want to see both work in progress and sessions waiting for them.
 
 ## Edge cases
 
-- **No project selected** — the page explains that a project must be chosen in
-  the sidebar before activity can appear.
+- **No project selected** — the page explains that a project must be opened from
+  Chat before activity can appear.
 - **Project without workspaces** — the page explains that the project needs a
   workspace on a paired harness.
 - **No harnesses available** — the page explains that a harness must be paired
@@ -83,7 +83,8 @@ harness and want to see both work in progress and sessions waiting for them.
 ## Out of scope
 
 - Starting, steering, interrupting, or deleting sessions from this page.
-- Switching the active project from this page; use the sidebar.
+- Switching the active project from this page; open another project in Chat and
+  reopen Activity.
 - Choosing a default harness from this page; there is no hub-wide default.
 - Showing drafts, snoozed sessions, or archived sessions.
 - Estimated spend across harnesses.

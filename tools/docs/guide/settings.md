@@ -6,8 +6,9 @@ sidebar_position: 8
 
 # Settings
 
-Open **Settings** from the app header, or from the start view. The page has seven
-tabs:
+Open **Settings** from the app header. Settings opens full-window, so the
+project sidebar is not shown; the header keeps its section tabs. The page has
+seven tabs:
 Appearance, Preferences, Models, Notifications, Sync, Shortcuts, and Advanced.
 On a narrow screen the tabs become a section menu.
 
