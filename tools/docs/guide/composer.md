@@ -36,7 +36,17 @@ height. The height is remembered; a reload starts pinned.
 ## Tabs
 
 The header is a tab strip with one tab per session. The session you are viewing
-has a highlighted tab with a green dot and cannot be closed.
+has a highlighted tab and cannot be closed.
+
+Every tab carries the same status mark as its sidebar row:
+
+- A pulsing green dot means the agent is running.
+- A pulsing red dot means it is waiting for an answer or an approval.
+- A red dot means the last run failed.
+- An orange dot means a finished plan is ready to review.
+- A grey dot means the session is idle or waiting for you to review a finished
+  reply.
+- An alarm clock means the session is snoozed.
 
 - Leave a session while its composer still has text or attachments, and its tab
   stays so you can come back to the draft.

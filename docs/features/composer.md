@@ -4,7 +4,8 @@
 
 The composer is the always-open panel at the bottom of a session. It has three
 shapes — pinned, maximized, and minimized — and a tab strip that keeps drafts for
-several sessions in reach. It carries prompts, commands, mentions, attachments,
+several sessions in reach, with every tab carrying the same live status mark as
+its sidebar row. It carries prompts, commands, mentions, attachments,
 model and agent selection, waiting question forms, and the plan-ready handoff.
 
 ## User flow
@@ -23,8 +24,8 @@ model and agent selection, waiting question forms, and the plan-ready handoff.
 4. Move to another session. The composer follows the session on screen; the
    previous session keeps its tab when it still has text or attachments.
 5. Select another tab to edit that session's draft without leaving the chat on
-   screen, press its go-to button to open that session, or close the tab to drop
-   the shortcut while keeping the local draft.
+   screen, read its live status mark, press its go-to button to open that
+   session, or close the tab to drop the shortcut while keeping the local draft.
 6. Expand the composer to fill the screen, or collapse it to the tab strip with
    the leading chevron. The chevron restores the last expanded shape from the
    header, while Expand always goes fullscreen, including from a collapsed
@@ -50,8 +51,11 @@ model and agent selection, waiting question forms, and the plan-ready handoff.
    draft; closing is a navigation shortcut, not a delete.
 3. Selecting a tab changes the composer's target without moving the chat. The
    current session's tab keeps its highlight; the selected tab is accent-marked
-   and keeps its go-to and close controls. A send from another tab targets that
-   tab's session and removes the tab once the draft clears.
+   and keeps its go-to and close controls. Every tab carries the same status mark
+   as its sidebar row — snoozed, waiting for input, running, failed, plan ready,
+   finished, or idle — so another session's state is visible without opening it.
+   A send from another tab targets that tab's session and removes the tab once
+   the draft clears.
 4. The send chevron holds every action that is not the primary Send. Done is
    available on an idle, non-archived, non-snoozed session with messages and
    archives it without renaming. Delete removes an empty draft; Reopen clears
@@ -114,7 +118,8 @@ model and agent selection, waiting question forms, and the plan-ready handoff.
   delete the session.
 - Mentions insert a path string rather than attaching the referenced file.
 - A tab's request badge counts pending forms; the ready-plan count is shown for
-  the selected tab only.
+  the selected tab only, though every tab's orange status mark shows a ready
+  plan.
 
 ## Technical appendix
 
@@ -125,11 +130,16 @@ model and agent selection, waiting question forms, and the plan-ready handoff.
   `src/components/chat/composer-tab-strip.tsx`,
   `src/components/chat/composer.tsx`,
   `src/components/chat/composer-request-list.tsx`,
-  `src/components/chat/form-fields.tsx`
+  `src/components/chat/form-fields.tsx`,
+  `src/components/sessions/session-status-icon.tsx`
 - Layout and tabs: `src/features/chat/composer-layout.ts` owns the three shapes,
   `src/features/chat/composer-tabs.ts` owns tab membership, persistence, and the
   close guard, and `src/hooks/use-composer-height.ts` owns the pinned drag and
   keyboard resizing.
+- Tab status: `src/features/chat/use-composer-tab-status.ts` reads the active
+  map, mailbox signals, and pending permissions for one tab;
+  `src/features/sessions/session-status.ts` owns the shared mark precedence and
+  labels used by both tabs and sidebar rows.
 - State: `src/features/chat/composer-provider.tsx` owns the shape, tab order,
   selected session, per-tab drafts, handoff text and files, focus requests, and
   the sent signal. `src/features/chat/composer-session.ts` holds route targets,
