@@ -47,6 +47,7 @@ import { ClientStorageStore } from './store/client-storage.ts'
 import { closeDatabase, openDatabase, schemaVersion } from './store/database.ts'
 import { DeviceStore } from './store/devices.ts'
 import { PanelUserStore } from './store/panel-users.ts'
+import type { PanelEndpoint } from './api/context.ts'
 import { readApiToken } from './api/token.ts'
 import { loadRelayCredentials, saveRelayCredentials } from './store/relay.ts'
 import { readSecretKey } from './store/secret-key.ts'
@@ -298,7 +299,12 @@ async function runServe(
     orchestration: false,
   }
 
+  const panelBindHost = process.env.CLARA_PANEL_BIND_HOST?.trim() || '127.0.0.1'
   let panel: PanelServer | undefined
+  // The API app exists before the panel starts, so the bridge asks for the
+  // listener lazily; a disabled or failed panel resolves to undefined.
+  const panelTarget = (): PanelEndpoint | undefined =>
+    panel ? { host: advertisedHost(panelBindHost, '127.0.0.1'), port: panel.port } : undefined
   const controllerRef: { current?: RuntimeController } = {}
   const publishRuntime = () => {
     const state = runtimeState(config, startedAt, controllerRef.current?.localPort, panel)
@@ -331,6 +337,7 @@ async function runServe(
     startedAt,
     apiToken,
     secretKey,
+    panel: panelTarget,
     onRelayTargetChanged: () => cloudflare?.forgetDeployment(),
     onLocalEndpointChange: publishRuntime,
     log,
@@ -403,7 +410,7 @@ async function runServe(
         install,
         feature: cloudflare?.panel,
         auth,
-        host: process.env.CLARA_PANEL_BIND_HOST?.trim() || '127.0.0.1',
+        host: panelBindHost,
         allowRemote: readBooleanEnv('CLARA_PANEL_ALLOW_REMOTE'),
         port: parsePanelPort(process.env.CLARA_PANEL_PORT, panelPortHint),
         assetsDir,
