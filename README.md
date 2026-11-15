@@ -53,6 +53,8 @@ All new work happens in a task worktree under `../clara-worktrees`:
 pnpm task session start my-change
 # move the session to ../clara-worktrees/my-change, or cd there
 pnpm check && pnpm build
+pnpm cli:build       # Packaged `clara` command (host OS)
+pnpm cli:install     # Install that build for the current user
 pnpm desktop:build   # Clara client installer (host OS)
 pnpm hub:binary      # Clara Hub Bun executable (host OS)
 pnpm hub:headless    # Headless Clara Hub archive for the host OS

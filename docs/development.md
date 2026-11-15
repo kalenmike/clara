@@ -119,6 +119,25 @@ Each build verifies the result:
   are present;
 - disabled: those routes, strings, and the relay artifact are absent.
 
+### Packaged command
+
+`apps/cli` builds the single `clara` executable that carries the hub, panel,
+engine, and web client. It needs Bun 1.4+ and no Rust.
+
+```bash
+pnpm cli:build       # dist/package/<bun-target>/clara
+pnpm cli:install     # stage the host build and link `clara` into ~/.local/bin
+pnpm cli:uninstall   # remove the installed command
+```
+
+`pnpm cli:build` writes `apps/cli/dist/package/<bun-target>/clara` for the host
+target. `pnpm cli:install` never builds: it installs that build under
+`<data>/versions/<version>/clara`, points the user bin directory at it, and
+writes `install.json` with channel `local`, so `clara doctor`, `clara update`,
+and `clara uninstall` treat it as a normal install. Use `--from <file|dir>`,
+`--dry-run`, and `--bin-dir <dir>` to change the source and target. See
+[features/package.md](features/package.md).
+
 ### Panel UI and adapter installs
 
 `packages/panel` (`@clara/panel`) owns the shared panel UI. The hub service serves
