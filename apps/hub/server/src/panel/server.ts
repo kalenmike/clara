@@ -1245,6 +1245,8 @@ async function handleMutation(
       updated = await controls.setOrchestration(body.value.enabled)
     } else if (kind === 'config') {
       const unknown = unknownFields(body.value, [
+        'localAccess',
+        'localBindHost',
         'pairingBaseUrl',
         'adapterRegistryUrl',
         'vapidSubject',
@@ -1252,6 +1254,20 @@ async function handleMutation(
       if (unknown) return invalidField(response, method, unknown)
 
       const update: PanelConfigUpdate = {}
+      if ('localAccess' in body.value) {
+        const value = body.value.localAccess
+        if (value !== 'loopback' && value !== 'docker' && value !== 'lan' && value !== 'custom') {
+          return invalidField(response, method, 'localAccess')
+        }
+        update.localAccess = value
+      }
+      if ('localBindHost' in body.value) {
+        const value = body.value.localBindHost
+        if (value !== null && typeof value !== 'string') {
+          return invalidField(response, method, 'localBindHost')
+        }
+        update.localBindHost = value
+      }
       if ('pairingBaseUrl' in body.value) {
         const value = body.value.pairingBaseUrl
         if (value !== null && typeof value !== 'string') {
@@ -1274,7 +1290,11 @@ async function handleMutation(
         update.vapidSubject = value
       }
       if (Object.keys(update).length === 0) {
-        return invalidField(response, method, 'pairingBaseUrl, adapterRegistryUrl, or vapidSubject')
+        return invalidField(
+          response,
+          method,
+          'localAccess, localBindHost, pairingBaseUrl, adapterRegistryUrl, or vapidSubject'
+        )
       }
 
       const config = await controls.updateConfig(update)

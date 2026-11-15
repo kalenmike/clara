@@ -41,6 +41,12 @@ import { PanelRuntime } from './panel/runtime.ts'
 import { startPanelServer, type PanelServer } from './panel/server.ts'
 import { readSetupToken, readSetupTokenFromEnv } from './panel/setup-token.ts'
 import { printPairing, relayWsUrl } from './pairing.ts'
+import {
+  dockerBridgeAddresses,
+  isLoopbackHost,
+  isWildcardHost,
+  wsUrl as directWsUrl,
+} from './runtime/addresses.ts'
 import { PushService } from './push/service.ts'
 import { SessionMonitor } from './sessions/monitor.ts'
 import { clearPushSubscriptions, PushSubscriptionStore } from './push/store.ts'
@@ -94,7 +100,7 @@ export async function main(argv: readonly string[] = process.argv.slice(2)): Pro
     console.error('       clara-server setup [--username <name>] [--password-stdin]')
     console.error('       clara-server pair [--no-relay] [--no-qr] [--revoke-all|--revoke <id>]')
     console.error(
-      '       clara-server pair-adapter --kind <kind> [--transport local|relay|docker] [--json]'
+      '       clara-server pair-adapter --kind <kind> [--transport local|relay|docker] [--ws-url <url>] [--json]'
     )
     console.error('       clara-server admin reset|setup-token')
     console.error('       clara-server health')
@@ -399,6 +405,7 @@ async function runServe(
       relayAgent: () => controller.relay,
       relayClient: () => controller.relayTransport,
       localConnections: () => controller.localConnections,
+      localAddresses: () => controller.localAddresses,
       traffic: controller.traffic,
       push,
       pushError,
@@ -549,7 +556,7 @@ async function runPairAdapter(args: string[]): Promise<void> {
   const kind = readOption(args, '--kind') ?? readOption(args, '--harness')
   if (!kind) {
     console.error(
-      'Usage: clara-server pair-adapter --kind <kind> [--transport local|relay|docker] [--json]'
+      'Usage: clara-server pair-adapter --kind <kind> [--transport local|relay|docker] [--ws-url <url>] [--json]'
     )
     process.exitCode = 2
     return
@@ -601,13 +608,33 @@ async function runPairAdapter(args: string[]): Promise<void> {
       return
     }
     const room = relay ? relay.room : 'local'
-    const wsUrl =
-      transport === 'relay' && relay
-        ? relayWsUrl(relay.url, room)
-        : (wsUrlOverride ??
-          (transport === 'docker'
-            ? `ws://server:${config.local.port}/ws`
-            : `ws://${config.local.host}:${config.local.port}/ws`))
+    if (wsUrlOverride && transport !== 'relay' && !/^ws:\/\//i.test(wsUrlOverride)) {
+      console.error('A direct pairing URL must start with ws://')
+      process.exitCode = 1
+      return
+    }
+    let wsUrl: string
+    if (transport === 'relay' && relay) {
+      wsUrl = relayWsUrl(relay.url, room)
+    } else if (transport === 'docker') {
+      const binds = config.localBindHosts ?? [config.local.bindHost]
+      const bridge = dockerBridgeAddresses()[0]
+      const custom = binds.find((host) => !isLoopbackHost(host) && !isWildcardHost(host))
+      const host = custom ?? (binds.some(isWildcardHost) ? bridge : undefined)
+      wsUrl =
+        wsUrlOverride ||
+        (isContainerized() ? `ws://server:${config.local.port}/ws` : '') ||
+        (host ? directWsUrl(host, config.local.port) : '')
+      if (!wsUrl) {
+        console.error(
+          'The hub has no container-reachable address. Allow Docker or LAN access from the panel, pass --ws-url, or configure the relay.'
+        )
+        process.exitCode = 1
+        return
+      }
+    } else {
+      wsUrl = wsUrlOverride ?? directWsUrl(config.local.host, config.local.port)
+    }
     const grant = relay
       ? await createRelayGrant({
           room: relay.room,

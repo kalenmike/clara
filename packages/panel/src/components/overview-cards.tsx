@@ -1,6 +1,7 @@
 import { Suspense, useEffect, useState } from 'react'
 import { Bell, Radio, Server, Settings2 } from 'lucide-react'
 import type {
+  LocalAccessMode,
   PanelAgentInfo,
   PanelConfigInfo,
   PanelControls,
@@ -106,12 +107,14 @@ export function AgentCard({
 
 export function LocalCard({
   local,
+  config,
   sessions,
   controls,
   onChanged,
   defaultExpanded = false,
 }: {
   local: PanelLocalTransport
+  config: PanelConfigInfo
   sessions: number
   controls: PanelControls
   onChanged: () => void
@@ -129,7 +132,7 @@ export function LocalCard({
   return (
     <CollapsibleCard
       title="Local transport"
-      description="The loopback WebSocket the browser pairs with"
+      description="The WebSocket browsers and adapters pair with"
       icon={<Radio className="size-4" aria-hidden="true" />}
       action={<Badge tone={tone}>{status}</Badge>}
       defaultExpanded={defaultExpanded}
@@ -171,6 +174,7 @@ export function LocalCard({
         <KeyValue label="Effective">{local.effective ? 'On' : 'Off'}</KeyValue>
         <KeyValue label="Socket connections">{local.connections}</KeyValue>
         <KeyValue label="E2EE sessions">{sessions}</KeyValue>
+        <LocalAccessControl local={local} config={config} onChanged={onChanged} />
         {local.error ? <Notice>{redact(local.error)}</Notice> : null}
         <p className="pt-2 text-xs text-muted-foreground">
           Sessions are authenticated with a per-device key. The panel never sees or displays that
@@ -179,6 +183,133 @@ export function LocalCard({
       </CardBody>
     </CollapsibleCard>
   )
+}
+
+function LocalAccessControl({
+  local,
+  config,
+  onChanged,
+}: {
+  local: PanelLocalTransport
+  config: PanelConfigInfo
+  onChanged: () => void
+}) {
+  const access = config.localAccess?.value ?? 'loopback'
+  const accessSource = config.localAccess?.source ?? 'default'
+  const bindSource = config.localBindHost?.source ?? 'none'
+  const storedBind = config.localBindHost?.value ?? ''
+  const [mode, setMode] = useState<LocalAccessMode>(access)
+  const [custom, setCustom] = useState(storedBind)
+  const [saving, setSaving] = useState(false)
+  const [error, setError] = useState<string>()
+  const locked = accessSource === 'env' || bindSource === 'env'
+  const { masked, redact } = usePeek()
+
+  useEffect(() => {
+    setMode(access)
+    setCustom(storedBind)
+  }, [access, storedBind])
+
+  const save = () => {
+    setSaving(true)
+    setError(undefined)
+    void postPanel('/panel/api/v1/config', {
+      localAccess: mode,
+      ...(mode === 'custom' ? { localBindHost: custom.trim() } : {}),
+    })
+      .then(onChanged)
+      .catch((cause: unknown) => {
+        setError(cause instanceof Error ? cause.message : String(cause))
+      })
+      .finally(() => setSaving(false))
+  }
+
+  const addresses = local.addresses ?? []
+  const wildcard = mode === 'lan' || (mode === 'custom' && custom.trim() === '0.0.0.0')
+  return (
+    <>
+      <KeyValue label="Direct access">
+        <span className="inline-flex items-center gap-2">
+          <span className="text-xs">{accessModeLabel(access)}</span>
+          <SourceTag source={accessSource} />
+        </span>
+      </KeyValue>
+      <div className="mt-2 grid gap-2 rounded-md border border-border p-2">
+        <label className="grid gap-1 text-[11px] font-medium text-foreground">
+          Listen on
+          <select
+            value={mode}
+            onChange={(event) => setMode(event.target.value as LocalAccessMode)}
+            disabled={locked || saving}
+            className="w-full rounded-md border border-border bg-card px-2 py-1.5 text-xs"
+          >
+            <option value="loopback">This machine only (127.0.0.1)</option>
+            <option value="docker">This machine and local Docker containers</option>
+            <option value="lan">All interfaces (LAN and Docker)</option>
+            <option value="custom">Custom address</option>
+          </select>
+        </label>
+        {mode === 'custom' ? (
+          <input
+            value={custom}
+            onChange={(event) => setCustom(event.target.value)}
+            placeholder="192.168.1.20"
+            spellCheck={false}
+            disabled={locked || saving}
+            className="w-full rounded-md border border-border bg-card px-2 py-1.5 font-mono text-[11px]"
+          />
+        ) : null}
+        {wildcard ? (
+          <Notice>
+            All interfaces exposes the hub WebSocket and API to your network. Keep the port behind
+            your firewall, or use the relay for remote machines.
+          </Notice>
+        ) : null}
+        {locked ? (
+          <Notice>
+            A startup environment variable owns this setting. Remove it and restart the hub to edit
+            it here.
+          </Notice>
+        ) : null}
+        {error ? <Notice tone="danger">{redact(error)}</Notice> : null}
+        <div className="flex justify-end">
+          <button
+            type="button"
+            onClick={save}
+            disabled={locked || saving || (mode === 'custom' && !custom.trim())}
+            className="panel-button"
+          >
+            {saving ? 'Saving…' : 'Save direct access'}
+          </button>
+        </div>
+      </div>
+      {addresses.length > 0 ? (
+        <div className="mt-2 space-y-1">
+          {addresses.map((address) => (
+            <KeyValue key={address.url} label={addressScopeLabel(address.scope)} mono>
+              <span className="inline-flex items-center gap-2">
+                <span className="font-mono text-[11px]">{masked ? PEEK_MASK : address.url}</span>
+                {masked ? null : <CopyButton value={address.url} label="Copy" />}
+              </span>
+            </KeyValue>
+          ))}
+        </div>
+      ) : null}
+    </>
+  )
+}
+
+function accessModeLabel(mode: LocalAccessMode): string {
+  if (mode === 'docker') return 'This machine + Docker'
+  if (mode === 'lan') return 'All interfaces'
+  if (mode === 'custom') return 'Custom'
+  return 'This machine'
+}
+
+function addressScopeLabel(scope: string): string {
+  if (scope === 'docker') return 'Docker URL'
+  if (scope === 'lan') return 'LAN URL'
+  return 'Loopback URL'
 }
 
 export function RelayCard({
