@@ -101,6 +101,23 @@ keeps retrying the link and returns to **Online** on its own once the hub is
 back; `clara adapter start <kind>` is only for an adapter process that is
 actually stopped.
 
+### Adapter in Docker
+
+When the adapter runs in a container, the hub panel still shows it as paired and
+online. To see it in `clara status` and manage it from the host, record the
+container once:
+
+```sh
+clara adapter install opencode --container clara-adapter-opencode
+```
+
+Clara reads the container's entrypoint and config location, asks the adapter
+for its version inside the container, and records it without a host install
+path. `clara status`, `clara adapter list`, `start`, `stop`, `logs`, `status`,
+and `verify` then address the container. Upgrading means rebuilding and
+recreating the image; `clara adapter remove opencode` stops the container and
+forgets the record but leaves the container and its volumes in place.
+
 ### OpenCode
 
 If the installer cannot find OpenCode, it asks for the OpenCode URL, username,

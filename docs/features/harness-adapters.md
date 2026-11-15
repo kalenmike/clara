@@ -415,7 +415,7 @@ ask for confirmation run without one, exactly as in the Pi TUI.
 - Commands: `clara-adapter-opencode install --pair <code>`,
   `clara-adapter-claude install --pair <code>`,
   `clara-adapter-pi install --pair <code>`,
-  `clara adapter install <kind> [--pair <code>] [--from <path>] [--reuse-pairing]`,
+  `clara adapter install <kind> [--pair <code>] [--from <path>] [--container <name>] [--reuse-pairing]`,
   `clara adapter list [--json]`,
   `clara adapter status|start|stop|logs <kind>`,
   `clara adapter verify <kind> [--directory <path>] [--write] [--json]`,
@@ -427,6 +427,18 @@ ask for confirmation run without one, exactly as in the Pi TUI.
   `install --reuse-pairing` reruns discovery, the config write, the binding,
   the service, and the runner from the saved config; `upgrade` calls it with the
   saved install flags and does not enroll a new adapter.
+  `install --container <name>` records an adapter that already runs in Docker:
+  it reads the image entrypoint and the adapter config/data directories with
+  `docker inspect`, asks the adapter for its version and pairing inside the
+  container, and writes an `adapters.json` record with no host path or pid.
+  With `--pair <code>` it first runs the adapter's installer inside a running
+  container; a stopped container is refused because `docker exec` needs a live
+  process. The
+  record makes `clara status`, `clara adapter list`, `start`, `stop`, `logs`,
+  `status`, and `verify` address the container; `upgrade` refuses and asks for
+  an image rebuild, and `remove` stops the container, deletes the record, and
+  leaves the container and its volumes in place. A `verify --directory` path is
+  read inside the container, not on the host.
 - Registry: `<registry>/<kind>/manifest.json` and
   `<registry>/<kind>/v<version>-install.sh`; the default registry is
   `https://clara.kalenmichael.com/adapters`. The `adapter-releases` workflow
@@ -459,5 +471,9 @@ ask for confirmation run without one, exactly as in the Pi TUI.
 - Docker: `infra/docker/adapter-opencode.compose.yml`; no published ports.
   No Claude Code or Pi image ships with Clara. Install the adapter in the
   container that runs the harness and mount its config directory and workspace.
+  After the container is paired and running, record it on the host with
+  `clara adapter install opencode --container clara-adapter-opencode`; the
+  record is container-backed, so the host command never writes an adapter pid
+  or expects a host install directory.
 
 </details>
