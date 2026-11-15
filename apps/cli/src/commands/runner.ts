@@ -64,7 +64,15 @@ export async function runRunnerStart(args: readonly string[]): Promise<number> {
   const configPath = join(paths.configDir, 'runner.json')
   if (options.foreground) {
     const { serveRunner } = await import('../serve/runner.ts')
-    await serveRunner(['--config', configPath, ...forwarded])
+    writeRunnerPid(paths, process.pid)
+    const cleanup = () => clearRunnerPid(paths)
+    process.once('exit', cleanup)
+    try {
+      await serveRunner(['--config', configPath, ...forwarded])
+    } finally {
+      process.removeListener('exit', cleanup)
+      cleanup()
+    }
     return 0
   }
 
