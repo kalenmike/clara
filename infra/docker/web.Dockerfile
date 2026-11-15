@@ -25,9 +25,11 @@ RUN corepack enable
 WORKDIR /repo
 COPY package.json pnpm-lock.yaml pnpm-workspace.yaml tsconfig.base.json ./
 # These manifest and source copies cover the workspace dependency closure of
-# @clara/web. Missing packages make the build fail to resolve imports even
-# though the filtered install succeeds.
+# @clara/web, including the shared hub panel rendered at `/hub` and the build
+# helpers its Vite config imports. Missing packages make the build fail to
+# resolve imports even though the filtered install succeeds.
 COPY apps/web/package.json apps/web/package.json
+COPY packages/panel/package.json packages/panel/package.json
 COPY packages/api/api-client/package.json packages/api/api-client/package.json
 COPY packages/contracts/api-contract/package.json packages/contracts/api-contract/package.json
 COPY packages/crypto/package.json packages/crypto/package.json
@@ -35,6 +37,8 @@ COPY packages/contracts/shared-types/package.json packages/contracts/shared-type
 RUN pnpm install --frozen-lockfile --filter @clara/web...
 
 COPY apps/web apps/web
+COPY packages/panel packages/panel
+COPY tools/build tools/build
 COPY packages/api/api-client packages/api/api-client
 COPY packages/contracts/api-contract packages/contracts/api-contract
 COPY packages/crypto packages/crypto

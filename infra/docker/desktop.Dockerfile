@@ -53,10 +53,12 @@ RUN corepack enable
 WORKDIR /repo
 COPY package.json pnpm-lock.yaml pnpm-workspace.yaml tsconfig.base.json ./
 # These manifest copies cover the workspace dependency closure of the desktop
-# build: the Tauri CLI from @clara/desktop and the frontend from @clara/web.
+# build: the Tauri CLI from @clara/desktop, the frontend from @clara/web, and the
+# shared hub panel the web client renders at `/hub`.
 COPY apps/desktop/package.json apps/desktop/package.json
 COPY apps/desktop/host/package.json apps/desktop/host/package.json
 COPY apps/web/package.json apps/web/package.json
+COPY packages/panel/package.json packages/panel/package.json
 COPY packages/adapters/install/package.json packages/adapters/install/package.json
 COPY packages/api/api-client/package.json packages/api/api-client/package.json
 COPY packages/contracts/api-contract/package.json packages/contracts/api-contract/package.json
@@ -67,6 +69,8 @@ RUN pnpm install --frozen-lockfile --filter @clara/desktop... --filter @clara/de
 # `apps/desktop` includes `apps/desktop/host`, the adapter host sidecar.
 COPY apps/desktop apps/desktop
 COPY apps/web apps/web
+COPY packages/panel packages/panel
+COPY tools/build tools/build
 COPY packages/adapters/install packages/adapters/install
 COPY packages/api/api-client packages/api/api-client
 COPY packages/contracts/api-contract packages/contracts/api-contract

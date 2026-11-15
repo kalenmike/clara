@@ -18,7 +18,10 @@
 apps/hub
 apps/orchestrator
 apps/adapters
-tools
+tools/lab
+tools/docs
+tools/cli
+tools/adapters
 docs
 packages/api/mcp
 packages/adapters/binding
