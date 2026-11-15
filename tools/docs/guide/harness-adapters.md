@@ -24,8 +24,7 @@ Inside the Clara repository you can use
 
 ## Pair an adapter
 
-1. Open the hub panel's **Harness** view and choose **Pair Harness**. In the
-   Clara client, **Settings → Harness → Pair harness** opens the same view.
+1. Open the hub panel's **Harness** view and choose **Pair Harness**.
 2. Choose the harness. The hub returns a one-time code, an install command, and
    a link for Clara Desktop. It never runs the install itself.
 3. Answer **Remote** or **Local**, and for a local harness choose **This
