@@ -20,8 +20,8 @@ waiting for you.
 
 The composer has three shapes, controlled from the right side of its header:
 
-- **Pinned** is the default. It sits above the usage bar, spans the chat, and
-  the thread ends at its top edge, so it never covers a message.
+- **Pinned** is the default. It docks at the bottom of the thread, spans the
+  chat, and the thread ends at its top edge, so it never covers a message.
 - **Collapse** folds the composer to its header. The leading chevron points down
   while the composer is open; click it again, or use the upward chevron, to
   restore the shape it had before.
