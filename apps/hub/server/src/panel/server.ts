@@ -6,6 +6,7 @@ import { isAdapterInstallMethod, validateKind, validateOpencodeUrl } from '@clar
 import {
   isSyncIntervalMs,
   MAX_DEVICE_ALIAS_LENGTH,
+  PROTOCOL_VERSION,
   type PanelAuthInfo,
   type PanelConfigUpdate,
   type PanelFeatureName,
@@ -201,6 +202,7 @@ async function handleRequest(
       ok: true,
       service: 'clara-server',
       version: SERVER_VERSION,
+      protocol: PROTOCOL_VERSION,
       mode: isContainerized() ? 'container' : 'local',
       setupRequired: !context.auth.configured(),
       setupTokenRequired: context.auth.requiresSetupToken(),

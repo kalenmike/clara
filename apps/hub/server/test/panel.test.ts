@@ -6,6 +6,7 @@ import { afterEach, describe, expect, it } from 'vitest'
 import {
   MAX_DEVICE_ALIAS_LENGTH,
   PANEL_API_VERSION,
+  PROTOCOL_VERSION,
   type PanelConfigInfo,
   type PanelConfigMutationResponse,
   type PanelConfigUpdate,
@@ -515,7 +516,12 @@ describe('panel server', () => {
 
     const health = await fetch(`${server.url}health`)
     expect(health.status).toBe(200)
-    expect(await health.json()).toMatchObject({ ok: true, service: 'clara-server' })
+    expect(await health.json()).toMatchObject({
+      ok: true,
+      service: 'clara-server',
+      version: expect.any(String),
+      protocol: PROTOCOL_VERSION,
+    })
 
     const anonymous = await fetch(`${server.url}panel/api/v1/status`)
     expect(anonymous.status).toBe(401)
