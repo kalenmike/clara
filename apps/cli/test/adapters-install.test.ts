@@ -1,0 +1,298 @@
+import { createHash } from 'node:crypto'
+import { existsSync, mkdtempSync, rmSync, statSync, writeFileSync } from 'node:fs'
+import { createServer } from 'node:http'
+import type { AddressInfo } from 'node:net'
+import { tmpdir } from 'node:os'
+import { join } from 'node:path'
+import { afterEach, describe, expect, it } from 'vitest'
+import { ChecksumError } from '../src/adapters/download.ts'
+import {
+  adapterBinaryPath,
+  installAdapter,
+  removeAdapter,
+  upgradeAdapter,
+  type BinaryRunner,
+  type ExtractRunner,
+  type InstallDeps,
+} from '../src/adapters/install.ts'
+import { AdapterRegistry } from '../src/adapters/registry.ts'
+import { readAdapterState } from '../src/adapters/state.ts'
+import { resolvePaths, type ClaraPaths } from '../src/paths.ts'
+
+const SHA = 'a'.repeat(64)
+
+type ServerState = {
+  version: string
+  archive: Buffer
+  archiveFailures: number
+  shaOverride?: string
+  hits: Map<string, number>
+}
+
+type Fixture = {
+  base: string
+  state: ServerState
+  close: () => Promise<void>
+}
+
+const fixtures: Fixture[] = []
+const roots: string[] = []
+
+async function registryServer(archive = Buffer.from('adapter bytes')): Promise<Fixture> {
+  const state: ServerState = { version: '1.2.3', archive, archiveFailures: 0, hits: new Map() }
+  let base = ''
+  const server = createServer((request, response) => {
+    const path = request.url ?? ''
+    state.hits.set(path, (state.hits.get(path) ?? 0) + 1)
+    if (path === '/opencode/manifest.json') {
+      response.setHeader('content-type', 'application/json')
+      response.end(
+        JSON.stringify({
+          schemaVersion: 1,
+          harness: 'opencode',
+          version: state.version,
+          install: 'install.sh',
+          installSha256: SHA,
+          artifacts: {
+            'linux-x64': {
+              url: `${base}/opencode/adapter.tar.gz`,
+              sha256: state.shaOverride ?? createHash('sha256').update(state.archive).digest('hex'),
+              size: state.archive.length,
+            },
+          },
+        })
+      )
+      return
+    }
+    if (path === '/opencode/adapter.tar.gz') {
+      if (state.archiveFailures > 0) {
+        state.archiveFailures -= 1
+        response.statusCode = 500
+        response.end('transient')
+        return
+      }
+      response.setHeader('content-type', 'application/gzip')
+      response.end(state.archive)
+      return
+    }
+    response.statusCode = 404
+    response.end('missing')
+  })
+  await new Promise<void>((resolve) => server.listen(0, '127.0.0.1', resolve))
+  base = `http://127.0.0.1:${(server.address() as AddressInfo).port}`
+  const fixture: Fixture = {
+    base,
+    state,
+    close: () => new Promise<void>((resolve) => server.close(() => resolve())),
+  }
+  fixtures.push(fixture)
+  return fixture
+}
+
+function tempPaths(): ClaraPaths {
+  const root = mkdtempSync(join(tmpdir(), 'clara-adapter-install-'))
+  roots.push(root)
+  return resolvePaths({
+    CLARA_CONFIG_DIR: join(root, 'config'),
+    CLARA_DATA_DIR: join(root, 'data'),
+    CLARA_CACHE_DIR: join(root, 'cache'),
+  })
+}
+
+type Calls = Array<{ command: string; args: string[] }>
+
+function deps(
+  fixture: Fixture,
+  paths: ClaraPaths,
+  options: {
+    calls?: Calls
+    result?: (args: readonly string[]) => { code: number; stderr: string }
+    extract?: ExtractRunner
+    progress?: (received: number, total: number | undefined) => void
+  } = {}
+): InstallDeps {
+  const calls = options.calls ?? []
+  const extract: ExtractRunner =
+    options.extract ??
+    (({ dest }) => {
+      writeFileSync(join(dest, 'clara-adapter-opencode'), '#!/bin/sh\nexit 0\n')
+    })
+  const runBinary: BinaryRunner = async (command, args) => {
+    calls.push({ command, args: [...args] })
+    return options.result?.(args) ?? { code: 0, stderr: '' }
+  }
+  return {
+    registry: new AdapterRegistry({ baseUrl: fixture.base }),
+    paths,
+    now: () => Date.parse('2026-02-03T04:05:06.000Z'),
+    runBinary,
+    extract,
+    ...(options.progress ? { onProgress: options.progress } : {}),
+  }
+}
+
+afterEach(async () => {
+  for (const fixture of fixtures.splice(0)) await fixture.close()
+  for (const root of roots.splice(0)) rmSync(root, { recursive: true, force: true })
+})
+
+describe('adapter install', () => {
+  it('downloads, verifies, extracts, records, pairs, and starts', async () => {
+    const fixture = await registryServer()
+    const paths = tempPaths()
+    const calls: Calls = []
+    const progress: number[] = []
+    const record = await installAdapter(
+      { kind: 'opencode', target: 'linux-x64', pairCode: 'clara-pair-abc' },
+      deps(fixture, paths, { calls, progress: (received) => progress.push(received) })
+    )
+
+    expect(record.version).toBe('1.2.3')
+    expect(record.platform).toBe('linux-x64')
+    expect(record.path).toBe(join(paths.dataDir, 'adapters', 'opencode', '1.2.3'))
+    expect(record.pairedAt).toBe('2026-02-03T04:05:06.000Z')
+    expect(record.lastError).toBeUndefined()
+    expect(statSync(record.path).mode & 0o777).toBe(0o700)
+    expect(existsSync(adapterBinaryPath(record))).toBe(true)
+    expect(progress.at(-1)).toBe(fixture.state.archive.length)
+
+    expect(calls).toEqual([
+      {
+        command: adapterBinaryPath(record),
+        args: ['install', '--pair', 'clara-pair-abc'],
+      },
+      { command: adapterBinaryPath(record), args: ['start'] },
+    ])
+    expect(readAdapterState(paths).adapters.opencode).toEqual(record)
+  })
+
+  it('reuses an installed version without downloading it again', async () => {
+    const fixture = await registryServer()
+    const paths = tempPaths()
+    const first = await installAdapter(
+      { kind: 'opencode', target: 'linux-x64' },
+      deps(fixture, paths)
+    )
+    const calls: Calls = []
+    const second = await installAdapter(
+      { kind: 'opencode', target: 'linux-x64', start: false },
+      deps(fixture, paths, { calls })
+    )
+
+    expect(second.installedAt).toBe(first.installedAt)
+    expect(fixture.state.hits.get('/opencode/adapter.tar.gz')).toBe(1)
+    expect(calls).toEqual([])
+  })
+
+  it('aborts on a checksum mismatch without extracting', async () => {
+    const fixture = await registryServer(Buffer.from('different bytes'))
+    fixture.state.shaOverride = 'b'.repeat(64)
+    const paths = tempPaths()
+    let extracted = false
+    await expect(
+      installAdapter(
+        { kind: 'opencode', target: 'linux-x64' },
+        deps(fixture, paths, {
+          extract: () => {
+            extracted = true
+          },
+        })
+      )
+    ).rejects.toBeInstanceOf(ChecksumError)
+    expect(extracted).toBe(false)
+    expect(readAdapterState(paths).adapters.opencode).toBeUndefined()
+  })
+
+  it('retries one transient download failure', async () => {
+    const fixture = await registryServer()
+    fixture.state.archiveFailures = 1
+    const paths = tempPaths()
+    const record = await installAdapter(
+      { kind: 'opencode', target: 'linux-x64', start: false },
+      deps(fixture, paths)
+    )
+    expect(record.version).toBe('1.2.3')
+    expect(fixture.state.hits.get('/opencode/adapter.tar.gz')).toBe(2)
+  })
+
+  it('captures a pairing failure in the record', async () => {
+    const fixture = await registryServer()
+    const paths = tempPaths()
+    await expect(
+      installAdapter(
+        { kind: 'opencode', target: 'linux-x64', pairCode: 'bad-code' },
+        deps(fixture, paths, {
+          result: () => ({ code: 3, stderr: 'the pairing code expired' }),
+        })
+      )
+    ).rejects.toThrow('pairing code expired')
+    const saved = readAdapterState(paths).adapters.opencode
+    expect(saved?.lastError).toBe('the pairing code expired')
+    expect(saved?.pairedAt).toBeUndefined()
+  })
+
+  it('can install without starting', async () => {
+    const fixture = await registryServer()
+    const paths = tempPaths()
+    const calls: Calls = []
+    await installAdapter(
+      { kind: 'opencode', target: 'linux-x64', start: false },
+      deps(fixture, paths, { calls })
+    )
+    expect(calls).toEqual([])
+  })
+
+  it('upgrades to the published version when it changes', async () => {
+    const fixture = await registryServer()
+    const paths = tempPaths()
+    await installAdapter({ kind: 'opencode', target: 'linux-x64' }, deps(fixture, paths))
+
+    fixture.state.version = '2.0.0'
+    const report = await upgradeAdapter('opencode', deps(fixture, paths), {
+      target: 'linux-x64',
+      start: false,
+    })
+    expect(report).toEqual({ kind: 'opencode', from: '1.2.3', to: '2.0.0', changed: true })
+    expect(readAdapterState(paths).adapters.opencode?.version).toBe('2.0.0')
+  })
+
+  it('reports an installed adapter as up to date', async () => {
+    const fixture = await registryServer()
+    const paths = tempPaths()
+    await installAdapter({ kind: 'opencode', target: 'linux-x64' }, deps(fixture, paths))
+    const report = await upgradeAdapter('opencode', deps(fixture, paths))
+    expect(report).toEqual({
+      kind: 'opencode',
+      from: '1.2.3',
+      to: '1.2.3',
+      changed: false,
+    })
+  })
+
+  it('stops and uninstalls an adapter before deleting its files', async () => {
+    const fixture = await registryServer()
+    const paths = tempPaths()
+    const record = await installAdapter(
+      { kind: 'opencode', target: 'linux-x64' },
+      deps(fixture, paths)
+    )
+    const calls: Calls = []
+    const actions = await removeAdapter('opencode', deps(fixture, paths, { calls }), {
+      purge: true,
+    })
+
+    expect(calls.map((call) => call.args)).toEqual([['stop'], ['uninstall', '--purge']])
+    expect(actions).toContain(`remove ${record.path}`)
+    expect(readAdapterState(paths).adapters.opencode).toBeUndefined()
+    expect(existsSync(join(paths.dataDir, 'adapters', 'opencode'))).toBe(false)
+  })
+})
+
+describe('adapter state guard', () => {
+  it('refuses to upgrade or remove an adapter that is not installed', async () => {
+    const fixture = await registryServer()
+    const paths = tempPaths()
+    await expect(upgradeAdapter('pi', deps(fixture, paths))).rejects.toThrow('not installed')
+    await expect(removeAdapter('pi', deps(fixture, paths))).rejects.toThrow('not installed')
+  })
+})
