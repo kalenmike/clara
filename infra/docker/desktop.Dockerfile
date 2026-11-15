@@ -59,6 +59,7 @@ COPY apps/desktop/package.json apps/desktop/package.json
 COPY apps/desktop/host/package.json apps/desktop/host/package.json
 COPY apps/web/package.json apps/web/package.json
 COPY packages/panel/package.json packages/panel/package.json
+COPY packages/theme/package.json packages/theme/package.json
 COPY packages/lab/package.json packages/lab/package.json
 COPY packages/preview/package.json packages/preview/package.json
 COPY packages/orchestration/policy/package.json packages/orchestration/policy/package.json
@@ -75,6 +76,7 @@ RUN pnpm install --frozen-lockfile --filter @clara/desktop... --filter @clara/de
 COPY apps/desktop apps/desktop
 COPY apps/web apps/web
 COPY packages/panel packages/panel
+COPY packages/theme packages/theme
 COPY packages/lab packages/lab
 COPY packages/preview packages/preview
 COPY packages/orchestration/policy packages/orchestration/policy
