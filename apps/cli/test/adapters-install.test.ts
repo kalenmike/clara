@@ -100,6 +100,18 @@ function tempPaths(): ClaraPaths {
   })
 }
 
+function localAdapterPackage(): string {
+  const root = mkdtempSync(join(tmpdir(), 'clara-adapter-local-'))
+  roots.push(root)
+  writeFileSync(
+    join(root, 'package.json'),
+    JSON.stringify({ name: '@clara/adapter-opencode', version: '0.1.0' })
+  )
+  mkdirSync(join(root, 'dist'), { recursive: true })
+  writeFileSync(join(root, 'dist', 'index.js'), '#!/usr/bin/env node\n')
+  return root
+}
+
 type Calls = Array<{ command: string; args: string[] }>
 
 function deps(
@@ -120,7 +132,11 @@ function deps(
     })
   const runBinary: BinaryRunner = async (command, args) => {
     calls.push({ command, args: [...args] })
-    return options.result?.(args) ?? { code: 0, stderr: '' }
+    if (options.result) return options.result(args)
+    if (args.includes('--help')) {
+      return { code: 0, stderr: '', stdout: 'Install options:\n  --reuse-pairing\n' }
+    }
+    return { code: 0, stderr: '' }
   }
   return {
     registry: new AdapterRegistry({ baseUrl: fixture.base }),
@@ -357,6 +373,7 @@ describe('adapter install', () => {
     })
     expect(calls.map((call) => call.args)).toEqual([
       ['stop'],
+      ['install', '--help'],
       ['install', '--reuse-pairing'],
       ['start'],
     ])
@@ -391,8 +408,72 @@ describe('adapter install', () => {
     expect(calls).toEqual([
       {
         command: process.execPath,
+        args: [join(record.path, 'index.js'), 'install', '--help'],
+      },
+      {
+        command: process.execPath,
         args: [join(record.path, 'index.js'), 'install', '--reuse-pairing'],
       },
+    ])
+  })
+
+  it('refuses to reuse a saved pairing an older adapter does not understand', async () => {
+    const fixture = await registryServer()
+    const paths = tempPaths()
+    const packageDir = localAdapterPackage()
+    const calls: Calls = []
+
+    await expect(
+      installAdapter(
+        {
+          kind: 'opencode',
+          target: 'linux-x64',
+          version: '0.1.0-dev+old',
+          from: packageDir,
+          reusePairing: true,
+          start: false,
+        },
+        deps(fixture, paths, {
+          calls,
+          result: (args) =>
+            args.includes('--help')
+              ? { code: 0, stderr: '', stdout: 'Install options:\n  --pair <code>\n' }
+              : { code: 0, stderr: '' },
+        })
+      )
+    ).rejects.toThrow(/cannot reinstall from its saved pairing/)
+
+    expect(calls.map((call) => call.args.slice(-2))).toEqual([['install', '--help']])
+    expect(readAdapterState(paths).adapters.opencode).toBeUndefined()
+  })
+
+  it('proceeds when the reuse probe cannot run', async () => {
+    const fixture = await registryServer()
+    const paths = tempPaths()
+    const packageDir = localAdapterPackage()
+    const calls: Calls = []
+
+    const record = await installAdapter(
+      {
+        kind: 'opencode',
+        target: 'linux-x64',
+        version: '0.1.0-dev+local',
+        from: packageDir,
+        reusePairing: true,
+        start: false,
+      },
+      deps(fixture, paths, {
+        calls,
+        result: (args) =>
+          args.includes('--help') ? { code: 2, stderr: 'probe failed' } : { code: 0, stderr: '' },
+      })
+    )
+
+    expect(record.entry).toBe('index.js')
+    expect(calls.at(-1)?.args).toEqual([
+      join(record.path, 'index.js'),
+      'install',
+      '--reuse-pairing',
     ])
   })
 

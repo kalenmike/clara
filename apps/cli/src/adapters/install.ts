@@ -24,9 +24,14 @@ import {
 } from './state.ts'
 import { resolvePaths, type ClaraPaths } from '../paths.ts'
 
+/** Enough help text to find a flag; the adapters print a page at most. */
+const STDOUT_LIMIT = 64_000
+
 export type BinaryResult = {
   code: number
   stderr: string
+  /** Captured only when the runner was asked to capture output. */
+  stdout?: string
 }
 
 export type BinaryRunner = (command: string, args: readonly string[]) => Promise<BinaryResult>
@@ -126,8 +131,23 @@ export async function installAdapter(
         ? { installArgs: previous.installArgs }
         : {}),
   }
-  saveAdapterRecord(record, paths)
   const command = adapterCommand(record)
+
+  if (!request.pairCode && request.reusePairing) {
+    // `--reuse-pairing` is part of the adapter contract, not the archive. An
+    // adapter from an older registry ignores the flag and falls back to the
+    // interactive pairing path, which fails silently in a non-interactive
+    // install. Refuse before recording a half-installed version.
+    const supported = await adapterSupportsReusePairing(deps, command, request.kind)
+    if (supported === false) {
+      throw new Error(
+        `The ${request.kind} adapter ${record.version} cannot reinstall from its saved pairing. ` +
+          `Install it with a new pairing code: clara adapter install ${request.kind} --pair <code>`
+      )
+    }
+  }
+
+  saveAdapterRecord(record, paths)
 
   if (request.pairCode) {
     deps.onPhase?.('pairing')
@@ -412,11 +432,15 @@ export async function runAdapterBinary(
   deps: AdapterRunDeps,
   binary: string,
   args: readonly string[],
-  kind?: AdapterKind
+  kind?: AdapterKind,
+  options: RunOptions = {}
 ): Promise<BinaryResult> {
   const paths = deps.paths ?? resolvePaths()
   const env = kind ? adapterEnv(paths, kind) : process.env
-  return (deps.runBinary ?? ((command, list) => runStreamed(command, list, env)))(binary, args)
+  return (deps.runBinary ?? ((command, list) => runStreamed(command, list, env, options)))(
+    binary,
+    args
+  )
 }
 
 /** Run an installed adapter through its recorded command. */
@@ -424,16 +448,41 @@ export async function runAdapterCommand(
   deps: AdapterRunDeps,
   command: AdapterCommand,
   args: readonly string[],
-  kind?: AdapterKind
+  kind?: AdapterKind,
+  options: RunOptions = {}
 ): Promise<BinaryResult> {
-  return runAdapterBinary(deps, command.command, [...command.args, ...args], kind)
+  return runAdapterBinary(deps, command.command, [...command.args, ...args], kind, options)
+}
+
+export type RunOptions = {
+  /** Keep the child's output out of the terminal and return stdout instead. */
+  capture?: boolean
+}
+
+/**
+ * Whether the installed adapter understands `install --reuse-pairing`.
+ * `undefined` means the probe could not decide (the binary did not run, or an
+ * injected runner returned no stdout), so the caller proceeds and lets the
+ * adapter report its own error.
+ */
+export async function adapterSupportsReusePairing(
+  deps: AdapterRunDeps,
+  command: AdapterCommand,
+  kind: AdapterKind
+): Promise<boolean | undefined> {
+  const result = await runAdapterCommand(deps, command, ['install', '--help'], kind, {
+    capture: true,
+  })
+  if (result.code !== 0 || typeof result.stdout !== 'string') return undefined
+  return result.stdout.includes('--reuse-pairing')
 }
 
 /** Stream a child's output to this terminal and keep the stderr tail. */
 export function runStreamed(
   command: string,
   args: readonly string[],
-  env: NodeJS.ProcessEnv = process.env
+  env: NodeJS.ProcessEnv = process.env,
+  options: RunOptions = {}
 ): Promise<BinaryResult> {
   return new Promise((resolve) => {
     const child = spawn(command, [...args], {
@@ -441,14 +490,27 @@ export function runStreamed(
       env,
       windowsHide: true,
     })
+    let stdout = ''
     let stderr = ''
-    child.stdout?.on('data', (chunk: Buffer) => process.stdout.write(chunk))
+    child.stdout?.on('data', (chunk: Buffer) => {
+      if (options.capture) {
+        if (stdout.length < STDOUT_LIMIT) stdout += chunk.toString('utf8')
+        return
+      }
+      process.stdout.write(chunk)
+    })
     child.stderr?.on('data', (chunk: Buffer) => {
-      process.stderr.write(chunk)
+      if (!options.capture) process.stderr.write(chunk)
       if (stderr.length < 4_000) stderr += chunk.toString('utf8')
     })
     child.on('error', (cause) => resolve({ code: 1, stderr: cause.message }))
-    child.on('exit', (code) => resolve({ code: code ?? 1, stderr: tail(stderr) }))
+    child.on('exit', (code) =>
+      resolve({
+        code: code ?? 1,
+        stderr: tail(stderr),
+        ...(options.capture ? { stdout: tail(stdout, STDOUT_LIMIT) } : {}),
+      })
+    )
   })
 }
 
@@ -488,6 +550,6 @@ function failureText(action: string, result: BinaryResult): string {
   return result.stderr.trim() || `the ${action} command exited with code ${result.code}`
 }
 
-function tail(text: string): string {
-  return text.length > 4_000 ? text.slice(-4_000) : text
+function tail(text: string, limit = 4_000): string {
+  return text.length > limit ? text.slice(-limit) : text
 }
