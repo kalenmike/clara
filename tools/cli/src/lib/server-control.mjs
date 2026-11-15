@@ -2,7 +2,7 @@ import { spawnSync } from 'node:child_process'
 import { existsSync } from 'node:fs'
 import { homedir } from 'node:os'
 import { join } from 'node:path'
-import { isRuntimeLive, readRuntimeState } from '@clara/runtime-state'
+import { isRuntimeLive, readRuntimeState, runtimeFile } from '@clara/runtime-state'
 import { root, run } from './router.mjs'
 
 export function composeFile(repoRoot = root) {
@@ -195,7 +195,7 @@ export function dockerServerState() {
 export function serverLocalState(env = process.env) {
   const configHome = env.XDG_CONFIG_HOME?.trim() || join(homedir(), '.config')
   const dataHome = env.XDG_DATA_HOME?.trim() || join(homedir(), '.local', 'share')
-  const runtime = readRuntimeState()
+  const runtime = readRuntimeState(runtimeFile(env))
   const configDir =
     (isRuntimeLive(runtime) ? runtime.configDir : undefined) ||
     env.CLARA_CONFIG_DIR?.trim() ||
