@@ -1,7 +1,6 @@
 import { Link, useLocation } from 'react-router'
 import { Menu } from 'lucide-react'
 import { Button } from '@/components/ui/button'
-import { MobileActionsSlot } from '@/components/layout/mobile-actions'
 import { visibleAppNavItems, type AppNavItem } from '@/components/layout/app-nav'
 import { isDesktop } from '@/lib/runtime'
 import { cn } from '@/lib/utils'
@@ -13,12 +12,9 @@ import { cn } from '@/lib/utils'
  */
 export function AppHeader({
   onOpenNav,
-  showMobileActions = false,
 }: {
   /** Opens the sidebar drawer. Omitted on full-window surfaces without one. */
   onOpenNav?: () => void
-  /** Mounts the chat header's mobile action strip beside the mark. */
-  showMobileActions?: boolean
 }) {
   const { pathname } = useLocation()
   const items = visibleAppNavItems(isDesktop)
@@ -53,12 +49,6 @@ export function AppHeader({
             <AppNavLink key={item.key} item={item} pathname={pathname} />
           ))}
         </nav>
-
-        {showMobileActions && (
-          <div className="ml-auto md:hidden">
-            <MobileActionsSlot />
-          </div>
-        )}
       </div>
 
       <nav aria-label="Main" className="flex h-11 items-stretch border-t md:hidden">
