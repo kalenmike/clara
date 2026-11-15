@@ -65,7 +65,7 @@ export function PairForm({
           spellCheck={false}
         />
         <p className="text-[11px] text-muted-foreground">
-          Paste the code printed by <code>pnpm clara pair</code>. Adapter codes from the hub panel
+          Paste the code printed by <code>clara pair hub</code>. Adapter codes from the hub panel
           install on the harness machine instead. The key never leaves this browser.
         </p>
       </div>

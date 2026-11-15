@@ -18,15 +18,23 @@ import {
   writeAdapterConfig,
 } from './config.ts'
 import { enrollAdapter } from './enroll.ts'
+import { describeError } from './errors.ts'
 import { createHostMetrics } from './host.ts'
 import {
+  adapterInstallCommand,
   adapterProcessStatus,
+  adapterServiceActive,
+  adapterServiceKind,
+  adapterStartCommand,
+  clearAdapterPid,
   installAdapterService,
   removeAdapterService,
   selfEntry,
   startAdapterProcess,
-  stopAdapterProcess,
+  startAdapterService,
+  stopAdapter,
   tailAdapterLog,
+  writeAdapterPid,
 } from './service.ts'
 import { readState, writeState } from './state.ts'
 import { AdapterTransport } from './transport.ts'
@@ -150,7 +158,7 @@ export async function runAdapterCli<THarness>(
     return
   }
   if (command === 'stop') {
-    for (const action of stopAdapterProcess(definition.paths)) console.log(action)
+    for (const action of stopAdapter(definition.name, definition.paths)) console.log(action)
     return
   }
   if (command === 'logs') {
@@ -180,10 +188,15 @@ async function serve<THarness>(
   const config = readAdapterConfig<THarness>(definition.paths)
   if (!config) {
     throw new Error(
-      `No adapter config at ${definition.paths.configPath}. Run: clara-adapter-${definition.name} install --pair <code>`
+      `No adapter config at ${definition.paths.configPath}. Run: ${adapterInstallCommand(
+        definition.name,
+        selfEntry()
+      )}`
     )
   }
   const probe = await definition.probe(config, 3_000)
+  writeAdapterPid(definition.paths)
+  process.once('exit', () => clearAdapterPid(definition.paths))
   const info: AdapterInfo = {
     adapter: { name: definition.name, version: definition.version },
     harness: {
@@ -279,9 +292,7 @@ async function serve<THarness>(
     try {
       writeState(definition.paths.statePath, state)
     } catch (cause) {
-      console.error(
-        `[adapter] could not write status: ${cause instanceof Error ? cause.message : String(cause)}`
-      )
+      console.error(`[adapter] could not write status: ${describeError(cause)}`)
     }
   }
 
@@ -364,7 +375,7 @@ export async function pair<THarness>(
       (enrolled.reconnected ? ' (reconnected)' : '')
   )
   console.log(`Config: ${definition.paths.configPath}`)
-  console.log(`Start it with: clara-adapter-${definition.name} serve`)
+  console.log(`Start it with: ${adapterStartCommand(definition.name, selfEntry())}`)
   return config
 }
 
@@ -390,8 +401,25 @@ function installHelpers<THarness>(
 async function start<THarness>(definition: AdapterDefinition<THarness>): Promise<void> {
   if (!readAdapterConfig(definition.paths)) {
     throw new Error(
-      `No adapter config at ${definition.paths.configPath}. Run: clara-adapter-${definition.name} install --pair <code>`
+      `No adapter config at ${definition.paths.configPath}. Run: ${adapterInstallCommand(
+        definition.name,
+        selfEntry()
+      )}`
     )
+  }
+  if (adapterServiceActive(definition.name)) {
+    console.log(`adapter service is already running (${adapterServiceKind(definition.name)})`)
+    return
+  }
+  const service = adapterServiceKind(definition.name)
+  if (service !== 'none') {
+    const started = startAdapterService(definition.name)
+    console.log(
+      started
+        ? `start ${service} service`
+        : `could not start the ${service} service; check its logs`
+    )
+    return
   }
   const result = startAdapterProcess({
     name: definition.name,
@@ -465,11 +493,19 @@ async function status<THarness>(definition: AdapterDefinition<THarness>): Promis
   console.log(`ws:       ${config.wsUrl}`)
   console.log(`${definition.name}: ${described.url}`)
   const processStatus = adapterProcessStatus(definition.paths)
+  const serviceActive = adapterServiceActive(definition.name)
+  const running = processStatus.running || serviceActive
   console.log(
-    `process:  ${processStatus.running ? `running (pid ${processStatus.pid})` : 'stopped'}`
+    `process:  ${
+      serviceActive
+        ? `running (${adapterServiceKind(definition.name)} service)`
+        : processStatus.running
+          ? `running (pid ${processStatus.pid})`
+          : 'stopped'
+    }`
   )
   const live = readState(definition.paths.statePath)
-  if (live && processStatus.running) {
+  if (live && running) {
     console.log(`hub:      ${live.hub.status} (${live.hub.url})`)
     console.log(
       `link:     ${live.hub.authenticated ? 'authenticated' : live.hub.connected ? 'handshake complete' : 'not authenticated'}` +
@@ -549,7 +585,7 @@ export async function resolveInstallPairing(input: {
     const config = readAdapterConfig<unknown>(input.paths)
     if (!config?.wsUrl) {
       throw new Error(
-        `No existing ${input.label} pairing. Run: clara-adapter-${input.name} install --pair <code>`
+        `No existing ${input.label} pairing. Run: ${adapterInstallCommand(input.name, selfEntry())}`
       )
     }
     return {

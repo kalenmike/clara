@@ -92,7 +92,7 @@ export function DevicesCard({
         {devices.length === 0 ? (
           <EmptyState>
             No devices are paired. Use <strong>Pair a browser</strong> above to create a one-time
-            enrollment link, or run <code className="font-mono">pnpm clara pair</code> on the host.
+            enrollment link, or run <code className="font-mono">clara pair hub</code> on the host.
           </EmptyState>
         ) : (
           <div className="-mx-1 overflow-x-auto">

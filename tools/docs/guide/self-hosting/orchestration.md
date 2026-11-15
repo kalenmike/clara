@@ -45,13 +45,20 @@ clara status engine --json
 ## Install the adapter
 
 ```bash
-clara-adapter-opencode install  # or: clara adapter install opencode
+clara adapter install opencode
 ```
 
-The command links the OpenCode plugin, installs the `Clara` agent, and installs
-the shared runner. Add `--mcp` to register the MCP bridge with the harness. The
-OpenCode adapter is included with this release; another harness needs its own
-adapter.
+The command links the OpenCode plugin, installs the `Clara` agent, and writes
+the shared runner configuration. A downloaded adapter build does not bundle the
+runner command: `clara adapter install opencode` starts the shared runner on a
+hub host after pairing, or you can start it yourself once the engine is running:
+
+```bash
+clara runner start
+```
+
+Add `--mcp` to register the MCP bridge with the harness. The OpenCode adapter
+is included with this release; another harness needs its own adapter.
 
 After installation, select the **Clara** agent in OpenCode. She is the
 human-facing entry point: a concrete request starts a run, a status question

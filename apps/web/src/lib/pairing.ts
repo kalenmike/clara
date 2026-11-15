@@ -18,9 +18,9 @@ export function pairingInputError(input: string): string {
   if (harness || value.startsWith(HARNESS_PAIRING_CODE_PREFIX)) {
     const kind = harness && /^[a-z0-9_-]+$/i.test(harness.kind) ? harness.kind : null
     const install = kind
-      ? `Run pnpm clara start adapter --harness ${kind} --pair <code> on the machine that runs your harness.`
+      ? `Run \`clara adapter install ${kind} --pair <code>\` on the machine that runs your harness.`
       : 'Install it from the hub panel on the machine that runs your harness.'
-    return `That is a harness adapter pairing code. ${install} To pair this browser, use a code from pnpm clara pair.`
+    return `That is a harness adapter pairing code. ${install} To pair this browser, use a code from the hub's Pair Client flow (\`clara pair hub\`).`
   }
   return 'That does not look like a Clara pairing code or link. Browser pairing codes start with clara1_.'
 }

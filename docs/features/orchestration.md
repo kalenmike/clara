@@ -23,13 +23,17 @@ step reference.
    `clara start engine`, or let the MCP bridge start it on first
    use.
 2. Install the harness adapter and the shared runner with
-   `clara-adapter-opencode install --pair <code>` (or `clara adapter install opencode --pair <code>` in the repository). The command installs the
-   hub-facing adapter, links the plugin,
-   installs the `clara` agent, disables the plugin's embedded runner, writes the
-   shared runner config, and installs a user service where the platform
-   supports one. Add `--mcp` to register the MCP bridge with the selected
-   harness, or `--no-service` to run the runner in the foreground. Multiple
-   harness flags are additive; on one host and workspace they share one runner.
+   `clara adapter install opencode --pair <code>`. The command installs the
+   hub-facing adapter, links the plugin, installs the `clara` agent, disables the
+   plugin's embedded runner, and writes the shared runner config. A downloaded
+   adapter build does not bundle the runner command, so `clara adapter install`
+   starts the runner through Clara on a hub host; if the engine is not running
+   yet, start it later with `clara runner start`. A checkout adapter build can
+   install the user service itself where the platform supports one. Add `--mcp`
+   to register the MCP bridge with the selected harness, `--no-runner` to skip
+   the runner config, or `--no-service` to write the config without installing a
+   user service. Multiple harness flags are additive; on one host and workspace
+   they share one runner.
 3. Before handing a package to an agent, run `clara start lab` to choose the host
    files, read the workspace the service reports, preview the compiled target,
    inspect each rendered prompt and policy, and compare it with a pinned run.
@@ -378,9 +382,12 @@ adapter.
 There are two hosts:
 
 - **Shared standalone (default).** `clara-adapter-opencode install`
-  writes `~/.config/clara/runner.json` and installs a user service on Linux or
-  macOS. One runner serves every harness in the workspace. Use
-  `clara-runner` when a service manager is unavailable.
+  writes `~/.config/clara/runner.json`. A checkout build also installs a user
+  service on Linux or macOS; a downloaded adapter build does not bundle the
+  runner command, so `clara adapter install` starts the runner through Clara on a
+  hub host, or the hub host starts it with `clara runner start`. One runner
+  serves every harness in the workspace. Use `clara-runner` when a service
+  manager is unavailable.
 - **Embedded (fallback).** The OpenCode adapter can still import
   `@clara/runner` inside its own process when `runner.enabled` is not `false`.
   The installer disables it so a shared runner is the only one for the

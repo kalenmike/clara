@@ -50,7 +50,7 @@ export function QrScanDialog({
             Scan pairing QR
           </DialogTitle>
           <DialogDescription>
-            Point the camera at the QR code printed by <code>pnpm clara pair</code>. The code is
+            Point the camera at the QR code printed by <code>clara pair hub</code>. The code is
             decoded on this device and never uploaded.
           </DialogDescription>
         </DialogHeader>

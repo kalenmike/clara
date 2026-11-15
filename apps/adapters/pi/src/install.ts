@@ -1,7 +1,9 @@
 import {
   REINSTALL_GRANT_MESSAGE,
   adapterLogSize,
+  describeError,
   enrollAdapter,
+  enrollmentFailure,
   foregroundCommand,
   hasFlag,
   installAdapterService,
@@ -134,14 +136,19 @@ export async function installPi(options: PiInstallOptions): Promise<InstallResul
         deviceGrant = result.relayGrant?.grant
       }
     } catch (cause) {
-      const reason = cause instanceof Error ? cause.message : String(cause)
-      if (options.dryRun) throw new Error(reason, { cause })
-      warnings.push(reason)
+      if (options.dryRun) throw new Error(describeError(cause), { cause })
+      warnings.push(describeError(cause))
       actions.push(`pair adapter ${identity.harnessId} (enrollment response missing)`)
-      if (options.noService) {
-        actions.push(`run the adapter in the foreground: ${commands}`)
-        return { actions, warnings, configPath: adapterConfigPath(), foregroundCommand: commands }
-      }
+      const failure = enrollmentFailure({
+        name: 'pi',
+        label: 'Pi',
+        entry,
+        wsUrl: pairing.wsUrl,
+        configPath: adapterConfigPath(),
+        logPath: adapterLogPath(),
+        cause,
+      })
+      if (options.noService) throw failure
       const paths = piPaths()
       const offset = adapterLogSize(paths)
       const started = startAdapterProcess({ name: 'pi', label: 'Pi', entry, paths })
@@ -152,12 +159,7 @@ export async function installPi(options: PiInstallOptions): Promise<InstallResul
         )
         return { actions, warnings, configPath: adapterConfigPath(), foregroundCommand: commands }
       }
-      throw new Error(
-        `${reason}\nThe adapter config was saved at ${adapterConfigPath()}. ` +
-          `Start it with: clara-adapter-pi start\n` +
-          `Log: ${adapterLogPath()}`,
-        { cause }
-      )
+      throw failure
     }
   }
 

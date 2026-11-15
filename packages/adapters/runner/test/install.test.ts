@@ -31,6 +31,27 @@ test('writes the shared runner config without installing a service', async () =>
   })
 })
 
+test('skips the service when the build has no runner entry', async () => {
+  await withConfigHome(async () => {
+    const result = installRunner({ entry: join(tmpdir(), 'missing-clara-runner.js') })
+    expect(result.manifest.service).toBe('none')
+    expect(result.actions).toContain('runner service skipped')
+    expect(result.warnings.join(' ')).toContain('clara runner start')
+    expect(existsSync(runnerConfigPath())).toBe(true)
+  })
+})
+
+test('still fails an explicit runner install without an entry', async () => {
+  await withConfigHome(async () => {
+    expect(() =>
+      installRunner({
+        entry: join(tmpdir(), 'missing-clara-runner.js'),
+        explicit: true,
+      })
+    ).toThrow(/clara runner start/)
+  })
+})
+
 test('removes the runner config on uninstall', async () => {
   await withConfigHome(async () => {
     installRunner({ noService: true, explicit: true })

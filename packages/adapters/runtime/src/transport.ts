@@ -1,6 +1,7 @@
 import { WebSocket } from 'ws'
 import type { AdapterDisconnect, AdapterIdentity } from './types.ts'
 import { REINSTALL_GRANT_MESSAGE } from './config.ts'
+import { describeError } from './errors.ts'
 import {
   ReplayGuard,
   base64UrlToBytes,
@@ -270,7 +271,7 @@ export class AdapterTransport {
 
     socket.on('error', (cause) => {
       if (this.socket !== socket) return
-      this.lastError = cause instanceof Error ? cause.message : String(cause)
+      this.lastError = describeError(cause)
       this.options.log?.('adapter socket error', cause)
     })
     socket.on('close', (code, reason) => {
@@ -410,7 +411,7 @@ export class AdapterTransport {
         this.options.log?.('adapter authenticated')
       }
     } catch (cause) {
-      this.lastError = cause instanceof Error ? cause.message : String(cause)
+      this.lastError = describeError(cause)
       this.options.log?.('adapter could not open a frame', cause)
       this.socket?.close(1000, 'bad frame')
     }
@@ -523,7 +524,7 @@ export class AdapterTransport {
           type: 'adapter.error',
           id: action.id,
           code: 'adapter_error',
-          message: cause instanceof Error ? cause.message : String(cause),
+          message: describeError(cause),
         }).catch(() => {})
       }
     } finally {

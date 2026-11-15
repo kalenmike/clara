@@ -13,6 +13,8 @@ export interface RunnerInstallInput {
   noService?: boolean
   dryRun?: boolean
   explicit?: boolean
+  /** Test or embed override for the runner CLI entry. */
+  entry?: string
 }
 
 export interface RunnerInstallResult {
@@ -30,7 +32,19 @@ export function runnerEntry(): string {
   for (const candidate of candidates) {
     if (existsSync(candidate)) return candidate
   }
-  throw new Error('The Clara runner entry is missing. Build @clara/runner and retry.')
+  throw new Error(
+    'The shared runner command is not available in this build. Start it with `clara runner start` on the hub host.'
+  )
+}
+
+/** The installer entry, or undefined when this build has no runner command. */
+function runnerEntryOrUndefined(input: RunnerInstallInput = {}): string | undefined {
+  if (input.entry) return existsSync(input.entry) ? input.entry : undefined
+  try {
+    return runnerEntry()
+  } catch {
+    return undefined
+  }
 }
 
 /** Install the one shared script runner used by every harness in a workspace. */
@@ -70,15 +84,30 @@ export function installRunner(input: RunnerInstallInput = {}): RunnerInstallResu
   if (input.noService) {
     actions.push(`runner service skipped; run: clara-runner --config ${runnerConfigPath()}`)
   } else {
-    const service = installService({
-      entry: runnerEntry(),
-      configPath: runnerConfigPath(),
-      dryRun: input.dryRun,
-    })
-    runner.service = service.service
-    if (service.unitPath) runner.unitPath = service.unitPath
-    actions.push(...service.actions)
-    if (service.warning) warnings.push(service.warning)
+    const entry = runnerEntryOrUndefined(input)
+    if (!entry) {
+      if (input.explicit) {
+        throw new Error(
+          'The shared runner command is not available in this build. Start it with `clara runner start` on the hub host.'
+        )
+      }
+      runner.service = 'none'
+      actions.push('runner service skipped')
+      warnings.push(
+        'The shared runner command is not bundled in this adapter build. ' +
+          'Start it on the hub host with `clara runner start`.'
+      )
+    } else {
+      const service = installService({
+        entry,
+        configPath: runnerConfigPath(),
+        dryRun: input.dryRun,
+      })
+      runner.service = service.service
+      if (service.unitPath) runner.unitPath = service.unitPath
+      actions.push(...service.actions)
+      if (service.warning) warnings.push(service.warning)
+    }
   }
   if (!input.dryRun) {
     const path = manifestPath()
