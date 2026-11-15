@@ -44,8 +44,6 @@ const info: PanelInstallInfo = {
       },
     ],
   },
-  ssh: { available: true, hosts: [] },
-  docker: { available: true, containers: [] },
 }
 
 describe('install panel helpers', () => {
@@ -56,7 +54,7 @@ describe('install panel helpers', () => {
     expect(registryError(info, 'claude')).toBe('missing')
   })
 
-  it('builds the registry command and skips the remote runner for OpenCode', () => {
+  it('builds the registry command and skips the runner for OpenCode', () => {
     expect(registryCommand(info, 'opencode', 'code')).toBe(
       'curl -fsSL https://clara.example/adapters/opencode/install.sh | sh -s -- --pair code --no-runner'
     )
@@ -69,7 +67,7 @@ describe('install panel helpers', () => {
     )
   })
 
-  it('offers installs only when the hub can run them', () => {
+  it('offers setup only when the hub can share a command', () => {
     expect(installOffered(info)).toBe(true)
     expect(installOffered(undefined)).toBe(false)
     expect(installOffered({ ...info, enabled: false })).toBe(false)
@@ -77,9 +75,7 @@ describe('install panel helpers', () => {
       installOffered({
         ...info,
         available: false,
-        reason: 'The hub service runs in Docker.',
-        ssh: { available: false, reason: 'Docker', hosts: [] },
-        docker: { available: false, reason: 'Docker', containers: [] },
+        reason: 'Adapter setup is off.',
       })
     ).toBe(false)
   })

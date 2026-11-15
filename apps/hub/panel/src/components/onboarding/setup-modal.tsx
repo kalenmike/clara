@@ -182,7 +182,7 @@ export function SetupModal({
               onPathChange={onPathChange}
             />
           ) : step === 'harness' ? (
-            <HarnessStep snapshot={snapshot} setup={setup} now={now} onChanged={onChanged} />
+            <HarnessStep snapshot={snapshot} now={now} onChanged={onChanged} />
           ) : step === 'client' ? (
             <ClientStep snapshot={snapshot} setup={setup} now={now} onChanged={onChanged} />
           ) : (

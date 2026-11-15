@@ -1,19 +1,16 @@
 import { Cable } from 'lucide-react'
 import type { PanelSnapshot } from '@clara/shared-types'
 import { findFeature } from '../../lib/feature-control.ts'
-import type { SetupState } from '../../lib/onboarding.ts'
 import { useHarnessPairing } from '../../lib/use-harness-pairing.ts'
 import { HarnessPairContent, HarnessPairFooter } from '../harness-pair-views.tsx'
 import { Badge, Notice } from '../primitives.tsx'
 
 export function HarnessStep({
   snapshot,
-  setup,
   now,
   onChanged,
 }: {
   snapshot: PanelSnapshot
-  setup: SetupState
   now: number
   onChanged: () => void
 }) {
@@ -23,7 +20,6 @@ export function HarnessStep({
     snapshot,
     now,
     onChanged,
-    initialMachine: setup.path === 'relay' ? 'remote' : 'local',
   })
   const online = snapshot.harnesses.filter((harness) => harness.online).length
 

@@ -57,20 +57,18 @@ export function AdapterRegistryCard({
 
   return (
     <CollapsibleCard
-      title="Adapter downloads"
-      description="Registry manifests and remote adapter installs"
+      title="Adapter setup"
+      description="Registry manifests and install commands"
       icon={<Download className="size-4" aria-hidden="true" />}
       defaultExpanded
       action={
-        <Badge tone={enabled ? 'success' : 'neutral'}>
-          {enabled ? 'Installs on' : 'Installs off'}
-        </Badge>
+        <Badge tone={enabled ? 'success' : 'neutral'}>{enabled ? 'Setup on' : 'Setup off'}</Badge>
       }
       control={
         <Toggle
           checked={enabled}
           onChange={() => void toggle()}
-          label="Allow adapter installs"
+          label="Allow adapter setup"
           state={pending ? 'pending' : enabled ? 'on' : 'off'}
           disabled={pending}
         />
@@ -79,8 +77,8 @@ export function AdapterRegistryCard({
       <CardBody>
         {error ? <Notice tone="danger">{redact(error)}</Notice> : null}
         <p className="panel-muted text-[11px]">
-          The hub reads the manifest and runs its install script on the target you choose. It never
-          downloads or bundles the adapter itself.
+          The hub reads the manifest and builds the install command. It never downloads, bundles, or
+          runs the adapter; the person runs the command on the harness machine.
         </p>
         <ConfigEditorRow
           id="config-adapter-registry"

@@ -23,7 +23,7 @@ ENV HUSKY=0
 ENV PNPM_HOME=/pnpm
 ENV CARGO_HOME=/usr/local/cargo
 ENV RUSTUP_HOME=/usr/local/rustup
-ENV PATH=/pnpm:/usr/local/cargo/bin:$PATH
+ENV PATH=/pnpm:/usr/local/cargo/bin:/usr/local/bin:$PATH
 
 # Tauri's Linux prerequisites, plus the tools linuxdeploy needs for AppImage.
 RUN apt-get update && apt-get install -y --no-install-recommends \
@@ -41,6 +41,9 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
       wget \
     && rm -rf /var/lib/apt/lists/*
 
+# The desktop shell bundles the adapter host as a Bun-compiled sidecar.
+COPY --from=oven/bun:1 /usr/local/bin/bun /usr/local/bin/bun
+
 ARG RUST_VERSION=stable
 RUN curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs \
       | sh -s -- -y --profile minimal --default-toolchain "${RUST_VERSION}"
@@ -52,15 +55,19 @@ COPY package.json pnpm-lock.yaml pnpm-workspace.yaml tsconfig.base.json ./
 # These manifest copies cover the workspace dependency closure of the desktop
 # build: the Tauri CLI from @clara/desktop and the frontend from @clara/web.
 COPY apps/desktop/package.json apps/desktop/package.json
+COPY apps/desktop/host/package.json apps/desktop/host/package.json
 COPY apps/web/package.json apps/web/package.json
+COPY packages/adapters/install/package.json packages/adapters/install/package.json
 COPY packages/api/api-client/package.json packages/api/api-client/package.json
 COPY packages/contracts/api-contract/package.json packages/contracts/api-contract/package.json
 COPY packages/contracts/shared-types/package.json packages/contracts/shared-types/package.json
 COPY packages/crypto/package.json packages/crypto/package.json
-RUN pnpm install --frozen-lockfile --filter @clara/desktop... --filter @clara/web...
+RUN pnpm install --frozen-lockfile --filter @clara/desktop... --filter @clara/desktop-host... --filter @clara/web...
 
+# `apps/desktop` includes `apps/desktop/host`, the adapter host sidecar.
 COPY apps/desktop apps/desktop
 COPY apps/web apps/web
+COPY packages/adapters/install packages/adapters/install
 COPY packages/api/api-client packages/api/api-client
 COPY packages/contracts/api-contract packages/contracts/api-contract
 COPY packages/contracts/shared-types packages/contracts/shared-types
@@ -83,6 +90,7 @@ RUN --mount=type=cache,id=clara-cargo-registry,target=/usr/local/cargo/registry 
     --mount=type=cache,id=clara-desktop-target,target=/repo/apps/desktop/src-tauri/target \
     --mount=type=cache,id=clara-tauri-tools,target=/root/.cache/tauri \
     mkdir -p /out \
+    && node apps/desktop/host/scripts/build.mjs \
     && pnpm --dir apps/desktop exec tauri build --bundles "$TAURI_BUNDLES" \
     && find apps/desktop/src-tauri/target/release/bundle -type f -name '*.deb' \
          -exec cp -t /out/ {} + \

@@ -8,7 +8,7 @@ import {
   parseDockerPs,
   readSshHosts,
   type RunCommand,
-} from '../src/panel/install-targets.ts'
+} from '../src/index.ts'
 
 const tempDirs: string[] = []
 
@@ -69,7 +69,7 @@ describe('SSH config targets', () => {
     }
     await expect(listSshTargets({ homeDir: home, run: missing })).resolves.toEqual({
       available: false,
-      reason: 'SSH is not installed on the hub host.',
+      reason: 'SSH is not installed on this machine.',
       hosts: [],
     })
 
@@ -128,7 +128,7 @@ describe('Docker targets', () => {
     }
     await expect(listDockerTargets({ run: missing })).resolves.toEqual({
       available: false,
-      reason: 'Docker is not available on the hub host.',
+      reason: 'Docker is not available on this machine.',
       containers: [],
     })
   })

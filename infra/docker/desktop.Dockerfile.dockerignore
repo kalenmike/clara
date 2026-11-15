@@ -21,7 +21,12 @@ apps/adapters
 tools
 docs
 packages/api/mcp
-packages/adapters
+packages/adapters/binding
+packages/adapters/runner
+packages/adapters/runtime
+packages/adapters/opencode
+packages/adapters/claude
+packages/adapters/pi
 packages/contracts/harness-protocol
 packages/orchestration
 packages/preview

@@ -4,7 +4,9 @@ import type {
   ClaraCommandListOutput,
   ClaraFileFindOutput,
   ClaraForm,
+  ClaraAdapterInstallManifestResponse,
   ClaraHarnessConnection,
+  ClaraHarnessPairingResponse,
   ClaraLocation,
   ClaraModelListOutput,
   ClaraPermissionRequestListOutput,
@@ -96,6 +98,19 @@ export function createClaraClient(options: ClaraClientOptions): ClaraClient {
         request<ClaraHarnessConnection[]>('GET', '/v1/harnesses', {
           options: requestOptions,
         }),
+      manifest: (kind, requestOptions) =>
+        request<ClaraAdapterInstallManifestResponse>(
+          'GET',
+          `/v1/harness/adapters/${encodeURIComponent(kind)}`,
+          { options: requestOptions }
+        ),
+      pairing: {
+        create: (input, requestOptions) =>
+          request<ClaraHarnessPairingResponse>('POST', '/v1/harness/pairings', {
+            body: input,
+            options: requestOptions,
+          }),
+      },
     },
     project: {
       list: (input, requestOptions) =>

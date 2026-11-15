@@ -1,0 +1,29 @@
+{
+  "name": "@clara/desktop-host",
+  "private": true,
+  "version": "0.1.0",
+  "type": "module",
+  "description": "Loopback adapter host for the Clara desktop client.",
+  "bin": {
+    "clara-adapter-host": "./dist/index.js"
+  },
+  "scripts": {
+    "build": "tsup",
+    "typecheck": "tsc -p tsconfig.json",
+    "test": "vitest run",
+    "start": "node dist/index.js",
+    "bundle": "node scripts/build.mjs"
+  },
+  "dependencies": {
+    "@clara/adapter-install": "workspace:*",
+    "@clara/shared-types": "workspace:*",
+    "@hono/node-server": "^2.1.6",
+    "hono": "^4.13.17"
+  },
+  "devDependencies": {
+    "@types/node": "^24.19.2",
+    "tsup": "^9.0.0",
+    "typescript": "~6.0.3",
+    "vitest": "^5.0.5"
+  }
+}

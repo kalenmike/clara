@@ -1,6 +1,5 @@
 import { useEffect, useRef } from 'react'
 import type { PanelSnapshot } from '@clara/shared-types'
-import type { HarnessMachine } from '../lib/harness-pairing.ts'
 import { useHarnessPairing } from '../lib/use-harness-pairing.ts'
 import { HarnessPairContent, HarnessPairFooter, HarnessPairHeader } from './harness-pair-views.tsx'
 
@@ -10,14 +9,12 @@ export function HarnessPairDialog({
   now,
   onChanged,
   onClose,
-  initialMachine,
 }: {
   open: boolean
   snapshot: PanelSnapshot
   now: number
   onChanged: () => void
   onClose: () => void
-  initialMachine?: HarnessMachine
 }) {
   const dialogRef = useRef<HTMLDialogElement>(null)
   const flow = useHarnessPairing({
@@ -26,7 +23,6 @@ export function HarnessPairDialog({
     now,
     onChanged,
     onClose,
-    ...(initialMachine ? { initialMachine } : {}),
   })
 
   useEffect(() => {

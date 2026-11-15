@@ -9,10 +9,9 @@ import {
   type PanelConfigInfo,
   type PanelConfigMutationResponse,
   type PanelConfigUpdate,
+  type AdapterInstallOffer,
   type PanelControls,
   type PanelInstallInfo,
-  type PanelInstallJob,
-  type PanelInstallStart,
   type PanelMutationResponse,
   type PanelRelayUpdate,
   type PanelSessionsQuery,
@@ -364,6 +363,31 @@ function fakeControls(initial: Partial<PanelControls> = {}): FakeControls {
         createdAt: new Date(0).toISOString(),
       },
     }),
+    createAdapterPairing: async (): Promise<AdapterInstallOffer> => ({
+      pairing: {
+        id: 'pair',
+        kind: 'opencode',
+        label: 'OpenCode',
+        transport: 'docker',
+        code: 'clara-harness1_test',
+        wsUrl: 'ws://127.0.0.1:8788/ws',
+        room: 'local',
+        fingerprint: 'fp',
+        expiresAt: new Date(0).toISOString(),
+        createdAt: new Date(0).toISOString(),
+      },
+      manifest: {
+        schemaVersion: 1,
+        harness: 'opencode',
+        version: '0.1.0',
+        install: 'https://clara.example/adapters/opencode/install.sh',
+        installSha256: 'a'.repeat(64),
+        artifacts: {},
+      },
+      command:
+        'curl -fsSL https://clara.example/adapters/opencode/install.sh | sh -s -- --pair clara-harness1_test --no-runner',
+      deepLink: 'clara://adapter?code=clara-harness1_test',
+    }),
     cancelHarnessPairing: async () => undefined,
     testHarness: async () => ({
       ok: true,
@@ -385,10 +409,8 @@ function fakeControls(initial: Partial<PanelControls> = {}): FakeControls {
   }
 }
 
-function fakeInstall(): { service: InstallService; started: PanelInstallStart[] } {
-  const started: PanelInstallStart[] = []
-  let job: PanelInstallJob | undefined
-  const service = {
+function fakeInstall(): InstallService {
+  return {
     info: async (): Promise<PanelInstallInfo> => ({
       enabled: true,
       available: true,
@@ -397,29 +419,8 @@ function fakeInstall(): { service: InstallService; started: PanelInstallStart[] 
         source: 'default',
         entries: [],
       },
-      ssh: { available: true, hosts: [{ alias: 'prod', hostname: 'prod.example' }] },
-      docker: { available: true, containers: [] },
     }),
-    transportFor: () => 'relay' as const,
-    start: async (input: PanelInstallStart) => {
-      started.push(input)
-      job = {
-        id: 'job-1',
-        pairingId: 'pair',
-        kind: input.kind,
-        method: input.method,
-        target: 'prod',
-        state: 'running',
-        startedAt: new Date(0).toISOString(),
-        lines: ['Installing'],
-      }
-      return job
-    },
-    job: (id: string) => (job?.id === id ? job : undefined),
-    cancel: (id: string) => job?.id === id,
-    close: () => {},
   } as unknown as InstallService
-  return { service, started }
 }
 
 async function start(
@@ -578,35 +579,28 @@ describe('panel server', () => {
     expect(tested.status).toBe(200)
   })
 
-  it('serves the install registry and starts jobs through the install route', async () => {
+  it('serves the adapter registry and issues setup offers', async () => {
     const controls = fakeControls()
     const install = fakeInstall()
-    const server = await start(undefined, controls, undefined, install.service)
+    const server = await start(undefined, controls, undefined, install)
 
     const info = await get(server, 'panel/api/v1/install')
     expect(info.status).toBe(200)
     expect(await info.json()).toMatchObject({
       available: true,
-      ssh: { hosts: [{ alias: 'prod' }] },
+      registry: { baseUrl: 'https://clara.example/adapters' },
     })
 
-    const started = await post(server, 'install', {
-      kind: 'opencode',
-      method: 'ssh',
-      host: { alias: 'prod' },
-    })
-    expect(started.status).toBe(200)
-    const body = (await started.json()) as {
-      job: { id: string; state: string }
+    const created = await post(server, 'install', { kind: 'opencode' })
+    expect(created.status).toBe(200)
+    const body = (await created.json()) as {
       pairing: { kind: string }
+      deepLink: string
+      command: string
     }
-    expect(body.job).toMatchObject({ id: 'job-1', state: 'running' })
     expect(body.pairing.kind).toBe('opencode')
-    expect(install.started).toHaveLength(1)
-
-    const job = await get(server, `panel/api/v1/install/jobs/${body.job.id}`)
-    expect(job.status).toBe(200)
-    expect(await job.json()).toMatchObject({ id: 'job-1' })
+    expect(body.deepLink).toBe('clara://adapter?code=clara-harness1_test')
+    expect(body.command).toContain('--pair')
 
     const toggle = await post(server, 'install/settings', { enabled: true })
     expect(toggle.status).toBe(200)

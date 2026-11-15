@@ -55,10 +55,10 @@ In the panel:
 1. Create the owner account.
 2. Choose **Local only** or set up the relay in the Setup modal. The relay path
    needs an online relay and an HTTPS Web URL.
-3. Pair a harness in the same modal. Choose **Local → Docker container**, copy
-   the command, and run it inside the harness container. A hub running in Docker
-   cannot run adapter installs itself, so the panel issues the container-target
-   code instead.
+3. Pair a harness in the same modal and copy the install command. The hub never
+   runs installs; run the command on the harness machine (or inside its
+   container). Clara Desktop can install it in one click on a laptop or over SSH
+   to a VPS.
 4. Pair a client from the modal. You can dismiss it and resume from
    **Settings → Setup**.
 5. Set **Web URL** if the default `http://127.0.0.1:8080` is not what devices

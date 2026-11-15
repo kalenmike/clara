@@ -14,6 +14,9 @@
       "path": "./apps/web"
     },
     {
+      "path": "./apps/desktop/host"
+    },
+    {
       "path": "./packages/crypto"
     },
     {
@@ -48,6 +51,9 @@
     },
     {
       "path": "./packages/adapters/runtime"
+    },
+    {
+      "path": "./packages/adapters/install"
     },
     {
       "path": "./packages/orchestration/control"

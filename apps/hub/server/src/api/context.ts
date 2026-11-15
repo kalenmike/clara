@@ -1,4 +1,9 @@
-import type { AgentInfo } from '@clara/shared-types'
+import type {
+  AdapterInstallMethod,
+  AdapterInstallOffer,
+  AgentInfo,
+  PanelInstallManifest,
+} from '@clara/shared-types'
 import type { HarnessManager } from '../harness/manager.ts'
 
 export type ApiDependencies = {
@@ -7,6 +12,11 @@ export type ApiDependencies = {
   startedAt: number
   canAccess: () => boolean
   sessionCount: () => number
+  createAdapterPairing?: (input: {
+    kind: string
+    method?: AdapterInstallMethod
+  }) => Promise<AdapterInstallOffer>
+  adapterManifest?: (kind: string) => Promise<PanelInstallManifest>
   log: (message: string, detail?: unknown) => void
 }
 

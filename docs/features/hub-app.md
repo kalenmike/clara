@@ -56,11 +56,12 @@ hub data model, pairing, relay, panel, and adapters are unchanged.
    EOF. The tray Quit uses the stdin path, waits briefly, then kills the child.
 8. The panel assets are embedded in the sidecar and extracted once per build to
    the app cache. The shipped sidecar is one executable.
-9. The sidecar runs adapter installs for the panel. SSH and Docker actions use
-   the signed-in user's `~/.ssh/config`, SSH keys, and Docker socket; the hub
-   embeds no adapter artifacts. It reads the adapter registry and runs the
-   install script on the target when the owner enables installs in the panel.
-   A containerized hub and a remote-exposed panel never receive these actions.
+9. The sidecar issues adapter setup, not installs. It reads the adapter
+   registry and returns the one-time code, manifest, copy command, and
+   `clara://adapter` link when the owner enables adapter setup in the panel.
+   SSH keys and the Docker socket stay on the machine that runs the install:
+   Clara Desktop's adapter host for one-click installs, or the person's terminal
+   for the copy command. The hub embeds no adapter artifacts.
 
 ## Edge cases
 

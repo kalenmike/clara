@@ -24,32 +24,24 @@ Inside the Clara repository you can use
 
 ## Pair an adapter
 
-1. Sign in to the hub panel.
-2. Open **Harness** and choose **Pair Harness**.
-3. Choose the harness, then answer **Remote** or **Local**.
-   - **Remote** installs over SSH: select a host from your SSH configuration or
-     enter a user, host, and port. The hub runs the adapter installer there and
-     shows the log.
-   - **Local** asks where the adapter runs. **This machine** uses the hub's
-     loopback listener. **Docker container** installs into a running Docker
-     container, or you can copy the code and run the command inside it. A
-     container on a Docker-hosted hub connects to `ws://server:8788/ws`; on a
-     host-process hub it uses the relay because a container cannot reach
-     loopback.
-   - Both branches offer **Copy code** and **Copy command** for a manual
-     install. Local hosts also have **Advanced → WebSocket URL** for a
-     non-default address.
-4. Turn on adapter installs first in **Settings → Adapter downloads** if the
-   install actions are disabled. SSH and Docker installs require the Cloudflare
-   relay when the target cannot reach the hub's private local listener. A hub
-   running in Docker cannot run install actions; choose **Local → Docker
-   container**, copy the command, and run it inside the harness container.
-5. Continuing creates the pairing code. Run the install action, or copy the
-   code and run the printed command on the harness machine. The registry command
-   downloads the adapter for that machine; the repository command works from a
-   Clara checkout.
+1. Open Clara and go to **Settings → Harness → Pair harness**. The hub panel
+   offers the same action.
+2. Choose the harness. The hub returns a one-time code, an install command, and
+   a link for Clara Desktop. It never runs the install itself.
+3. If you are using Clara Desktop, choose **This computer**, an **SSH host**
+   from your laptop's SSH configuration, or a local **Docker container**, then
+   install. The desktop app uses your SSH agent and Docker socket; your keys
+   never go to the hub. Unlock your key in the keychain/agent first, because
+   there is no password prompt.
+4. If you are using the website only, copy the command and run it on the
+   machine that hosts the harness. For a container, run it inside the container.
+   The registry command downloads the adapter for that machine; the repository
+   command works from a Clara checkout.
+5. Turn on adapter setup first in **Settings → Adapter downloads** if the code
+   cannot be created. A hosted or Docker-hosted hub does not need SSH or Docker
+   access; the command runs where the harness is.
 6. The installer looks for the harness and starts a user service, or a
-   background process when systemd is not available. Return to the panel. The
+   background process when systemd is not available. Return to Clara. The
    pairing card shows **Waiting for the adapter to connect…** and changes to
    **Connected** when the adapter registers. A newly paired adapter shows
    **Paired · Offline** under **Paired harnesses**; when its session connects it
@@ -206,21 +198,21 @@ connection keeps that state; use **Forget** only when you want to discard it.
 - **Claude Code says it is not signed in** — sign in on the harness machine. The
   adapter does not store an API key.
 - **The code expired** — create a new code in the panel.
-- **SSH or Docker is disabled** — turn on **Settings → Adapter downloads**. The
-  options also require a loopback panel and a hub running as a local process.
-- **The hub runs in Docker** — choose **Local → Docker container**, copy the
-  command, and run it inside the harness container. A containerized hub cannot
-  run the installer itself.
-- **The host is missing from the SSH list** — it is not in `~/.ssh/config`.
-  Choose **Enter manually** and type the user, host, and port.
+- **Adapter setup is off** — turn on **Settings → Adapter downloads**. That
+  switch only lets the hub read the registry and issue a code.
+- **The hub runs in Docker or is hosted** — copy the command and run it on the
+  harness machine, or open the link with Clara Desktop. The hub never runs the
+  installer itself.
+- **The host is missing from the SSH list** — it is not in the laptop's
+  `~/.ssh/config`. Choose **Enter manually** and type the user, host, and port.
 - **The install log says the container has no downloader** — the container has
   neither `curl` nor `wget`. Select a different container, or copy the code and
   run the installer by hand.
 - **The adapter release is unavailable** — the registry manifest could not be
   read. Check **Settings → Adapter downloads** and the registry URL.
-- **OpenCode needs a password over SSH** — the remote install cannot prompt.
-  Enter the OpenCode URL in the panel and set `OPENCODE_PASSWORD` on the target,
-  or run the manual installer interactively.
+- **OpenCode needs a password over SSH** — the one-click install cannot prompt.
+  Set `OPENCODE_PASSWORD` on the target, or run the manual installer
+  interactively.
 - **The browser rejects a panel code** — adapter codes install the adapter, not
   the browser. Use a browser code from **Clients → Pair Client** or
   `pnpm clara pair`, then paste that link or code in Clara.

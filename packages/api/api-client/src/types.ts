@@ -5,7 +5,10 @@ import type {
   ClaraEvent,
   ClaraFileFindOutput,
   ClaraForm,
+  ClaraAdapterInstallManifestResponse,
   ClaraHarnessConnection,
+  ClaraHarnessPairingRequest,
+  ClaraHarnessPairingResponse,
   ClaraLocation,
   ClaraModelListOutput,
   ClaraModelRef,
@@ -335,6 +338,16 @@ export type ClaraClient = {
   }
   harness: {
     list: (options?: RequestOptions) => Promise<ClaraHarnessConnection[]>
+    manifest: (
+      kind: string,
+      options?: RequestOptions
+    ) => Promise<ClaraAdapterInstallManifestResponse>
+    pairing: {
+      create: (
+        input: ClaraHarnessPairingRequest,
+        options?: RequestOptions
+      ) => Promise<ClaraHarnessPairingResponse>
+    }
   }
   project: {
     list: (input?: ClaraProjectListInput, options?: RequestOptions) => Promise<ClaraProject[]>
