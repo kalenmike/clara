@@ -284,6 +284,9 @@ ask for confirmation run without one, exactly as in the Pi TUI.
   local execution.
 - **Registry unreachable** — the panel names the manifest error and does not
   create a code. The manual repository commands still work from a checkout.
+- **Adapter behind the registry** — the Adapter setup card shows the connected
+  adapter version beside the published one and names the reinstall when they
+  differ. The hub never upgrades an adapter by itself.
 - **SSH host missing** — an alias that is not in the client machine's
   `~/.ssh/config` is rejected; enter the user, host, and port manually instead.
 - **SSH authentication** — Clara Desktop installs use key or agent
@@ -429,10 +432,17 @@ ask for confirmation run without one, exactly as in the Pi TUI.
   script as the `adapter-registry` workflow artifact. `pnpm adapters:build`
   locally builds only the host target (or explicit `--targets`) under
   `dist/adapters`; the maintainer deploys the web registry from the artifact.
-  `pnpm adapters:build --from-release <tag> --repo <owner/repo> [--api-url URL]`
-  regenerates the same files from archives already attached to a release,
-  reading asset names, sizes, and SHA-256 digests from the GitHub API without
-  downloading them. A local build writes relative artifact URLs, so
+  `pnpm adapters:build --from-release <tag|latest> --repo <owner/repo>
+[--api-url URL]` regenerates the same files from archives already attached to a
+  release, reading asset names, sizes, and SHA-256 digests from the GitHub API
+  without downloading them. `pnpm deploy:web:registry` pins the newest
+  `adapters-v*` release, regenerates the registry, verifies each manifest and
+  artifact digest against that release, and then deploys the web app;
+  `pnpm adapters:check` runs the same verification without deploying.
+  `pnpm deploy:web` runs the same check before `wrangler` (against
+  `CLARA_ADAPTER_RELEASE_TAG` when set), so it refuses a registry that is
+  missing a harness or target, that points at a local archive URL, or that does
+  not match the release. A local build writes relative artifact URLs, so
   `pnpm adapters:serve` (or `adapters:build --serve`) exposes
   `dist/adapters` on loopback and `CLARA_ADAPTER_REGISTRY_URL` points the
   packaged command or hub at it. A served or mirrored build instead writes

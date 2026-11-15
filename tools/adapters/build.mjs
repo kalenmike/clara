@@ -6,7 +6,8 @@
 //     [--version 0.1.0-dev+abc1234] [--tag adapters-v0.1.0-dev+abc1234]
 //     [--targets linux-x64,darwin-arm64,...|all] [--all-targets]
 //     [--artifact-base https://github.com/<owner>/<repo>/releases/download/<tag>]
-//     [--from-release <tag> --repo <owner/repo> [--api-url https://api.github.com]]
+//     [--from-release <tag|latest> --repo <owner/repo>
+//       [--api-url https://api.github.com]]
 //     [--build dist/adapters] [--out dist/adapters]
 //     [--serve [--port 8799] [--host 127.0.0.1]]
 //     [--artifacts-only] [--skip-build] [--no-adapter-build]
@@ -18,12 +19,15 @@
 //
 // To generate manifests for archives that are already in a GitHub release,
 // use --from-release. It reads the asset names, sizes, and SHA-256 digests from
-// the GitHub API; no archive is downloaded.
+// the GitHub API; no archive is downloaded. `latest` resolves the newest
+// published adapters-v* release.
 //
 //   pnpm adapters:build                       # host target, local registry
 //   pnpm adapters:build --serve               # build and serve on 127.0.0.1:8799
 //   pnpm adapters:build --print-targets       # show the host target
 //   pnpm adapters:build --all-targets         # deliberate full local build
+//   pnpm adapters:build --from-release latest \
+//     --repo owner/repo --out apps/web/public/adapters
 //   pnpm adapters:build --from-release adapters-v0.1.0 --version 0.1.0 \
 //     --repo owner/repo --out apps/web/public/adapters
 
@@ -44,26 +48,28 @@ import { tmpdir } from 'node:os'
 import { dirname, join, resolve } from 'node:path'
 import { fileURLToPath } from 'node:url'
 import { artifactUrls } from './lib/urls.mjs'
-
-const SUPPORTED_TARGETS = [
-  'linux-x64',
-  'linux-arm64',
-  'linux-x64-musl',
-  'linux-arm64-musl',
-  'darwin-x64',
-  'darwin-arm64',
-  'win32-x64',
-  'win32-arm64',
-]
+import {
+  assetMetadata,
+  fetchLatestAdapterTag,
+  fetchReleaseAssets as fetchReleaseFromGitHub,
+  versionFromTag,
+} from './lib/releases.mjs'
+import { SUPPORTED_TARGETS } from './lib/registry.mjs'
 
 const here = dirname(fileURLToPath(import.meta.url))
 const repoRoot = resolve(here, '../..')
 const args = parseArgs(process.argv.slice(2))
 const packageVersion = JSON.parse(readFileSync(join(repoRoot, 'package.json'), 'utf8')).version
-const fromRelease = readString(args['from-release'], undefined)
+const repo = readString(args.repo, process.env.GITHUB_REPOSITORY?.trim() || 'kalenmike/clara')
+const apiUrl = readString(
+  args['api-url'],
+  process.env.GITHUB_API_URL?.trim() || 'https://api.github.com'
+).replace(/\/+$/, '')
+const requestedRelease = readString(args['from-release'], undefined)
+const fromRelease = requestedRelease === 'latest' ? await latestReleaseTag() : requestedRelease
 const version = readString(
   args.version,
-  fromRelease ? versionFromTag(fromRelease) : defaultVersion()
+  fromRelease ? versionFromTagOrFail(fromRelease) : defaultVersion()
 )
 const tag = readString(args.tag, fromRelease ?? `adapters-v${version}`)
 const kinds = parseKinds(args.kind)
@@ -78,13 +84,8 @@ const artifactBase = serve
   ? `http://${serveHost}:${servePort}`
   : readString(
       args['artifact-base'],
-      `https://github.com/kalenmichael/clara/releases/download/${encodeURIComponent(tag)}`
+      `https://github.com/kalenmike/clara/releases/download/${encodeURIComponent(tag)}`
     )
-const repo = readString(args.repo, process.env.GITHUB_REPOSITORY?.trim() || 'kalenmichael/clara')
-const apiUrl = readString(
-  args['api-url'],
-  process.env.GITHUB_API_URL?.trim() || 'https://api.github.com'
-).replace(/\/+$/, '')
 const artifactsOnly = Boolean(args['artifacts-only'])
 const bun = process.env.BUN_BIN?.trim() || 'bun'
 
@@ -291,71 +292,46 @@ function defaultVersion() {
   return `${packageVersion}-dev+${commit}`
 }
 
-function versionFromTag(tag) {
-  const match = /^(?:adapters-)?v(.+)$/.exec(tag)
-  if (!match) {
-    fail(`Cannot derive a version from ${tag}. Pass --version explicitly.`)
+function versionFromTagOrFail(tag) {
+  const version = versionFromTag(tag)
+  if (!version) fail(`Cannot derive a version from ${tag}. Pass --version explicitly.`)
+  return version
+}
+
+async function latestReleaseTag() {
+  try {
+    const latest = await fetchLatestAdapterTag({
+      repo,
+      apiUrl,
+      token: githubToken(),
+    })
+    console.log(`Latest adapter release: ${latest}`)
+    return latest
+  } catch (cause) {
+    fail(errorMessage(cause))
   }
-  return match[1]
 }
 
 async function fetchReleaseAssets() {
-  const release = await getJson(
-    `${apiUrl}/repos/${repo}/releases/tags/${encodeURIComponent(fromRelease)}`
-  )
-  const listed = Array.isArray(release.assets) ? release.assets : []
-  const assetsUrl =
-    release.id !== undefined
-      ? `${apiUrl}/repos/${repo}/releases/${release.id}/assets`
-      : release.assets_url
-  const assets =
-    assetsUrl && (listed.length === 0 || listed.length >= 30) ? await listAssets(assetsUrl) : listed
-  return new Map(assets.map((asset) => [asset.name, asset]))
-}
-
-async function listAssets(url) {
-  const assets = []
-  const base = url.split('?')[0]
-  for (let page = 1; page <= 20; page += 1) {
-    const batch = await getJson(`${base}?per_page=100&page=${page}`)
-    if (!Array.isArray(batch) || batch.length === 0) break
-    assets.push(...batch)
-    if (batch.length < 100) break
-  }
-  return assets
-}
-
-async function getJson(url) {
-  const token = process.env.GITHUB_TOKEN?.trim() || process.env.GH_TOKEN?.trim()
-  const headers = {
-    accept: 'application/vnd.github+json',
-    'user-agent': 'clara-adapters',
-    'x-github-api-version': '2022-11-28',
-  }
-  if (token) headers.authorization = `Bearer ${token}`
-
-  let response
   try {
-    response = await fetch(url, { headers })
-  } catch (error) {
-    fail(`Could not reach ${url}: ${error.message}`)
+    return await fetchReleaseFromGitHub({
+      repo,
+      apiUrl,
+      tag: fromRelease,
+      token: githubToken(),
+    })
+  } catch (cause) {
+    fail(errorMessage(cause))
   }
-  if (!response.ok) {
-    const detail = await response.text().catch(() => '')
-    const hint =
-      response.status === 404
-        ? ' Check the tag and --repo; private repositories need GITHUB_TOKEN or GH_TOKEN.'
-        : ''
-    const body = detail.trim() ? `\n${detail.trim()}` : ''
-    fail(`GitHub API ${response.status} for ${url}.${hint}${body}`)
-  }
-  return response.json()
+}
+
+function githubToken() {
+  return process.env.GITHUB_TOKEN?.trim() || process.env.GH_TOKEN?.trim()
 }
 
 function releaseArtifact(asset) {
-  const digest = typeof asset.digest === 'string' ? asset.digest.trim() : ''
-  const match = /^sha256:([0-9a-fA-F]{64})$/.exec(digest)
-  if (!match) {
+  const metadata = assetMetadata(asset)
+  if (!metadata) {
     fail(
       `Release asset ${asset.name} has no SHA-256 digest. Re-upload it to a release, or use --skip-build with local archives.`
     )
@@ -363,8 +339,6 @@ function releaseArtifact(asset) {
   if (typeof asset.browser_download_url !== 'string' || !asset.browser_download_url) {
     fail(`Release asset ${asset.name} has no browser_download_url.`)
   }
-  const metadata = { sha256: match[1].toLowerCase() }
-  if (Number.isFinite(asset.size)) metadata.size = asset.size
   return metadata
 }
 
@@ -493,4 +467,8 @@ function quote(value) {
 function fail(message) {
   console.error(`adapters: ${message}`)
   process.exit(1)
+}
+
+function errorMessage(cause) {
+  return cause instanceof Error ? cause.message : String(cause)
 }

@@ -98,6 +98,17 @@ describe('install service', () => {
     expect(install.deepLink('clara-harness1_code')).toBe('clara://adapter?code=clara-harness1_code')
   })
 
+  it('reports the installed adapter version next to the registry version', async () => {
+    const info = await service({
+      installedVersion: (kind) => (kind === 'opencode' ? '0.0.9' : undefined),
+    }).info()
+    expect(info.registry.entries[0]?.installedVersion).toBe('0.0.9')
+    expect(info.registry.entries[0]?.manifest?.version).toBe(manifest.version)
+
+    const offline = await service({ installedVersion: () => undefined }).info()
+    expect(offline.registry.entries[0]?.installedVersion).toBeUndefined()
+  })
+
   it('does not hand out manifests while the setting is off', async () => {
     await expect(service({ isEnabled: () => false }).manifest('opencode')).rejects.toThrow(
       /Adapter setup is off/

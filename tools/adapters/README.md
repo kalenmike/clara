@@ -60,6 +60,10 @@ contents under `apps/web/public/adapters/`, then deploy the web app:
 pnpm deploy:web
 ```
 
+`pnpm deploy:web` refuses to run when the registry is missing, partial, points
+at a local archive URL, or does not match the newest adapter release. To generate the registry from the newest release
+and deploy in one step, use `pnpm deploy:web:registry` instead.
+
 The artifact path mirrors the web path:
 
 ```
@@ -75,14 +79,20 @@ asset's name, size, and SHA-256 digest from the GitHub API, and points the
 manifest at the asset's browser download URL:
 
 ```bash
+# newest published adapters-v* release
+pnpm adapters:build --from-release latest --out apps/web/public/adapters
+
+# or pin one tag
 pnpm adapters:build --from-release adapters-v0.1.0-dev+abc1234 \
-  --repo kalenmichael/clara \
+  --repo kalenmike/clara \
   --out apps/web/public/adapters
 ```
 
+- `--from-release latest` resolves the newest published `adapters-v*` release
+  (drafts are skipped) and prints the tag it used.
 - The version comes from the tag (`adapters-v0.1.0` → `0.1.0`); pass `--version`
   when the tag does not carry it.
-- `--repo` defaults to `GITHUB_REPOSITORY`, then `kalenmichael/clara`.
+- `--repo` defaults to `GITHUB_REPOSITORY`, then `kalenmike/clara`.
 - `--api-url` defaults to `GITHUB_API_URL`, then `https://api.github.com`.
 - Without `--targets`, every supported target is expected in the release. Pass
   `--targets linux-x64,darwin-arm64` to generate a partial registry.
@@ -96,6 +106,33 @@ No archive is downloaded, and no hash is computed locally.
 Private repositories need `GITHUB_TOKEN` or `GH_TOKEN` for the API call.
 The install script still downloads the assets without a token, so the release
 itself must be publicly readable.
+
+## Check and deploy the registry
+
+A manifest older than the release it should mirror installs an adapter that does
+not match the hub, so the deploy fails closed:
+
+```bash
+# structural check only: manifests, script hashes, HTTPS URLs, every target
+pnpm adapters:check
+
+# generate from the newest release, verify it against that release, then deploy
+pnpm deploy:web:registry
+
+# verify without deploying
+pnpm deploy:web:registry --check
+```
+
+`pnpm adapters:check` resolves the newest release and compares each manifest's
+version and every artifact SHA-256 with it. `pnpm deploy:web` runs the same
+check before `wrangler`; set `CLARA_ADAPTER_RELEASE_TAG` to verify against a
+pinned tag instead of the newest one. `pnpm deploy:web:registry` pins the
+release tag before generating so a release published mid-deploy cannot split the
+manifest from its archives.
+
+`node tools/adapters/check-registry.mjs --dir <path>` checks a registry without
+deploying. `--allow-local` relaxes the HTTPS requirement for a locally served
+registry; never use it for the web deployment.
 
 ## Local build (host only)
 
@@ -147,7 +184,7 @@ use the CI workflow for a complete registry.
 - `v<version>-install.sh` detects the target, downloads the archive, verifies
   the archive hash, extracts it, and runs the adapter installer.
 - The default release URL is
-  `https://github.com/kalenmichael/clara/releases/download/adapters-v<version>`.
+  `https://github.com/kalenmike/clara/releases/download/adapters-v<version>`.
   Override it with `--artifact-base` when the release lives elsewhere.
 
 The shell installer covers Linux and macOS. Windows users extract the archive

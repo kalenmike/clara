@@ -123,6 +123,15 @@ export function AdapterRegistryCard({
               {entry.ok && entry.manifest ? (
                 <>
                   <Badge tone="info">v{entry.manifest.version}</Badge>
+                  {entry.installedVersion ? (
+                    <Badge
+                      tone={
+                        entry.installedVersion === entry.manifest.version ? 'success' : 'warning'
+                      }
+                    >
+                      installed v{entry.installedVersion}
+                    </Badge>
+                  ) : null}
                   <span className="panel-muted">
                     {Object.keys(entry.manifest.artifacts).length} platform build
                     {Object.keys(entry.manifest.artifacts).length === 1 ? '' : 's'}
@@ -134,6 +143,14 @@ export function AdapterRegistryCard({
               <span className="panel-muted min-w-0 flex-1 truncate text-right font-mono text-[10px]">
                 {entry.manifestUrl}
               </span>
+              {entry.manifest &&
+              entry.installedVersion &&
+              entry.installedVersion !== entry.manifest.version ? (
+                <span className="w-full text-amber-700 dark:text-amber-300">
+                  The connected adapter reports v{entry.installedVersion}. Reinstall from this
+                  registry to move it to v{entry.manifest.version}.
+                </span>
+              ) : null}
               {entry.error ? (
                 <span className="w-full text-red-700 dark:text-red-300">{redact(entry.error)}</span>
               ) : null}
