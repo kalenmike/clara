@@ -17,6 +17,18 @@ export function projectLabel(project: ClaraProject): string {
   return workspaceLabel(project) ?? 'Untitled project'
 }
 
+/**
+ * The workspace line under a project in the sidebar switcher. A single
+ * workspace names its directory; several collapse into a count so one path
+ * never reads as the project's only location.
+ */
+export function projectSwitcherWorkspaceLabel(project: ClaraProject): string {
+  const count = project.workspaces.length
+  if (count === 0) return 'No workspaces'
+  if (count > 1) return `${count} workspaces`
+  return project.workspaces[0]?.directory ?? '1 workspace'
+}
+
 /** Short workspace summary for cards and the selector. */
 export function projectWorkspaceSummary(project: ClaraProject): string {
   const count = project.workspaces.length

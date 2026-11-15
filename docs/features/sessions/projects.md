@@ -23,7 +23,9 @@ scoping rules.
 ## User flow
 
 1. The sidebar switcher lists the seven most recently active projects and ends
-   with **New project** and **All projects**.
+   with **New project** and **All projects**. Each row, and the current project's
+   button, shows the workspace directory for a single-workspace project and a
+   workspace count once the project holds several.
 2. **New project** creates an empty container that can exist before any
    workspace; **All projects** shows one card per non-empty project with its
    workspace summary, last activity, and active and archived session counts.
