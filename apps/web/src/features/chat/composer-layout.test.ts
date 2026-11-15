@@ -62,7 +62,7 @@ describe('composer auto-hide', () => {
     )
   })
 
-  it('keeps the dock collapsed until the pointer or focus reveals it', () => {
+  it('keeps the dock collapsed until the pointer reveals it', () => {
     expect(autoHideComposerMode(pinned, { enabled: true, pinned: false, revealed: false })).toBe(
       'minimized'
     )

@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
+import { useCallback, useEffect, useMemo, useState } from 'react'
 import { Composer } from '@/components/chat/composer'
 import { ComposerTabStrip } from '@/components/chat/composer-tab-strip'
 import { useComposer } from '@/features/chat/composer-provider'
@@ -62,9 +62,7 @@ function ConnectedComposer({
   const { enabled: autoHide, pinned, setPinned } = useComposerAutoHide()
   const isTouchDevice = useIsTouchDevice()
   const autoHideEnabled = autoHide && !isTouchDevice
-  const [revealed, setRevealed] = useState(false)
-  const pointerInside = useRef(false)
-  const sectionRef = useRef<HTMLElement>(null)
+  const [hovered, setHovered] = useState(false)
   const { lowerSingular } = useSessionWording()
   const { session, directory, busy, ready, empty, menuMode, planReady, disabled } =
     useComposerTarget(sessionID)
@@ -121,41 +119,18 @@ function ConnectedComposer({
     [agents, session?.agent, switchAgent]
   )
 
-  const reveal = useCallback(() => {
-    if (autoHideEnabled) setRevealed(true)
-  }, [autoHideEnabled])
-
-  /** Keep the composer open while it holds focus or one of its menus is open. */
-  const canConceal = useCallback(() => {
-    if (pointerInside.current) return false
-    const section = sectionRef.current
-    if (!section) return true
-    if (section.contains(document.activeElement)) return false
-    if (section.querySelector('[aria-expanded="true"]')) return false
-    return true
-  }, [])
-
-  const conceal = useCallback(() => {
-    if (autoHideEnabled && canConceal()) setRevealed(false)
-  }, [autoHideEnabled, canConceal])
-
-  const scheduleConceal = useCallback(() => {
-    window.setTimeout(conceal, 0)
-  }, [conceal])
-
   useEffect(() => {
-    if (!autoHideEnabled) setRevealed(false)
+    if (!autoHideEnabled) setHovered(false)
   }, [autoHideEnabled])
 
   const displayMode = autoHideComposerMode(
     { mode, expanded },
-    { enabled: autoHideEnabled, pinned, revealed }
+    { enabled: autoHideEnabled, pinned, revealed: hovered }
   )
   const togglePinned = useCallback(() => setPinned(!pinned), [pinned, setPinned])
 
   return (
     <section
-      ref={sectionRef}
       role="region"
       aria-label={`Composer for ${title}`}
       style={displayMode === 'pinned' ? { height } : undefined}
@@ -165,16 +140,8 @@ function ConnectedComposer({
           ? 'fixed inset-0 z-50 rounded-none border-0'
           : 'w-full shrink-0 rounded-none border-x-0 border-b-0 shadow-[0_-12px_24px_-16px_rgba(0,0,0,0.35)]'
       )}
-      onPointerEnter={() => {
-        pointerInside.current = true
-        reveal()
-      }}
-      onPointerLeave={() => {
-        pointerInside.current = false
-        conceal()
-      }}
-      onFocusCapture={reveal}
-      onBlurCapture={scheduleConceal}
+      onPointerEnter={() => setHovered(true)}
+      onPointerLeave={() => setHovered(false)}
     >
       {displayMode === 'pinned' && (
         <div
