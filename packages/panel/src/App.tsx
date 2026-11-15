@@ -1,4 +1,4 @@
-import { useMemo } from 'react'
+import { useEffect, useMemo } from 'react'
 import { CircleAlert, LoaderCircle } from 'lucide-react'
 import type { PanelSnapshot } from '@clara/shared-types'
 import { collectSecrets } from './lib/peek.ts'
@@ -25,7 +25,7 @@ import { TitleBar } from './components/shell/title-bar.tsx'
 
 type SnapshotState = ReturnType<typeof useAgentSnapshot>
 
-export function PanelApp() {
+export function PanelApp({ initialPairingCode }: { initialPairingCode?: string } = {}) {
   const session = useSession()
   const authenticated = session.status?.authenticated === true
   const state = useAgentSnapshot({
@@ -39,18 +39,30 @@ export function PanelApp() {
 
   return (
     <PeekProvider secrets={secrets}>
-      <Panel state={state} session={session} />
+      <Panel state={state} session={session} initialPairingCode={initialPairingCode} />
     </PeekProvider>
   )
 }
 
-function Panel({ state, session }: { state: SnapshotState; session: SessionController }) {
+function Panel({
+  state,
+  session,
+  initialPairingCode,
+}: {
+  state: SnapshotState
+  session: SessionController
+  initialPairingCode?: string
+}) {
   const { data, error, loading, refreshing, updatedAt, now, refresh } = state
   const { redact } = usePeek()
   const clock = now ?? updatedAt ?? 0
   const [tab, setTab] = usePanelTab()
   const badges = useMemo(() => (data ? buildBadges(data) : {}), [data])
   const onboarding = useOnboarding(data)
+
+  useEffect(() => {
+    if (initialPairingCode) setTab('harness')
+  }, [initialPairingCode, setTab])
 
   return (
     <div className="panel-shell">
@@ -95,7 +107,12 @@ function Panel({ state, session }: { state: SnapshotState; session: SessionContr
               <OverviewView snapshot={data} now={clock} onChanged={refresh} onSelect={setTab} />
             </div>
             <div className="panel-view-slot" hidden={tab !== 'harness'}>
-              <HarnessView snapshot={data} now={clock} onChanged={refresh} />
+              <HarnessView
+                snapshot={data}
+                now={clock}
+                onChanged={refresh}
+                {...(initialPairingCode ? { initialPairingCode } : {})}
+              />
             </div>
             <div className="panel-view-slot" hidden={tab !== 'sessions'}>
               <SessionsView active={tab === 'sessions'} now={clock} />

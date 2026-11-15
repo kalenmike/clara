@@ -1,5 +1,6 @@
 import type {
   AdapterInstallOffer,
+  AdapterInstallOfferInput,
   PanelInstallInfo,
   PanelInstallManifest,
 } from '@clara/shared-types'
@@ -10,10 +11,9 @@ export async function fetchInstallInfo(): Promise<PanelInstallInfo> {
 }
 
 /** Issue a one-time adapter pairing plus the command and desktop deep link. */
-export async function createAdapterOffer(input: {
-  kind: string
-  opencodeUrl?: string
-}): Promise<AdapterInstallOffer> {
+export async function createAdapterOffer(
+  input: AdapterInstallOfferInput
+): Promise<AdapterInstallOffer> {
   return postPanel<AdapterInstallOffer>('/panel/api/v1/install', input)
 }
 
