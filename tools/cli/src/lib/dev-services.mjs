@@ -134,9 +134,11 @@ export function typecheckDocs(repoRoot = root) {
 
 export async function labHealthy(port = labPort()) {
   try {
+    const token = process.env.CLARA_LAB_TOKEN?.trim()
     const response = await fetch(`${labURL(port)}api/health`, {
       signal: AbortSignal.timeout(1_500),
       cache: 'no-store',
+      ...(token ? { headers: { authorization: `Bearer ${token}` } } : {}),
     })
     if (!response.ok) return false
     const body = await response.json()
