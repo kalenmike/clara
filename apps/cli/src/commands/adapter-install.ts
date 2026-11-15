@@ -33,10 +33,11 @@ export async function runAdapterInstall(args: readonly string[]): Promise<number
   const spinner =
     json || !process.stdout.isTTY ? undefined : startSpinner(`Installing the ${spec.kind} adapter`)
   const transport = parseTransport(parsed.options.get('--transport'))
+  const wsUrl = parsed.options.get('--ws-url')
   try {
     const target = detectAdapterTarget()
     const version = spec.version ?? parsed.options.get('--version')
-    const code = pairCode ?? (await issueCode(spec.kind, transport, spinner))
+    const code = pairCode ?? (await issueCode(spec.kind, transport, spinner, wsUrl))
     const record = await installAdapter(
       {
         kind: spec.kind,
@@ -141,7 +142,9 @@ export async function runPairAdapter(args: readonly string[]): Promise<number> {
   const json = parsed.flags.has('--json')
   const spinner =
     json || !process.stdout.isTTY ? undefined : startSpinner(`Issuing a ${kind.kind} pairing code`)
-  const pairing = await issueAdapterPairing(kind.kind, transport)
+  const pairing = await issueAdapterPairing(kind.kind, transport, {
+    ...(parsed.options.get('--ws-url') ? { wsUrl: parsed.options.get('--ws-url')! } : {}),
+  })
   spinner?.succeed(`Pairing code ready (expires ${pairing.expiresAt})`)
 
   if (json) {
@@ -181,10 +184,13 @@ export async function runPairAdapter(args: readonly string[]): Promise<number> {
 async function issueCode(
   kind: AdapterKind,
   transport: PairingTransport,
-  spinner: Spinner | undefined
+  spinner: Spinner | undefined,
+  wsUrl?: string
 ): Promise<string> {
   spinner?.update(`Issuing a ${kind} pairing code`)
-  const pairing = await issueAdapterPairing(kind, transport)
+  const pairing = await issueAdapterPairing(kind, transport, {
+    ...(wsUrl ? { wsUrl } : {}),
+  })
   return pairing.code
 }
 

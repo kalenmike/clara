@@ -131,27 +131,48 @@ function SetupStep({ flow }: { flow: HarnessPairingFlow }) {
         </div>
       ) : null}
 
+      <div>
+        <p className="text-[11px] font-medium text-foreground">
+          How should the adapter reach the hub?
+        </p>
+        <div
+          role="radiogroup"
+          aria-label="Adapter connection"
+          className="mt-2 grid gap-2 sm:grid-cols-2"
+        >
+          <Choice
+            active={flow.connectionMode === 'relay'}
+            onSelect={() => flow.setConnectionMode('relay')}
+            icon={<Globe2 className="size-4" aria-hidden="true" />}
+            title="Relay"
+            description="Works from any network. Needs a configured relay."
+          />
+          <Choice
+            active={flow.connectionMode === 'direct'}
+            onSelect={() => flow.setConnectionMode('direct')}
+            icon={<Wifi className="size-4" aria-hidden="true" />}
+            title="Direct"
+            description="A WebSocket address the harness machine can reach."
+          />
+        </div>
+      </div>
+
       <InstallTargetFields flow={flow} />
 
-      <details className="rounded-lg border border-border p-3">
-        <summary className="cursor-pointer text-[11px] font-medium text-foreground">
-          Advanced
-        </summary>
-        <label className="mt-2 grid gap-1 text-[11px] font-medium text-foreground">
-          WebSocket URL
-          <input
-            value={flow.wsUrl}
-            onChange={(event) => flow.setWsUrl(event.target.value)}
-            placeholder={flow.defaultWsUrl}
-            spellCheck={false}
-            className="w-full rounded-md border border-border bg-card px-2 py-1.5 font-mono text-[11px]"
-          />
-          <span className="text-[10px] font-normal text-muted-foreground">
-            Leave blank to use the hub&apos;s default address for the chosen target. Set it when the
-            adapter reaches the hub at another address, for example over a LAN or SSH tunnel.
-          </span>
-        </label>
-      </details>
+      {flow.connectionMode === 'direct' ? (
+        flow.needsAddress ? (
+          <WebSocketField flow={flow} required />
+        ) : (
+          <details className="rounded-lg border border-border p-3">
+            <summary className="cursor-pointer text-[11px] font-medium text-foreground">
+              Advanced
+            </summary>
+            <div className="mt-2">
+              <WebSocketField flow={flow} />
+            </div>
+          </details>
+        )
+      ) : null}
 
       {flow.kind === 'opencode' ? (
         <label className="grid gap-1 text-[11px] font-medium text-foreground">
@@ -292,6 +313,61 @@ function InstallTargetFields({ flow }: { flow: HarnessPairingFlow }) {
   )
 }
 
+function WebSocketField({
+  flow,
+  required = false,
+}: {
+  flow: HarnessPairingFlow
+  required?: boolean
+}) {
+  const candidates = flow.addressCandidates
+  return (
+    <label className="grid gap-1 text-[11px] font-medium text-foreground">
+      WebSocket URL
+      {required ? (
+        <span className="font-normal text-amber-600 dark:text-amber-400">required</span>
+      ) : null}
+      <div className="flex gap-2">
+        <input
+          value={flow.wsUrl}
+          onChange={(event) => flow.setWsUrl(event.target.value)}
+          placeholder={flow.defaultWsUrl}
+          spellCheck={false}
+          className="min-w-0 flex-1 rounded-md border border-border bg-card px-2 py-1.5 font-mono text-[11px]"
+        />
+        {candidates.length > 0 ? (
+          <select
+            value=""
+            onChange={(event) => {
+              if (event.target.value) flow.setWsUrl(event.target.value)
+            }}
+            aria-label="Use a detected address"
+            className="max-w-[45%] rounded-md border border-border bg-card px-2 py-1.5 text-[11px]"
+          >
+            <option value="">Detected…</option>
+            {candidates.map((candidate) => (
+              <option key={candidate.url} value={candidate.url}>
+                {candidateLabel(candidate.scope)} · {candidate.url}
+              </option>
+            ))}
+          </select>
+        ) : null}
+      </div>
+      <span className="text-[10px] font-normal text-muted-foreground">
+        {required
+          ? 'Enter an address the harness machine can reach. A Docker container usually uses the Docker bridge or the host LAN address; another machine uses the hub LAN address or a tunnel.'
+          : 'Leave blank to use the hub default for the chosen target. Set it when the adapter reaches the hub at another address, for example over a LAN or SSH tunnel.'}
+      </span>
+    </label>
+  )
+}
+
+function candidateLabel(scope: string): string {
+  if (scope === 'docker') return 'Docker'
+  if (scope === 'lan') return 'LAN'
+  return 'Loopback'
+}
+
 function OfferStep({ flow, now }: { flow: HarnessPairingFlow; now: number }) {
   const offer = flow.offer
   if (!offer) return null
@@ -369,6 +445,15 @@ function OfferStep({ flow, now }: { flow: HarnessPairingFlow; now: number }) {
           Install on {targetLabel} with the code below.
         </p>
       )}
+
+      <div className="space-y-1">
+        <p className="text-[10px] font-semibold tracking-wide text-muted-foreground uppercase">
+          Connects to
+        </p>
+        <code className="block break-all rounded-md bg-muted p-2 font-mono text-[11px] text-foreground">
+          {offer.pairing.wsUrl}
+        </code>
+      </div>
 
       <div className="space-y-1">
         <p className="text-[10px] font-semibold tracking-wide text-muted-foreground uppercase">
