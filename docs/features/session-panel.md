@@ -26,9 +26,9 @@ what is it planning?" on every session, including a draft.
 7. **Git → Commits** lists this session's commits and expands a row for author,
    date, co-authors, and body. **Git → Worktrees** marks `default` and `current`
    and rescans on demand.
-8. **Terminal** follows the agent's commands, streaming output, and one-line
-   entries for other tools. Scroll up to inspect; press **Jump to live** to
-   resume following.
+8. **Terminal** lists the agent's commands with one-line entries for other tools.
+   Select a command to open its output and error; press **Jump to live** after
+   scrolling up to resume following.
 
 ## Core business rules
 
@@ -66,11 +66,11 @@ what is it planning?" on every session, including a draft.
    validated timestamps, forwards it to the harness that owns the directory, and
    leaves the bound open until idle. Conventional headers split into type, scope,
    and description. **Worktrees** are project-wide, canonical as `default`.
-8. **The terminal is read-only.** Shell commands carry streamed and final output,
-   status, and duration; other tools appear as compact activity lines. The event
-   stream is authoritative and history backfills completed commands. Output is
-   text only: ANSI escapes are stripped, carriage returns collapse, and each
-   command keeps the last 400 lines; following pauses on scroll.
+8. **The terminal is read-only.** Shell commands show the command line, status,
+   and duration with output folded behind a toggle that starts closed; other
+   tools are one-line activity. The event stream is authoritative and backfills
+   completed commands; output is text only with ANSI escapes stripped, carriage
+   returns collapsed, the last 400 lines kept, and following paused on scroll.
 
 ## Edge cases
 
@@ -92,9 +92,9 @@ what is it planning?" on every session, including a draft.
   branch** is disabled or errors even though the branch name is known.
 - **Ambiguous or disabled harness** — a directory linked to two harnesses asks the
   person to choose, and disabled access shows an admin-disabled state.
-- **Terminal with a failed, long, or quiet command** — the log shows the error and
-  exit status, keeps the newest lines with a truncation notice, and a command
-  without progress events appears when it finishes.
+- **Terminal with a failed, long, or quiet command** — the folded row shows the
+  error and exit status, opening it shows the message, and the log keeps the
+  newest lines with a truncation notice.
 - **Switching sessions with the panel open** — the panel re-reads the new session;
   numbers, commits, worktree markers, and commands never linger.
 
@@ -141,7 +141,7 @@ what is it planning?" on every session, including a draft.
 - Git: `src/components/layout/git-panel.tsx`; `src/features/git/use-git.ts`;
   `client.vcs.get/base/status/diff`, `client.worktree.list/refresh`,
   `client.git.log` over `GET /v1/git/log` (`apps/hub/server/src/api/git.ts`)
-- Terminal: `src/components/chat/pair-terminal.tsx`,
+- Terminal: `src/components/chat/pair-terminal.tsx` (per-command fold state),
   `src/features/chat/terminal-log.ts` (400 output lines, 300 entries),
   `src/features/chat/chat-store.ts`, `session.tool.*` events
 - Related: [chat](chat/index.md), [composer](chat/composer.md),

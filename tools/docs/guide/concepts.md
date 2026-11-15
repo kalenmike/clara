@@ -63,7 +63,8 @@ means the latest run failed. An orange dot marks a finished Plan waiting for
 - The composer docks to the bottom right. It carries the prompt, slash commands,
   mentions, attachments, and model and agent pickers.
 - The right panel has Info, Git, Terminal, and a Plan dock. The Plan dock follows
-  the agent's todo list.
+  the agent's todo list, and the Terminal tab keeps each command's output folded
+  until you select the command.
 
 ## Plan and Build
 
