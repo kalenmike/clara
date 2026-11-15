@@ -132,6 +132,9 @@ export function validateDockerTarget(value: unknown): DockerInstallTarget {
  * its SHA-256, then runs it with the pairing code. The adapter artifact itself
  * is downloaded and verified by that script.
  */
+/** How long the install waits for the adapter to authenticate with the hub. */
+const START_TIMEOUT_SECONDS = 60
+
 export function buildInstallScript(input: InstallScriptInput): string {
   const args = ['--pair', input.pairingCode]
   if (input.kind === 'opencode') args.push('--no-runner')
@@ -165,6 +168,36 @@ export function buildInstallScript(input: InstallScriptInput): string {
     '  exit 1',
     'fi',
     `sh "$tmp" ${args.map(shellQuote).join(' ')}`,
+    '',
+    '# The installer starts a service or a background process when it can, but a',
+    '# clean exit does not prove the adapter stayed up. Start it (idempotent) and',
+    '# wait for the hub link before reporting success.',
+    `kind=${shellQuote(input.kind)}`,
+    `version=${shellQuote(input.manifest.version)}`,
+    'base="${CLARA_ADAPTER_DATA_DIR:-${XDG_DATA_HOME:-$HOME/.local/share}}"',
+    'data="${CLARA_ADAPTER_DATA_DIR:-$base/clara/adapters/$kind}"',
+    'root="$base/clara/adapters/$kind/$version"',
+    'binary="$root/clara-adapter-$kind"',
+    'if [ -x "$binary" ]; then',
+    '  "$binary" start || true',
+    'fi',
+    'tries=0',
+    `while [ "$tries" -lt ${START_TIMEOUT_SECONDS} ]; do`,
+    '  pid=$(cat "$data/adapter.pid" 2>/dev/null | tr -cd \'0-9\' || true)',
+    '  if [ -n "$pid" ] && kill -0 "$pid" 2>/dev/null && \\',
+    '     grep -Eq "\\"pid\\":[[:space:]]*$pid([^0-9]|$)" "$data/state.json" 2>/dev/null && \\',
+    '     grep -Eq \'"status":[[:space:]]*"authenticated"\' "$data/state.json" 2>/dev/null; then',
+    '    echo "Clara $kind adapter installed and connected."',
+    '    exit 0',
+    '  fi',
+    '  tries=$((tries + 1))',
+    '  sleep 1',
+    'done',
+    'echo "The adapter was installed but did not start or connect." >&2',
+    'if [ -f "$data/state.json" ]; then cat "$data/state.json" >&2; fi',
+    'if [ -f "$data/adapter.log" ]; then tail -n 80 "$data/adapter.log" >&2; fi',
+    'echo "Run: $binary start" >&2',
+    'exit 1',
   ].join('\n')
 }
 

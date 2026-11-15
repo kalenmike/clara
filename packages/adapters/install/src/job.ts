@@ -101,7 +101,7 @@ export class InstallJobService {
       } else if (record.reason === 'user' || record.reason === 'shutdown') {
         this.finish(record, 'cancelled', 'The adapter install was cancelled.')
       } else if (result.exitCode === 0) {
-        this.append(record, 'Adapter installed. Waiting for it to connect…')
+        this.append(record, 'Adapter installed and connected.')
         this.finish(record, 'succeeded')
       } else {
         const code = result.exitCode ?? result.signal ?? 'unknown'

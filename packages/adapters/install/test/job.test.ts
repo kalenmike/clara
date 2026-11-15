@@ -30,6 +30,7 @@ describe('InstallJobService', () => {
     expect(job?.state).toBe('succeeded')
     expect(job?.lines).toContain('downloading')
     expect(job?.lines).toContain('installed')
+    expect(job?.lines).toContain('Adapter installed and connected.')
   })
 
   it('records a failed exit code', async () => {
