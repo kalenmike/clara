@@ -231,7 +231,7 @@ export function readRunEvidenceFile(
     return {
       available: false,
       source: 'database',
-      reason: `no orchestrator database at ${path}`,
+      reason: `no engine database at ${path}`,
       run: null,
       root: null,
       steps: [],

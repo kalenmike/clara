@@ -17,7 +17,7 @@ apps/hub/server/src/embedded-assets.generated.mjs
 apps/web
 tools/lab
 tools/docs
-apps/orchestrator
+apps/engine
 apps/adapters
 tools/cli
 docs

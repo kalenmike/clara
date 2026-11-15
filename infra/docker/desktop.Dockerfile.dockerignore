@@ -16,7 +16,7 @@
 **/.dev.vars
 # Only the desktop build's workspace closure is copied into the image.
 apps/hub
-apps/orchestrator
+apps/engine
 apps/adapters
 tools/lab
 tools/docs

@@ -58,7 +58,7 @@ export function resolveWorkspace(input: PreviewInput = {}): ResolvedWorkspace {
   if (!fallback) {
     throw new WorkspaceError(
       'config_missing',
-      'The bundled orchestration config is missing; rebuild the Lab and orchestrator.'
+      'The bundled orchestration config is missing; rebuild the Lab and engine.'
     )
   }
   return { workspace, configPath: fallback, configSource: 'bundled' }

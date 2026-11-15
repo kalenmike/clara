@@ -16,7 +16,7 @@ tools/lab
 tools/docs
 tools/cli
 tools/adapters
-apps/orchestrator
+apps/engine
 infra/relay
 docs
 lib

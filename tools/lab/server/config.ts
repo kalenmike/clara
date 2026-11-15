@@ -127,8 +127,7 @@ function findRepoRoot(start: string): string | undefined {
   for (;;) {
     if (
       existsSync(join(current, 'pnpm-workspace.yaml')) &&
-      (existsSync(join(current, 'apps', 'engine')) ||
-        existsSync(join(current, 'apps', 'orchestrator')))
+      existsSync(join(current, 'apps', 'engine'))
     ) {
       return current
     }
@@ -153,15 +152,13 @@ function engineCommand(): { command: string; args: string[] } | undefined {
     process.env.CLARA_ENGINE_BIN?.trim() || process.env.CLARA_ORCHESTRATOR_BIN?.trim()
   if (configured) return { command: process.execPath, args: [configured, 'start'] }
   const root = repoRoot()
-  for (const directory of ['engine', 'orchestrator']) {
-    const dist = join(root, 'apps', directory, 'dist', 'index.js')
-    if (existsSync(dist)) return { command: process.execPath, args: [dist, 'start'] }
-    const source = join(root, 'apps', directory, 'src', 'index.ts')
-    if (existsSync(source)) {
-      return {
-        command: process.execPath,
-        args: ['--experimental-strip-types', '--no-warnings', source, 'start'],
-      }
+  const dist = join(root, 'apps', 'engine', 'dist', 'index.js')
+  if (existsSync(dist)) return { command: process.execPath, args: [dist, 'start'] }
+  const source = join(root, 'apps', 'engine', 'src', 'index.ts')
+  if (existsSync(source)) {
+    return {
+      command: process.execPath,
+      args: ['--experimental-strip-types', '--no-warnings', source, 'start'],
     }
   }
   return undefined

@@ -101,7 +101,7 @@ export function renderRunnerStatus(status, { json = false } = {}) {
   console.log('Clara runner')
   console.log('')
   console.log(`workspace  ${status.manifest.workspace}`)
-  console.log(`orchestrator ${status.manifest.url}`)
+  console.log(`engine ${status.manifest.url}`)
   console.log(`concurrency ${status.manifest.concurrency}`)
   console.log(
     `labels     ${status.manifest.labels.length ? status.manifest.labels.join(', ') : '—'}`

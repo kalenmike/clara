@@ -8,7 +8,7 @@ export interface EventRelayOptions {
 }
 
 /**
- * Subscribes to the orchestrator's SSE feed and keeps the last event id so a
+ * Subscribes to the engine's SSE feed and keeps the last event id so a
  * reconnect resumes instead of replaying the whole run history.
  */
 export class EventRelay {

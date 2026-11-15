@@ -36,7 +36,7 @@ const text = (value: unknown) => {
 
 export const SERVER_INSTRUCTIONS = `You are connected to Clara's orchestration service through MCP.
 
-The orchestrator owns the workspace and its configured entry point. Do not pass
+The engine owns the workspace and its configured entry point. Do not pass
 a workspace or a pipeline target: clara_start always starts the configured
 entry, and that entry routes the request.
 
