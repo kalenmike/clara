@@ -15,6 +15,7 @@
   "dependencies": {
     "@clara/pipeline-preview": "workspace:*",
     "@clara/policy": "workspace:*",
+    "@clara/shared-types": "workspace:*",
     "@clara/theme": "workspace:*",
     "@fontsource-variable/geist": "^5.3.0",
     "react-markdown": "^10.1.0",

@@ -120,8 +120,8 @@ first-run, headless, and emergency surface.
 6. The title bar shows the connection badge, the last update, the peek control,
    **Refresh**, and **Sign out**. The status bar along the bottom summarizes the
    hub, harness, local, relay, push, orchestration, and client state; each item
-   opens the matching view. Its far end shows the panel version with the build
-   commit and the panel API version, such as `v0.1.0.c8becb85 · API v12`.
+   opens the matching view. Its far end shows the surface label and version, such
+   as `Clara Hub · 0.1.0-dev+abc1234`; the panel API version is in the tooltip.
 7. **Harness** mirrors the Clients view. The page header carries a **Pair
    Harness** button that opens the two-step pairing modal. The modal owns the
    harness type, the Remote or Local answer, the install target, and the pairing
@@ -741,9 +741,10 @@ first-run, headless, and emergency surface.
   `AgentCard`, the monitoring switch in `TrafficCard`, the gate and interval in
   `apps/hub/panel/src/components/client-sync-card.tsx`, and `useFeatureControl` in
   `apps/hub/panel/src/lib/feature-control.ts`
-- Panel version: `apps/hub/panel/vite.config.ts` injects the package version and
-  build commit; `apps/hub/panel/src/lib/build-info.ts` renders them in the status
-  bar. Docker builds receive `CLARA_COMMIT` and `CLARA_DIRTY` from the host CLI.
+- Panel version: `apps/hub/panel/vite.config.ts` injects the release version or
+  the checkout's `-dev+<commit>` tag; `packages/panel/src/lib/build-info.ts`
+  renders it as `Clara Hub · <version>` in the status bar. Docker builds receive
+  `CLARA_COMMIT` and `CLARA_DIRTY` from the host CLI.
 - Harness view: `harness-add-card.tsx` (pairing flow),
   `harness-sessions-card.tsx` (live adapters), and
   `harness-connections-card.tsx` (paired harnesses and actions)

@@ -3,7 +3,7 @@ import { Loader2, RotateCw } from 'lucide-react'
 import { PROTOCOL_VERSION } from '@clara/shared-types'
 import { Button } from '@/components/ui/button'
 import { reloadApp } from '@/features/updates/app-update'
-import { claraBuildTitle, claraDisplayVersion } from '@/lib/build-info'
+import { claraBuildTitle, claraVersionLabel } from '@/lib/build-info'
 import { isDesktop } from '@/lib/runtime'
 
 /**
@@ -35,7 +35,7 @@ export function AppFooter() {
 
   return (
     <footer className="flex shrink-0 items-center justify-center gap-1.5 pt-2 pb-[max(0.75rem,env(safe-area-inset-bottom))] text-[11px] text-muted-foreground">
-      <span title={claraBuildTitle}>Clara {claraDisplayVersion}</span>
+      <span title={claraBuildTitle}>{claraVersionLabel()}</span>
       <span aria-hidden="true" className="text-muted-foreground/60">
         ·
       </span>

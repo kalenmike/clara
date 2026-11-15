@@ -74,7 +74,8 @@ machines.
 
 It compiles a package with the same loader and compiler as the service, shows
 the step tree, rendered prompts, policy, budget, and source files, and can drive
-a run manually. It also reports the workspace the service uses.
+a run manually. It also reports the workspace the service uses. Its status bar
+labels the UI as `Clara Lab` and shows the version at the far right.
 
 ### Remote desktop setup
 

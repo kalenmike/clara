@@ -33,7 +33,7 @@ desktop-only: the deployed web/PWA build contains no lab code.
 3. Press **Run setup check**. The lab reports whether it can compile the host
    path, whether the engine can read its reported path, and whether a
    strict pipeline has a live adapter. The status bar carries only the resulting
-   problem state.
+   problem state and the `Clara Lab · <version>` label at its far right.
 4. On **Review**, choose a pipeline. The compiled tree shows every step, route,
    `provider/model`, policy, budget, and source file. Diagnostics sit above the
    tree so errors and warnings are the first thing you see. The Inspector's
@@ -122,8 +122,9 @@ publish packages to the engine.
    config's entry.
 3. **Setup has one home.** Workspace selection, reconnect, adapter registration,
    model status, and preflight results live only in **Settings**. The status bar
-   reports failures and setup issues, but healthy state stays quiet. No view
-   duplicates the setup controls.
+   reports failures and setup issues, but healthy state stays quiet; its far
+   right carries the surface label and build version. No view duplicates the
+   setup controls.
 4. **The lab impersonates the harness.** It uses the MCP work-order surface with
    a work token, and the operator REST endpoints for target selection and
    preflight. It does not call a model, create an agent session, or enforce real
@@ -302,6 +303,10 @@ publish packages to the engine.
   loads Geist, `@clara/theme/tokens.css`, and applies `.dark` from the system
   preference before React renders.
 - Default ports: lab `8791`, engine `8789`.
+- Build identity: `tools/lab/vite.config.ts` injects `CLARA_VERSION` and
+  `CLARA_BUILD`; `packages/lab/src/lib/build-info.ts` renders
+  `Clara Lab · <version>` at the far right of the status bar. The bundled
+  desktop route uses the client build's values instead.
 - Environment (lab service): `CLARA_LAB_PORT`, `CLARA_LAB_OPEN=0`,
   `CLARA_LAB_HOST` (bind address), `CLARA_LAB_TOKEN` (shared bridge token),
   `CLARA_LAB_ALLOW_REMOTE=1` (accept a remote bridge instead of loopback only),

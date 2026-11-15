@@ -32,7 +32,10 @@ const dirty =
     ? Boolean(git(['status', '--porcelain']))
     : dirtyFromEnv === '1' || dirtyFromEnv === 'true'
 const builtAt = new Date().toISOString()
-const healthVersion = buildVersion({
+// The version shown in the UI and published at /healthz. A release passes
+// CLARA_VERSION; a checkout build tags itself with the same short commit that
+// `clara status` reports.
+const version = buildVersion({
   packageVersion,
   commit: process.env.CLARA_COMMIT?.trim().slice(0, 7) || git(['rev-parse', '--short=7', 'HEAD']),
 })
@@ -86,7 +89,7 @@ export default defineConfig(({ command, mode }) => {
       ...(desktop
         ? []
         : [
-            healthFile(healthVersion),
+            healthFile(version),
             VitePWA({
               includeAssets: ['favicon.png', 'apple-touch-icon.png'],
               manifest: {
@@ -127,7 +130,7 @@ export default defineConfig(({ command, mode }) => {
           ]),
     ],
     define: {
-      'import.meta.env.CLARA_VERSION': JSON.stringify(packageVersion),
+      'import.meta.env.CLARA_VERSION': JSON.stringify(version),
       'import.meta.env.CLARA_DESKTOP': JSON.stringify(desktop),
       'import.meta.env.CLARA_BUILD': JSON.stringify({
         mode: command === 'serve' ? 'dev' : 'build',

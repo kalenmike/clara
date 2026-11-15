@@ -2,10 +2,10 @@ import { Loader2, RefreshCw, Trash2 } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
 import { Separator } from '@/components/ui/separator'
-import { isStandalone } from '@/features/notifications/push'
 import { clearCachedAppData } from '@/features/pwa/update-store'
 import { applyAppUpdate, useAppUpdate } from '@/features/updates/app-update'
-import { claraBuildLabel, claraBuildTitle, claraDisplayVersion } from '@/lib/build-info'
+import { claraBuildLabel, claraBuildTitle, claraVersionLabel } from '@/lib/build-info'
+import { isStandalone } from '@/lib/runtime'
 
 /**
  * The escape hatch for a wedged PWA: clearing the caches and reloading repairs
@@ -33,7 +33,7 @@ export function AppCard({ simplified }: { simplified: boolean }) {
         <div className="flex items-start justify-between gap-4">
           <span className="text-muted-foreground">Version</span>
           <span className="max-w-[70%] truncate text-right font-mono text-xs">
-            {claraDisplayVersion}
+            {claraVersionLabel()}
           </span>
         </div>
         {!simplified && (

@@ -2587,7 +2587,8 @@
     align-items: flex-start;
   }
 
-  .lab-root .statusbar-meta {
+  .lab-root .statusbar-meta .status-workspace,
+  .lab-root .statusbar-meta .status-counts {
     display: none;
   }
 
