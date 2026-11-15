@@ -20,8 +20,8 @@ device key through a one-time code; there is no shared browser key.
    user runs the command on the harness machine. A direct WebSocket URL under
    **Advanced** lets a remote or container target connect without a relay. For
    the included adapters, that is
-   `clara start adapter --harness opencode --pair <code>` or
-   `clara start adapter --harness claude --pair <code>`. The adapter
+   `clara adapter install opencode --pair <code>` or
+   `clara adapter install claude --pair <code>`. The adapter
    discovers its harness, prompts for its URL/password if needed (OpenCode) or
    uses the machine's Claude Code login, enrolls, and installs the hub-facing
    adapter.
@@ -112,7 +112,7 @@ device key through a one-time code; there is no shared browser key.
   container is the adapter itself. Use the harness service name or an address
   reachable from the adapter host. In the Docker stack the adapter joins the
   `clara` network and reaches the hub at `ws://server:8788/ws`.
-- **Adapter reconnect loop** — `clara status adapter` and the adapter log show
+- **Adapter reconnect loop** — `clara adapter status <kind>` and the adapter log show
   the most recent relay close code. `4008` means the relay's frame or byte
   budget refused the socket; `4009` means one sealed frame exceeded 128 KiB. The
   adapter backs off and retries, and a persistent loop means the adapter is

@@ -18,9 +18,9 @@ and Pi adapters; the hub and web client are harness-neutral.
 | Pi          | `clara-adapter-pi install --pair <code>`       |
 
 Inside the Clara repository you can use
-`clara start adapter --harness opencode --pair <code>`,
-`clara start adapter --harness claude --pair <code>`, or
-`clara start adapter --harness pi --pair <code>` instead.
+`clara adapter install opencode --pair <code>`,
+`clara adapter install claude --pair <code>`, or
+`clara adapter install pi --pair <code>` instead.
 
 ## Pair an adapter
 
@@ -186,10 +186,9 @@ harness access turned off, or predates the feature shows an empty state.
 
 ## Verify native access
 
-Run `clara status adapter --verify` to check every installed adapter against the
-harness on its machine. Add `--harness opencode`, `--harness claude`, or
-`--harness pi` to check one, and `--directory <path>` to inspect native sessions
-for a specific workspace. The
+Run `clara adapter verify opencode` (or `claude`, or `pi`) to check an installed
+adapter against the harness on its machine. Add `--directory <path>` to inspect
+native sessions for a specific workspace. The
 report probes the harness, lists its models, agents, commands, and skills, and
 reads an existing session, so you can confirm that Clara is using the same
 harness as your terminal.
@@ -236,12 +235,12 @@ connection keeps that state; use **Forget** only when you want to discard it.
   connection and reconnects automatically. Clara stays connected and shows a
   harness banner with **Retry**. Sessions on your other harnesses keep working.
 - **The panel says Online but requests time out** — run
-  `clara status adapter --harness claude` (or `--harness opencode`). The **hub** and
+  `clara adapter status claude` (or `opencode`). The **hub** and
   **link** lines show whether the adapter has an authenticated session with the
   hub and how long ago it last heard from it; **health** shows the adapter's last
   harness check. If the process is running but the link is offline or stale,
-  restart it with `clara stop adapter --harness claude` and
-  `clara start adapter --harness claude`.
+  restart it with `clara adapter stop claude` and
+  `clara adapter start claude`.
 - **Harness access is off** — the page header and paired status say **Off**; the
   adapter credential is kept while access is off.
 - **The adapter was moved** — pair it again; the stable identity keeps the same

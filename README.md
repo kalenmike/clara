@@ -97,7 +97,7 @@ path that matches where your devices will connect.
 For orchestration only, install the harness adapter after the stack is up:
 
 ```bash
-clara start adapter --harness opencode --pair <code>
+clara adapter install opencode --pair <code>
 ```
 
 Only the OpenCode, Claude Code, and Pi adapters are included with this release.
@@ -177,7 +177,7 @@ Install the read-only API MCP for agents testing frontend code against live
 data:
 
 ```bash
-clara start adapter --harness opencode --mcp-api
+clara-dev mcp install --api
 ```
 
 The MCP reads `CLARA_API_URL` and `CLARA_API_TOKEN_FILE`. See
@@ -473,7 +473,7 @@ is no UI for it. See [docs/features/sync.md](docs/features/sync.md).
 | `clara restart [target]`  | Restart the stack or one target                              |
 | `clara status [target]`   | Probe the stack or one target                                |
 | `clara logs [target]`     | Follow a service log                                         |
-| `clara start adapter`     | Pair, start, or reinstall a harness adapter                  |
+| `clara adapter install`   | Install, upgrade, verify, or remove a harness adapter        |
 | `clara start runner`      | Run script steps for a workspace                             |
 | `clara rebuild`           | Rebuild Clara, recover services, inspect, and verify health  |
 | `pnpm test`               | Run crypto, protocol, server, web, and Worker tests          |

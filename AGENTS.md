@@ -82,7 +82,8 @@ pnpm cli:uninstall  # Remove the installed command
 clara start|stop|restart|status|ps|logs [hub|engine|web] # Packaged stack lifecycle
 clara setup         # Create the owner account, start, and optionally add a login service
 clara update        # Verify and install a signed release (--check, --rollback)
-clara adapter search|install|list|upgrade|remove # Pull harness adapters on demand
+clara adapter search|install|list|upgrade|verify|remove # Pull and manage harness adapters
+clara adapter install <kind> --from <path> # Install a checkout adapter build
 clara pair hub      # Print a browser pairing code
 clara service       # install|uninstall|status|print the per-user login service
 clara doctor|uninstall|version
@@ -93,11 +94,7 @@ clara status [default|hub|web|engine] [--json] # Probe the core services
 clara logs [default|hub|web|engine] [--local|--docker] # Follow service logs
 clara start hub --open # Start the hub and open the panel
 clara status hub --open # Open the running panel
-clara start adapter [--harness <name>] # Start paired adapters
-clara start adapter --harness opencode --pair [<code>] # Install and pair an adapter
-clara stop adapter [--harness <name>] [--mcp] [--purge] # Stop or remove an adapter
-clara status adapter [--harness <name>] [--json] [--verify] # Full adapter status
-clara logs adapter [--harness <name>] # Follow adapter logs
+clara-dev mcp install [--api] # Checkout-only MCP bridge
 clara start runner [--workspace <path>] # Start the shared runner service
 clara stop runner [--purge] # Stop the runner service
 clara status runner [--json] # Inspect the runner
@@ -113,6 +110,7 @@ clara pair adapter --harness <name> # Print an adapter pairing code
 clara rebuild       # Snapshot, rebuild, recover services, inspect, and verify health
 pnpm check:boundaries # Fail if a harness SDK escapes its adapter package
 pnpm adapters:build # Build host adapter artifacts and a local registry under dist/adapters
+pnpm adapters:serve # Serve that registry on 127.0.0.1:8799 for the packaged command
 clara-adapter-claude install --pair <code> # Standalone Claude Code adapter install
 clara-adapter-pi install --pair <code> # Standalone Pi adapter install
 clara-adapter-opencode install --pair <code> [--mcp] # Standalone OpenCode adapter install
