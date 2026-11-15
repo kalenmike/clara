@@ -773,6 +773,40 @@ describe('panel server', () => {
     expect(await invalid.json()).toMatchObject({ error: { code: 'invalid_query' } })
   })
 
+  it('reads sessions from a source whose methods live on its prototype', async () => {
+    // A real PanelDataSource (PanelRuntime) keeps its state on the instance,
+    // so its methods only work when the server calls them with a receiver.
+    class PrototypeSource implements PanelDataSource {
+      readonly calls: PanelSessionsQuery[] = []
+      readonly response: PanelSessionsResponse = {
+        generatedAt: new Date(0).toISOString(),
+        sessions: [],
+        harnesses: [],
+        truncated: false,
+      }
+
+      async snapshot(): Promise<PanelSnapshot> {
+        return snapshot()
+      }
+
+      async sessions(query: PanelSessionsQuery): Promise<PanelSessionsResponse> {
+        this.calls.push(query)
+        return this.response
+      }
+    }
+
+    const source = new PrototypeSource()
+    const server = await start(undefined, undefined, source)
+
+    const status = await get(server, 'panel/api/v1/status')
+    expect(status.status).toBe(200)
+
+    const result = await get(server, 'panel/api/v1/sessions?running=true')
+    expect(result.status).toBe(200)
+    expect(await result.json()).toEqual(source.response)
+    expect(source.calls).toEqual([{ runningOnly: true }])
+  })
+
   it('reports session monitoring as unavailable when the source has no monitor', async () => {
     const server = await start()
     const result = await get(server, 'panel/api/v1/sessions')
