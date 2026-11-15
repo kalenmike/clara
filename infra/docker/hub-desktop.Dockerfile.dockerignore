@@ -25,7 +25,9 @@ tools/docs
 tools/cli
 docs
 packages/api
-packages/adapters
+packages/adapters/binding
+packages/adapters/runner
+packages/adapters/runtime
 packages/preview
 packages/orchestration/engine
 packages/orchestration/policy
