@@ -270,10 +270,11 @@ one paragraph, list, or section. See [fork.md](fork.md).
     stay complete. The composer sits above it, and it scrolls horizontally on
     narrow screens instead of wrapping.
 20. The header's second line shows the run state (`busy`, `retry N`, or `idle`)
-    and the active agent. The state is seeded from the server's active-session
-    map when the thread opens, then kept live by status, execution, and step
-    events. A reconnect reseeds it, so a session that was already running does
-    not read as idle after a reload or a missed event.
+    and the active agent. Live status, execution, and step events drive the
+    state, and every successful active-session fetch reconciles it. A seeded or
+    live `busy` label therefore cannot outlive the run when a terminal event is
+    missed while a thread opens or a stream is re-created; only the richer
+    `retry N` detail survives a seed that agrees the run is active.
 
 ## Edge cases
 
@@ -297,9 +298,10 @@ one paragraph, list, or section. See [fork.md](fork.md).
 - **Running session opened mid-run** — the header seeds `busy` from the active
   session map even though the event stream does not replay the current status,
   then returns to `idle` when the run ends.
-- **Reconnect after a missed run** — status seed markers are cleared with the
-  history reset, so the next active-session fetch corrects a stale `busy` or
-  `idle` label.
+- **Reconnect after a missed run** — the next successful active-session fetch
+  corrects a stale `busy` or `idle` label, whether or not a reconnect was
+  detected. A fetch that was already in flight when the newest event arrived is
+  skipped, so reconciliation never overwrites fresher stream state.
 - **Session without an agent** — the header's second line falls back to `build`
   beside the state.
 - **Empty session usage bar** — a session with no messages shows zero tokens,

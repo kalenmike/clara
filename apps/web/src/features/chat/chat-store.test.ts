@@ -22,17 +22,41 @@ afterEach(() => {
 })
 
 describe('chatStore status', () => {
-  it('keeps the first seeded status', () => {
+  it('lets a later seed correct a stale busy status', () => {
     chatStore.seedStatus(SESSION, { type: 'busy' })
     chatStore.seedStatus(SESSION, { type: 'idle' })
 
-    expect(chatStore.getSnapshot(SESSION).status).toEqual({ type: 'busy' })
+    expect(chatStore.getSnapshot(SESSION).status).toEqual({ type: 'idle' })
+  })
+
+  it('keeps the seeded status when the active map agrees', () => {
+    chatStore.seedStatus(SESSION, { type: 'idle' })
+    const revision = chatStore.getSnapshot(SESSION).revision
+    chatStore.seedStatus(SESSION, { type: 'idle' })
+
+    expect(chatStore.getSnapshot(SESSION).revision).toBe(revision)
+  })
+
+  it('keeps a live retry detail while the run is still active', () => {
+    chatStore.dispatch(
+      event('session.status', {
+        sessionID: SESSION,
+        status: { type: 'retry', attempt: 2, message: 'rate limited', next: 1_000 },
+      })
+    )
+    chatStore.seedStatus(SESSION, { type: 'busy' })
+
+    expect(chatStore.getSnapshot(SESSION).status).toEqual({
+      type: 'retry',
+      attempt: 2,
+      message: 'rate limited',
+      next: 1_000,
+    })
   })
 
   it('lets a live status event supersede the seed', () => {
     chatStore.seedStatus(SESSION, { type: 'busy' })
     chatStore.dispatch(event('session.status', { sessionID: SESSION, status: { type: 'idle' } }))
-    chatStore.seedStatus(SESSION, { type: 'busy' })
 
     expect(chatStore.getSnapshot(SESSION).status).toEqual({ type: 'idle' })
   })
@@ -59,9 +83,9 @@ describe('chatStore status', () => {
     expect(chatStore.getSnapshot(SESSION).status).toEqual({ type: 'idle' })
   })
 
-  it('can reseed after a reconnect reset', () => {
-    chatStore.seedStatus(SESSION, { type: 'busy' })
-    chatStore.resetStatuses()
+  it('corrects a missed terminal event on the next active-session fetch', () => {
+    chatStore.dispatch(event('session.status', { sessionID: SESSION, status: { type: 'busy' } }))
+    // The idle event never arrived; the poll reports the run as finished.
     chatStore.seedStatus(SESSION, { type: 'idle' })
 
     expect(chatStore.getSnapshot(SESSION).status).toEqual({ type: 'idle' })

@@ -99,8 +99,6 @@ class ChatStore {
   private histories = new Map<string, HistoryState>()
   private listeners = new Map<string, Set<() => void>>()
   private pending = new Set<string>()
-  /** Sessions whose status came from a live event or an active-session seed. */
-  private statusSynced = new Set<string>()
 
   getSnapshot = (sessionID: string): ChatSnapshot => this.snapshots.get(sessionID) ?? EMPTY
 
@@ -209,7 +207,6 @@ class ChatStore {
   forget(sessionID: string) {
     const hadSnapshot = this.snapshots.delete(sessionID)
     this.histories.delete(sessionID)
-    this.statusSynced.delete(sessionID)
     if (hadSnapshot) this.scheduleNotify(sessionID)
   }
 
@@ -219,7 +216,6 @@ class ChatStore {
     this.snapshots.clear()
     this.histories.clear()
     this.pending.clear()
-    this.statusSynced.clear()
     for (const sessionID of sessions) this.scheduleNotify(sessionID)
   }
 
@@ -242,20 +238,18 @@ class ChatStore {
   }
 
   /**
-   * Seed the run state from the server's active-session map when a thread
-   * opens. The event stream is live-only, so an already-running session has no
-   * status event to replay and would otherwise sit at the store's idle default.
-   * A live event always wins over a seed.
+   * Reconcile the run state with the server's active-session map. The event
+   * stream is live-only, so a terminal event can be missed while a thread opens
+   * or a stream is re-created. Every successful active-session fetch is
+   * therefore a chance to correct a stale label, not a one-shot seed. A live
+   * event still provides the richer `retry` state when both agree a run is
+   * active.
    */
   seedStatus(sessionID: string, status: ClaraSessionStatus) {
-    if (this.statusSynced.has(sessionID)) return
-    this.statusSynced.add(sessionID)
+    const previous = this.snapshots.get(sessionID) ?? EMPTY
+    const busy = previous.status.type !== 'idle'
+    if (busy === (status.type !== 'idle')) return
     this.update(sessionID, (snapshot) => ({ ...snapshot, status }))
-  }
-
-  /** Let the next active-session fetch reseed status after a reconnect. */
-  resetStatuses() {
-    this.statusSynced.clear()
   }
 
   dispatch(event: ClaraEvent) {
@@ -269,7 +263,6 @@ class ChatStore {
         return
 
       case 'session.step.started':
-        this.statusSynced.add(sessionID)
         this.update(sessionID, (snapshot) => {
           const messages = [...snapshot.messages]
           const index = messages.findIndex(
@@ -432,17 +425,14 @@ class ChatStore {
         return
 
       case 'session.status':
-        this.statusSynced.add(sessionID)
         this.update(sessionID, (snapshot) => ({ ...snapshot, status: event.data.status }))
         return
 
       case 'session.execution.started':
-        this.statusSynced.add(sessionID)
         this.update(sessionID, (snapshot) => ({ ...snapshot, status: { type: 'busy' } }))
         return
 
       case 'session.execution.failed':
-        this.statusSynced.add(sessionID)
         this.update(sessionID, (snapshot) => {
           const messages = [...snapshot.messages]
           for (let index = messages.length - 1; index >= 0; index -= 1) {
@@ -465,7 +455,6 @@ class ChatStore {
       case 'session.execution.succeeded':
       case 'session.execution.interrupted':
       case 'session.idle':
-        this.statusSynced.add(sessionID)
         this.update(sessionID, (snapshot) => ({ ...snapshot, status: { type: 'idle' } }))
         return
 
