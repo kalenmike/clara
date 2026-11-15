@@ -14,12 +14,14 @@ export function hubPanelTransport(room: string | undefined): HubPanelTransport {
 
 /**
  * Controls the bundled panel must not use. Going offline would close its own
- * connection, the switch for the transport in use would do the same, and a relay
- * edit would retarget the connection carrying the panel. The server-served panel
- * on the hub keeps every control because its defaults stay true.
+ * connection, the switch for the transport in use would do the same, a relay
+ * edit would retarget the connection carrying the panel, and the web client owns
+ * the theme there. The server-served panel on the hub keeps every control
+ * because its defaults stay true.
  */
 export function hubPanelCapabilities(transport: HubPanelTransport): Partial<PanelCapabilities> {
   return {
+    allowThemeSwitch: false,
     allowGoOffline: false,
     allowLocalToggle: transport !== 'local',
     allowRelayToggle: transport !== 'relay',

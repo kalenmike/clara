@@ -14,6 +14,8 @@ export type PanelCapabilities = {
   deviceControl: boolean
   /** Feature switches, transports, relay, orchestration, sync, and config edits. */
   settingsControl: boolean
+  /** The panel's own Light/Dark/System switch. */
+  allowThemeSwitch: boolean
   /** The Go offline / Go online control. */
   allowGoOffline: boolean
   /** The local transport switch. */
@@ -30,6 +32,7 @@ export const DEFAULT_PANEL_CAPABILITIES: PanelCapabilities = {
   harnessControl: true,
   deviceControl: true,
   settingsControl: true,
+  allowThemeSwitch: true,
   allowGoOffline: true,
   allowLocalToggle: true,
   allowRelayToggle: true,

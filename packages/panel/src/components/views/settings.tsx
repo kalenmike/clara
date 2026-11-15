@@ -1,4 +1,5 @@
 import type { PanelSnapshot } from '@clara/shared-types'
+import { usePanelCapabilities } from '../../lib/capabilities-context.ts'
 import type { SetupPreferences, SetupState } from '../../lib/onboarding.ts'
 import { AdapterRegistryCard } from '../adapter-registry-card.tsx'
 import { ClientSyncCard } from '../client-sync-card.tsx'
@@ -27,14 +28,20 @@ export function SettingsView({
   onOpenReconfigure: () => void
   onOpenGuide: () => void
 }) {
+  const { allowThemeSwitch } = usePanelCapabilities()
+
   return (
     <View
       id="settings"
       kicker="Control"
       title="Settings"
-      description="Panel appearance, hub details, orchestration, adapter downloads, effective configuration, client sync, and setup."
+      description={
+        allowThemeSwitch
+          ? 'Panel appearance, hub details, orchestration, adapter downloads, effective configuration, client sync, and setup.'
+          : 'Hub details, orchestration, adapter downloads, effective configuration, client sync, and setup.'
+      }
     >
-      <ThemeCard />
+      {allowThemeSwitch ? <ThemeCard /> : null}
       <div className="grid items-start gap-3 md:grid-cols-2">
         <AgentCard
           agent={snapshot.agent}
