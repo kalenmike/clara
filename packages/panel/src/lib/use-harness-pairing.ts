@@ -11,14 +11,18 @@ import {
   type PanelInstallDockerContainer,
   type PanelInstallInfo,
   type PanelInstallSshHost,
+  type PanelLocalAddress,
   type PanelSnapshot,
 } from '@clara/shared-types'
 import {
   HARNESS_KINDS,
+  defaultHarnessConnectionMode,
   defaultHarnessTarget,
   directHarnessTransport,
   findHarnessPairingConnection,
-  resolveHarnessTransport,
+  harnessNeedsAddress,
+  isLoopbackSocketUrl,
+  type HarnessConnectionMode,
   type HarnessMachine,
   type HarnessTarget,
   type HarnessTransportMode,
@@ -45,6 +49,8 @@ export type HarnessPairingFlow = {
   target: HarnessTarget
   transport: HarnessTransportMode
   defaultTransport: 'local' | 'relay'
+  connectionMode: HarnessConnectionMode
+  relayUsable: boolean
   pairing?: AdapterInstallOffer['pairing']
   offer?: AdapterInstallOffer
   connection?: PanelHarness
@@ -61,6 +67,9 @@ export type HarnessPairingFlow = {
   canContinue: boolean
   canInstall: boolean
   adapterHost: boolean
+  needsAddress: boolean
+  addressCandidates: PanelLocalAddress[]
+  containerUrl?: string
   notice?: string
   transportNotice?: string
   sshHosts: PanelInstallSshHost[]
@@ -78,6 +87,7 @@ export type HarnessPairingFlow = {
   setMachine: (machine: HarnessMachine) => void
   setTarget: (target: HarnessTarget) => void
   setKind: (kind: string) => void
+  setConnectionMode: (mode: HarnessConnectionMode) => void
   setSshHost: (host: string) => void
   setSshHostname: (value: string) => void
   setSshUser: (value: string) => void
@@ -122,10 +132,14 @@ export function useHarnessPairing({
   const localUsable = findFeature(snapshot.controls, 'local').effective
   const containerized = snapshot.agent.container
   const defaultTransport = runtime.defaultTransport ?? 'local'
+  const containerUrl = snapshot.local.containerUrl
+  const detectedAddresses = snapshot.local.addresses ?? []
 
   const [machine, setMachine] = useState<HarnessMachine>('local')
   const [target, setTarget] = useState<HarnessTarget>(() => defaultHarnessTarget(containerized))
   const [kind, setKind] = useState<string>(HARNESS_KINDS[0].kind)
+  const [connectionMode, setConnectionModeState] = useState<HarnessConnectionMode>('direct')
+  const [modeTouched, setModeTouched] = useState(false)
   const [offer, setOffer] = useState<AdapterInstallOffer>()
   const [connection, setConnection] = useState<PanelHarness>()
   const [job, setJob] = useState<AdapterInstallJob>()
@@ -210,27 +224,84 @@ export function useHarnessPairing({
     reset()
   }, [open, reset])
 
-  const direct = wsUrl.trim().length > 0
+  const directMode = connectionMode === 'direct'
+  const directUrl = wsUrl.trim()
   const selectedTarget: HarnessTarget = machine === 'remote' ? 'host' : target
-  const autoTransport = resolveHarnessTransport({
-    machine,
-    target: selectedTarget,
-    containerized,
-    defaultTransport,
-  })
-  const transport: HarnessTransportMode = direct
+  const transport: HarnessTransportMode = directMode
     ? directHarnessTransport({ target: selectedTarget, containerized })
-    : autoTransport
+    : 'relay'
   const method: AdapterInstallMethod =
     machine === 'remote' ? 'ssh' : selectedTarget === 'container' ? 'docker' : 'local'
+
+  useEffect(() => {
+    if (!open) {
+      setModeTouched(false)
+      return
+    }
+    if (modeTouched) return
+    setConnectionModeState(
+      defaultHarnessConnectionMode({
+        machine,
+        target: selectedTarget,
+        containerized,
+        relayUsable,
+        defaultTransport,
+        ...(containerUrl ? { containerUrl } : {}),
+      })
+    )
+  }, [
+    open,
+    modeTouched,
+    machine,
+    selectedTarget,
+    containerized,
+    relayUsable,
+    defaultTransport,
+    containerUrl,
+  ])
+
+  const setConnectionMode = (mode: HarnessConnectionMode) => {
+    setModeTouched(true)
+    setConnectionModeState(mode)
+  }
+
+  const addressCandidates = containerCandidates({
+    machine,
+    target: selectedTarget,
+    container,
+    containers,
+    detected: detectedAddresses,
+    port: snapshot.local.port,
+    dockerReachable: (snapshot.local.access ?? 'loopback') !== 'loopback',
+  })
 
   const pairing = offer?.pairing
   const step: 1 | 2 = pairing ? 2 : 1
   const installAvailable = installEnabled && info?.available === true
   const manifest = installManifest(info, kind)
-  const transportUsable = transport === 'relay' ? relayUsable : localUsable
+  const transportUsable = directMode ? localUsable : relayUsable
+  const directProtocolInvalid = directMode && directUrl.length > 0 && !/^ws:\/\//i.test(directUrl)
+  const directLoopback =
+    directMode &&
+    isLoopbackSocketUrl(wsUrl) &&
+    (machine === 'remote' || (selectedTarget === 'container' && !containerized))
+  const needsAddress = directMode
+    ? harnessNeedsAddress({
+        machine,
+        target: selectedTarget,
+        containerized,
+        relayUsable,
+        ...(containerUrl ? { containerUrl } : {}),
+        direct: directUrl.length > 0,
+      })
+    : !relayUsable
   const canContinue =
-    !snapshot.controls.stopped && installAvailable && transportUsable && Boolean(manifest)
+    !snapshot.controls.stopped &&
+    installAvailable &&
+    Boolean(manifest) &&
+    !needsAddress &&
+    !directProtocolInvalid &&
+    transportUsable
 
   const manualSsh = sshHost === MANUAL_SSH_HOST
   const hostReady = manualSsh ? sshHostname.trim().length > 0 : Boolean(sshHost)
@@ -249,22 +320,35 @@ export function useHarnessPairing({
       : info && !info.available
         ? info.reason
         : !transportUsable
-          ? transport === 'relay'
+          ? directMode
+            ? 'Local transport is off. Turn it on from Network before pairing a direct adapter.'
+            : 'Relay pairing is unavailable. Configure the relay from Network or choose Direct.'
+          : needsAddress
             ? machine === 'remote'
-              ? 'Relay pairing is unavailable. Configure or enable the relay from Network, or enter a direct WebSocket URL.'
-              : 'Relay pairing is unavailable. A container cannot reach the hub loopback listener; configure the relay or enter a direct WebSocket URL.'
-            : 'Local transport is off. Turn it on from Network before pairing a local adapter.'
-          : info && !manifest
-            ? (registryError(info, kind) ?? 'No adapter release is published for this harness.')
-            : undefined
+              ? 'Enter the hub WebSocket URL the remote machine can reach, or configure the relay from Network.'
+              : 'Enter the hub WebSocket URL the container can reach, or allow Docker access from Network.'
+            : directProtocolInvalid
+              ? 'A direct WebSocket URL must start with ws://. Use the relay for a wss:// pairing.'
+              : directLoopback
+                ? 'This address is loopback. A remote or container adapter can only use it through an SSH or port-forwarding tunnel.'
+                : info && !manifest
+                  ? (registryError(info, kind) ??
+                    'No adapter release is published for this harness.')
+                  : undefined
 
-  const transportNotice = direct
-    ? 'The adapter will use the WebSocket URL you entered.'
-    : machine === 'local' && selectedTarget === 'container' && !containerized
-      ? 'This hub runs as a host process, so an adapter inside a container connects through the relay.'
-      : defaultTransport === 'relay' && machine === 'local'
-        ? 'This panel is connected through the relay; a local adapter uses the relay unless you enter an address it can reach.'
-        : undefined
+  const transportNotice = directMode
+    ? directUrl
+      ? 'The adapter will use the WebSocket URL you entered.'
+      : machine === 'local' && selectedTarget === 'container' && !containerized
+        ? containerUrl
+          ? `The adapter will connect through ${containerUrl}.`
+          : 'Enter a WebSocket URL the container can reach, or allow Docker access from Network.'
+        : machine === 'remote'
+          ? 'Enter the WebSocket URL the remote machine can reach, or choose Relay.'
+          : 'The adapter will use the hub default address for this target.'
+    : relayUsable
+      ? 'The adapter will connect through the relay.'
+      : 'Configure the relay from Network, or choose Direct.'
 
   const expiresAt = pairing ? Date.parse(pairing.expiresAt) : Number.NaN
   const expired =
@@ -355,9 +439,8 @@ export function useHarnessPairing({
 
   const begin = async () => {
     if (pending || !canContinue) return
-    const directUrl = wsUrl.trim()
-    if (directUrl && !/^wss?:\/\//i.test(directUrl)) {
-      setError('The WebSocket URL must start with ws:// or wss://.')
+    if (directMode && directUrl && !/^ws:\/\//i.test(directUrl)) {
+      setError('A direct WebSocket URL must start with ws://.')
       return
     }
     setPending('create')
@@ -367,7 +450,7 @@ export function useHarnessPairing({
         kind,
         method,
         transport,
-        ...(transport !== 'relay' && directUrl ? { wsUrl: directUrl } : {}),
+        ...(directMode && directUrl ? { wsUrl: directUrl } : {}),
         ...(kind === 'opencode' && opencodeUrl.trim() ? { opencodeUrl: opencodeUrl.trim() } : {}),
       })
       setImported(false)
@@ -470,6 +553,8 @@ export function useHarnessPairing({
     target,
     transport,
     defaultTransport,
+    connectionMode,
+    relayUsable,
     ...(pairing ? { pairing } : {}),
     ...(offer ? { offer } : {}),
     ...(connection ? { connection } : {}),
@@ -486,6 +571,9 @@ export function useHarnessPairing({
     canContinue,
     canInstall,
     adapterHost: Boolean(host),
+    needsAddress,
+    addressCandidates,
+    ...(containerUrl ? { containerUrl } : {}),
     ...(notice ? { notice } : {}),
     ...(transportNotice ? { transportNotice } : {}),
     sshHosts,
@@ -497,12 +585,16 @@ export function useHarnessPairing({
     container,
     opencodeUrl,
     wsUrl,
-    defaultWsUrl: snapshot.local.url,
+    defaultWsUrl:
+      selectedTarget === 'container' && !containerized && containerUrl
+        ? containerUrl
+        : snapshot.local.url,
     ...(pending ? { pending } : {}),
     ...(error ? { error } : {}),
     setMachine,
     setTarget,
     setKind,
+    setConnectionMode,
     setSshHost,
     setSshHostname,
     setSshUser,
@@ -518,4 +610,47 @@ export function useHarnessPairing({
     startOver,
     reportError: setError,
   }
+}
+
+/**
+ * Address suggestions for the pairing modal. The hub contributes its bound
+ * addresses; a selected local container adds its own Docker gateway, which is
+ * the one address the container can definitely route to.
+ */
+function containerCandidates(input: {
+  machine: HarnessMachine
+  target: HarnessTarget
+  container: string
+  containers: PanelInstallDockerContainer[]
+  detected: PanelLocalAddress[]
+  port: number
+  dockerReachable: boolean
+}): PanelLocalAddress[] {
+  const candidates = new Map<string, PanelLocalAddress>()
+  const add = (address: PanelLocalAddress) => {
+    if (!candidates.has(address.url)) candidates.set(address.url, address)
+  }
+  for (const address of input.detected) add(address)
+  if (
+    input.machine !== 'local' ||
+    input.target !== 'container' ||
+    !input.container ||
+    !input.dockerReachable
+  ) {
+    return [...candidates.values()]
+  }
+  const selected = input.containers.find((item) => item.name === input.container)
+  for (const gateway of selected?.gateways ?? []) {
+    add({
+      scope: 'docker',
+      host: gateway,
+      url: `ws://${gateway}:${input.port}/ws`,
+    })
+  }
+  add({
+    scope: 'docker',
+    host: 'host.docker.internal',
+    url: `ws://host.docker.internal:${input.port}/ws`,
+  })
+  return [...candidates.values()]
 }

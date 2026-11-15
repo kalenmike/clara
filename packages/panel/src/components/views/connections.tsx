@@ -25,6 +25,7 @@ export function ConnectionsView({
       <div className="grid items-start gap-3 md:grid-cols-2 xl:grid-cols-3">
         <LocalCard
           local={snapshot.local}
+          config={snapshot.config}
           sessions={localSessions}
           controls={snapshot.controls}
           onChanged={onChanged}

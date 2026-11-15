@@ -52,8 +52,21 @@ export type PanelAgentInfo = {
   container: boolean
 }
 
+/** Which interfaces the hub's local WebSocket listener binds. */
+export type LocalAccessMode = 'loopback' | 'docker' | 'lan' | 'custom'
+
+/** A concrete address an adapter or client can dial to reach the hub. */
+export type PanelLocalAddress = {
+  /** Loopback, a local Docker bridge, or a local network interface. */
+  scope: 'loopback' | 'docker' | 'lan'
+  host: string
+  url: string
+}
+
 export type PanelConfigInfo = {
   localHost: PanelValue<string>
+  localAccess?: PanelValue<LocalAccessMode>
+  localBindHost?: PanelValue<string>
   localPort: PanelValue<number>
   relayUrl: PanelValue<string | null>
   relayRoom: PanelValue<string | null>
@@ -63,6 +76,8 @@ export type PanelConfigInfo = {
 }
 
 export type PanelConfigUpdate = {
+  localAccess?: LocalAccessMode
+  localBindHost?: string | null
   pairingBaseUrl?: string | null
   adapterRegistryUrl?: string | null
   vapidSubject?: string | null
@@ -232,6 +247,8 @@ export type PanelInstallDockerContainer = {
   state: string
   project?: string
   service?: string
+  /** Default gateways for the container's Docker networks. */
+  gateways?: string[]
 }
 
 export type PanelInstallDockerTargets = {
@@ -329,6 +346,14 @@ export type PanelLocalTransport = {
   host: string
   port: number
   url: string
+  /** The configured access mode, when the hub reports one. */
+  access?: LocalAccessMode
+  /** Every address the listener actually bound. */
+  bindHosts?: string[]
+  /** Concrete dialable addresses, with loopback first. */
+  addresses?: PanelLocalAddress[]
+  /** The Docker bridge address a local container can use, when one exists. */
+  containerUrl?: string
   connections: number
   desired: boolean
   active: boolean

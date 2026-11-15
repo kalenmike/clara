@@ -61,7 +61,15 @@ export async function listDockerTargets(
       timeout: DOCKER_TIMEOUT_MS,
       maxBuffer: 2 * 1024 * 1024,
     })
-    return { available: true, containers: parseDockerPs(result.stdout) }
+    const containers = parseDockerPs(result.stdout)
+    const gateways = await dockerGateways(run, containers)
+    return {
+      available: true,
+      containers: containers.map((container) => {
+        const values = gateways.get(container.id)
+        return values ? { ...container, gateways: values } : container
+      }),
+    }
   } catch (cause) {
     return {
       available: false,
@@ -69,6 +77,61 @@ export async function listDockerTargets(
       containers: [],
     }
   }
+}
+
+/**
+ * Ask Docker for each container's default gateway. The gateway is the host
+ * address a local container can use to reach a hub that listens beyond
+ * loopback. A failure here is non-fatal: the panel still lists the containers.
+ */
+async function dockerGateways(
+  run: RunCommand,
+  containers: PanelInstallDockerContainer[]
+): Promise<Map<string, string[]>> {
+  if (containers.length === 0) return new Map()
+  try {
+    const result = await run(
+      'docker',
+      [
+        'inspect',
+        '--format',
+        '{{.Id}} {{json .NetworkSettings.Networks}}',
+        ...containers.map((container) => container.id),
+      ],
+      { timeout: DOCKER_TIMEOUT_MS, maxBuffer: 2 * 1024 * 1024 }
+    )
+    return parseDockerGateways(result.stdout)
+  } catch {
+    return new Map()
+  }
+}
+
+/** Parse `docker inspect` lines into `id → gateways`. Exported for tests. */
+export function parseDockerGateways(output: string): Map<string, string[]> {
+  const gateways = new Map<string, string[]>()
+  for (const line of output.split(/\r?\n/)) {
+    const text = line.trim()
+    if (!text) continue
+    const space = text.indexOf(' ')
+    if (space <= 0) continue
+    const id = text.slice(0, space)
+    let value: unknown
+    try {
+      value = JSON.parse(text.slice(space + 1))
+    } catch {
+      continue
+    }
+    if (!isRecord(value)) continue
+    const addresses: string[] = []
+    for (const network of Object.values(value)) {
+      if (!isRecord(network)) continue
+      const gateway = network.Gateway
+      if (typeof gateway === 'string' && gateway.trim()) addresses.push(gateway.trim())
+    }
+    const unique = [...new Set(addresses)]
+    if (unique.length > 0) gateways.set(id.slice(0, 12), unique)
+  }
+  return gateways
 }
 
 export function parseDockerPs(output: string): PanelInstallDockerContainer[] {

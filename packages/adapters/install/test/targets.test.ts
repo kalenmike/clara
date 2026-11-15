@@ -5,6 +5,7 @@ import { afterEach, describe, expect, it } from 'vitest'
 import {
   listDockerTargets,
   listSshTargets,
+  parseDockerGateways,
   parseDockerPs,
   readSshHosts,
   type RunCommand,
@@ -130,6 +131,54 @@ describe('Docker targets', () => {
       available: false,
       reason: 'Docker is not available on this machine.',
       containers: [],
+    })
+  })
+
+  it('reads container network gateways from docker inspect', () => {
+    const gateways = parseDockerGateways(
+      [
+        'abcdef0123456789 {"bridge":{"Gateway":"172.17.0.1","IPAddress":"172.17.0.2"}}',
+        '1234567890abcdef {"clara":{"Gateway":"172.18.0.1"},"bridge":{"Gateway":""}}',
+      ].join('\n')
+    )
+    expect(gateways.get('abcdef012345')).toEqual(['172.17.0.1'])
+    expect(gateways.get('1234567890ab')).toEqual(['172.18.0.1'])
+  })
+
+  it('adds gateways to the container targets without failing the list', async () => {
+    const run: RunCommand = async (_command, args) => {
+      if (args[0] === 'ps') {
+        return {
+          stdout: JSON.stringify({
+            ID: 'abcdef0123456789',
+            Names: 'opencode',
+            Image: 'opencode:latest',
+            State: 'running',
+            Labels: '',
+          }),
+          stderr: '',
+        }
+      }
+      if (args[0] === 'inspect') {
+        return {
+          stdout: 'abcdef0123456789 {"bridge":{"Gateway":"172.17.0.1"}}',
+          stderr: '',
+        }
+      }
+      throw new Error(`unexpected docker ${args.join(' ')}`)
+    }
+
+    await expect(listDockerTargets({ run })).resolves.toEqual({
+      available: true,
+      containers: [
+        {
+          id: 'abcdef012345',
+          name: 'opencode',
+          image: 'opencode:latest',
+          state: 'running',
+          gateways: ['172.17.0.1'],
+        },
+      ],
     })
   })
 })

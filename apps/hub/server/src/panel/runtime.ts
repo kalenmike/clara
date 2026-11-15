@@ -15,6 +15,7 @@ import {
   type PanelFeatureName,
   type PanelHarness,
   type PanelHarnessState,
+  type PanelLocalAddress,
   type PanelRelayTransport,
   type PanelSessionHarness,
   type PanelSessionsQuery,
@@ -62,6 +63,8 @@ export type PanelRuntimeOptions = {
   relayAgent: () => Agent | undefined
   relayClient: () => RelayClient | undefined
   localConnections: () => number
+  /** Concrete addresses the local WebSocket listener is bound to. */
+  localAddresses?: () => PanelLocalAddress[]
   traffic?: TrafficMeter
   push?: PushService
   pushError?: string
@@ -113,6 +116,8 @@ export class PanelRuntime implements PanelDataSource {
     const relay = controlFor(controls, 'relay')
     const push = controlFor(controls, 'push')
     const harness = this.harnessState(controlFor(controls, 'opencode'))
+    const localAddresses = this.options.localAddresses?.() ?? []
+    const containerUrl = localAddresses.find((entry) => entry.scope === 'docker')?.url
 
     const snapshot: PanelSnapshot = {
       apiVersion: PANEL_API_VERSION,
@@ -142,6 +147,10 @@ export class PanelRuntime implements PanelDataSource {
         host: config.local.host,
         port: config.local.port,
         url: `ws://${formatHost(config.local.host)}:${config.local.port}/ws`,
+        access: config.localAccess ?? 'loopback',
+        bindHosts: config.localBindHosts ?? [config.local.bindHost],
+        addresses: localAddresses,
+        ...(containerUrl ? { containerUrl } : {}),
         connections: this.options.localConnections(),
         desired: local.desired,
         active: local.desired && local.effective,
@@ -453,6 +462,14 @@ export function panelConfigInfo(config: ServerConfig): PanelConfigInfo {
   const sources = config.sources
   return {
     localHost: { value: config.local.host, source: sources.localHost },
+    localAccess: {
+      value: config.localAccess ?? 'loopback',
+      source: sources.localAccess ?? 'default',
+    },
+    localBindHost: {
+      value: config.localCustomHost ?? '',
+      source: sources.localBindHost,
+    },
     localPort: { value: config.local.port, source: sources.localPort },
     relayUrl: {
       value: config.relay?.url ?? null,
