@@ -28,7 +28,10 @@ command that runs them. People install it from a signed release, run
 
 1. One binary, one version. The command, hub, engine, panel, and web client are
    compiled together, so they cannot drift apart. Assets are extracted once per
-   build into the cache directory and each service reads its own subtree.
+   build into the cache directory and each service reads its own subtree. A
+   release reports its release version; a build from a checkout reports
+   `<package version>-dev+<7-character commit>` (for example
+   `0.1.0-dev+abc1234`), so two local builds are distinct artifacts.
 2. One supervisor. `clara start` detaches a single `__supervise` process that
    starts engine → hub → web, restarts a crashed child a few times, and stops
    everything in reverse order. A login service runs the same supervisor in the
@@ -108,8 +111,9 @@ command that runs them. People install it from a signed release, run
   build without rebuilding it: it stages the binary under
   `<data>/versions/<version>/clara`, links it from the user bin directory, and
   writes `install.json` with channel `local`, so `clara doctor`, `clara update`,
-  and `clara uninstall` work as for a release. `--from`, `--bin-dir`, and
-  `--dry-run` change the source and target; `pnpm cli:uninstall [--purge]`
-  removes the install through `clara uninstall`.
+  and `clara uninstall` work as for a release. The store path uses the full dev
+  version, so installing a different commit leaves the previous build in place.
+  `--from`, `--bin-dir`, and `--dry-run` change the source and target;
+  `pnpm cli:uninstall [--purge]` removes the install through `clara uninstall`.
 
 </details>

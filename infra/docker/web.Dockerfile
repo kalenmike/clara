@@ -57,9 +57,11 @@ COPY packages/contracts/shared-types packages/contracts/shared-types
 ARG VITE_CLARA_WS_URL=
 ARG CLARA_COMMIT=
 ARG CLARA_DIRTY=0
+ARG CLARA_VERSION=
 ENV VITE_CLARA_WS_URL=$VITE_CLARA_WS_URL
 ENV CLARA_COMMIT=$CLARA_COMMIT
 ENV CLARA_DIRTY=$CLARA_DIRTY
+ENV CLARA_VERSION=$CLARA_VERSION
 RUN pnpm --filter @clara/web build
 
 FROM nginx:alpine AS runtime
