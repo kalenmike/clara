@@ -55,7 +55,7 @@ async function runLifecycle(name) {
 
 async function lifecycle(name, mode) {
   if (mode === 'local' && ctx.build && name === 'start') {
-    const code = runPnpm(['--filter', '@clara/orchestrator', 'build'], { cwd: root })
+    const code = runPnpm(['--filter', '@clara/engine', 'build'], { cwd: root })
     if (code !== 0) {
       console.error('error: the local orchestrator build failed.')
       return code

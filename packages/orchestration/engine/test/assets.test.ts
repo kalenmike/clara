@@ -17,7 +17,7 @@ describe('bundled engine assets', () => {
       mkdirSync(join(root, 'default'), { recursive: true })
       writeFileSync(join(root, 'default', 'index.yml'), 'id: default\n')
 
-      vi.stubEnv('CLARA_ORCHESTRATION_ASSETS_DIR', root)
+      vi.stubEnv('CLARA_ENGINE_ASSETS_DIR', root)
 
       expect(bundledStdDir()).toBe(join(root, 'std'))
       expect(defaultConfigPath()).toBe(join(root, 'default', 'index.yml'))
@@ -29,7 +29,7 @@ describe('bundled engine assets', () => {
   it('falls back to the module copy when the configured root is incomplete', () => {
     const root = mkdtempSync(join(tmpdir(), 'clara-assets-'))
     try {
-      vi.stubEnv('CLARA_ORCHESTRATION_ASSETS_DIR', root)
+      vi.stubEnv('CLARA_ENGINE_ASSETS_DIR', root)
 
       expect(bundledStdDir()).toBeTruthy()
       expect(defaultConfigPath()).toBeTruthy()

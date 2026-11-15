@@ -5,7 +5,7 @@ enforcement: observed
 steps:
   - name: collect_evidence
     type: script
-    command: clara-orchestrator analyze --json --days 30
+    command: clara-engine analyze --json --days 30
     result_mode: json
     timeout_seconds: 300
   - name: pattern_failures

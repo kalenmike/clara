@@ -4,11 +4,11 @@ import { connect } from 'node:net'
 import { join } from 'node:path'
 import { previewPipeline, type Diagnostic } from '@clara/pipeline-preview'
 import {
-  ensureOrchestrator,
+  ensureEngine,
   labPort,
   labURL,
   openBrowser,
-  orchestratorURL,
+  engineURL,
   readToken,
   repoRoot,
   workspace,
@@ -168,10 +168,10 @@ async function serve(options: Options): Promise<void> {
     )
   }
 
-  const url = orchestratorURL()
+  const url = engineURL()
   let token = readToken()
   try {
-    await ensureOrchestrator(url)
+    await ensureEngine(url)
     token = readToken()
   } catch (error) {
     console.warn(

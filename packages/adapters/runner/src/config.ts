@@ -22,16 +22,25 @@ export function claraDataDir(env: NodeJS.ProcessEnv = process.env): string {
   return join(xdg, 'clara')
 }
 
-export function orchestratorURL(env: NodeJS.ProcessEnv = process.env): string {
-  return (env.CLARA_ORCHESTRATION_URL?.trim() || 'http://127.0.0.1:8789').replace(/\/$/, '')
+export function engineURL(env: NodeJS.ProcessEnv = process.env): string {
+  return (
+    env.CLARA_ENGINE_URL?.trim() ||
+    env.CLARA_ORCHESTRATION_URL?.trim() ||
+    'http://127.0.0.1:8789'
+  ).replace(/\/$/, '')
 }
 
-export function orchestratorToken(env: NodeJS.ProcessEnv = process.env): string {
-  const configured = env.CLARA_ORCHESTRATION_TOKEN?.trim()
+export function engineToken(env: NodeJS.ProcessEnv = process.env): string {
+  const configured =
+    env.CLARA_ENGINE_TOKEN?.trim() || env.CLARA_ORCHESTRATION_TOKEN?.trim()
   if (configured) return configured
-  const path =
-    env.CLARA_ORCHESTRATION_TOKEN_FILE?.trim() || join(claraDataDir(env), 'orchestrator.token')
-  return existsSync(path) ? readFileSync(path, 'utf8').trim() : ''
+  const explicit =
+    env.CLARA_ENGINE_TOKEN_FILE?.trim() || env.CLARA_ORCHESTRATION_TOKEN_FILE?.trim()
+  const path = explicit || join(claraDataDir(env), 'engine.token')
+  const token = existsSync(path) ? readFileSync(path, 'utf8').trim() : ''
+  if (token || explicit) return token
+  const legacy = join(claraDataDir(env), 'orchestrator.token')
+  return existsSync(legacy) ? readFileSync(legacy, 'utf8').trim() : ''
 }
 
 export function runnerConfigPath(env: NodeJS.ProcessEnv = process.env): string {

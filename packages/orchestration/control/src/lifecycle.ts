@@ -77,7 +77,7 @@ export type StartDockerResult =
   | { kind: 'unhealthy' }
 
 export interface StartLocalOptions {
-  /** Executable and arguments for the orchestrator CLI, without the subcommand. */
+  /** Executable and arguments for the engine CLI, without the subcommand. */
   command: string[]
   /** Overrides health probing. Used by tests. */
   probe?: () => Promise<HealthProbe>
@@ -96,7 +96,7 @@ export type StartLocalResult =
   | { kind: 'foreign' }
   | { kind: 'unhealthy' }
 
-const ORCHESTRATOR_PATTERNS = ['apps/orchestrator', 'clara-orchestrator']
+const ENGINE_PATTERNS = ['apps/engine', 'apps/orchestrator', 'clara-engine', 'clara-orchestrator']
 
 function isAlive(pid: number): boolean {
   try {
@@ -126,7 +126,7 @@ function processCommand(pid: number): string | undefined {
   return command || undefined
 }
 
-/** Whether a pid still looks like the orchestration service. */
+/** Whether a pid still looks like the engine service. */
 function processMatches(pid: number, patterns: string[]): boolean | undefined {
   const command = processCommand(pid)
   if (!command) return undefined
@@ -172,7 +172,9 @@ export async function probeHealth(url = baseURL()): Promise<HealthProbe> {
   if (!body || typeof body !== 'object' || Array.isArray(body)) return { status: 'foreign' }
 
   const record = body as Record<string, unknown>
-  if (record.service !== 'clara-orchestrator') return { status: 'foreign' }
+  if (record.service !== 'clara-engine' && record.service !== 'clara-orchestrator') {
+    return { status: 'foreign' }
+  }
   const mode = record.mode === 'local' || record.mode === 'container' ? record.mode : 'unknown'
   const pid =
     typeof record.pid === 'number' && Number.isInteger(record.pid) && record.pid > 0
@@ -240,13 +242,15 @@ export function formatStatus(report: StatusReport): string[] {
   }
 
   if (report.state === 'container') {
-    const bind = process.env.CLARA_ORCHESTRATOR_DATA_DIR?.trim()
+    const bind =
+      process.env.CLARA_ENGINE_DATA_DIR?.trim() ||
+      process.env.CLARA_ORCHESTRATOR_DATA_DIR?.trim()
     lines.push(
       bind
-        ? 'database: managed by the container (host bind from CLARA_ORCHESTRATOR_DATA_DIR)'
+        ? 'database: managed by the container (host bind from CLARA_ENGINE_DATA_DIR)'
         : 'database: managed by the container (Docker volume clara-orchestrator-data)'
     )
-    lines.push('stop: clara stop orchestrator --docker')
+    lines.push('stop: clara stop engine --docker')
   } else if (report.state === 'external') {
     lines.push('database: unknown (not this data directory)')
   } else if (report.state !== 'foreign') {
@@ -255,14 +259,14 @@ export function formatStatus(report: StatusReport): string[] {
 
   if (report.state === 'external') {
     lines.push('warning: no local pid file; this instance was not started from this data directory')
-    lines.push('stop: `clara stop orchestrator --local` signals the reported process')
+    lines.push('stop: `clara stop engine --local` signals the reported process')
   }
   if (report.state === 'unresponsive') {
     lines.push(`warning: the process is alive but ${report.url}/health did not respond`)
     lines.push(`log: ${report.log}`)
   }
   if (report.state === 'foreign') {
-    lines.push(`warning: ${report.url} answered but did not identify as clara-orchestrator`)
+    lines.push(`warning: ${report.url} answered but did not identify as clara-engine`)
   }
 
   return lines
@@ -326,10 +330,10 @@ function repoRoot(): string {
 }
 
 export function composeArgs(action: ComposeAction, build = false): string[] {
-  if (action === 'down') return ['compose', '-f', 'infra/docker/orchestrator.compose.yml', 'down']
-  const args = ['compose', '-f', 'infra/docker/orchestrator.compose.yml', 'up', '-d']
+  if (action === 'down') return ['compose', '-f', 'infra/docker/engine.compose.yml', 'down']
+  const args = ['compose', '-f', 'infra/docker/engine.compose.yml', 'up', '-d']
   if (build) args.push('--build')
-  args.push('orchestrator')
+  args.push('engine')
   return args
 }
 
@@ -337,11 +341,11 @@ export function composeLogArgs(tail = 40): string[] {
   return [
     'compose',
     '-f',
-    'infra/docker/orchestrator.compose.yml',
+    'infra/docker/engine.compose.yml',
     'logs',
     '--tail',
     String(tail),
-    'orchestrator',
+    'engine',
   ]
 }
 
@@ -368,7 +372,7 @@ export function readComposeLogs(tail = 40): string {
  * can remove the container.
  */
 const DOWN_ENV_FALLBACKS = {
-  CLARA_ORCHESTRATION_TOKEN: 'unused-by-compose-down',
+  CLARA_ENGINE_TOKEN: 'unused-by-compose-down',
   CLARA_WORKSPACE: repoRoot(),
 } as const
 
@@ -445,7 +449,7 @@ export async function startLocalService(options: StartLocalOptions): Promise<Sta
   if (pid.alive && pid.pid !== null) return { kind: 'unresponsive', pid: pid.pid }
 
   const [executable, ...args] = options.command
-  if (!executable) throw new Error('the orchestrator entry command is empty')
+  if (!executable) throw new Error('the engine entry command is empty')
 
   const out = openSync(logPath(), 'a', 0o600)
   try {
@@ -492,7 +496,7 @@ export async function stopService(options: StopOptions = {}): Promise<StopResult
   // maintenance restart) has no pid file here. The health response names its
   // process, so stop it when the command line still looks like Clara.
   if (probe.status === 'current' && probe.mode !== 'container' && probe.pid !== null) {
-    if (isAlive(probe.pid) && processMatches(probe.pid, ORCHESTRATOR_PATTERNS) !== false) {
+    if (isAlive(probe.pid) && processMatches(probe.pid, ENGINE_PATTERNS) !== false) {
       return terminateLocal(probe.pid)
     }
   }

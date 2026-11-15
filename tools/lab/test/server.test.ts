@@ -3,8 +3,8 @@ import type { AddressInfo } from 'node:net'
 import { afterAll, beforeAll, describe, expect, it } from 'vitest'
 import { Runtime, Store, defaultConfigPath } from '@clara/orchestration'
 import {
-  createOrchestratorServer,
-  type OrchestratorServer,
+  createEngineServer,
+  type EngineServer,
 } from '../../../apps/orchestrator/src/server.ts'
 import { startLabServer, type LabServer } from '../server/http.ts'
 import { LabRuntime } from '../server/runtime.ts'
@@ -13,7 +13,7 @@ const workspace = fileURLToPath(new URL('../../../', import.meta.url))
 const config = defaultConfigPath()
 if (!config) throw new Error('bundled default config is missing')
 const token = 'lab-test-token'
-let orchestrator: OrchestratorServer
+let orchestrator: EngineServer
 let lab: LabServer
 let runtime: LabRuntime
 let store: Store
@@ -48,7 +48,7 @@ beforeAll(async () => {
   const orchestrationRuntime = new Runtime({
     store,
   })
-  orchestrator = createOrchestratorServer({
+  orchestrator = createEngineServer({
     runtime: orchestrationRuntime,
     token,
     port: 0,

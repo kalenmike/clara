@@ -22,6 +22,7 @@ export function resolveWorkspace(
   cwd: string = process.cwd()
 ): string {
   return (
+    candidate(env.CLARA_ENGINE_WORKSPACE) ??
     candidate(env.CLARA_ORCHESTRATION_WORKSPACE) ??
     candidate(context?.worktree) ??
     candidate(context?.directory) ??
