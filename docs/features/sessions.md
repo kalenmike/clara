@@ -363,8 +363,8 @@ list has no checkbox column or bulk toolbar.
   Sessions already in the Inbox when the view opens stay put.
 - **Manual navigation while monitoring** — opening a session outside the Inbox,
   starting a new session, or opening Settings stays where the person navigated.
-- **Home button** — the chat header link returns to the start view without
-  changing the monitoring preference.
+- **Chat destination** — the app header's Chat link returns to the start view
+  without changing the monitoring preference.
 - **Inbox still loading on activation** — Clara waits for sessions and mailbox
   signals, then jumps once; navigating before they resolve cancels the jump.
 - **Inbox request fails** — Clara keeps the current view and the switch keeps

@@ -159,7 +159,7 @@ cookie jar.
   `controllerchange` before reloading (`waitForActivation`, ten-second bound).
 - Throttle: `apps/web/src/features/pwa/update-check.ts` (`dueForUpdateCheck`).
 - Banner: `apps/web/src/components/pwa/update-banner.tsx`, rendered under the
-  mobile app bar in the app shell.
+  app header in the app shell.
 - Standalone footer: `apps/web/src/components/pwa/app-footer.tsx` shows the
   surface label and version, the wire protocol stamp, and the reload control,
   and is rendered by the connect screen and `connection-splash.tsx`. `reloadApp`

@@ -6,8 +6,8 @@ sidebar_position: 8
 
 # Settings
 
-Open **Settings** from the icon row at the bottom of the sidebar, or from the
-start view. The page has seven tabs:
+Open **Settings** from the app header, or from the start view. The page has seven
+tabs:
 Appearance, Preferences, Models, Notifications, Sync, Shortcuts, and Advanced.
 On a narrow screen the tabs become a section menu.
 
