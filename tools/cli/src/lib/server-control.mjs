@@ -1,8 +1,9 @@
 import { spawnSync } from 'node:child_process'
-import { existsSync } from 'node:fs'
+import { existsSync, readFileSync } from 'node:fs'
 import { homedir } from 'node:os'
 import { join } from 'node:path'
 import { isRuntimeLive, readRuntimeState, runtimeFile } from '@clara/runtime-state'
+import { buildVersion } from '../../../build/version.mjs'
 import { root, run } from './router.mjs'
 
 export function composeFile(repoRoot = root) {
@@ -25,11 +26,28 @@ export function compose(args, repoRoot = root) {
  * the image cannot resolve the checkout itself; pass the host values instead.
  */
 export function buildInfoEnv(repoRoot = root) {
+  const version = buildVersion({
+    packageVersion: packageVersion(repoRoot),
+    commit: gitValue(['rev-parse', '--short=7', 'HEAD'], repoRoot) || undefined,
+  })
   const commit = gitValue(['rev-parse', '--short=8', 'HEAD'], repoRoot)
-  if (!commit) return {}
   return {
-    CLARA_COMMIT: commit,
-    CLARA_DIRTY: gitValue(['status', '--porcelain'], repoRoot) ? '1' : '0',
+    ...(commit
+      ? {
+          CLARA_COMMIT: commit,
+          CLARA_DIRTY: gitValue(['status', '--porcelain'], repoRoot) ? '1' : '0',
+        }
+      : {}),
+    CLARA_VERSION: version,
+  }
+}
+
+function packageVersion(repoRoot) {
+  try {
+    const manifest = JSON.parse(readFileSync(join(repoRoot, 'package.json'), 'utf8'))
+    return typeof manifest.version === 'string' ? manifest.version : '0.0.0'
+  } catch {
+    return '0.0.0'
   }
 }
 

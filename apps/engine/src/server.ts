@@ -40,6 +40,8 @@ export interface EngineAssetBundle {
 }
 
 const ENGINE_VERSION = '0.1.0'
+/** Health identity; packaged builds and the supervised stack supply it. */
+const ENGINE_SERVICE_VERSION = process.env.CLARA_VERSION?.trim() || ENGINE_VERSION
 const MAX_ASSET_FILE_BYTES = 512 * 1024
 const MAX_ASSET_BUNDLE_BYTES = 4_000_000
 const TEXT_ASSET_EXTENSIONS = new Set([
@@ -254,7 +256,7 @@ export function createEngineServer(options: EngineServerOptions): EngineServer {
         json(res, 200, {
           ok: true,
           service: 'clara-engine',
-          version: '0.1.0',
+          version: ENGINE_SERVICE_VERSION,
           mode: instanceMode(),
           pid: process.pid,
         })

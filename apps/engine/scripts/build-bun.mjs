@@ -13,11 +13,16 @@ import { createHash } from 'node:crypto'
 import { existsSync, mkdirSync, readdirSync, readFileSync, writeFileSync } from 'node:fs'
 import { dirname, join, relative, resolve, sep } from 'node:path'
 import { fileURLToPath } from 'node:url'
+import { buildVersion } from '../../../tools/build/version.mjs'
 
 const here = dirname(fileURLToPath(import.meta.url))
 const packageRoot = resolve(here, '..')
 const repoRoot = resolve(packageRoot, '../..')
 const engineRoot = join(repoRoot, 'packages/orchestration/engine')
+const version = buildVersion({
+  packageVersion: readPackageVersion(),
+  commit: git(['rev-parse', '--short=7', 'HEAD']) || 'local',
+})
 const srcDir = join(packageRoot, 'src')
 const generated = join(srcDir, 'embedded-assets.generated.mjs')
 const entry = join(srcDir, 'bun.ts')
@@ -48,10 +53,34 @@ const bun = process.env.BUN_BIN?.trim() || 'bun'
 console.log(`Embedding ${files.length} file(s) and compiling ${target}...`)
 run(
   bun,
-  ['build', '--compile', '--conditions=bun', `--target=${target}`, entry, '--outfile', outfile],
+  [
+    'build',
+    '--compile',
+    '--conditions=bun',
+    `--target=${target}`,
+    '--define',
+    `process.env.CLARA_VERSION=${JSON.stringify(version)}`,
+    entry,
+    '--outfile',
+    outfile,
+  ],
   repoRoot
 )
 console.log(`Executable: ${outfile}`)
+
+function readPackageVersion() {
+  try {
+    const manifest = JSON.parse(readFileSync(join(repoRoot, 'package.json'), 'utf8'))
+    return typeof manifest.version === 'string' ? manifest.version : '0.0.0'
+  } catch {
+    return '0.0.0'
+  }
+}
+
+function git(args) {
+  const result = spawnSync('git', args, { cwd: repoRoot, encoding: 'utf8' })
+  return result.status === 0 ? result.stdout.trim() : ''
+}
 
 function arg(name) {
   const index = process.argv.indexOf(name)

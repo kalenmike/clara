@@ -48,6 +48,17 @@ describe('status columns', () => {
   it('does not judge a service that reports nothing', () => {
     expect(mismatchNote([service()], expected)).toBeUndefined()
   })
+
+  it('matches a dev-tagged build of this command', () => {
+    const dev = { version: '0.1.0-dev+abc1234', protocol: 4 }
+    const row = renderTable(
+      [service({ version: dev.version, protocol: 4 })],
+      statusColumns(dev)
+    ).split('\n')[1]
+    expect(row).toContain('0.1.0-dev+abc1234')
+    expect(row).not.toContain('0.1.0-dev+abc1234*')
+    expect(mismatchNote([service({ version: dev.version, protocol: 4 })], dev)).toBeUndefined()
+  })
 })
 
 describe('mismatch note', () => {
