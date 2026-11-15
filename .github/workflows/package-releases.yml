@@ -18,8 +18,19 @@ jobs:
     outputs:
       version: ${{ steps.version.outputs.version }}
       tag: ${{ steps.version.outputs.tag }}
+      public_key: ${{ steps.key.outputs.public_key }}
     steps:
       - uses: actions/checkout@v5
+      - id: key
+        env:
+          CLARA_RELEASE_SIGNING_KEY: ${{ secrets.CLARA_RELEASE_SIGNING_KEY }}
+        run: |
+          if [ -z "$CLARA_RELEASE_SIGNING_KEY" ]; then
+            echo "public_key=" >> "$GITHUB_OUTPUT"
+            exit 0
+          fi
+          key=$(node -e "const {createPrivateKey,createPublicKey}=require('node:crypto');const k=createPrivateKey(process.env.CLARA_RELEASE_SIGNING_KEY);console.log(createPublicKey(k).export({type:'spki',format:'der'}).toString('base64'))")
+          echo "public_key=$key" >> "$GITHUB_OUTPUT"
       - id: version
         run: |
           version=$(node -p "require('./package.json').version")
@@ -85,6 +96,8 @@ jobs:
       - run: pnpm install --frozen-lockfile
 
       - name: Build the binary
+        env:
+          CLARA_RELEASE_PUBLIC_KEY: ${{ needs.prepare.outputs.public_key }}
         run: pnpm --filter @clara/cli run build:binary -- --target=${{ matrix.bun-target }} --outfile=dist/package/${{ matrix.platform }}/clara${{ runner.os == 'Windows' && '.exe' || '' }}
 
       - name: Smoke the binary
