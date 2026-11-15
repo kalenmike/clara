@@ -744,6 +744,9 @@ importers:
       '@clara/policy':
         specifier: workspace:*
         version: link:../orchestration/policy
+      '@clara/shared-types':
+        specifier: workspace:*
+        version: link:../contracts/shared-types
       '@clara/theme':
         specifier: workspace:*
         version: link:../theme
