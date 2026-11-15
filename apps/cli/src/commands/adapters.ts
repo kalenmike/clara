@@ -29,7 +29,7 @@ const HELP = `${heading('Clara adapter management')}
 Usage:
   clara adapter search [--json]
   clara adapter list [--json]
-  clara adapter install <kind>[@version] [--pair <code>] [--no-start]
+  clara adapter install <kind>[@version] [--pair <code>] [--from <path>] [--no-start]
   clara adapter upgrade [kind] [--no-start] [--json]
   clara adapter remove <kind> [--purge]
   clara adapter start|stop|status|logs <kind> [options]
@@ -38,7 +38,8 @@ Usage:
 Kinds: ${ADAPTER_KINDS.join(', ')}
 
 Adapter binaries are downloaded from the release registry only when you ask for
-one. ${muted('Run `clara adapter search` to see published versions.')}`
+one. ${muted('Run `clara adapter search` to see published versions.')}
+Pass ${muted('--from')} to install a package or dist directory built in a checkout.`
 
 export async function runAdapters(args: readonly string[]): Promise<number> {
   const [sub = '', ...rest] = args

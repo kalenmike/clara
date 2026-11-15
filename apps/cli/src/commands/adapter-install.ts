@@ -16,9 +16,15 @@ import { dim, green } from '../ui/color.ts'
 import { formatBytes, muted, success, warn } from '../ui/index.ts'
 import { startSpinner, type Spinner } from '../ui/spinner.ts'
 import { renderTable } from '../ui/table.ts'
-import { parseAdapterArgs, parseKindSpec, parseTransport, requireKind } from './adapter-args.ts'
+import {
+  adapterInstallArgs,
+  parseAdapterArgs,
+  parseKindSpec,
+  parseTransport,
+  requireKind,
+} from './adapter-args.ts'
 
-/** `clara adapter install <kind>[@version] [--pair <code>] [--no-start]`. */
+/** `clara adapter install <kind>[@version] [--pair <code>] [--from <path>] [--no-start]`. */
 export async function runAdapterInstall(args: readonly string[]): Promise<number> {
   const parsed = parseAdapterArgs(args)
   const spec = requireKind(parsed.values[0], 'install')
@@ -44,6 +50,9 @@ export async function runAdapterInstall(args: readonly string[]): Promise<number
         target,
         pairCode: code,
         start: !parsed.flags.has('--no-start'),
+        ...(parsed.options.get('--from') ? { from: parsed.options.get('--from') } : {}),
+        ...(parsed.flags.has('--force') ? { force: true } : {}),
+        installArgs: adapterInstallArgs(parsed),
       },
       installDeps(paths, spinner, json)
     )
@@ -213,6 +222,7 @@ function printRecord(record: AdapterInstallRecord): void {
   console.log(`  version:  ${record.version}`)
   console.log(`  platform: ${record.platform}`)
   console.log(`  path:     ${record.path}`)
+  console.log(`  entry:    ${record.entry ?? 'native binary'}`)
   console.log(`  paired:   ${record.pairedAt ? 'yes' : 'no'}`)
 }
 

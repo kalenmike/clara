@@ -1,7 +1,15 @@
-import { spawn } from 'node:child_process'
-import { chmodSync, existsSync, mkdirSync, mkdtempSync, rmSync } from 'node:fs'
+import { spawn, spawnSync } from 'node:child_process'
+import {
+  chmodSync,
+  cpSync,
+  existsSync,
+  mkdirSync,
+  mkdtempSync,
+  readFileSync,
+  rmSync,
+} from 'node:fs'
 import { tmpdir } from 'node:os'
-import { join } from 'node:path'
+import { dirname, join, resolve } from 'node:path'
 import { archiveFormat, extractArchive } from './archive.ts'
 import { downloadVerified, type DownloadProgress } from './download.ts'
 import { detectAdapterTarget, isAdapterTarget, type AdapterTarget } from './platform.ts'
@@ -49,6 +57,10 @@ export type InstallRequest = {
   pairCode?: string
   start?: boolean
   force?: boolean
+  /** Stage a built adapter package or `dist` directory instead of a registry archive. */
+  from?: string
+  /** Adapter install flags replayed when the adapter is reinstalled. */
+  installArgs?: string[]
 }
 
 export type UpgradeReport = {
@@ -71,13 +83,83 @@ export function adapterBinaryPath(record: AdapterInstallRecord): string {
   return join(record.path, adapterBinaryName(record.kind, record.platform))
 }
 
-/** Pull, verify, extract, record, pair, and optionally start one adapter. */
+/** The file a record executes, whether a native binary or a staged JS entry. */
+export function adapterEntryPath(record: AdapterInstallRecord): string {
+  return record.entry ? join(record.path, record.entry) : adapterBinaryPath(record)
+}
+
+/** The command that runs an installed adapter. */
+export function adapterCommand(record: AdapterInstallRecord): AdapterCommand {
+  if (record.entry) {
+    return { command: process.execPath, args: [join(record.path, record.entry)] }
+  }
+  return { command: adapterBinaryPath(record), args: [] }
+}
+
+export type AdapterCommand = {
+  command: string
+  args: string[]
+}
+
+/** Stage an adapter, record it, pair it, and optionally start it. */
 export async function installAdapter(
   request: InstallRequest,
   deps: InstallDeps
 ): Promise<AdapterInstallRecord> {
   const paths = deps.paths ?? resolvePaths()
   const target = request.target ?? detectAdapterTarget()
+  const previous = readAdapterState(paths).adapters[request.kind]
+  const staged = request.from
+    ? stageLocalAdapter(request, paths, target, previous, deps)
+    : await pullAdapter(request, paths, target, previous, deps)
+
+  let record: AdapterInstallRecord = {
+    ...staged,
+    ...(request.installArgs && request.installArgs.length > 0
+      ? { installArgs: request.installArgs }
+      : previous?.installArgs
+        ? { installArgs: previous.installArgs }
+        : {}),
+  }
+  saveAdapterRecord(record, paths)
+  const command = adapterCommand(record)
+
+  if (request.pairCode) {
+    deps.onPhase?.('pairing')
+    const result = await runAdapterCommand(
+      deps,
+      command,
+      ['install', '--pair', request.pairCode, ...(record.installArgs ?? [])],
+      request.kind
+    )
+    if (result.code !== 0) {
+      record = { ...record, lastError: failureText('install', result) }
+      saveAdapterRecord(record, paths)
+      throw new Error(`The ${request.kind} adapter install failed: ${record.lastError}`)
+    }
+    record = { ...record, pairedAt: new Date((deps.now ?? Date.now)()).toISOString() }
+    saveAdapterRecord(record, paths)
+  }
+
+  if (request.start !== false) {
+    deps.onPhase?.('starting')
+    const result = await runAdapterCommand(deps, command, ['start'], request.kind)
+    if (result.code !== 0) {
+      record = { ...record, lastError: failureText('start', result) }
+      saveAdapterRecord(record, paths)
+      deps.log?.(`The adapter did not start: ${record.lastError}`)
+    }
+  }
+  return record
+}
+
+async function pullAdapter(
+  request: InstallRequest,
+  paths: ClaraPaths,
+  target: AdapterTarget,
+  previous: AdapterInstallRecord | undefined,
+  deps: InstallDeps
+): Promise<AdapterInstallRecord> {
   const manifest = await deps.registry.manifest(request.kind)
   if (request.version && request.version !== manifest.version) {
     throw new Error(
@@ -95,7 +177,6 @@ export async function installAdapter(
 
   const installDir = adapterInstallDir(paths, request.kind, manifest.version)
   const binary = join(installDir, adapterBinaryName(request.kind, target))
-  const previous = readAdapterState(paths).adapters[request.kind]
   const existing = previous?.version === manifest.version && existsSync(binary)
 
   if (!existing || request.force) {
@@ -108,7 +189,7 @@ export async function installAdapter(
   }
   if (process.platform !== 'win32') chmodSync(binary, 0o755)
 
-  let record: AdapterInstallRecord = {
+  return {
     kind: request.kind,
     version: manifest.version,
     platform: target,
@@ -116,35 +197,90 @@ export async function installAdapter(
     installedAt: previous?.installedAt ?? new Date((deps.now ?? Date.now)()).toISOString(),
     ...(previous?.pairedAt ? { pairedAt: previous.pairedAt } : {}),
   }
-  saveAdapterRecord(record, paths)
+}
 
-  if (request.pairCode) {
-    deps.onPhase?.('pairing')
-    const result = await runAdapterBinary(
-      deps,
-      binary,
-      ['install', '--pair', request.pairCode],
-      request.kind
+type LocalAdapterSource = {
+  root: string
+  dist: string
+}
+
+export function resolveLocalAdapterSource(input: string, kind: AdapterKind): LocalAdapterSource {
+  const path = resolve(input)
+  const candidates: LocalAdapterSource[] = [
+    { root: path, dist: join(path, 'dist') },
+    { root: dirname(path), dist: path },
+  ]
+  for (const candidate of candidates) {
+    if (!existsSync(join(candidate.dist, 'index.js'))) continue
+    const pkg = readAdapterPackage(candidate.root)
+    if (pkg?.name && pkg.name !== `@clara/adapter-${kind}`) {
+      throw new Error(
+        `The package at ${candidate.root} is ${pkg.name}, not @clara/adapter-${kind}.`
+      )
+    }
+    return candidate
+  }
+  throw new Error(
+    `No built ${kind} adapter at ${path}. Pass a package directory or its dist directory ` +
+      'after building the adapter.'
+  )
+}
+
+function stageLocalAdapter(
+  request: InstallRequest,
+  paths: ClaraPaths,
+  target: AdapterTarget,
+  previous: AdapterInstallRecord | undefined,
+  deps: InstallDeps
+): AdapterInstallRecord {
+  const source = resolveLocalAdapterSource(request.from ?? '', request.kind)
+  const version = request.version ?? localAdapterVersion(source.root)
+  const installDir = adapterInstallDir(paths, request.kind, version)
+  const staged = join(installDir, 'index.js')
+  if (!existsSync(staged) || request.force) {
+    rmSync(installDir, { recursive: true, force: true })
+    mkdirSync(installDir, { recursive: true })
+    cpSync(source.dist, installDir, { recursive: true })
+  }
+  if (!existsSync(staged)) {
+    throw new Error(
+      `The ${request.kind} build has no dist/index.js at ${source.dist}. Build the adapter first.`
     )
-    if (result.code !== 0) {
-      record = { ...record, lastError: failureText('install', result) }
-      saveAdapterRecord(record, paths)
-      throw new Error(`The ${request.kind} adapter install failed: ${record.lastError}`)
-    }
-    record = { ...record, pairedAt: new Date((deps.now ?? Date.now)()).toISOString() }
-    saveAdapterRecord(record, paths)
   }
+  return {
+    kind: request.kind,
+    version,
+    platform: target,
+    path: installDir,
+    entry: 'index.js',
+    installedAt: previous?.installedAt ?? new Date((deps.now ?? Date.now)()).toISOString(),
+    ...(previous?.pairedAt ? { pairedAt: previous.pairedAt } : {}),
+  }
+}
 
-  if (request.start !== false) {
-    deps.onPhase?.('starting')
-    const result = await runAdapterBinary(deps, binary, ['start'], request.kind)
-    if (result.code !== 0) {
-      record = { ...record, lastError: failureText('start', result) }
-      saveAdapterRecord(record, paths)
-      deps.log?.(`The adapter did not start: ${record.lastError}`)
+function readAdapterPackage(root: string): { name?: string; version?: string } | undefined {
+  try {
+    const parsed = JSON.parse(readFileSync(join(root, 'package.json'), 'utf8')) as {
+      name?: unknown
+      version?: unknown
     }
+    return {
+      ...(typeof parsed.name === 'string' ? { name: parsed.name } : {}),
+      ...(typeof parsed.version === 'string' ? { version: parsed.version } : {}),
+    }
+  } catch {
+    return undefined
   }
-  return record
+}
+
+function localAdapterVersion(root: string): string {
+  const version = readAdapterPackage(root)?.version ?? '0.0.0'
+  const result = spawnSync('git', ['rev-parse', '--short=7', 'HEAD'], {
+    cwd: root,
+    encoding: 'utf8',
+  })
+  const commit = result.status === 0 ? String(result.stdout).trim() : ''
+  return `${version}-dev+${commit || Date.now().toString(36)}`
 }
 
 /** Move one installed adapter to the version the registry publishes today. */
@@ -161,16 +297,16 @@ export async function upgradeAdapter(
     return { kind, from: record.version, to: record.version, changed: false }
   }
   const target = options.target ?? (isAdapterTarget(record.platform) ? record.platform : undefined)
-  const binary = adapterBinaryPath(record)
-  if (existsSync(binary)) {
+  if (existsSync(adapterEntryPath(record))) {
     deps.onPhase?.('stopping')
-    await runAdapterBinary(deps, binary, ['stop'], kind)
+    await runAdapterCommand(deps, adapterCommand(record), ['stop'], kind)
   }
   const next = await installAdapter(
     {
       kind,
       target: target ?? detectAdapterTarget(),
       force: true,
+      ...(record.installArgs ? { installArgs: record.installArgs } : {}),
       ...(options.start !== undefined ? { start: options.start } : {}),
     },
     deps
@@ -189,12 +325,12 @@ export async function removeAdapter(
   if (!record) throw new Error(`The ${kind} adapter is not installed.`)
 
   const actions: string[] = []
-  const binary = adapterBinaryPath(record)
-  if (existsSync(binary)) {
-    const stopped = await runAdapterBinary(deps, binary, ['stop'], kind)
+  const command = adapterCommand(record)
+  if (existsSync(adapterEntryPath(record))) {
+    const stopped = await runAdapterCommand(deps, command, ['stop'], kind)
     if (stopped.code === 0) actions.push('stop the adapter process')
     const args = options.purge ? ['uninstall', '--purge'] : ['uninstall']
-    const removed = await runAdapterBinary(deps, binary, args, kind)
+    const removed = await runAdapterCommand(deps, command, args, kind)
     if (removed.code === 0) {
       actions.push(
         options.purge
@@ -212,9 +348,14 @@ export async function removeAdapter(
   return actions
 }
 
+export type AdapterRunDeps = {
+  paths?: ClaraPaths
+  runBinary?: BinaryRunner
+}
+
 /** Run the installed adapter's own subcommands (`start`, `stop`, `status`, `logs`). */
 export async function runAdapterBinary(
-  deps: InstallDeps,
+  deps: AdapterRunDeps,
   binary: string,
   args: readonly string[],
   kind?: AdapterKind
@@ -222,6 +363,16 @@ export async function runAdapterBinary(
   const paths = deps.paths ?? resolvePaths()
   const env = kind ? adapterEnv(paths, kind) : process.env
   return (deps.runBinary ?? ((command, list) => runStreamed(command, list, env)))(binary, args)
+}
+
+/** Run an installed adapter through its recorded command. */
+export async function runAdapterCommand(
+  deps: AdapterRunDeps,
+  command: AdapterCommand,
+  args: readonly string[],
+  kind?: AdapterKind
+): Promise<BinaryResult> {
+  return runAdapterBinary(deps, command.command, [...command.args, ...args], kind)
 }
 
 /** Stream a child's output to this terminal and keep the stderr tail. */

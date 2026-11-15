@@ -1,6 +1,6 @@
 import { existsSync } from 'node:fs'
-import { adapterBinaryPath, runStreamed } from '../adapters/install.ts'
-import { adapterEnv, readAdapterState } from '../adapters/state.ts'
+import { adapterCommand, adapterEntryPath, runAdapterCommand } from '../adapters/install.ts'
+import { readAdapterState } from '../adapters/state.ts'
 import { resolvePaths } from '../paths.ts'
 import { parseKindSpec } from './adapter-args.ts'
 
@@ -26,14 +26,16 @@ export async function runAdapterControl(
       `${spec.kind} adapter is not installed. Run: clara adapter install ${spec.kind}`
     )
   }
-  const binary = adapterBinaryPath(record)
-  if (!existsSync(binary)) {
-    throw new Error(`The recorded ${spec.kind} binary is missing at ${binary}. Reinstall it.`)
+  if (!existsSync(adapterEntryPath(record))) {
+    throw new Error(
+      `The recorded ${spec.kind} entry is missing at ${adapterEntryPath(record)}. Reinstall it.`
+    )
   }
-  const result = await runStreamed(
-    binary,
+  const result = await runAdapterCommand(
+    { paths: resolvePaths() },
+    adapterCommand(record),
     [action, ...extra],
-    adapterEnv(resolvePaths(), spec.kind)
+    spec.kind
   )
   return result.code
 }

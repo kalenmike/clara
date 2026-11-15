@@ -1,5 +1,5 @@
 import { createHash } from 'node:crypto'
-import { existsSync, mkdtempSync, rmSync, statSync, writeFileSync } from 'node:fs'
+import { existsSync, mkdirSync, mkdtempSync, rmSync, statSync, writeFileSync } from 'node:fs'
 import { createServer } from 'node:http'
 import type { AddressInfo } from 'node:net'
 import { tmpdir } from 'node:os'
@@ -164,6 +164,73 @@ describe('adapter install', () => {
       { command: adapterBinaryPath(record), args: ['start'] },
     ])
     expect(readAdapterState(paths).adapters.opencode).toEqual(record)
+  })
+
+  it('stages a local build and runs it with Node', async () => {
+    const fixture = await registryServer()
+    const paths = tempPaths()
+    const calls: Calls = []
+    const packageDir = mkdtempSync(join(tmpdir(), 'clara-adapter-local-'))
+    roots.push(packageDir)
+    writeFileSync(
+      join(packageDir, 'package.json'),
+      JSON.stringify({ name: '@clara/adapter-opencode', version: '0.1.0' })
+    )
+    const dist = join(packageDir, 'dist')
+    mkdirSync(join(dist, 'plugin'), { recursive: true })
+    writeFileSync(join(dist, 'index.js'), '#!/usr/bin/env node\n')
+    writeFileSync(join(dist, 'plugin', 'index.js'), 'export {}\n')
+
+    const record = await installAdapter(
+      {
+        kind: 'opencode',
+        target: 'linux-x64',
+        version: '0.1.0-dev+local',
+        pairCode: 'clara-pair-local',
+        from: packageDir,
+        installArgs: ['--no-runner'],
+      },
+      deps(fixture, paths, { calls })
+    )
+
+    expect(record.entry).toBe('index.js')
+    expect(record.version).toBe('0.1.0-dev+local')
+    expect(record.path).toBe(join(paths.dataDir, 'adapters', 'opencode', '0.1.0-dev+local'))
+    expect(record.installArgs).toEqual(['--no-runner'])
+    expect(existsSync(join(record.path, 'plugin', 'index.js'))).toBe(true)
+    expect(calls).toEqual([
+      {
+        command: process.execPath,
+        args: [
+          join(record.path, 'index.js'),
+          'install',
+          '--pair',
+          'clara-pair-local',
+          '--no-runner',
+        ],
+      },
+      { command: process.execPath, args: [join(record.path, 'index.js'), 'start'] },
+    ])
+  })
+
+  it('rejects a local package for another adapter kind', async () => {
+    const fixture = await registryServer()
+    const paths = tempPaths()
+    const packageDir = mkdtempSync(join(tmpdir(), 'clara-adapter-local-'))
+    roots.push(packageDir)
+    writeFileSync(
+      join(packageDir, 'package.json'),
+      JSON.stringify({ name: '@clara/adapter-claude', version: '0.1.0' })
+    )
+    mkdirSync(join(packageDir, 'dist'), { recursive: true })
+    writeFileSync(join(packageDir, 'dist', 'index.js'), '#!/usr/bin/env node\n')
+
+    await expect(
+      installAdapter(
+        { kind: 'opencode', target: 'linux-x64', from: packageDir },
+        deps(fixture, paths)
+      )
+    ).rejects.toThrow('not @clara/adapter-opencode')
   })
 
   it('reuses an installed version without downloading it again', async () => {

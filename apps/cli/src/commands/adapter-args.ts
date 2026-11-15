@@ -7,7 +7,14 @@ export type ParsedAdapterArgs = {
 }
 
 const FLAGS = new Set(['--no-start', '--json', '--purge', '--force', '--install'])
-const OPTIONS = new Set(['--pair', '--transport', '--harness', '--version'])
+const OPTIONS = new Set(['--pair', '--transport', '--harness', '--version', '--from'])
+
+/** Adapter install flags that are replayed when the adapter is reinstalled. */
+const INSTALL_FLAGS = new Set(['--mcp', '--no-runner', '--no-binding', '--no-service'])
+
+export function adapterInstallArgs(parsed: ParsedAdapterArgs): string[] {
+  return [...INSTALL_FLAGS].filter((flag) => parsed.flags.has(flag))
+}
 
 export type KindSpec = {
   kind: AdapterKind

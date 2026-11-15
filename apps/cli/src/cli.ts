@@ -83,7 +83,9 @@ export const commands: Command[] = [
     options: [
       { flags: '--json', description: 'machine-readable output where supported' },
       { flags: '--pair <code>', description: 'pair with an existing code instead of issuing one' },
+      { flags: '--from <path>', description: 'install a built adapter package or dist directory' },
       { flags: '--no-start', description: 'install without starting the adapter' },
+      { flags: '--force', description: 'stage and install again even when the version matches' },
       { flags: '--purge', description: 'remove adapter credentials with the install' },
     ],
     run: runAdapters,
