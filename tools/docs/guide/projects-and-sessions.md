@@ -28,9 +28,10 @@ Clara still saves the workspace and links it when the harness reconnects. Use
 ## Find a project
 
 The project button in the sidebar opens the seven most recently active projects.
-Each row shows the project name and its first workspace; when the project spans
-harnesses, the row adds that workspace's harness so two machines stay
-distinguishable. Projects without sessions are hidden by default.
+Each row names the project and shows its workspace directory; once a project has
+more than one workspace, the row counts them instead so no single folder reads as
+the whole project. The button for the current project repeats that line under its
+name. Projects without sessions are hidden by default.
 
 Choose **All projects** at the end of the menu to see every non-empty project.
 The filter icon in the header reveals empty and archived projects. A project card
