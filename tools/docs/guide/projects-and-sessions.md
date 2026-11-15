@@ -115,7 +115,8 @@ the run.
 
 ## Snooze, archive, and reopen
 
-- The session header's more menu can **Snooze session**.
+- The session header's more menu can **Snooze session**, and on an archived
+  session it shows **Reopen** instead of Archive.
 - **Done** in the composer's send menu archives the session without renaming it.
 - **Reopen** appears in the send menu on an archived or snoozed session and
   clears that state.

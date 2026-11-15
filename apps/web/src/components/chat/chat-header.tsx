@@ -5,6 +5,7 @@ import {
   AlarmClock,
   AlarmClockOff,
   Archive,
+  ArchiveRestore,
   ChevronsDownUp,
   ChevronsUpDown,
   Copy,
@@ -45,6 +46,7 @@ import { isSnoozedSession } from '@/features/sessions/session-snooze'
 import {
   useArchiveSession,
   useDeleteSession,
+  useReopenSession,
   useRenameSession,
   useSnoozeSession,
 } from '@/features/sessions/use-sessions'
@@ -90,6 +92,7 @@ export function ChatHeader({
   const compact = useCompactSession(session?.id ?? '')
   const rename = useRenameSession(session?.id ?? '')
   const archive = useArchiveSession(session?.id ?? '')
+  const reopen = useReopenSession()
   const snooze = useSnoozeSession()
   const remove = useDeleteSession()
   const { singular, lowerSingular } = useSessionWording()
@@ -112,6 +115,17 @@ export function ChatHeader({
               ? `Could not unsnooze the ${lowerSingular}`
               : `Could not snooze the ${lowerSingular}`
           ),
+      }
+    )
+  }
+
+  const reopenSession = () => {
+    if (!session) return
+    reopen.mutate(
+      { session },
+      {
+        onSuccess: () => toast.success(`${singular} reopened`),
+        onError: () => toast.error(`Could not reopen the ${lowerSingular}`),
       }
     )
   }
@@ -205,9 +219,15 @@ export function ChatHeader({
               {snoozed ? 'Remove from Snoozed' : `Snooze ${lowerSingular}`}
             </DropdownMenuItem>
           )}
-          <DropdownMenuItem onSelect={() => archive.mutate(true)}>
-            <Archive className="size-3.5" /> Archive {lowerSingular}
-          </DropdownMenuItem>
+          {archived ? (
+            <DropdownMenuItem onSelect={reopenSession} disabled={reopen.isPending}>
+              <ArchiveRestore className="size-3.5" /> Reopen {lowerSingular}
+            </DropdownMenuItem>
+          ) : (
+            <DropdownMenuItem onSelect={() => archive.mutate(true)}>
+              <Archive className="size-3.5" /> Archive {lowerSingular}
+            </DropdownMenuItem>
+          )}
           <DropdownMenuSeparator />
           <DropdownMenuItem
             onSelect={() => session && setDeleteTarget(session)}
