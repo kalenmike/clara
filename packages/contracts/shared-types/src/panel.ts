@@ -261,6 +261,21 @@ export type AdapterInstallOffer = {
 /** Where an adapter install runs. `local` is the client's own machine. */
 export type AdapterInstallMethod = 'local' | 'ssh' | 'docker'
 
+/**
+ * What the panel asks the hub to issue. `method` says where the installer will
+ * run; `transport` says how the adapter reaches the hub. They usually follow
+ * from the same answer but stay separate because an SSH install can still reach
+ * the hub over a direct address.
+ */
+export type AdapterInstallOfferInput = {
+  kind: string
+  method?: AdapterInstallMethod
+  transport?: PanelHarnessSetupMode
+  /** A direct WebSocket URL; ignored for relay transport. */
+  wsUrl?: string
+  opencodeUrl?: string
+}
+
 /** Kept as an alias for the panel API shape. */
 export type PanelInstallMethod = AdapterInstallMethod
 

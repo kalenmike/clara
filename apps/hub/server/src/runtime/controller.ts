@@ -9,10 +9,11 @@ import {
   encodePairingCode,
   type HarnessPairingPayload,
 } from '@clara/shared-types'
-import { installLabel, validateKind } from '@clara/adapter-install'
+import { installLabel, validateKind, validateOpencodeUrl } from '@clara/adapter-install'
 import type {
   AdapterInstallMethod,
   AdapterInstallOffer,
+  AdapterInstallOfferInput,
   AgentInfo,
   PanelConfigInfo,
   PanelConfigUpdate,
@@ -937,23 +938,25 @@ export class RuntimeController {
   /**
    * Issue the pairing and the install command for one adapter kind. The caller
    * runs the command on the machine that owns the harness; the hub only issues.
+   * The transport can be overridden when the installer will run somewhere that
+   * cannot reach the hub's configured local address.
    */
-  async createAdapterPairing(input: {
-    kind: string
-    method?: AdapterInstallMethod
-  }): Promise<AdapterInstallOffer> {
+  async createAdapterPairing(input: AdapterInstallOfferInput): Promise<AdapterInstallOffer> {
     const install = this.options.install
     if (!install) {
       throw new PanelControlError(503, 'install_unavailable', 'Adapter setup is not available.')
     }
     const kind = validateKind(input.kind)
+    const opencodeUrl = validateOpencodeUrl(input.opencodeUrl)
+    const transport = input.transport ?? this.transportForMethod(input.method)
     const resolved = await install.manifest(kind)
     const pairing = await this.createHarnessPairing({
       kind,
       label: installLabel(kind),
-      transport: this.transportForMethod(input.method),
+      transport,
+      ...(input.wsUrl ? { wsUrl: input.wsUrl } : {}),
     })
-    const command = install.command(resolved.manifest, pairing.pairing.code)
+    const command = install.command(resolved.manifest, pairing.pairing.code, opencodeUrl)
     return {
       pairing: pairing.pairing,
       manifest: resolved.manifest,

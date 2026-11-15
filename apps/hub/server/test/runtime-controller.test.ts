@@ -12,6 +12,7 @@ import { HarnessMetadataStore } from '../src/harness/metadata.ts'
 import { HarnessStore } from '../src/harness/store.ts'
 import { ProjectStore } from '../src/projects/store.ts'
 import type { PushService } from '../src/push/service.ts'
+import type { InstallService } from '../src/panel/install-service.ts'
 import { AgentStoppedError, RuntimeController } from '../src/runtime/controller.ts'
 import { closeDatabase, openDatabase } from '../src/store/database.ts'
 import { DeviceStore } from '../src/store/devices.ts'
@@ -95,6 +96,7 @@ async function createController(
     openCodeUrl?: string
     push?: PushService
     relay?: ServerConfig['relay']
+    install?: InstallService
   } = {}
 ): Promise<{
   controller: RuntimeController
@@ -146,6 +148,7 @@ async function createController(
     apiToken: 'test-token',
     secretKey: secretKeyInfo,
     ...(options.push ? { push: options.push } : {}),
+    ...(options.install ? { install: options.install } : {}),
     log: () => undefined,
   })
   controllers.push(controller)
@@ -162,6 +165,36 @@ async function createController(
       closeDatabase(db)
     },
   }
+}
+
+const installManifestFixture = {
+  schemaVersion: 1 as const,
+  harness: 'opencode',
+  version: '1.0.0',
+  install: 'https://clara.example/adapters/opencode/install.sh',
+  installSha256: 'a'.repeat(64),
+  artifacts: {},
+}
+
+function fakeInstall(): InstallService {
+  return {
+    info: async () => ({
+      enabled: true,
+      available: true,
+      registry: { baseUrl: 'https://clara.example/adapters', source: 'default', entries: [] },
+    }),
+    manifest: async (kind: string) => ({
+      kind,
+      manifestUrl: 'https://clara.example/adapters/opencode/manifest.json',
+      manifest: installManifestFixture,
+      installUrl: installManifestFixture.install,
+    }),
+    command: (_manifest: unknown, code: string, opencodeUrl?: string) =>
+      `install ${code}${opencodeUrl ? ` ${opencodeUrl}` : ''}`,
+    deepLink: (code: string, kind?: string) =>
+      `clara://adapter?code=${code}${kind ? `&kind=${kind}` : ''}`,
+    close: () => undefined,
+  } as unknown as InstallService
 }
 
 beforeEach(() => {
@@ -842,6 +875,37 @@ it('harness pairing follows the install transport and honours a URL override', a
         wsUrl: 'https://not-a-websocket.example',
       })
     ).rejects.toMatchObject({ status: 400, code: 'invalid_ws_url' })
+  } finally {
+    await close()
+  }
+})
+
+it('adapter offers carry an explicit transport and direct address', async () => {
+  const { controller, close } = await createController(8788, { install: fakeInstall() })
+  try {
+    const local = await controller.createAdapterPairing({
+      kind: 'opencode',
+      method: 'local',
+      transport: 'local',
+      opencodeUrl: 'http://127.0.0.1:4096',
+    })
+    expect(local.pairing.transport).toBe('local')
+    expect(local.command).toBe(`install ${local.pairing.code} http://127.0.0.1:4096`)
+    expect(decodeHarnessPairingCode(local.pairing.code)?.wsUrl).toBe('ws://127.0.0.1:8788/ws')
+
+    // A remote install can use a direct address without a relay.
+    const remote = await controller.createAdapterPairing({
+      kind: 'opencode',
+      method: 'ssh',
+      transport: 'local',
+      wsUrl: 'ws://192.168.1.20:8788/ws',
+    })
+    expect(remote.pairing.transport).toBe('local')
+    expect(decodeHarnessPairingCode(remote.pairing.code)?.wsUrl).toBe('ws://192.168.1.20:8788/ws')
+
+    await expect(
+      controller.createAdapterPairing({ kind: 'opencode', method: 'ssh' })
+    ).rejects.toMatchObject({ status: 400, code: 'relay_required' })
   } finally {
     await close()
   }
