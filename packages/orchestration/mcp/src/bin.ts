@@ -13,16 +13,13 @@ async function healthy(url: string): Promise<boolean> {
     .catch(() => false)
 }
 
-function orchestratorCommand(): { command: string; args: string[] } | undefined {
-  const configured = process.env.CLARA_ORCHESTRATOR_BIN?.trim()
+function engineCommand(): { command: string; args: string[] } | undefined {
+  const configured =
+    process.env.CLARA_ENGINE_BIN?.trim() || process.env.CLARA_ORCHESTRATOR_BIN?.trim()
   if (configured) return { command: process.execPath, args: [configured, 'start'] }
-  const dist = fileURLToPath(
-    new URL('../../../../apps/orchestrator/dist/index.js', import.meta.url)
-  )
+  const dist = fileURLToPath(new URL('../../../../apps/engine/dist/index.js', import.meta.url))
   if (existsSync(dist)) return { command: process.execPath, args: [dist, 'start'] }
-  const source = fileURLToPath(
-    new URL('../../../../apps/orchestrator/src/index.ts', import.meta.url)
-  )
+  const source = fileURLToPath(new URL('../../../../apps/engine/src/index.ts', import.meta.url))
   if (existsSync(source)) {
     return {
       command: process.execPath,
@@ -34,10 +31,10 @@ function orchestratorCommand(): { command: string; args: string[] } | undefined 
 
 async function ensureService(url: string): Promise<void> {
   if (await healthy(url)) return
-  if (!autostart()) throw new Error(`Clara orchestrator is not running at ${url}`)
-  const command = orchestratorCommand()
-  if (!command) throw new Error('Clara orchestrator is not running and no executable was found')
-  console.error(`[clara-mcp] starting orchestrator at ${url}`)
+  if (!autostart()) throw new Error(`Clara engine is not running at ${url}`)
+  const command = engineCommand()
+  if (!command) throw new Error('Clara engine is not running and no executable was found')
+  console.error(`[clara-mcp] starting engine at ${url}`)
   const child = spawn(command.command, command.args, {
     detached: true,
     stdio: 'ignore',
@@ -48,7 +45,7 @@ async function ensureService(url: string): Promise<void> {
     await new Promise((resolve) => setTimeout(resolve, 100))
     if (await healthy(url)) return
   }
-  throw new Error(`Clara orchestrator did not become healthy at ${url}`)
+  throw new Error(`Clara engine did not become healthy at ${url}`)
 }
 
 async function main(): Promise<void> {

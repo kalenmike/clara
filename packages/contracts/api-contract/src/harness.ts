@@ -2,10 +2,17 @@ import { z } from 'zod'
 
 export const adapterInstallMethodSchema = z.enum(['local', 'ssh', 'docker'])
 
+export const adapterInstallTransportSchema = z.enum(['local', 'relay', 'docker'])
+
 export const claraHarnessPairingRequestSchema = z.object({
   kind: z.string().trim().min(1).max(64),
   /** Where the adapter will run; the hub uses it to choose the transport. */
   method: adapterInstallMethodSchema.optional(),
+  /** How the adapter reaches the hub. Overrides the transport derived from method. */
+  transport: adapterInstallTransportSchema.optional(),
+  /** A direct WebSocket URL; allowed only for local and Docker transport. */
+  wsUrl: z.string().trim().min(1).max(2_048).optional(),
+  opencodeUrl: z.string().trim().min(1).max(2_048).optional(),
 })
 
 export type ClaraHarnessPairingRequest = z.infer<typeof claraHarnessPairingRequestSchema>

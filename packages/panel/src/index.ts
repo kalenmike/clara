@@ -38,3 +38,12 @@ export type { PanelSessionResponse, PanelSessionStorage } from './lib/panel-sess
 export { DEFAULT_PANEL_CAPABILITIES, usePanelCapabilities } from './lib/capabilities-context.ts'
 export type { PanelCapabilities } from './lib/capabilities-context.ts'
 export { PanelCapabilitiesProvider } from './lib/capabilities-provider.tsx'
+
+export { PanelRuntimeProvider } from './lib/runtime-provider.tsx'
+export { usePanelAdapterHost, usePanelRuntime } from './lib/runtime-context.ts'
+export type {
+  PanelAdapterHost,
+  PanelAdapterHostTargets,
+  PanelAdapterInstallInput,
+  PanelRuntime,
+} from './lib/runtime-context.ts'

@@ -47,8 +47,12 @@ sessions on any paired harness.
 
 `POST /v1/harness/pairings` issues a one-time adapter code plus the registry
 manifest, the one-line install command, and a `clara://adapter?code=…&kind=…`
-desktop link. The body is `{ "kind": "opencode|claude|pi", "method": "local" |
-"ssh" | "docker" }`; `method` is optional and only chooses the transport. The hub
+desktop link. The body is
+`{ "kind": "opencode|claude|pi", "method": "local" | "ssh" | "docker",
+"transport": "local" | "relay" | "docker", "wsUrl": "ws://…", "opencodeUrl":
+"http://…" }`. Every field except `kind` is optional. `method` describes where
+the installer runs, `transport` overrides the relay/local/Docker choice derived
+from it, and `wsUrl` sets a direct address for local or Docker transport. The hub
 never runs the install: a browser user copies the command, while Clara Desktop
 runs it through its loopback adapter host.
 

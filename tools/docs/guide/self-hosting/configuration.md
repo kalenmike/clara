@@ -56,8 +56,10 @@ relay or its room can require adapters and devices to pair again.
 ## Connect a harness
 
 1. Start the hub and open the panel.
-2. Open **Harness** and choose **Pair Harness**. Choose the adapter type; the
-   hub returns a one-time code and command. Turn on adapter setup in
+2. Open **Harness** and choose **Pair Harness**. Choose the adapter type and
+   answer remote or local; a direct WebSocket URL under **Advanced** is available
+   when the adapter reaches the hub at another address. The hub returns a
+   one-time code and command. Turn on adapter setup in
    **Settings → Adapter downloads** first. Clara Desktop can install it on this
    computer, an SSH host, or a local container.
 3. Run the copied command on the harness machine, or install from Clara Desktop.

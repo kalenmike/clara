@@ -95,7 +95,7 @@ export default defineConfig([
     },
   },
   {
-    files: ['apps/orchestrator/**/*.ts'],
+    files: ['apps/engine/**/*.ts'],
     rules: {
       'no-console': 'off',
     },

@@ -15,8 +15,13 @@ import {
 } from '../service/lifecycle.ts'
 import { followLogs } from '../service/logs.ts'
 import { isServiceName, SPECS } from '../service/specs.ts'
+import { adapterListReport, type AdapterListEntry } from './adapters.ts'
+import { adapterHubLinks, type AdapterHubLink } from '../adapters/hubs.ts'
+import { detectRole, roleLabel, type ClaraRole } from '../state/role.ts'
+import { logsGuard, stackGuard } from './role-guard.ts'
+import { runnerProcess } from '../state/runner.ts'
 import { version } from '../version.ts'
-import { bold, cyan, dim, red } from '../ui/color.ts'
+import { bold, cyan, dim, green, red, yellow } from '../ui/color.ts'
 import { formatDuration, stateLabel, success, warn } from '../ui/index.ts'
 import { startSpinner } from '../ui/spinner.ts'
 import { renderTable } from '../ui/table.ts'
@@ -91,6 +96,11 @@ function parse(args: readonly string[]): Parsed {
 export async function runStart(args: readonly string[]): Promise<number> {
   const parsed = parse(args)
   const paths = resolvePaths()
+  const guard = stackGuard(detectRole(paths), 'start')
+  if (guard) {
+    console.error(guard)
+    return 1
+  }
   const ports = resolvePorts()
   const services = parsed.explicit ? parsed.services : defaultServices()
 
@@ -125,6 +135,11 @@ export async function runStart(args: readonly string[]): Promise<number> {
 export async function runStop(args: readonly string[]): Promise<number> {
   const parsed = parse(args)
   const paths = resolvePaths()
+  const guard = stackGuard(detectRole(paths), 'stop')
+  if (guard) {
+    console.error(guard)
+    return 1
+  }
   const target = parsed.explicit && parsed.services.length === 1 ? parsed.services[0] : undefined
   const spinner = startSpinner('Stopping the Clara stack')
   const code = await stopStack(paths, target)
@@ -139,6 +154,11 @@ export async function runStop(args: readonly string[]): Promise<number> {
 export async function runRestart(args: readonly string[]): Promise<number> {
   const parsed = parse(args)
   const paths = resolvePaths()
+  const guard = stackGuard(detectRole(paths), 'restart')
+  if (guard) {
+    console.error(guard)
+    return 1
+  }
   const ports = resolvePorts()
   const code = await restartStack(paths, ports, parsed.explicit ? parsed.services : [])
   if (code !== 0) {
@@ -159,15 +179,50 @@ export async function runStatus(args: readonly string[]): Promise<number> {
   const parsed = parse(args)
   const paths = resolvePaths()
   const ports = resolvePorts()
+  const role = detectRole(paths)
+  const adapters = adapterListReport(paths)
+  const hubs = adapterHubLinks(adapters)
+  const runner = runnerProcess(paths)
+
+  if (role === 'adapter') {
+    if (parsed.flags.has('--json')) {
+      console.log(
+        JSON.stringify(
+          {
+            version: version(),
+            role,
+            supervisorPid: null,
+            services: [],
+            hubs,
+            adapters,
+            runner,
+          },
+          null,
+          2
+        )
+      )
+      return 0
+    }
+    printRemoteStatus(hubs, adapters, runner)
+    if (parsed.flags.has('--open')) {
+      const web = hubs.find((hub) => hub.endpoints.web && !isLoopbackUrl(hub.endpoints.web))
+        ?.endpoints.web
+      if (web) openUrl(web)
+      else console.log(warn('No adapter has reported a reachable hub web endpoint yet.'))
+    }
+    return 0
+  }
+
   const services = parsed.explicit ? parsed.services : defaultServices()
   const report = await statusStack(paths, ports, services)
 
   if (parsed.flags.has('--json')) {
-    console.log(JSON.stringify(report, null, 2))
+    console.log(JSON.stringify({ ...report, role, hubs, adapters, runner }, null, 2))
     return 0
   }
 
-  await printStatus(paths, ports, services, true, report)
+  await printStatus(paths, ports, services, true, report, role)
+  printExtras(adapters, runner)
   if (parsed.flags.has('--open')) openUrl(panelUrl(report))
   return 0
 }
@@ -175,6 +230,11 @@ export async function runStatus(args: readonly string[]): Promise<number> {
 export async function runLogs(args: readonly string[]): Promise<number> {
   const parsed = parse(args)
   const paths = resolvePaths()
+  const guard = logsGuard(detectRole(paths))
+  if (guard) {
+    console.error(guard)
+    return 1
+  }
   const services = parsed.explicit ? parsed.services : defaultServices()
   const tail = Number.parseInt(parsed.options.get('tail') ?? '80', 10)
   return followLogs({
@@ -190,13 +250,14 @@ async function printStatus(
   ports: Ports,
   services: readonly ServiceName[],
   header: boolean,
-  known?: StatusReport
+  known?: StatusReport,
+  role: ClaraRole = 'hub'
 ): Promise<void> {
   const list = known?.services ?? (await statusStack(paths, ports, services)).services
   if (header) {
     const uptime = Math.max(0, ...list.map((service) => service.uptimeMs ?? 0))
     const suffix = uptime > 0 ? ` · up ${formatDuration(uptime)}` : ''
-    console.log(bold(`Clara ${version()} · local${suffix}`))
+    console.log(bold(`Clara ${version()} · ${role === 'hub' ? 'hub host' : 'local'}${suffix}`))
     console.log('')
   }
   console.log(
@@ -215,6 +276,97 @@ async function printStatus(
         align: 'right',
       },
     ])
+  )
+}
+
+function printRemoteStatus(
+  hubs: readonly AdapterHubLink[],
+  adapters: readonly AdapterListEntry[],
+  runner: ReturnType<typeof runnerProcess>
+): void {
+  console.log(bold(`Clara ${version()} · ${roleLabel('adapter')}`))
+  console.log('')
+  console.log(dim('This machine runs adapters. The Clara services run on the hub host.'))
+  if (hubs.length === 0) {
+    console.log('')
+    console.log(warn('No adapter has reported a hub connection yet.'))
+    console.log(dim('Start one with `clara adapter start <kind>`.'))
+  }
+
+  for (const hub of hubs) {
+    console.log('')
+    console.log(bold('HUB HOST'))
+    console.log(`  ${'link'.padEnd(9)} ${cyan(hub.url)} ${linkState(hub)}`)
+    if (hub.room) console.log(`  ${'room'.padEnd(9)} ${hub.room}`)
+    if (hub.version) console.log(`  ${'version'.padEnd(9)} ${hub.version}`)
+    if (hub.endpoints.web) {
+      console.log(
+        `  ${'web'.padEnd(9)} ${cyan(hub.endpoints.web)}${loopbackNote(hub.endpoints.web)}`
+      )
+    }
+    if (hub.endpoints.hub) {
+      console.log(`  ${'hub'.padEnd(9)} ${cyan(hub.endpoints.hub)} ${dim('(on hub host)')}`)
+    }
+    if (hub.endpoints.engine) {
+      console.log(`  ${'engine'.padEnd(9)} ${cyan(hub.endpoints.engine)} ${dim('(on hub host)')}`)
+    }
+    if (hub.lastError && !hub.authenticated) {
+      console.log(`  ${'error'.padEnd(9)} ${warn(hub.lastError)}`)
+    }
+    console.log(`  ${'adapters'.padEnd(9)} ${hub.adapters.join(', ')}`)
+  }
+  printExtras(adapters, runner)
+}
+
+function linkState(hub: AdapterHubLink): string {
+  if (hub.authenticated) return green('connected')
+  if (hub.status === 'connected') return yellow('handshaking')
+  if (hub.status === 'connecting') return yellow('connecting')
+  if (hub.status === 'offline') return red('offline')
+  return dim('stopped')
+}
+
+function loopbackNote(url: string): string {
+  return isLoopbackUrl(url) ? dim(' (hub host only)') : ''
+}
+
+function isLoopbackUrl(url: string): boolean {
+  try {
+    const host = new URL(url).hostname
+    return host === 'localhost' || host === '127.0.0.1' || host === '::1' || host === '[::1]'
+  } catch {
+    return false
+  }
+}
+
+function printExtras(
+  adapters: readonly AdapterListEntry[],
+  runner: ReturnType<typeof runnerProcess>
+): void {
+  console.log('')
+  if (adapters.length === 0) {
+    console.log(dim('  adapters  none installed'))
+  } else {
+    console.log(`  ${bold('ADAPTERS')}`)
+    console.log(
+      renderTable(adapters, [
+        { header: 'KIND', value: (entry) => bold(entry.kind) },
+        { header: 'VERSION', value: (entry) => entry.version },
+        { header: 'PLATFORM', value: (entry) => entry.platform },
+        {
+          header: 'STATE',
+          value: (entry) =>
+            entry.state === 'running'
+              ? stateLabel('running')
+              : entry.state === 'stopped'
+                ? stateLabel('stopped')
+                : dim('unknown'),
+        },
+      ])
+    )
+  }
+  console.log(
+    `  ${dim('runner')}    ${runner.running ? stateLabel('running') : stateLabel('stopped')}${runner.pid ? dim(` (${runner.pid})`) : ''}`
   )
 }
 

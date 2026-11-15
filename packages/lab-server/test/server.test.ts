@@ -2,7 +2,7 @@ import { fileURLToPath } from 'node:url'
 import type { AddressInfo } from 'node:net'
 import { afterAll, beforeAll, describe, expect, it } from 'vitest'
 import { Runtime, Store, defaultConfigPath } from '@clara/orchestration'
-import { createEngineServer, type EngineServer } from '../../../apps/orchestrator/src/server.ts'
+import { createEngineServer, type EngineServer } from '../../../apps/engine/src/server.ts'
 import { startLabServer, type LabServer } from '../src/http.ts'
 import { LabRuntime } from '../src/runtime.ts'
 

@@ -4,6 +4,7 @@ import type { Hono } from 'hono'
 import { HARNESS_PROTOCOL_VERSION } from '@clara/harness-protocol'
 import {
   parseHarnessPairingInput,
+  type AgentInfo,
   type HarnessPairingPayload,
   type RelayGrantState,
 } from '@clara/shared-types'
@@ -210,6 +211,18 @@ async function serve<THarness>(
     if (!current || current.grant === state.grant) return
     writeAdapterConfig(definition.paths, { ...current, grant: state.grant })
   }
+  let hubInfo: AdapterLiveState['hubInfo']
+  let writeLive: () => void = () => {}
+  const rememberHubInfo = (info: AgentInfo) => {
+    hubInfo = {
+      version: info.version,
+      protocol: info.protocol,
+      ...(info.room ? { room: info.room } : {}),
+      ...(info.endpoints ? { endpoints: info.endpoints } : {}),
+      updatedAt: Date.now(),
+    }
+    writeLive()
+  }
   const transport = new AdapterTransport({
     wsUrl,
     grant: config.grant,
@@ -224,6 +237,7 @@ async function serve<THarness>(
     },
     handler: async (request) => app.fetch(request),
     onRelayGrant: persistGrant,
+    onHubInfo: rememberHubInfo,
     log: (message, detail) => {
       console.error(`[adapter] ${message}`)
       if (process.env.CLARA_ADAPTER_DEBUG === '1' && detail !== undefined) {
@@ -235,13 +249,14 @@ async function serve<THarness>(
   let current = probe
   let checkedAt = startedAt
   let probing = false
-  const writeLive = () => {
+  writeLive = () => {
     const status = transport.status
     const state: AdapterLiveState = {
       pid: process.pid,
       startedAt,
       updatedAt: Date.now(),
       harnessId: config.harnessId,
+      ...(hubInfo ? { hubInfo } : {}),
       hub: {
         url: wsUrl,
         status: status.status,
@@ -249,6 +264,7 @@ async function serve<THarness>(
         authenticated: status.authenticated,
         ...(status.lastFrameAt ? { lastFrameAt: status.lastFrameAt } : {}),
         ...(status.lastError ? { lastError: status.lastError } : {}),
+        ...(status.lastDisconnect ? { lastDisconnect: status.lastDisconnect } : {}),
       },
       harness: {
         url: harness.url,
@@ -460,6 +476,15 @@ async function status<THarness>(definition: AdapterDefinition<THarness>): Promis
         (live.hub.lastFrameAt ? `, last frame ${formatAge(live.hub.lastFrameAt)}` : '')
     )
     if (live.hub.lastError) console.log(`hub error: ${live.hub.lastError}`)
+    if (live.hub.lastDisconnect) {
+      const closed = live.hub.lastDisconnect
+      console.log(`last close: ${closed.code} ${closed.reason} (${formatAge(closed.at)})`)
+    }
+    if (live.hubInfo) {
+      console.log(`hub version: ${live.hubInfo.version}`)
+      if (live.hubInfo.endpoints?.web) console.log(`web:      ${live.hubInfo.endpoints.web}`)
+      if (live.hubInfo.endpoints?.engine) console.log(`engine:   ${live.hubInfo.endpoints.engine}`)
+    }
     const health = live.harness
     console.log(
       `health:   ${health.reachable ? 'reachable' : 'unreachable'} (${health.code ?? 'unknown'}` +

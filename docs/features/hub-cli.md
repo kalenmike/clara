@@ -113,8 +113,8 @@ clara-server health
   listener through the E2EE bridge. The hub keeps one process.
 - **The panel session expires in the bundled panel**: Clara Desktop asks for the
   owner credentials again. The loopback panel's cookie session is separate.
-- **Orchestration**: the hub does not run the orchestrator in-process. Use the
-  orchestrator container or `clara start orchestrator`.
+- **Orchestration**: the hub does not run the engine in-process. Use the
+  engine container or `clara start engine`.
 - **The lab service is unreachable**: `/v1/lab/*` returns `503 lab_unavailable`.
   Start the lab service next to the engine, or fix `CLARA_LAB_URL`; a token
   mismatch fails the lab's own authentication.
@@ -127,7 +127,7 @@ clara-server health
 
 - A desktop shell, tray icon, or native window for the hub.
 - Signed and notarized desktop installers and an auto-updater.
-- Running the orchestrator inside the hub process.
+- Running the engine inside the hub process.
 - Serving the web client from the hub. The web PWA and web container remain
   separate.
 

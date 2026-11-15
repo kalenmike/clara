@@ -15,7 +15,6 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs'
 import { AgentCard } from '@/components/settings/agent-card'
 import { AppCard } from '@/components/settings/app-card'
 import { CostCard } from '@/components/settings/cost-card'
-import { HarnessCard } from '@/components/settings/harness-card'
 import { ModelsCard } from '@/components/settings/models-card'
 import { NotificationsCard } from '@/components/settings/notifications-card'
 import { ServerCard } from '@/components/settings/server-card'
@@ -30,19 +29,11 @@ import { useSettingsSync } from '@/providers/settings-sync-provider'
 import { useIsTouchDevice } from '@/hooks/use-is-touch-device'
 
 type SettingsTab =
-  | 'appearance'
-  | 'preferences'
-  | 'harness'
-  | 'models'
-  | 'notifications'
-  | 'sync'
-  | 'shortcuts'
-  | 'advanced'
+  'appearance' | 'preferences' | 'models' | 'notifications' | 'sync' | 'shortcuts' | 'advanced'
 
 const SETTINGS_TABS: Array<{ value: SettingsTab; label: string }> = [
   { value: 'appearance', label: 'Appearance' },
   { value: 'preferences', label: 'Preferences' },
-  { value: 'harness', label: 'Harness' },
   { value: 'models', label: 'Models' },
   { value: 'notifications', label: 'Notifications' },
   { value: 'sync', label: 'Sync' },
@@ -148,10 +139,6 @@ export function SettingsPage() {
           <AgentCard />
           <WordingCard />
           <CostCard />
-        </TabsContent>
-
-        <TabsContent value="harness" className="space-y-4">
-          <HarnessCard simplified={simplified} />
         </TabsContent>
 
         <TabsContent value="models" className="space-y-4">

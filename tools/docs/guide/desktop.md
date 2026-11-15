@@ -75,8 +75,9 @@ once the app is paired.
 
 The panel shows hub health, paired harnesses, sessions, clients, traffic, and
 settings in the same views as the hub host's own page. Adapter setup works from
-here too: the hub issues a one-time code and command, and the app's adapter host
-can install on this computer, an SSH host, or a local Docker container.
+the Harness view: the hub issues a one-time code and command, and the app's
+adapter host can install on this computer, an SSH host, or a local Docker
+container. A `clara://adapter` link opens that view with the code ready.
 
 A few controls belong only to the hub host: **Go offline**, the local
 connection switch that carries this app, and relay target or room changes. They
@@ -117,7 +118,8 @@ available in Clara Desktop only.
 - The app has its own window, taskbar or dock icon, and install location.
 - Links in messages open in your default browser instead of replacing Clara.
 - There is no install prompt, service worker, offline shell, or update banner.
-  To update, install a newer build.
+  To update, install a newer build. The reload control on the pairing screen
+  reloads the bundled app; it cannot fetch a newer one.
 - Web Push is not available. Inbox sounds and toasts work while the window is
   running; native desktop notifications are not part of this build yet.
 - Pairing and drafts belong to the app installation. Removing the app removes

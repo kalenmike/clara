@@ -115,6 +115,19 @@ export function adapterRuntimeState(
   }
 }
 
+/**
+ * Environment for an adapter child. The adapter runtime keeps its pid, log, and
+ * state next to its versions, so point it at the same data directory the
+ * command installed it under instead of the platform default.
+ */
+export function adapterEnv(
+  paths: ClaraPaths,
+  kind: AdapterKind,
+  env = process.env
+): NodeJS.ProcessEnv {
+  return { ...env, CLARA_ADAPTER_DATA_DIR: join(paths.dataDir, 'adapters', kind) }
+}
+
 /** The data directory the adapter runtime uses for its pid, log, and state. */
 export function adapterDataDir(kind: AdapterKind, env: NodeJS.ProcessEnv = process.env): string {
   const configured = env.CLARA_ADAPTER_DATA_DIR?.trim()

@@ -2,6 +2,7 @@ import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
 import { RouterProvider } from 'react-router'
 import { Toaster } from '@/components/ui/sonner'
 import { TooltipProvider } from '@/components/ui/tooltip'
+import { AdapterLinkWatcher } from '@/features/harness/adapter-link-watcher'
 import { ConnectionProvider } from '@/providers/connection-provider'
 import { EventProvider } from '@/providers/event-provider'
 import { ThemeProvider } from '@/providers/theme-provider'
@@ -32,6 +33,7 @@ export function App() {
           <EventProvider>
             <TooltipProvider delayDuration={300}>
               <RouterProvider router={router} />
+              <AdapterLinkWatcher />
               <Toaster position="top-right" />
             </TooltipProvider>
           </EventProvider>

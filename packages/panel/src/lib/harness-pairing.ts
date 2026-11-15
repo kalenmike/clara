@@ -7,6 +7,51 @@ export const HARNESS_KINDS = [
   { kind: 'pi', label: 'Pi' },
 ] as const
 
+/** Where the harness runs, as the person installing the adapter sees it. */
+export type HarnessMachine = 'remote' | 'local'
+
+/** The address family the adapter uses to reach the hub. */
+export type HarnessTransportMode = 'relay' | 'docker' | 'local'
+
+/** Where a local harness runs, as the person installing the adapter sees it. */
+export type HarnessTarget = 'host' | 'container'
+
+/**
+ * The transport follows from the machine choice, the local target, and the
+ * connection carrying the panel. A remote adapter cannot reach the hub's
+ * loopback listener, and a client already on the relay should not hand out a
+ * hub-local address it cannot reach.
+ */
+export function resolveHarnessTransport(input: {
+  machine: HarnessMachine
+  target: HarnessTarget
+  containerized: boolean
+  defaultTransport: 'local' | 'relay'
+}): HarnessTransportMode {
+  if (input.machine === 'remote') return 'relay'
+  if (input.target === 'container') {
+    if (input.defaultTransport === 'relay') return 'relay'
+    return input.containerized ? 'docker' : 'relay'
+  }
+  return input.defaultTransport
+}
+
+/** The transport a direct WebSocket URL uses. */
+export function directHarnessTransport(input: {
+  target: HarnessTarget
+  containerized: boolean
+}): HarnessTransportMode {
+  return input.target === 'container' && input.containerized ? 'docker' : 'local'
+}
+
+/**
+ * The target a local harness starts on. A containerized hub is usually paired
+ * with a harness container, and a host-process hub with an adapter on the host.
+ */
+export function defaultHarnessTarget(containerized: boolean): HarnessTarget {
+  return containerized ? 'container' : 'host'
+}
+
 /**
  * A pending adapter pairing is done once a harness of the same kind reports a
  * connection created or seen after the code was issued. The snapshot only

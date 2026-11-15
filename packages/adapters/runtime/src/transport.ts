@@ -1,5 +1,5 @@
 import { WebSocket } from 'ws'
-import type { AdapterIdentity } from './types.ts'
+import type { AdapterDisconnect, AdapterIdentity } from './types.ts'
 import { REINSTALL_GRANT_MESSAGE } from './config.ts'
 import {
   ReplayGuard,
@@ -26,6 +26,7 @@ import {
   type AdapterAction,
   type AdapterRequestAction,
   type AdapterResponseState,
+  type AgentInfo,
   type ClaraAction,
   type ClaraState,
   type RelayGrantState,
@@ -36,6 +37,14 @@ const RECONNECT_MAX_MS = 30_000
 const HEARTBEAT_MS = 20_000
 const STALL_MS = 45_000
 const HANDSHAKE_TIMEOUT_MS = 10_000
+/** Relay limit close codes; back off instead of reconnecting immediately. */
+const RELAY_LIMIT_CODES = new Set([4008, 4009])
+/**
+ * Keep each chunk under the relay's 128 KiB frame cap after base64 and JSON
+ * overhead. A raw read is often the whole response body, which can be much
+ * larger than one relay frame.
+ */
+const MAX_CHUNK_BYTES = 64 * 1024
 
 export type AdapterTransportInfo = {
   adapterVersion: string
@@ -50,6 +59,7 @@ export type AdapterTransportStatus = {
   authenticated: boolean
   lastFrameAt?: number
   lastError?: string
+  lastDisconnect?: AdapterDisconnect
 }
 
 export type AdapterTransportOptions = {
@@ -63,6 +73,8 @@ export type AdapterTransportOptions = {
   handler: (request: Request) => Promise<Response>
   /** Persist a refreshed grant after an authenticated `ready`. */
   onRelayGrant?: (grant: RelayGrantState) => void
+  /** Keep the hub's description so local status can show its endpoints. */
+  onHubInfo?: (info: AgentInfo) => void
   log?: (message: string, detail?: unknown) => void
 }
 
@@ -96,6 +108,8 @@ export class AdapterTransport {
   private connected = false
   private authenticated = false
   private lastError: string | undefined
+  /** Most recent remote close, kept across reconnects for diagnostics. */
+  private lastDisconnect: AdapterDisconnect | undefined
   private messageChain: Promise<void> = Promise.resolve()
   /** Relay grant in memory; refreshed by `ready` and persisted by the CLI. */
   private grant: string
@@ -129,6 +143,7 @@ export class AdapterTransport {
       authenticated: this.authenticated,
       ...(this.lastHubFrameAt > 0 ? { lastFrameAt: this.lastHubFrameAt } : {}),
       ...(this.lastError ? { lastError: this.lastError } : {}),
+      ...(this.lastDisconnect ? { lastDisconnect: this.lastDisconnect } : {}),
     }
   }
 
@@ -229,7 +244,6 @@ export class AdapterTransport {
 
     socket.on('open', () => {
       if (this.socket !== socket) return
-      this.retry = 0
       this.lastSeen = Date.now()
       this.lastHubFrameAt = Date.now()
       this.lastError = undefined
@@ -261,8 +275,14 @@ export class AdapterTransport {
     })
     socket.on('close', (code, reason) => {
       if (this.socket !== socket) return
-      if (!this.stopped && !this.preserveError) {
-        this.lastError = `Disconnected (${code} ${reason.toString() || 'no reason'})`
+      const detail = reason.toString() || 'no reason'
+      if (!this.stopped) {
+        this.lastDisconnect = { code, reason: detail, at: Date.now() }
+        if (!this.preserveError) this.lastError = `Disconnected (${code} ${detail})`
+        // Keep the close code visible. Without this the adapter log only shows
+        // the next handshake and the refusal that caused the reconnect is lost.
+        this.options.log?.(`adapter disconnected (${code} ${detail})`)
+        if (RELAY_LIMIT_CODES.has(code)) this.retry = Math.max(this.retry, 1)
       }
       this.preserveError = false
       this.socket = null
@@ -275,9 +295,7 @@ export class AdapterTransport {
       this.stopHeartbeat()
       this.stopHandshakeTimer()
       this.abortInbound()
-      this.rejectAll(
-        new Error(`Adapter disconnected (${code} ${reason.toString() || 'no reason'})`)
-      )
+      this.rejectAll(new Error(`Adapter disconnected (${code} ${detail})`))
       this.scheduleReconnect()
     })
   }
@@ -384,6 +402,9 @@ export class AdapterTransport {
       await this.handlePayload(payload)
       if (!this.authenticated) {
         this.authenticated = true
+        // Only a working session earns a fresh backoff. Resetting on TCP open
+        // turns a relay that accepts and immediately closes into a 1s flap loop.
+        this.retry = 0
         this.lastError = undefined
         this.stopHandshakeTimer()
         this.options.log?.('adapter authenticated')
@@ -429,11 +450,23 @@ export class AdapterTransport {
             this.options.log?.('could not persist the refreshed relay grant', cause)
           }
         }
+        this.rememberHubInfo(payload.agent)
         await this.send({ type: 'ready.ack', agent: payload.agent })
         return
       }
+      case 'agent.status':
+        if (payload.agent) this.rememberHubInfo(payload.agent)
+        return
       default:
         return
+    }
+  }
+
+  private rememberHubInfo(info: AgentInfo): void {
+    try {
+      this.options.onHubInfo?.(info)
+    } catch (cause) {
+      this.options.log?.('could not persist the hub info', cause)
     }
   }
 
@@ -466,11 +499,15 @@ export class AdapterTransport {
             const { done, value } = await reader.read()
             if (done) break
             if (value) {
-              await this.send({
-                type: 'adapter.chunk',
-                id: action.id,
-                data: bytesToBase64Url(value),
-              })
+              for (let offset = 0; offset < value.byteLength; offset += MAX_CHUNK_BYTES) {
+                if (controller.signal.aborted) break
+                const end = Math.min(offset + MAX_CHUNK_BYTES, value.byteLength)
+                await this.send({
+                  type: 'adapter.chunk',
+                  id: action.id,
+                  data: bytesToBase64Url(value.subarray(offset, end)),
+                })
+              }
             }
           }
         } finally {

@@ -43,7 +43,7 @@ function selfCommand(): string[] {
 }
 
 async function startDocker(build: boolean): Promise<void> {
-  console.log(`checking the orchestrator container at ${baseURL()}/health`)
+  console.log(`checking the engine container at ${baseURL()}/health`)
   const result = await startDockerService({ build })
   if (result.kind === 'container-started') {
     console.log(`started docker container at ${baseURL()}`)
@@ -55,13 +55,13 @@ async function startDocker(build: boolean): Promise<void> {
   }
   if (result.kind === 'local-running') {
     const pid = result.pid === null ? '' : ` (pid ${result.pid})`
-    console.log(`a local orchestrator is running at ${baseURL()}${pid}`)
-    console.log('stop it with `pnpm clara stop orchestrator` before starting the container')
+    console.log(`a local engine is running at ${baseURL()}${pid}`)
+    console.log('stop it with `pnpm clara stop engine` before starting the container')
     process.exitCode = 1
     return
   }
   if (result.kind === 'external') {
-    console.log(`an orchestrator is already running at ${baseURL()} from another data directory`)
+    console.log(`an engine is already running at ${baseURL()} from another data directory`)
     console.log('stop it before starting the container')
     process.exitCode = 1
     return
@@ -83,7 +83,7 @@ async function startDocker(build: boolean): Promise<void> {
     console.error('recent container logs:')
     for (const line of logs.split('\n')) console.error(`  ${line}`)
   }
-  console.error('check `docker compose -f infra/docker/orchestrator.compose.yml logs orchestrator`')
+  console.error('check `docker compose -f infra/docker/engine.compose.yml logs engine`')
   process.exitCode = 1
 }
 
@@ -105,7 +105,7 @@ async function start(args: string[]): Promise<void> {
   if (result.kind === 'already-running') {
     if (result.mode === 'container') {
       console.log(`already running in a container at ${baseURL()}`)
-      console.log('stop it with `pnpm clara stop orchestrator --docker`')
+      console.log('stop it with `pnpm clara stop engine --docker`')
       return
     }
     const pid = readPidState()
@@ -147,8 +147,8 @@ async function stop(args: string[]): Promise<void> {
     return
   }
   if (result.kind === 'container') {
-    console.log(`the orchestrator is running in a Docker container at ${baseURL()}`)
-    console.log('stop it with `pnpm clara stop orchestrator --docker`')
+    console.log(`the engine is running in a Docker container at ${baseURL()}`)
+    console.log('stop it with `pnpm clara stop engine --docker`')
     process.exitCode = 1
     return
   }
@@ -168,10 +168,10 @@ async function stop(args: string[]): Promise<void> {
   }
   if (result.kind === 'external') {
     console.log(
-      `the orchestrator is running at ${baseURL()} but was not started from this data directory`
+      `the engine is running at ${baseURL()} but was not started from this data directory`
     )
     console.log(
-      'stop it where it was started, or use `pnpm clara stop orchestrator --docker` for the compose service'
+      'stop it where it was started, or use `pnpm clara stop engine --docker` for the compose service'
     )
     process.exitCode = 1
     return
@@ -181,7 +181,7 @@ async function stop(args: string[]): Promise<void> {
     process.exitCode = 1
     return
   }
-  console.error(`could not stop the orchestrator: ${result.message}`)
+  console.error(`could not stop the engine: ${result.message}`)
   process.exitCode = 1
 }
 
@@ -271,11 +271,11 @@ async function collectDiagnostics(options: AnalyzeOptions): Promise<DiagnosticsR
 
 function printDiagnostics(report: DiagnosticsResult): void {
   if (!report.available) {
-    console.log(`No orchestrator history available: ${report.reason}`)
+    console.log(`No engine history available: ${report.reason}`)
     return
   }
   console.log(
-    `Orchestrator diagnostics — ${report.window.days > 0 ? `last ${report.window.days} days` : 'all history'}`
+    `Engine diagnostics — ${report.window.days > 0 ? `last ${report.window.days} days` : 'all history'}`
   )
   if (report.database?.path) console.log(`database: ${report.database.path}`)
   for (const line of summarizeDiagnostics(report)) console.log(line)
@@ -579,7 +579,7 @@ const commandHelp: CommandHelp[] = [
       { flags: '--db <path>', description: 'Read this SQLite database instead of the default' },
       {
         flags: '--url <url>',
-        description: 'Read from a running orchestrator instead of the database',
+        description: 'Read from a running engine instead of the database',
       },
     ],
   },
@@ -612,7 +612,7 @@ const commandHelp: CommandHelp[] = [
         description: 'Scope the latest-failed lookup to this workspace',
       },
       { flags: '--db <path>', description: 'Read this SQLite database instead of the service' },
-      { flags: '--url <url>', description: 'Read from a running orchestrator' },
+      { flags: '--url <url>', description: 'Read from a running engine' },
     ],
   },
 ]

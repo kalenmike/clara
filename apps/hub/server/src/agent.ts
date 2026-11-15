@@ -34,6 +34,7 @@ import {
   type PushSubscribeAction,
   type PushTestAction,
   type PushUnsubscribeAction,
+  type RelayGrantKind,
   type RelayGrantState,
   type SyncCheckAction,
   type SyncPullAction,
@@ -661,10 +662,13 @@ export class Agent {
 
     // An enrollment session has no device or adapter identity yet, so its
     // `ready` carries no grant; the enrollment response delivers the first one.
-    const relayGrant = kind === 'enroll' ? undefined : await this.issueRelayGrant(identity)
+    const relayGrant =
+      kind === 'enroll'
+        ? undefined
+        : await this.issueRelayGrant(identity, kind === 'adapter' ? 'adapter' : 'device')
     this.enqueue(session, {
       type: 'ready',
-      agent: this.options.info,
+      agent: this.agentInfoFor(session),
       ...(relayGrant ? { relayGrant } : {}),
     })
     if (kind === 'adapter' && harnessId && session.adapterBridge) {
@@ -672,6 +676,7 @@ export class Agent {
       session.adapterFetch = fetch
       await this.options.adapters?.setLive(harnessId, fetch, this.transport)
     }
+    if (kind === 'adapter' && adapterId) this.closeStaleAdapterSessions(sid, adapterId)
   }
 
   private async handleSealed(
@@ -836,7 +841,7 @@ export class Agent {
       )
       // The adapter must reconnect under its stable credential id, so the first
       // adapter grant is signed for that id and delivered here.
-      const relayGrant = await this.issueRelayGrant(action.credentialId)
+      const relayGrant = await this.issueRelayGrant(action.credentialId, 'adapter')
       this.enqueue(session, {
         type: 'adapter.enrolled',
         connectionId: result.connection.id,
@@ -914,6 +919,18 @@ export class Agent {
   }
 
   /**
+   * An adapter reconnects with a fresh sid. Retire any older live session for
+   * the same adapter identity so a flap loop cannot accumulate sessions or
+   * leave the harness bound to a dead fetch.
+   */
+  private closeStaleAdapterSessions(sid: string, adapterId: string): void {
+    for (const other of [...this.sessions.values()]) {
+      if (other.sid === sid || other.kind !== 'adapter' || other.adapterId !== adapterId) continue
+      this.closeSession(other)
+    }
+  }
+
+  /**
    * Drop one live session, aborting its in-flight requests and recording the
    * close exactly once. The identity check keeps a late callback from deleting
    * a newer session that reused the same sid.
@@ -942,7 +959,10 @@ export class Agent {
    * grant is refreshed on every accepted connect; without relay credentials
    * (the local transport) there is nothing to sign.
    */
-  private async issueRelayGrant(id: string | undefined): Promise<RelayGrantState | undefined> {
+  private async issueRelayGrant(
+    id: string | undefined,
+    kind: RelayGrantKind = 'device'
+  ): Promise<RelayGrantState | undefined> {
     const issuer = this.grantIssuer
     if (!issuer || !id || !issuer.agentToken) return undefined
     try {
@@ -951,6 +971,7 @@ export class Agent {
         id,
         agentToken: issuer.agentToken,
         ttlSeconds: DEVICE_GRANT_TTL_SECONDS,
+        kind,
       })
     } catch (cause) {
       this.options.log?.('could not sign a relay grant', cause)
@@ -1269,11 +1290,28 @@ export class Agent {
     return this.options.policy?.canSync?.() ?? true
   }
 
+  /**
+   * The hub description one session may see. Adapters get the controller-side
+   * endpoints so an adapter-only machine can show where the services run;
+   * browser clients do not need them.
+   */
+  private agentInfoFor(session: Session): AgentInfo {
+    if (session.kind === 'adapter' || !this.options.info.endpoints) return this.options.info
+    const info = { ...this.options.info }
+    delete info.endpoints
+    return info
+  }
+
   /** Tell every connected client that the hub info changed. */
   broadcastAgentInfo(): void {
     if (this.sessions.size === 0) return
-    const payload = { type: 'agent.status' as const, online: true, agent: this.options.info }
-    for (const session of this.sessions.values()) this.enqueue(session, payload)
+    for (const session of this.sessions.values()) {
+      this.enqueue(session, {
+        type: 'agent.status',
+        online: true,
+        agent: this.agentInfoFor(session),
+      })
+    }
   }
 
   /** Send one state to every connected client on this transport. */

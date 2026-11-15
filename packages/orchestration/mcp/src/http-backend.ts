@@ -29,7 +29,7 @@ export class HttpBackend implements ClaraBackend {
     }
     if (!response.ok) {
       const error = parsed as { error?: { code?: string; message?: string } } | undefined
-      throw new Error(error?.error?.message ?? `orchestrator returned ${response.status}`)
+      throw new Error(error?.error?.message ?? `engine returned ${response.status}`)
     }
     return parsed
   }

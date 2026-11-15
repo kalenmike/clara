@@ -140,7 +140,7 @@ propose_fixes → review_report`.
   keeps it in the `clara-orchestrator-data` volume. When the service is running,
   `analyze` and `inspect` use the authenticated HTTP API instead of the file.
 - Tests: `packages/orchestration/engine/test/diagnostics.test.ts` and
-  `apps/orchestrator/test/cli.test.ts`.
+  `apps/engine/test/cli.test.ts`.
 - See [orchestration.md](orchestration.md) for packages, runs, and adapters.
 
 </details>

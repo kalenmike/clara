@@ -6,11 +6,13 @@ import {
   type AdapterTarget,
 } from '../adapters/platform.ts'
 import {
+  adapterEnv,
   adapterRuntimeState,
   readAdapterState,
   type AdapterInstallRecord,
   type AdapterRuntimeState,
 } from '../adapters/state.ts'
+import { readAdapterLiveState, type AdapterLiveState } from '../adapters/live.ts'
 import { resolvePaths } from '../paths.ts'
 import { dim, green } from '../ui/color.ts'
 import { formatBytes, heading, muted, stateLabel, warn } from '../ui/index.ts'
@@ -130,7 +132,10 @@ export async function runAdapterList(args: readonly string[]): Promise<number> {
   return 0
 }
 
-export type AdapterListEntry = AdapterInstallRecord & { state: AdapterRuntimeState }
+export type AdapterListEntry = AdapterInstallRecord & {
+  state: AdapterRuntimeState
+  live?: AdapterLiveState
+}
 
 /** Installed adapters plus their best-effort process state; reusable by `clara ps`. */
 export function adapterListReport(
@@ -139,7 +144,15 @@ export function adapterListReport(
   const state = readAdapterState(paths)
   return ADAPTER_KINDS.flatMap((kind) => {
     const record = state.adapters[kind]
-    return record ? [{ ...record, state: adapterRuntimeState(kind) }] : []
+    if (!record) return []
+    const live = readAdapterLiveState(kind, paths)
+    return [
+      {
+        ...record,
+        state: adapterRuntimeState(kind, { env: adapterEnv(paths, kind) }),
+        ...(live ? { live } : {}),
+      },
+    ]
   })
 }
 

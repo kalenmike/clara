@@ -3,6 +3,7 @@ import {
   type PanelInstallInfo,
   type PanelInstallManifest,
 } from '@clara/shared-types'
+import { quoteShellArgument } from '@clara/adapter-install'
 import type { ServerConfig } from '../config.ts'
 import { PanelControlError } from './controls.ts'
 import { InstallRegistry, type ResolvedInstallManifest } from './install-registry.ts'
@@ -53,9 +54,12 @@ export class InstallService {
   }
 
   /** The one-line command a browser or terminal user can run. */
-  command(manifest: PanelInstallManifest, code: string): string {
+  command(manifest: PanelInstallManifest, code: string, opencodeUrl?: string): string {
     const noRunner = manifest.harness === 'opencode' ? ' --no-runner' : ''
-    return `curl -fsSL ${manifest.install} | sh -s -- --pair ${code}${noRunner}`
+    const harnessUrl = opencodeUrl
+      ? ` ${quoteShellArgument('--opencode-url')} ${quoteShellArgument(opencodeUrl)}`
+      : ''
+    return `curl -fsSL ${manifest.install} | sh -s -- --pair ${code}${noRunner}${harnessUrl}`
   }
 
   deepLink(code: string, kind?: string): string {

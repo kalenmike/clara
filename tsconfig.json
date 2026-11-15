@@ -65,7 +65,7 @@
       "path": "./packages/orchestration/mcp"
     },
     {
-      "path": "./apps/orchestrator"
+      "path": "./apps/engine"
     },
     {
       "path": "./packages/preview"

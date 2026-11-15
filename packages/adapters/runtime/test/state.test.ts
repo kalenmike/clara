@@ -24,6 +24,17 @@ function sample(): AdapterLiveState {
     startedAt: 1_000,
     updatedAt: 2_000,
     harnessId: 'harness-a',
+    hubInfo: {
+      version: '0.1.0',
+      protocol: 1,
+      room: 'room-a',
+      endpoints: {
+        web: 'https://clara.example.com',
+        hub: 'http://127.0.0.1:8788',
+        engine: 'http://127.0.0.1:8789',
+      },
+      updatedAt: 1_990,
+    },
     hub: {
       url: 'ws://127.0.0.1:8788/ws',
       status: 'authenticated',

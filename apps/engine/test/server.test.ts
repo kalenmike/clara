@@ -33,7 +33,7 @@ function auth(headers: Record<string, string> = {}): Record<string, string> {
   return { authorization: `Bearer ${token}`, ...headers }
 }
 
-describe('orchestrator HTTP service', () => {
+describe('engine HTTP service', () => {
   it('rejects unauthenticated requests but leaves health open', async () => {
     const health = await fetch(`${base}/health`)
     expect(health.status).toBe(200)

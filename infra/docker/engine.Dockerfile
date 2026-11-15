@@ -26,7 +26,7 @@ COPY package.json pnpm-lock.yaml pnpm-workspace.yaml tsconfig.base.json ./
 # These manifest and source copies must cover the workspace dependency closure
 # of @clara/engine. Missing packages make the tsup build fail to resolve
 # their imports even though the filtered install succeeds.
-COPY apps/orchestrator/package.json apps/orchestrator/package.json
+COPY apps/engine/package.json apps/engine/package.json
 COPY packages/orchestration/mcp/package.json packages/orchestration/mcp/package.json
 COPY packages/orchestration/engine/package.json packages/orchestration/engine/package.json
 COPY packages/orchestration/control/package.json packages/orchestration/control/package.json
@@ -34,7 +34,7 @@ COPY packages/orchestration/policy/package.json packages/orchestration/policy/pa
 COPY packages/sqlite/package.json packages/sqlite/package.json
 RUN pnpm install --frozen-lockfile --filter @clara/engine...
 
-COPY apps/orchestrator apps/orchestrator
+COPY apps/engine apps/engine
 COPY packages/orchestration/mcp packages/orchestration/mcp
 COPY packages/orchestration/engine packages/orchestration/engine
 COPY packages/orchestration/control packages/orchestration/control
@@ -56,7 +56,7 @@ RUN mkdir -p /data /opt/clara && chown -R node:node /app /data /opt/clara
 
 COPY --from=build --chown=node:node /out/package.json /app/package.json
 COPY --from=build --chown=node:node /out/node_modules /app/node_modules
-COPY --from=build --chown=node:node /repo/apps/orchestrator/dist /app/dist
+COPY --from=build --chown=node:node /repo/apps/engine/dist /app/dist
 
 USER node
 EXPOSE 8789

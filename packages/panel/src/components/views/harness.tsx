@@ -1,4 +1,4 @@
-import { useState } from 'react'
+import { useEffect, useState } from 'react'
 import type { PanelSnapshot } from '@clara/shared-types'
 import { findFeature } from '../../lib/feature-control.ts'
 import { usePeek } from '../../lib/peek-context.tsx'
@@ -13,16 +13,25 @@ export function HarnessView({
   snapshot,
   now,
   onChanged,
+  initialPairingCode,
 }: {
   snapshot: PanelSnapshot
   now: number
   onChanged: () => void
+  initialPairingCode?: string
 }) {
   const { redact } = usePeek()
-  const [pairingOpen, setPairingOpen] = useState(false)
+  const [pairingOpen, setPairingOpen] = useState(Boolean(initialPairingCode))
+  const [pairingCode, setPairingCode] = useState(initialPairingCode)
   const feature = findFeature(snapshot.controls, 'opencode')
   const adapterClients = snapshot.clients.filter((client) => client.kind === 'adapter')
   const notice = snapshot.harness.error
+
+  useEffect(() => {
+    if (!initialPairingCode) return
+    setPairingCode(initialPairingCode)
+    setPairingOpen(true)
+  }, [initialPairingCode])
 
   return (
     <View
@@ -56,7 +65,11 @@ export function HarnessView({
         snapshot={snapshot}
         now={now}
         onChanged={onChanged}
-        onClose={() => setPairingOpen(false)}
+        onClose={() => {
+          setPairingOpen(false)
+          setPairingCode(undefined)
+        }}
+        {...(pairingCode ? { initialCode: pairingCode } : {})}
       />
     </View>
   )

@@ -2,6 +2,7 @@ import { afterEach, describe, expect, it } from 'vitest'
 import { createServer, type Server } from 'node:http'
 import { WebSocket, WebSocketServer } from 'ws'
 import {
+  base64UrlToBytes,
   bytesToBase64Url,
   deriveV4SessionKeys,
   generateEphemeralKeyPair,
@@ -13,7 +14,12 @@ import {
   type V4SessionKeys,
   type V4EphemeralKeyPair,
 } from '@clara/crypto'
-import { PROTOCOL_VERSION, RELAY_AUTH_PREFIX, type RelayGrantState } from '@clara/shared-types'
+import {
+  PROTOCOL_VERSION,
+  RELAY_AUTH_PREFIX,
+  type AgentInfo,
+  type RelayGrantState,
+} from '@clara/shared-types'
 import { REINSTALL_GRANT_MESSAGE } from '../src/config'
 import { AdapterTransport } from '../src/transport'
 
@@ -40,6 +46,7 @@ type FakeHub = {
   sendError: (sid: string, message?: string) => void
   sendForeignSealed: (sid: string) => void
   dropClient: () => void
+  closeClient: (code: number, reason: string) => void
   isOpen: () => boolean
   protocols: () => Array<string | undefined>
   connectionCount: () => number
@@ -73,6 +80,47 @@ describe('AdapterTransport authentication', () => {
 
     await hub.sendSealed(hello, { type: 'ready', agent: { version: 'test', protocol: 4 } })
     await waitFor(() => logs.includes('adapter authenticated'))
+    transport.close()
+  })
+
+  it('keeps the controller endpoints from ready and agent.status', async () => {
+    const hub = await startHub()
+    const logs: string[] = []
+    const infos: AgentInfo[] = []
+    const transport = createTransport(hub, logs, undefined, {
+      onHubInfo: (info) => infos.push(info),
+    })
+
+    transport.start()
+    const hello = await hub.hello()
+    await waitFor(() => logs.includes('adapter handshake complete'))
+
+    await hub.sendSealed(hello, {
+      type: 'ready',
+      agent: {
+        version: 'test',
+        protocol: 4,
+        endpoints: { web: 'https://clara.example.com' },
+      },
+    })
+    await waitFor(() => (infos.length > 0 ? infos[0] : undefined))
+    expect(infos[0]?.endpoints?.web).toBe('https://clara.example.com')
+
+    await hub.sendSealed(
+      hello,
+      {
+        type: 'agent.status',
+        online: true,
+        agent: {
+          version: 'test',
+          protocol: 4,
+          endpoints: { web: 'https://clara.example.org' },
+        },
+      },
+      { seq: 1 }
+    )
+    await waitFor(() => (infos.length > 1 ? infos[1] : undefined))
+    expect(infos[1]?.endpoints?.web).toBe('https://clara.example.org')
     transport.close()
   })
 
@@ -310,12 +358,79 @@ describe('AdapterTransport send ordering', () => {
   }, 15_000)
 })
 
+describe('AdapterTransport chunking and disconnect diagnostics', () => {
+  it('splits a large response into frames under the relay cap', async () => {
+    const body = 'x'.repeat(200_000)
+    const hub = await startHub()
+    const logs: string[] = []
+    const transport = createTransport(hub, logs, async () => new Response(body, { status: 200 }))
+
+    transport.start()
+    const hello = await hub.hello()
+    await hub.sendSealed(hello, { type: 'ready', agent: { version: 'test', protocol: 4 } })
+    await waitFor(() => logs.includes('adapter authenticated'))
+
+    await hub.sendSealed(
+      hello,
+      { type: 'adapter.request', id: 'large', method: 'GET', path: '/large' },
+      { seq: 1 }
+    )
+
+    const frames = await hub.waitForClient(
+      (value) => value.filter((frame) => frame.payload.type === 'adapter.end').length === 1,
+      10_000
+    )
+    const chunks = frames.filter((frame) => frame.payload.type === 'adapter.chunk')
+    expect(chunks.length).toBeGreaterThan(1)
+
+    const received: Uint8Array[] = []
+    for (const chunk of chunks) {
+      const bytes = base64UrlToBytes(String(chunk.payload.data))
+      expect(bytes.byteLength).toBeLessThanOrEqual(64 * 1024)
+      received.push(bytes)
+    }
+    const joined = Buffer.concat(received.map((value) => Buffer.from(value))).toString('utf8')
+    expect(joined).toBe(body)
+
+    transport.close()
+  }, 15_000)
+
+  it('records a relay limit close and backs off before reconnecting', async () => {
+    const hub = await startHub()
+    const logs: string[] = []
+    const transport = createTransport(hub, logs)
+
+    transport.start()
+    const hello = await hub.hello()
+    await hub.sendSealed(hello, { type: 'ready', agent: { version: 'test', protocol: 4 } })
+    await waitFor(() => logs.includes('adapter authenticated'))
+
+    const closedAt = Date.now()
+    hub.closeClient(4008, 'rate limit')
+    await waitFor(() => logs.includes('adapter disconnected (4008 rate limit)'))
+    expect(transport.status.lastDisconnect).toMatchObject({
+      code: 4008,
+      reason: 'rate limit',
+    })
+
+    await waitFor(() => hub.connectionCount() >= 2, 6_000)
+    // A relay refusal must not reset backoff on the next TCP open.
+    expect(Date.now() - closedAt).toBeGreaterThanOrEqual(1_000)
+
+    transport.close()
+  }, 15_000)
+})
+
 function createTransport(
   hub: { wsUrl: string; key: string },
   logs: string[],
   handler: (request: Request) => Promise<Response> = async () =>
     new Response('{}', { status: 200 }),
-  options: { grant?: string; onRelayGrant?: (grant: RelayGrantState) => void } = {}
+  options: {
+    grant?: string
+    onRelayGrant?: (grant: RelayGrantState) => void
+    onHubInfo?: (info: AgentInfo) => void
+  } = {}
 ): AdapterTransport {
   return new AdapterTransport({
     wsUrl: hub.wsUrl,
@@ -326,6 +441,7 @@ function createTransport(
     info: { adapterVersion: 'test', protocolVersion: 1, capabilities: {} },
     handler,
     ...(options.onRelayGrant ? { onRelayGrant: options.onRelayGrant } : {}),
+    ...(options.onHubInfo ? { onHubInfo: options.onHubInfo } : {}),
     log: (message) => logs.push(message),
   })
 }
@@ -492,6 +608,9 @@ async function startHub(options: StartHubOptions = {}): Promise<FakeHub> {
     },
     dropClient: () => {
       client?.terminate()
+    },
+    closeClient: (code, reason) => {
+      client?.close(code, reason)
     },
     isOpen: () => client?.readyState === WebSocket.OPEN,
     protocols: () => protocols.slice(),

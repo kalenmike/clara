@@ -18,7 +18,7 @@ function run(args: string[]) {
   )
 }
 
-describe('orchestrator CLI', () => {
+describe('engine CLI', () => {
   it('prints structured help when no subcommand is given', () => {
     const result = run([])
     expect(result.status).toBe(0)
@@ -104,7 +104,7 @@ describe('orchestrator CLI', () => {
       expect(result.status).toBe(0)
       const report = JSON.parse(result.stdout) as { available: boolean; reason: string }
       expect(report.available).toBe(false)
-      expect(report.reason).toContain('no orchestrator database')
+      expect(report.reason).toContain('no engine database')
     } finally {
       rmSync(dir, { recursive: true, force: true })
     }

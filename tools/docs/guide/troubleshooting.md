@@ -108,6 +108,10 @@ when the relay URL or the room changes.
 
 The update banner offers **Update** and **Later**. If the app seems stuck:
 
+If Clara is not paired yet, use the reload control at the bottom of the pairing
+screen. It sits beside the app version and protocol version, and on the web it
+resets the cached app before reloading.
+
 1. Close every Clara window. The next launch installs a deferred update.
 2. Open **Settings → Advanced → Update and reload**.
 3. If the app is wedged, use **Clear cached app data**. Pairing, settings, and

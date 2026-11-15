@@ -1,3 +1,5 @@
+import type { AgentEndpoints } from '@clara/shared-types'
+
 /** Stable identity shared by every harness adapter. */
 export type AdapterIdentity = {
   harnessId: string
@@ -46,11 +48,28 @@ export type AdapterHarnessHealth = {
   message?: string
 }
 
+export type AdapterDisconnect = {
+  code: number
+  reason: string
+  at: number
+}
+
+/** The hub's own description from `ready.agent`, kept for local status. */
+export type AdapterHubInfo = {
+  version: string
+  protocol: number
+  room?: string
+  endpoints?: AgentEndpoints
+  updatedAt: number
+}
+
 export type AdapterLiveState = {
   pid: number
   startedAt: number
   updatedAt: number
   harnessId: string
+  /** Controller-side service endpoints reported by the hub. */
+  hubInfo?: AdapterHubInfo
   hub: {
     url: string
     status: AdapterHubStatus
@@ -58,6 +77,7 @@ export type AdapterLiveState = {
     authenticated: boolean
     lastFrameAt?: number
     lastError?: string
+    lastDisconnect?: AdapterDisconnect
   }
   harness: AdapterHarnessHealth
 }

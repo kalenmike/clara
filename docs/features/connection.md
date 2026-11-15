@@ -14,10 +14,12 @@ device key through a one-time code; there is no shared browser key.
 
 1. Start the hub and open its panel. Create the owner account and sign in. Until
    that account exists the hub starts only the loopback panel and no
-   transports. Use **Harness → Pair Harness**, choose the adapter type, and copy
-   the one-time code and command. Clara Desktop can install it on this computer,
-   an SSH host, or a local container; a browser user runs the command on the
-   harness machine. For the included adapters, that is
+   transports. Use **Harness → Pair Harness**, choose the adapter type, answer
+   remote or local, and copy the one-time code and command. Clara Desktop can
+   install it on this computer, an SSH host, or a local container; a browser
+   user runs the command on the harness machine. A direct WebSocket URL under
+   **Advanced** lets a remote or container target connect without a relay. For
+   the included adapters, that is
    `clara start adapter --harness opencode --pair <code>` or
    `clara start adapter --harness claude --pair <code>`. The adapter
    discovers its harness, prompts for its URL/password if needed (OpenCode) or
@@ -82,6 +84,11 @@ device key through a one-time code; there is no shared browser key.
    64 concurrent requests.
 10. Each device key is revocable on its own. A revoked device is rejected on the
     next handshake or action.
+11. The hub advertises its web, hub, and engine endpoints to harness adapters in
+    `ready.agent` and `agent.status`; browser sessions never receive that block.
+    An adapter keeps the report in its live state so `clara status` on an
+    adapter-only machine can show where the services run without a second API
+    credential or a local probe.
 
 ## Edge cases
 
@@ -105,6 +112,14 @@ device key through a one-time code; there is no shared browser key.
   container is the adapter itself. Use the harness service name or an address
   reachable from the adapter host. In the Docker stack the adapter joins the
   `clara` network and reaches the hub at `ws://server:8788/ws`.
+- **Adapter reconnect loop** — `clara status adapter` and the adapter log show
+  the most recent relay close code. `4008` means the relay's frame or byte
+  budget refused the socket; `4009` means one sealed frame exceeded 128 KiB. The
+  adapter backs off and retries, and a persistent loop means the adapter is
+  sending too much or a response was not split.
+- **Adapter host shows no service endpoints** — the adapter predates endpoint
+  advertisement or has not completed a handshake yet. Upgrade or start it; the
+  CLI still shows the hub link and harness from the adapter's live state.
 - **Stored device cannot connect** — Clara falls back to the pair form; it does
   not silently try another hub. Revoke the stale entry in the panel.
 - **Pairing link fails** — the connecting splash gives way to the pair form,
