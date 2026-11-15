@@ -24,7 +24,7 @@ For a smaller change, rebuild and restart one target:
 ```bash
 pnpm clara restart --build
 pnpm clara restart --local --build
-pnpm clara web restart --build
+pnpm clara restart web --build
 ```
 
 ## Inspect or recover
@@ -89,7 +89,7 @@ back in the config and data directories and restart.
 
 ```bash
 pnpm clara status
-pnpm clara logs server
+pnpm clara logs hub
 pnpm clara logs web
 ```
 

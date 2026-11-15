@@ -21,7 +21,7 @@ It is the fastest path when Node and the harness already run on the machine.
 ```bash
 pnpm install
 pnpm clara start --local --build
-pnpm clara server panel
+pnpm clara status hub --open
 ```
 
 In the panel:
@@ -41,7 +41,7 @@ In the panel:
 For a headless install, create the owner without a browser:
 
 ```bash
-pnpm clara server setup --local --password-stdin
+node apps/hub/server/dist/index.js setup --password-stdin
 ```
 
 Or set `CLARA_ADMIN_USERNAME` and `CLARA_ADMIN_PASSWORD` before starting the hub.
@@ -69,8 +69,8 @@ idle work across every paired harness.
 ## Everyday commands
 
 ```bash
-pnpm clara status --local
-pnpm clara logs server --local
+pnpm clara status
+pnpm clara logs hub --local
 pnpm clara restart --local --build
 pnpm clara stop --local
 ```

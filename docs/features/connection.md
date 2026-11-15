@@ -18,8 +18,8 @@ device key through a one-time code; there is no shared browser key.
    answer **Remote** or **Local**; then install over SSH or Docker, or copy the
    pairing code and run the printed command. On the harness machine, for the
    included adapters, that is
-   `pnpm clara adapter install --opencode --pair <code>` or
-   `pnpm clara adapter install --claude --pair <code>`. The adapter discovers
+   `pnpm clara start adapter --harness opencode --pair <code>` or
+   `pnpm clara start adapter --harness claude --pair <code>`. The adapter discovers
    its harness, prompts for its URL/password if needed (OpenCode) or uses the
    machine's Claude Code login, enrolls, and installs the hub-facing adapter.
 2. Open Clara. A branded splash shows while Clara checks a pairing link in the
@@ -178,15 +178,15 @@ device key through a one-time code; there is no shared browser key.
   token, and saving it in the Relay card starts the relay without a restart.
   Only explicit relay actions (relay pairing, Cloudflare deployment) reject an
   incomplete relay.
-- Docker stack: `pnpm clara start` starts the orchestrator, server, and web
-  client together; `--no-*` selects a subset; `restart` recreates the selection.
-  Use the scoped commands for one service.
-- Server container: `pnpm clara server start --docker`; panel and local
+- Docker stack: `pnpm clara start` starts the orchestrator, hub, and web client
+  together; `start hub`, `start web`, or `start orchestrator` selects one
+  target; `restart` recreates the selection.
+- Server container: `pnpm clara start hub --docker`; panel and local
   WebSocket publish on host loopback, and adapters on the `clara` Docker network
   connect to `ws://server:8788/ws`.
   The maintenance snapshot records `local` vs `container` and recreates the
   container with stop/start; see [maintenance.md](maintenance.md).
-- Web container: `pnpm clara web start --docker --build` serves the SPA on
+- Web container: `pnpm clara start web --docker --build` serves the SPA on
   `127.0.0.1:8080`. Local pairing works from that loopback origin; a remote
   HTTPS page still needs the relay because pairing carries a `ws://` URL. The
   maintenance snapshot records the web client as `container` or `stopped`.

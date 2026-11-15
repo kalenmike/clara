@@ -15,17 +15,17 @@ step reference.
 ## User flow
 
 1. Start the service from the hub panel's **Orchestration** switch, with
-   `pnpm clara orchestrator start`, or let the MCP bridge start it on first
+   `pnpm clara start orchestrator`, or let the MCP bridge start it on first
    use.
 2. Install the harness adapter and the shared runner with
-   `clara-adapter-opencode install --pair <code>` (or `pnpm clara adapter install --opencode --pair <code>` in the repository). The command installs the
+   `clara-adapter-opencode install --pair <code>` (or `pnpm clara start adapter --harness opencode --pair <code>` in the repository). The command installs the
    hub-facing adapter, links the plugin,
    installs the `clara` agent, disables the plugin's embedded runner, writes the
    shared runner config, and installs a user service where the platform
    supports one. Add `--mcp` to register the MCP bridge with the selected
    harness, or `--no-service` to run the runner in the foreground. Multiple
    harness flags are additive; on one host and workspace they share one runner.
-3. Before handing a package to an agent, run `pnpm clara lab` to choose the host
+3. Before handing a package to an agent, run `pnpm clara start lab` to choose the host
    files, read the workspace the service reports, preview the compiled target,
    inspect each rendered prompt and policy, and compare it with a pinned run.
    The same console can then act as the agent and drive the run by hand. See
@@ -116,7 +116,7 @@ orchestrator container is named `clara-orchestrator`.
    docker compose -f infra/docker/orchestrator.compose.yml up -d --build orchestrator
    ```
 
-   `pnpm clara orchestrator stop --docker` does not need the token or workspace
+   `pnpm clara stop orchestrator --docker` does not need the token or workspace
    exported in the shell: `down` fills the required compose variables with
    absolute placeholders before Compose interpolates the file.
 
@@ -137,15 +137,15 @@ orchestrator container is named `clara-orchestrator`.
 5. Start the hub container on the same network:
 
    ```sh
-   pnpm clara server start --docker --build
-   pnpm clara server setup --password-stdin
+   pnpm clara start hub --docker --build
+   node apps/hub/server/dist/index.js setup --password-stdin
    ```
 
    In its panel, use `http://opencode:4096` when the harness is a container on the
    `clara` network. The orchestrator URL is set with
    `CLARA_ORCHESTRATION_HOST=orchestrator` and port `8789`.
 
-   `pnpm clara server ... --docker` loads `infra/docker/.env` when the file exists.
+   `pnpm clara start hub --docker` loads `infra/docker/.env` when the file exists.
    If the hub uses the relay, set `CLARA_RELAY_ROOM` to a fixed value: pairing
    codes are scoped to the room, and a changed room makes clients connect to an
    empty room (`hub offline`) until they pair again.
@@ -153,7 +153,7 @@ orchestrator container is named `clara-orchestrator`.
 6. Optionally serve the web client from the same Docker host:
 
    ```sh
-   pnpm clara web start --docker --build
+   pnpm clara start web --docker --build
    ```
 
    Open `http://127.0.0.1:8080`. The pairing code decides local vs relay; the
@@ -169,23 +169,23 @@ workspace mount. The orchestrator image bundles the standard packages inside the
 built service, so the container does not mount or copy the standard packages
 separately. Compose publishes the port on host loopback only
 (`127.0.0.1:8789:8789`) so host tools such as
-`pnpm clara orchestrator status` and Clara Lab can reach the container. The
+`pnpm clara status orchestrator` and Clara Lab can reach the container. The
 database and container token live in the `clara-orchestrator-data` volume.
 `pnpm clara start` writes a host copy of the token to
 `~/.local/share/clara/docker/orchestrator.token` for Lab, the MCP bridge, and
 `pnpm clara rebuild`. That Docker control directory is separate from the local
 install token at `~/.local/share/clara/orchestrator.token`.
 
-The container writes no host PID file. `pnpm clara orchestrator status` reports
-`running (docker container)`, and `pnpm clara orchestrator stop` does not
+The container writes no host PID file. `pnpm clara status orchestrator` reports
+`running (docker container)`, and `pnpm clara stop orchestrator` does not
 signal anything; stop the container with
-`pnpm clara orchestrator stop --docker`. Stopping does not require the
+`pnpm clara stop orchestrator --docker`. Stopping does not require the
 `CLARA_ORCHESTRATION_TOKEN` or `CLARA_WORKSPACE` variables: compose still parses
 them for `down`, so the command supplies inert values when they are not
 exported. It also runs `docker compose down` when the container is unhealthy or
 already stopped, so a crashed container can be cleaned up.
 
-Start it from the host with `pnpm clara orchestrator start --docker`. That runs
+Start it from the host with `pnpm clara start orchestrator --docker`. That runs
 `docker compose -f infra/docker/orchestrator.compose.yml up -d orchestrator` and waits for
 `/health` to report a container. Add `--build` to rebuild the image first. If a
 local instance is already running, the command refuses and asks you to stop it
@@ -676,7 +676,7 @@ from the current snapshot without rebuilding or recapturing. `diagnose` collects
 a failed run and the snapshot, classifies the failure with two read-only agents,
 and returns safe next actions. The deterministic mechanics live in
 `pnpm clara rebuild status|build|adapters|restart|health|inspect|recover` and
-`pnpm clara orchestrator inspect`; the rebuild and recover steps are scripts,
+`clara-orchestrator inspect`; the rebuild and recover steps are scripts,
 so no model turn is involved. The orchestrator restarts last, the command waits
 for `/health` before the worker reports completion, and a restart journal makes
 a retry resume instead of repeating the rebuild. Restart and health retry once
@@ -805,7 +805,7 @@ they can run while the adapter or setup is degraded. See
 - The generic MCP bridge cannot see the harness session ID. Pass
   `origin.session_id` or use an adapter to bind the root session.
 - The web Settings page does not show the package catalog yet; it is available
-  through Clara Lab, `pnpm clara lab check`, and MCP `clara_catalog`.
+  through Clara Lab, `pnpm clara status lab --check`, and MCP `clara_catalog`.
 - The OpenCode adapter dispatches managed workers in the run workspace with a
   primary worker agent (`CLARA_WORKER_AGENT`, default `build`), not the caller's
   agent. Subagent-only overrides fall back to `build` because managed workers run
@@ -851,15 +851,15 @@ they can run while the adapter or setup is degraded. See
 - Container: `docker compose -f infra/docker/orchestrator.compose.yml up -d --build orchestrator`;
   the hub uses `infra/docker/server.compose.yml` on the same `clara` network.
 - Commands:
-  `pnpm clara orchestrator start [--docker] [--build]|stop [--docker]|status|serve|token|analyze`,
-  `pnpm clara mcp install|uninstall|config|status`,
-  `clara-adapter-opencode install|uninstall|status|start|stop|logs`,
-  `pnpm clara adapter install|uninstall|status|runner [--opencode] [--mcp] [--runner]`,
-  `pnpm clara runner [--workspace <path>] [--label <name>] [--once]`,
+  `pnpm clara start|stop|restart|status|logs orchestrator`,
+  `pnpm clara start adapter --harness <name> [--pair] [--mcp]`,
+  `pnpm clara stop adapter [--harness <name>] [--purge]`,
+  `pnpm clara status adapter [--harness <name>] [--verify]`,
+  `pnpm clara start runner [--workspace <path>] [--label <name>]`,
   `pnpm clara rebuild status|build|adapters|restart|health`,
-  `pnpm clara lab [serve|check]`. Running `pnpm clara orchestrator` without a
-  subcommand prints help instead of starting the service.
-- Diagnostics: `pnpm clara orchestrator analyze [--json] [--days n] [--db
+  `pnpm clara start lab`, `pnpm clara status lab --check`.
+  `clara-orchestrator` remains the standalone orchestration binary.
+- Diagnostics: `clara-orchestrator analyze [--json] [--days n] [--db
 path] [--url url]` and `GET /v1/diagnostics?days=30`. The analyzer is
   `packages/orchestration/engine/src/diagnostics.ts`; see
   [diagnostics.md](diagnostics.md).

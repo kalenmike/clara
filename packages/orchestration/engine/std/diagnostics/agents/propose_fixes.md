@@ -32,7 +32,7 @@ history, or store a secret.
   describe the behavior that must change.
 - **Why it works**: connect the change to the evidence.
 - **Verification**: a command or signal that proves the fix. Prefer
-  `pnpm clara lab check`, a targeted test, or the next diagnostics run.
+  `pnpm clara start lab check`, a targeted test, or the next diagnostics run.
 - **Risk**: what could regress, and whether the change is reversible.
 - **Effort**: small, medium, or large.
 

@@ -278,7 +278,7 @@ export function formatStatus(state) {
     `git:          ${git}`,
     `orchestrator: ${describeService(state.orchestrator)}`,
     `lab:          ${describeService(state.lab)}`,
-    `server:       ${describeService(state.server)}`,
+    `hub:          ${describeService(state.server)}`,
     `web:          ${describeService(state.web)}`,
     `adapter:      ${state.adapters.opencode.linked ? 'linked' : 'missing'} ${
       state.adapters.opencode.target ?? ''
@@ -618,7 +618,7 @@ export function formatInspect(result) {
   const lines = [
     `snapshot   ${result.snapshot.path} (${result.snapshot.stale ? 'stale' : 'fresh'})`,
     `root       ${result.snapshot.root ?? '-'}`,
-    `modes      server ${result.deployment?.server?.mode ?? 'unknown'}, orchestrator ${
+    `modes      hub ${result.deployment?.server?.mode ?? 'unknown'}, orchestrator ${
       result.deployment?.orchestrator?.mode ?? 'unknown'
     }${result.deployment?.orchestrator?.external ? ' external' : ''}, lab ${
       result.deployment?.lab?.mode ?? 'unknown'

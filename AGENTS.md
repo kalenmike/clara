@@ -68,32 +68,34 @@ pnpm dev:server     # Hub service only
 pnpm dev:relay      # Local wrangler dev for the Worker/DO
 pnpm build          # Build every workspace package
 ENABLE_CLOUDFLARE_DEPLOYMENT=true pnpm build # Include the optional Cloudflare relay deployment
-pnpm clara pair     # Print a pairing code
-pnpm clara server panel  # Open the hub panel in a browser
-pnpm clara start [--local|--docker] [--no-server] [--no-web] [--no-orchestrator] [--build] # Start the stack
-pnpm clara stop [--local|--docker] [--no-server] [--no-web] [--no-orchestrator] # Stop the stack
-pnpm clara restart [--local|--docker] [--no-server] [--no-web] [--no-orchestrator] [--build] # Restart the stack
-pnpm clara status [--no-server] [--no-web] [--no-orchestrator] [--json] # Probe the selected services
-pnpm clara logs server|web|orchestrator [--local|--docker] # Follow one service log
-pnpm clara server start|stop|restart|status [--json]|panel|pair|admin|logs [--local|--docker] [--build] # Hub service
-pnpm clara web start|stop|restart|status [--json]|logs [--local|--docker] [--build] # Web client
-pnpm clara orchestrator start|stop|restart [--local|--docker] [--build]|status [--json]|serve # Run the orchestration service
-pnpm clara orchestrator analyze [--json] [--days n] # Analyze run history for failure patterns
-pnpm clara orchestrator inspect [--run n] [--json] # Read one failed run's evidence
-pnpm clara runner   # Run script steps for a workspace (standalone runner)
+pnpm clara:link     # Install a thin `clara` shim on ~/.local/bin
+pnpm clara start [default|hub|web|orchestrator] [--docker|--local] [--build] # Start the core stack or one service
+pnpm clara stop [default|hub|web|orchestrator] [--docker|--local] # Stop the core stack or one service
+pnpm clara restart [default|hub|web|orchestrator] [--docker|--local] [--build] # Restart
+pnpm clara status [default|hub|web|orchestrator] [--json] # Probe the core services
+pnpm clara logs [default|hub|web|orchestrator] [--local|--docker] # Follow service logs
+pnpm clara start hub --open # Start the hub and open the panel
+pnpm clara status hub --open # Open the running panel
+pnpm clara start adapter [--harness <name>] # Start paired adapters
+pnpm clara start adapter --harness opencode --pair [<code>] # Install and pair an adapter
+pnpm clara stop adapter [--harness <name>] [--mcp] [--purge] # Stop or remove an adapter
+pnpm clara status adapter [--harness <name>] [--json] [--verify] # Full adapter status
+pnpm clara logs adapter [--harness <name>] # Follow adapter logs
+pnpm clara start runner [--workspace <path>] # Start the shared runner service
+pnpm clara stop runner [--purge] # Stop the runner service
+pnpm clara status runner [--json] # Inspect the runner
+pnpm clara start lab [--workspace <path>] # Start Clara Lab
+pnpm clara status lab --check # Validate a package target for CI
+pnpm clara start docs [--build] # Start the documentation site on :5176
+pnpm clara status docs --check # Check guide and internal doc indexes and links
+pnpm clara status docs --typecheck # Typecheck the documentation site
+pnpm clara backup [default|hub|orchestrator] [--output <path>] # Archive Docker state
+pnpm clara restore [default|hub|orchestrator] <archive> [--force] # Replace Docker state
+pnpm clara pair [hub] # Print a browser pairing code
+pnpm clara pair adapter --harness <name> # Print an adapter pairing code
 pnpm clara rebuild  # Snapshot, rebuild, recover services, inspect, and verify health
-pnpm clara lab      # Open Clara Lab to preview pipelines and probe the agent
-pnpm clara lab check # Validate a package target for CI
-pnpm clara docs     # Run the documentation site on :5176
-pnpm clara docs build # Build the documentation site
-pnpm clara docs check # Check guide and internal doc indexes and links
-pnpm clara mcp install|config|status # Install or inspect the MCP bridge
-pnpm clara mcp install --api        # Add the read-only hub API MCP
 pnpm check:boundaries # Fail if a harness SDK escapes its adapter package
 pnpm adapters:build # Build host adapter artifacts and a local registry under dist/adapters
-pnpm clara adapter install --opencode --pair <code> [--mcp] # Install the OpenCode adapter, MCP, and shared runner
-pnpm clara adapter install --claude --pair <code> # Install the Claude Code adapter
-pnpm clara adapter install --pi --pair <code> # Install the Pi adapter
 clara-adapter-claude install --pair <code> # Standalone Claude Code adapter install
 clara-adapter-pi install --pair <code> # Standalone Pi adapter install
 clara-adapter-opencode install --pair <code> [--mcp] # Standalone OpenCode adapter install

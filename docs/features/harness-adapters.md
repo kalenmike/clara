@@ -37,8 +37,9 @@ contacts the harness directly.
 4. The install script detects the target platform, downloads the matching
    Bun-compiled adapter archive, verifies its SHA-256, installs it under the
    adapter data directory, and runs the adapter installer. The manual commands
-   are `pnpm clara adapter install --opencode --pair <code>`,
-   `--claude`, and `--pi`.
+   are `pnpm clara start adapter --harness opencode --pair <code>`,
+   `pnpm clara start adapter --harness claude --pair <code>`, and
+   `pnpm clara start adapter --harness pi --pair <code>`.
 5. The OpenCode installer discovers OpenCode from flags, environment, or
    `~/.local/state/opencode/service.json`. The Claude Code installer uses the
    machine's existing Claude Code login and accepts `--claude-path`, `--model`,
@@ -92,7 +93,8 @@ contacts the harness directly.
    shared runner. `--no-runner` and `--no-service` split those pieces. The
    Claude Code installer installs only the adapter and its service; it does not
    install an orchestration binding. Inside the repository,
-   `pnpm clara adapter install --opencode` and `--claude` dispatch to the same
+   `pnpm clara start adapter --harness opencode --pair` and
+   `pnpm clara start adapter --harness claude --pair` dispatch to the same
    adapter binaries.
 9. The Claude Code adapter speaks to the Agent SDK inside the adapter process.
    The SDK is pinned with the adapter and never imported by the hub, web client,
@@ -363,10 +365,10 @@ ask for confirmation run without one, exactly as in the Pi TUI.
 - Commands: `clara-adapter-opencode install --pair <code>`,
   `clara-adapter-claude install --pair <code>`,
   `clara-adapter-pi install --pair <code>`,
-  `pnpm clara adapter install --claude --pair <code>`,
-  `pnpm clara adapter install --pi --pair <code>`,
-  `pnpm clara adapter status [--claude|--pi]`,
-  `pnpm clara adapter verify [--opencode|--claude|--pi] [--directory <path>] [--write] [--json]`,
+  `pnpm clara start adapter --harness claude --pair <code>`,
+  `pnpm clara start adapter --harness pi --pair <code>`,
+  `pnpm clara status adapter [--harness claude|--harness pi]`,
+  `pnpm clara status adapter --verify [--harness <name>] [--directory <path>] [--write] [--json]`,
   `clara-adapter-<kind> verify [--directory <path>] [--write] [--json]`,
   `clara-adapter-claude uninstall [--purge]`,
   `clara-adapter-pi uninstall [--purge]`.
