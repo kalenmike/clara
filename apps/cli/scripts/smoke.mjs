@@ -15,24 +15,24 @@ const here = dirname(fileURLToPath(import.meta.url))
 const packageRoot = resolve(here, '..')
 const repoRoot = resolve(packageRoot, '../..')
 const target = hostTarget()
-const binary = join(
-  packageRoot,
-  'dist',
-  'package',
-  target,
-  target.includes('windows') ? 'clara.exe' : 'clara'
-)
+const requestedBinary = arg('--binary')
+const binary = requestedBinary
+  ? resolve(requestedBinary)
+  : join(packageRoot, 'dist', 'package', target, target.includes('windows') ? 'clara.exe' : 'clara')
 
 await main()
 
 async function main() {
-  const bun = process.env.BUN_BIN?.trim() || 'bun'
-  if (!hasCommand(bun)) {
-    console.log(`Skipping the package smoke test: \`${bun}\` is not installed.`)
-    return
+  if (requestedBinary) {
+    if (!existsSync(binary)) throw new Error(`No binary at ${binary}`)
+  } else {
+    const bun = process.env.BUN_BIN?.trim() || 'bun'
+    if (!hasCommand(bun)) {
+      console.log(`Skipping the package smoke test: \`${bun}\` is not installed.`)
+      return
+    }
+    buildBinary()
   }
-
-  buildBinary()
 
   const root = mkdtempSync(join(tmpdir(), 'clara-smoke-'))
   const dataDir = makeDir(join(root, 'data'))
@@ -101,6 +101,13 @@ async function main() {
       // A leftover temporary directory must not hide the smoke result.
     }
   }
+}
+
+function arg(name) {
+  const index = process.argv.indexOf(name)
+  if (index < 0) return undefined
+  const value = process.argv[index + 1]
+  return value && !value.startsWith('--') ? value.trim() : undefined
 }
 
 function buildBinary() {

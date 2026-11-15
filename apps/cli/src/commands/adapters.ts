@@ -6,6 +6,7 @@ import {
   type AdapterTarget,
 } from '../adapters/platform.ts'
 import {
+  adapterEnv,
   adapterRuntimeState,
   readAdapterState,
   type AdapterInstallRecord,
@@ -139,7 +140,9 @@ export function adapterListReport(
   const state = readAdapterState(paths)
   return ADAPTER_KINDS.flatMap((kind) => {
     const record = state.adapters[kind]
-    return record ? [{ ...record, state: adapterRuntimeState(kind) }] : []
+    return record
+      ? [{ ...record, state: adapterRuntimeState(kind, { env: adapterEnv(paths, kind) }) }]
+      : []
   })
 }
 

@@ -1,6 +1,7 @@
 import { spawn } from 'node:child_process'
 import { closeSync, mkdirSync, openSync } from 'node:fs'
-import { readRunnerConfig, engineToken, engineURL } from '@clara/runner'
+import { readRunnerConfig, engineToken } from '@clara/runner'
+import { resolvePorts } from '../ports.ts'
 import { join } from 'node:path'
 import { resolvePaths } from '../paths.ts'
 import { selfCommand } from '../self.ts'
@@ -65,7 +66,9 @@ export async function runRunnerStart(args: readonly string[]): Promise<number> {
 
   const forwarded = options.workspace ? ['--workspace', options.workspace] : []
   const configPath = join(paths.configDir, 'runner.json')
+  const engineUrl = localEngineUrl()
   if (options.foreground) {
+    process.env.CLARA_ENGINE_URL ??= engineUrl
     const { serveRunner } = await import('../serve/runner.ts')
     writeRunnerPid(paths, process.pid)
     const cleanup = () => clearRunnerPid(paths)
@@ -87,7 +90,7 @@ export async function runRunnerStart(args: readonly string[]): Promise<number> {
       detached: true,
       stdio: ['ignore', log, log],
       windowsHide: true,
-      env: process.env,
+      env: { ...process.env, CLARA_ENGINE_URL: engineUrl },
     })
     child.unref()
     if (child.pid === undefined) throw new Error('Could not start the runner process.')
@@ -140,7 +143,7 @@ export async function runRunnerStatus(args: readonly string[]): Promise<number> 
     process.env.CLARA_ENGINE_WORKSPACE?.trim() ??
     process.env.CLARA_ORCHESTRATION_WORKSPACE?.trim() ??
     process.cwd()
-  const url = saved?.url ?? engineURL()
+  const url = saved?.url ?? localEngineUrl()
   const report = {
     state: current.running ? ('running' as const) : ('stopped' as const),
     pid: current.pid ?? null,
@@ -163,6 +166,11 @@ export async function runRunnerStatus(args: readonly string[]): Promise<number> 
   console.log(`config:    ${configPath}`)
   console.log(`log:       ${runnerLogPath(paths)}`)
   return 0
+}
+
+/** The packaged stack keeps the engine on loopback; do not inherit the container hostname. */
+function localEngineUrl(): string {
+  return process.env.CLARA_ENGINE_URL?.trim() || `http://127.0.0.1:${resolvePorts().engine}`
 }
 
 /** `clara runner logs [--tail <n>] [--no-follow]` */

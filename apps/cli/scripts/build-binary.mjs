@@ -54,7 +54,7 @@ const sources = [
 ]
 if (sources.length === 0) fail('There are no assets to embed.')
 
-writeGenerated(sources)
+const buildId = writeGenerated(sources)
 
 console.log('Checking that the command bundles without runtime package imports...')
 run(process.execPath, [join(here, 'check-bundle.mjs')], repoRoot)
@@ -66,9 +66,27 @@ if (checkOnly) {
 mkdirSync(dirname(outfile), { recursive: true })
 const bun = process.env.BUN_BIN?.trim() || 'bun'
 console.log(`Embedding ${sources.length} file(s) and compiling ${target}...`)
+const metadata = buildMetadata(buildId)
+console.log(`Version ${metadata.version} (${metadata.commit}, build ${metadata.buildId})`)
 run(
   bun,
-  ['build', '--compile', '--conditions=bun', `--target=${target}`, entry, '--outfile', outfile],
+  [
+    'build',
+    '--compile',
+    '--conditions=bun',
+    `--target=${target}`,
+    '--define',
+    `process.env.CLARA_VERSION=${JSON.stringify(metadata.version)}`,
+    '--define',
+    `process.env.CLARA_COMMIT=${JSON.stringify(metadata.commit)}`,
+    '--define',
+    `process.env.CLARA_BUILD_ID=${JSON.stringify(metadata.buildId)}`,
+    '--define',
+    `process.env.CLARA_RELEASE_PUBLIC_KEY=${JSON.stringify(metadata.publicKey)}`,
+    entry,
+    '--outfile',
+    outfile,
+  ],
   repoRoot
 )
 console.log(`Clara binary: ${outfile}`)
@@ -145,6 +163,24 @@ function writeGenerated(entries) {
     `${imports.join('\n')}\n\nexport const assets = {\n${assets.join(',\n')}\n}\n\nexport const buildId = ${JSON.stringify(buildId)}\n`
   )
   console.log(`Generated ${generated} (${buildId})`)
+  return buildId
+}
+
+function buildMetadata(buildId) {
+  const manifest = JSON.parse(readFileSync(join(repoRoot, 'package.json'), 'utf8'))
+  const commit = git(['rev-parse', '--short=8', 'HEAD']) || 'dev'
+  const dirty = Boolean(git(['status', '--porcelain']))
+  return {
+    version: typeof manifest.version === 'string' ? manifest.version : '0.0.0',
+    commit: dirty ? `${commit}-dirty` : commit,
+    buildId,
+    publicKey: process.env.CLARA_RELEASE_PUBLIC_KEY?.trim() || '',
+  }
+}
+
+function git(args) {
+  const result = spawnSync('git', args, { cwd: repoRoot, encoding: 'utf8' })
+  return result.status === 0 ? result.stdout.trim() : ''
 }
 
 function run(command, args, cwd) {

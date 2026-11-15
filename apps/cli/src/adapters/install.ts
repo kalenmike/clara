@@ -7,6 +7,7 @@ import { downloadVerified, type DownloadProgress } from './download.ts'
 import { detectAdapterTarget, isAdapterTarget, type AdapterTarget } from './platform.ts'
 import type { AdapterKind, AdapterRegistry } from './registry.ts'
 import {
+  adapterEnv,
   deleteAdapterRecord,
   readAdapterState,
   saveAdapterRecord,
@@ -119,7 +120,12 @@ export async function installAdapter(
 
   if (request.pairCode) {
     deps.onPhase?.('pairing')
-    const result = await runAdapterBinary(deps, binary, ['install', '--pair', request.pairCode])
+    const result = await runAdapterBinary(
+      deps,
+      binary,
+      ['install', '--pair', request.pairCode],
+      request.kind
+    )
     if (result.code !== 0) {
       record = { ...record, lastError: failureText('install', result) }
       saveAdapterRecord(record, paths)
@@ -131,7 +137,7 @@ export async function installAdapter(
 
   if (request.start !== false) {
     deps.onPhase?.('starting')
-    const result = await runAdapterBinary(deps, binary, ['start'])
+    const result = await runAdapterBinary(deps, binary, ['start'], request.kind)
     if (result.code !== 0) {
       record = { ...record, lastError: failureText('start', result) }
       saveAdapterRecord(record, paths)
@@ -158,7 +164,7 @@ export async function upgradeAdapter(
   const binary = adapterBinaryPath(record)
   if (existsSync(binary)) {
     deps.onPhase?.('stopping')
-    await runAdapterBinary(deps, binary, ['stop'])
+    await runAdapterBinary(deps, binary, ['stop'], kind)
   }
   const next = await installAdapter(
     {
@@ -185,10 +191,10 @@ export async function removeAdapter(
   const actions: string[] = []
   const binary = adapterBinaryPath(record)
   if (existsSync(binary)) {
-    const stopped = await runAdapterBinary(deps, binary, ['stop'])
+    const stopped = await runAdapterBinary(deps, binary, ['stop'], kind)
     if (stopped.code === 0) actions.push('stop the adapter process')
     const args = options.purge ? ['uninstall', '--purge'] : ['uninstall']
-    const removed = await runAdapterBinary(deps, binary, args)
+    const removed = await runAdapterBinary(deps, binary, args, kind)
     if (removed.code === 0) {
       actions.push(
         options.purge
@@ -210,17 +216,24 @@ export async function removeAdapter(
 export async function runAdapterBinary(
   deps: InstallDeps,
   binary: string,
-  args: readonly string[]
+  args: readonly string[],
+  kind?: AdapterKind
 ): Promise<BinaryResult> {
-  return (deps.runBinary ?? runStreamed)(binary, args)
+  const paths = deps.paths ?? resolvePaths()
+  const env = kind ? adapterEnv(paths, kind) : process.env
+  return (deps.runBinary ?? ((command, list) => runStreamed(command, list, env)))(binary, args)
 }
 
 /** Stream a child's output to this terminal and keep the stderr tail. */
-export function runStreamed(command: string, args: readonly string[]): Promise<BinaryResult> {
+export function runStreamed(
+  command: string,
+  args: readonly string[],
+  env: NodeJS.ProcessEnv = process.env
+): Promise<BinaryResult> {
   return new Promise((resolve) => {
     const child = spawn(command, [...args], {
       stdio: ['ignore', 'pipe', 'pipe'],
-      env: process.env,
+      env,
       windowsHide: true,
     })
     let stderr = ''

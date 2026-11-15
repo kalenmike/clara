@@ -6,6 +6,8 @@ import { runLogs, runRestart, runStart, runStatus, runStop } from './commands/se
 import { runPair } from './commands/pair.ts'
 import { runAdapters } from './commands/adapters.ts'
 import { runRunnerCommand } from './commands/runner.ts'
+import { runSetupCommand, runUpdateCommand } from './commands/release.ts'
+import { runDoctorCommand, runServiceCommand, runUninstallCommand } from './commands/maintenance.ts'
 import { runSupervisor } from './supervisor/run.ts'
 import { applyColorChoice, bold, cyan, dim } from './ui/color.ts'
 import { buildId, commit, version } from './version.ts'
@@ -99,6 +101,55 @@ export const commands: Command[] = [
       { flags: '--no-follow', description: 'print the log tail and exit' },
     ],
     run: runRunnerCommand,
+  },
+  {
+    name: 'setup',
+    summary: 'Create the owner account and start Clara',
+    usage: '[--non-interactive] [--local-only] [--no-service] [--no-start]',
+    options: [
+      { flags: '--username <name>', description: 'hub owner username' },
+      { flags: '--password-stdin', description: 'read the owner password from stdin' },
+      { flags: '--non-interactive', description: 'never prompt' },
+      { flags: '--no-service', description: 'do not install a login service' },
+      { flags: '--no-start', description: 'prepare only; do not start the stack' },
+    ],
+    run: runSetupCommand,
+  },
+  {
+    name: 'update',
+    summary: 'Update or roll back the command',
+    usage: '[--check] [--rollback] [--file <archive> --version <v>]',
+    options: [
+      { flags: '--check', description: 'report the available version and exit' },
+      { flags: '--rollback', description: 'switch back to the previous version' },
+      { flags: '--file <archive>', description: 'install a downloaded release archive' },
+      { flags: '--version <v>', description: 'version of the archive passed to --file' },
+      { flags: '--no-restart', description: 'leave the running stack on the old version' },
+    ],
+    run: runUpdateCommand,
+  },
+  {
+    name: 'service',
+    summary: 'Manage the login service',
+    usage: 'install|uninstall|status|print',
+    options: [{ flags: '--force', description: 'install from a source checkout' }],
+    run: async (args) => runServiceCommand(args),
+  },
+  {
+    name: 'doctor',
+    summary: 'Show paths, versions, and service state',
+    usage: '',
+    run: runDoctorCommand,
+  },
+  {
+    name: 'uninstall',
+    summary: 'Remove the login service and local versions',
+    usage: '[--purge] [--yes]',
+    options: [
+      { flags: '--purge', description: 'also remove config, data, and cache' },
+      { flags: '--yes', description: 'do not ask for confirmation' },
+    ],
+    run: runUninstallCommand,
   },
   {
     name: 'version',

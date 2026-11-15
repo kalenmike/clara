@@ -67,6 +67,7 @@ Clara works; the guide describes how to use it.
 | [install.md](features/install.md)                                       | You are working on install, updates, caching, or offline behavior        |
 | [desktop.md](features/desktop.md)                                       | You are working on the native desktop shell or its build                 |
 | [hub-cli.md](features/hub-cli.md)                                       | You are working on the hub CLI, Bun executable, or dynamic ports         |
+| [package.md](features/package.md)                                       | You are working on the packaged `clara` command, releases, or autostart  |
 | [connection.md](features/connection.md)                                 | You are working on connecting Clara to a harness                         |
 | [harness-adapters.md](features/harness-adapters.md)                     | You are working on harness adapters, pairing, or protocol transport      |
 | [pairing.md](features/pairing.md)                                       | You are working on QR/code pairing, device storage, or key rotation      |
