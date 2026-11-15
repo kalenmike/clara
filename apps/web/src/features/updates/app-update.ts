@@ -1,5 +1,6 @@
 import {
   applyUpdate,
+  clearCachedAppData,
   dismissUpdate,
   usePwaUpdate,
   type UpdateStatus,
@@ -37,4 +38,21 @@ export async function applyAppUpdate(): Promise<void> {
 export function dismissAppUpdate(): void {
   if (isDesktop) return
   dismissUpdate()
+}
+
+/**
+ * Reloads onto the newest deployed build without asking the worker first.
+ *
+ * The update banner only exists inside the app shell, so an unpaired client or
+ * one stuck on the boot splash can never reach it. Clearing the registration
+ * and caches is the reliable answer: a cached shell can otherwise answer the
+ * navigation for up to three seconds, which is the stale screen being escaped.
+ * The desktop shell has no worker and installs with its assets, so it reloads.
+ */
+export async function reloadApp(): Promise<void> {
+  if (isDesktop) {
+    window.location.reload()
+    return
+  }
+  await clearCachedAppData()
 }
