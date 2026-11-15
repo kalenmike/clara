@@ -4,6 +4,8 @@ import { resolvePorts } from './ports.ts'
 import { isServiceName } from './service/specs.ts'
 import { runLogs, runRestart, runStart, runStatus, runStop } from './commands/service.ts'
 import { runPair } from './commands/pair.ts'
+import { runAdapters } from './commands/adapters.ts'
+import { runRunnerCommand } from './commands/runner.ts'
 import { runSupervisor } from './supervisor/run.ts'
 import { applyColorChoice, bold, cyan, dim } from './ui/color.ts'
 import { buildId, commit, version } from './version.ts'
@@ -67,9 +69,36 @@ export const commands: Command[] = [
   },
   {
     name: 'pair',
-    summary: 'Print a browser pairing code',
-    usage: 'hub [--no-relay] [--no-qr] [--revoke-all|--revoke <id>]',
+    summary: 'Print a pairing code',
+    usage:
+      'hub [--no-relay] [--no-qr] [--revoke-all|--revoke <id>] | adapter --harness <kind> [--transport local|relay] [--install]',
     run: runPair,
+  },
+  {
+    name: 'adapter',
+    summary: 'Search, install, and manage harness adapters',
+    usage: 'search|list|install|upgrade|remove|start|stop|status|logs [options]',
+    options: [
+      { flags: '--json', description: 'machine-readable output where supported' },
+      { flags: '--pair <code>', description: 'pair with an existing code instead of issuing one' },
+      { flags: '--no-start', description: 'install without starting the adapter' },
+      { flags: '--purge', description: 'remove adapter credentials with the install' },
+    ],
+    run: runAdapters,
+  },
+  {
+    name: 'runner',
+    summary: 'Manage the shared script runner',
+    usage:
+      'start [--workspace <path>] [--foreground] | stop | status [--json] | logs [--tail <n>] [--no-follow]',
+    options: [
+      { flags: '--workspace <path>', description: 'directory the runner executes scripts in' },
+      { flags: '--foreground', description: 'run the runner in this terminal' },
+      { flags: '--json', description: 'machine-readable status' },
+      { flags: '--tail <n>', description: 'number of log lines to print first (default 80)' },
+      { flags: '--no-follow', description: 'print the log tail and exit' },
+    ],
+    run: runRunnerCommand,
   },
   {
     name: 'version',
@@ -109,7 +138,7 @@ export async function runCli(argv: readonly string[]): Promise<void> {
     return
   }
   if (name === '__serve') {
-    process.exitCode = await serve(args[0])
+    process.exitCode = await serve(args[0], args.slice(1))
     return
   }
   if (name === '__hub') {
@@ -142,7 +171,7 @@ async function supervise(args: readonly string[]): Promise<number> {
   return runSupervisor({ services: parsed, paths: resolvePaths(), ports: resolvePorts() })
 }
 
-async function serve(name: string | undefined): Promise<number> {
+async function serve(name: string | undefined, extra: readonly string[] = []): Promise<number> {
   if (name === 'hub') {
     await (await import('./serve/hub.ts')).serveHub()
     return typeof process.exitCode === 'number' ? process.exitCode : 0
@@ -153,6 +182,10 @@ async function serve(name: string | undefined): Promise<number> {
   }
   if (name === 'web') {
     await (await import('./serve/web.ts')).serveWeb()
+    return typeof process.exitCode === 'number' ? process.exitCode : 0
+  }
+  if (name === 'runner') {
+    await (await import('./serve/runner.ts')).serveRunner(extra)
     return typeof process.exitCode === 'number' ? process.exitCode : 0
   }
   console.error(`unknown service: ${name ?? '(missing)'}`)

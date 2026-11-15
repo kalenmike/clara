@@ -176,9 +176,15 @@ importers:
       '@clara/hub-server':
         specifier: workspace:*
         version: link:../hub/server
+      '@clara/runner':
+        specifier: workspace:*
+        version: link:../../packages/adapters/runner
       '@clara/runtime-state':
         specifier: workspace:*
         version: link:../../packages/runtime-state
+      '@clara/shared-types':
+        specifier: workspace:*
+        version: link:../../packages/contracts/shared-types
     devDependencies:
       '@types/node':
         specifier: ^24.19.2
