@@ -19,6 +19,9 @@
       "entry": ["index.html"],
       "project": ["src/**/*.{ts,tsx,css}"]
     },
+    "apps/cli": {
+      "project": ["src/**/*.ts", "test/**/*.ts"]
+    },
     "packages/panel": {
       "project": ["src/**/*.{ts,tsx,css}"]
     },

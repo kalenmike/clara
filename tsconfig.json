@@ -8,6 +8,9 @@
       "path": "./apps/hub/panel"
     },
     {
+      "path": "./apps/cli"
+    },
+    {
       "path": "./packages/panel"
     },
     {

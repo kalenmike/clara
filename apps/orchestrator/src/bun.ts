@@ -27,4 +27,10 @@ if (!existsSync(marker)) {
 
 process.env.CLARA_ENGINE_ASSETS_DIR ||= assetsRoot
 
-await import('./index.ts')
+const { serveEngine } = await import('./serve.ts')
+
+await serveEngine().catch((cause) => {
+  const text = cause instanceof Error ? cause.message : String(cause)
+  console.error(`[clara-engine] fatal: ${text}`)
+  process.exit(1)
+})

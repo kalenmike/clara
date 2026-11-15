@@ -3,6 +3,9 @@
   "private": true,
   "version": "0.1.0",
   "type": "module",
+  "exports": {
+    "./main": "./src/main.ts"
+  },
   "bin": {
     "clara-server": "./dist/index.js"
   },

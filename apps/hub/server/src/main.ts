@@ -57,8 +57,12 @@ import { SERVER_VERSION } from './version.ts'
 const panelLog = new PanelLog()
 const DEFAULT_PANEL_PORT = 8790
 
-export async function main(): Promise<void> {
-  const args = process.argv.slice(2)
+/**
+ * Run the hub command. The packaged `clara` binary dispatches into this
+ * function, while the `clara-server` bin keeps reading its own argv.
+ */
+export async function main(argv: readonly string[] = process.argv.slice(2)): Promise<void> {
+  const args = [...argv]
   const command = args[0] ?? 'serve'
 
   if (command === 'admin') {
