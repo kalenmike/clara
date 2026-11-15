@@ -48,6 +48,14 @@ prop; the web client maps next-themes to it in
 `apps/web/src/components/sonner.tsx`. Panel and lab hosts pass their own mode if
 they ever mount toasts.
 
+Popups portal to `document.body` by default. That includes `SelectContent`,
+whose menu then paints behind a native `<dialog>` opened with `showModal()`:
+the modal lives in the browser's top layer, and no z-index can lift a sibling
+portal above it. Pass the dialog element as the select's `container` so the menu
+mounts inside the top layer. The harness pairing flow does this through its
+`HarnessSelectPortalProvider`; apply the same pattern to any new select inside a
+native modal.
+
 ## Patterns
 
 `src/patterns` holds the composites the three surfaces share:

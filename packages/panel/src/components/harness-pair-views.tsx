@@ -2,17 +2,12 @@ import type { ReactNode } from 'react'
 import { Check, ExternalLink, Globe2, LoaderCircle, Wifi, X } from 'lucide-react'
 import { Button } from '@clara/ui/components/button'
 import { Input } from '@clara/ui/components/input'
-import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from '@clara/ui/components/select'
+import { Select, SelectItem, SelectTrigger, SelectValue } from '@clara/ui/components/select'
 import type { AdapterInstallJob } from '@clara/shared-types'
 import { HARNESS_KINDS } from '../lib/harness-pairing.ts'
 import { formatRelative } from '../lib/format.ts'
 import { MANUAL_SSH_HOST, type HarnessPairingFlow } from '../lib/use-harness-pairing.ts'
+import { HarnessSelectContent } from './harness-select-portal.tsx'
 import { Badge, CopyButton, Notice } from './primitives.tsx'
 
 export function HarnessPairHeader({
@@ -74,13 +69,13 @@ function SetupStep({ flow }: { flow: HarnessPairingFlow }) {
           <SelectTrigger className="w-full">
             <SelectValue />
           </SelectTrigger>
-          <SelectContent>
+          <HarnessSelectContent>
             {HARNESS_KINDS.map((item) => (
               <SelectItem key={item.kind} value={item.kind}>
                 {item.label}
               </SelectItem>
             ))}
-          </SelectContent>
+          </HarnessSelectContent>
         </Select>
       </label>
 
@@ -261,7 +256,7 @@ function InstallTargetFields({ flow }: { flow: HarnessPairingFlow }) {
             <SelectTrigger className="w-full">
               <SelectValue placeholder="Choose a host from ~/.ssh/config" />
             </SelectTrigger>
-            <SelectContent>
+            <HarnessSelectContent>
               {flow.sshHosts.map((item) => (
                 <SelectItem key={item.alias} value={item.alias}>
                   {item.alias} — {item.user ? `${item.user}@` : ''}
@@ -269,7 +264,7 @@ function InstallTargetFields({ flow }: { flow: HarnessPairingFlow }) {
                 </SelectItem>
               ))}
               <SelectItem value={MANUAL_SSH_HOST}>Enter manually…</SelectItem>
-            </SelectContent>
+            </HarnessSelectContent>
           </Select>
         </label>
         {manual ? (
@@ -312,13 +307,13 @@ function InstallTargetFields({ flow }: { flow: HarnessPairingFlow }) {
           <SelectTrigger className="w-full">
             <SelectValue placeholder="Choose a running container" />
           </SelectTrigger>
-          <SelectContent>
+          <HarnessSelectContent>
             {flow.containers.map((item) => (
               <SelectItem key={item.id} value={item.name}>
                 {item.name} — {item.image}
               </SelectItem>
             ))}
-          </SelectContent>
+          </HarnessSelectContent>
         </Select>
       </label>
     </div>
@@ -352,13 +347,13 @@ function WebSocketField({
             <SelectTrigger className="max-w-[45%]" aria-label="Use a detected address">
               <SelectValue placeholder="Detected…" />
             </SelectTrigger>
-            <SelectContent>
+            <HarnessSelectContent>
               {candidates.map((candidate) => (
                 <SelectItem key={candidate.url} value={candidate.url}>
                   {candidateLabel(candidate.scope)} · {candidate.url}
                 </SelectItem>
               ))}
-            </SelectContent>
+            </HarnessSelectContent>
           </Select>
         ) : null}
       </div>

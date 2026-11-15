@@ -54,10 +54,19 @@ function SelectContent({
   children,
   position = 'item-aligned',
   align = 'center',
+  container,
   ...props
-}: React.ComponentProps<typeof SelectPrimitive.Content>) {
+}: React.ComponentProps<typeof SelectPrimitive.Content> & {
+  /**
+   * Where to mount the menu. Pass the surrounding `<dialog>` when the select
+   * lives in a modal: a modal dialog is in the browser's top layer, so a menu
+   * portaled to `document.body` would be painted behind it no matter its
+   * z-index.
+   */
+  container?: React.ComponentProps<typeof SelectPrimitive.Portal>['container']
+}) {
   return (
-    <SelectPrimitive.Portal>
+    <SelectPrimitive.Portal container={container}>
       <SelectPrimitive.Content
         data-slot="select-content"
         data-align-trigger={position === 'item-aligned'}
