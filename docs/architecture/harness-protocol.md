@@ -26,6 +26,10 @@ Pairing, install, and user-visible behavior are in
 - After authentication the hub sends a sealed `ready` carrying hub info and a
   refreshed adapter grant. The adapter replies `ready.ack` and persists the
   grant for its next start.
+- When an authenticated adapter session registers, the hub reads `/info` in the
+  background and replaces the stored adapter version, protocol version, harness
+  version, and capabilities. A restart or upgrade therefore needs no new
+  pairing.
 - Heartbeats are `ping`/`pong` every 20 seconds. A session with no hub frame for
   45 seconds is treated as dead. The handshake has a 10-second budget.
 - A reconnect backs off from one second to thirty with jitter. The counter resets
@@ -64,6 +68,12 @@ errors the caller's stream when an adapter disconnects.
   `harness` (`kind` and optional `version`), and `capabilities`. `/health` is the
   live harness probe and `/host` is the adapter machine's CPU, memory, and disk
   sample.
+- `/maintenance/update` is adapter maintenance, not harness traffic. `GET`
+  returns the last update state; `POST` with `{ version? }` asks the adapter to
+  pull its pinned registry, stage a strictly newer release, verify the digest,
+  and restart. It returns `202` before the supervisor stops the old process.
+  The adapter refuses containers, local checkout builds, and installs with no
+  recorded registry.
 - `/projects` is list and update; `POST /projects/:id/archive`,
   `.../unarchive`, and `DELETE /projects/:id` are capability-gated.
 - `/sessions` covers list, create, update, delete, fork, move, view,
@@ -89,10 +99,12 @@ again from `/info`. It branches on flags, never on harness kind:
 | `files`, `vcs`, `worktrees`, `git`                                | Read-only host queries                               |
 | `events`                                                          | The event stream                                     |
 | `host.metrics`                                                    | `/host` samples in the panel                         |
+| `maintenance.update`                                              | Remote adapter update in the panel                   |
 
 A missing flag is reported as `unsupported` for that route, not as a failure;
-Clara still applies its own project state. A flag that changes requires the
-adapter to reconnect or be upgraded, because the hub caches it per connection.
+Clara still applies its own project state. A flag that changes is refreshed
+from `/info` when the adapter reconnects; an upgraded adapter therefore picks up
+new routes without a new pairing.
 
 ## Per-adapter differences
 

@@ -267,6 +267,20 @@ confirm the harness sees it, and remove it again; this is the only mode that
 writes to the native store. Use `--json` for a machine-readable report. If an
 adapter is not installed, its section is skipped.
 
+## Update an adapter
+
+When a newer adapter is published, **Harness → Paired harnesses** shows the
+installed and published versions and an **Update** action. The adapter
+downloads the release from the registry it was installed from, verifies it,
+restarts its service or background process, and reconnects with the same
+pairing. Your sessions and projects stay attached.
+
+An adapter installed before Clara recorded its registry, a container-backed
+adapter, or a failed update cannot use the action. The panel then shows a
+one-line repair command that reuses the saved pairing, so no new code or
+`clara` command is needed on the harness machine. Container images still need
+a rebuild.
+
 ## Reinstall and reconnect
 
 The adapter keeps a stable identity. If you uninstall and install it again, or
@@ -293,10 +307,11 @@ connection keeps that state; use **Forget** only when you want to discard it.
   run the installer by hand.
 - **The adapter release is unavailable** — the registry manifest could not be
   read. Check **Network → Adapter setup** and the registry URL.
-- **The adapter is behind the registry** — **Network → Adapter setup**
-  shows the installed version beside the published one when they differ.
-  Reinstall the adapter with a new pairing code to update it; the hub never
-  upgrades an adapter by itself.
+- **The adapter is behind the registry** — **Paired harnesses** shows the
+  installed and published versions when they differ. Use **Update**; the
+  adapter pulls and verifies the release itself. If the adapter was installed
+  before it recorded its registry, or an update fails, run the repair command
+  the panel shows on the harness machine.
 - **OpenCode needs a password over SSH** — the one-click install cannot prompt.
   Set `OPENCODE_PASSWORD` on the target, or run the manual installer
   interactively.

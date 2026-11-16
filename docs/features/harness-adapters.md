@@ -34,6 +34,10 @@ capability flags, not harness kind.
    process. The panel shows **Connected** only after an authenticated link; a
    failed start prints the adapter state and log in the install card.
 8. Open the web client; sessions and Clara projects arrive through the adapter.
+9. When a newer adapter is published, the paired-harness list offers **Update**.
+   The adapter pulls and verifies that release itself, restarts, and reconnects
+   with the same pairing. An adapter installed before provenance was recorded
+   shows a one-time repair command instead.
 
 ## Core business rules
 
@@ -61,6 +65,9 @@ capability flags, not harness kind.
 7. Adapters are pulled, never shipped. The hub embeds no artifact and runs no
    install script; it verifies the manifest and returns its digest and command.
    Adapter setup stays off until enabled in **Network → Adapter setup**.
+   A connected adapter may be told to update, but it still pulls and verifies
+   the release from its own recorded registry; the hub never supplies an
+   artifact URL, digest, or command.
 8. Pi runs the user's own `pi` binary over `pi --mode rpc`, never the SDK, so
    Clara follows its version, authentication, `models.json`, extensions, skills,
    packages, MCP servers, and project trust. It has one built-in agent, no
@@ -73,7 +80,18 @@ capability flags, not harness kind.
 10. The adapter reports its hostname, platform, architecture, and container
     state; the hub keeps the latest report and the pairing's local/SSH/Docker
     install path, so identical harness kinds stay distinguishable and an offline
-    harness keeps the identity it last reported.
+    harness keeps the identity it last reported. The hub rereads the adapter's
+    `/info` on every authenticated session, so a restart or upgrade refreshes
+    the stored version and capabilities without a new pairing.
+11. An adapter updates only itself. It records the registry, release version,
+    platform, and install flags in `install.json` beside its binary, fetches the
+    registry manifest, accepts a strictly newer version, verifies the artifact
+    digest, extracts into a new version directory, and hands the restart to a
+    detached supervisor. The supervisor reinstalls with the saved pairing,
+    waits for an authenticated link, and restores the old service and binary if
+    the new version does not come up. A container-backed adapter, a local
+    checkout build, or an adapter without a recorded registry refuses the
+    request and names the no-CLI repair command instead.
 
 ## Edge cases
 
@@ -90,8 +108,10 @@ capability flags, not harness kind.
   proxy until the gate is on again.
 - **Adapter setup off or registry unreachable** — the panel cannot read the
   manifest or issue a code and names the error; checkout commands still work.
-- **Adapter behind the registry** — the card shows the connected and published
-  versions and names the reinstall; the hub never upgrades an adapter.
+- **Adapter behind the registry** — the paired-harness row shows the connected
+  and published versions and offers **Update**. An adapter without recorded
+  provenance, a container-backed adapter, or a failed update names the no-CLI
+  repair command; the hub never downloads or runs the artifact.
 - **Container-backed adapter** — a stopped container is refused for `--pair`,
   `upgrade` asks for an image rebuild, and `verify --directory` reads inside it.
 - **SSH alias missing or key locked** — the alias is rejected, and installs use
@@ -128,14 +148,19 @@ capability flags, not harness kind.
 <summary>Commands, data, and references</summary>
 
 - Config: `<config>/clara/adapters/<kind>/config.json`; data:
-  `<data>/clara/adapters/<kind>/{identity.json,adapter.log,adapter.pid,state.json}`.
-  Claude also keeps `catalog.json`; Pi keeps `prompt-ids.json`.
+  `<data>/clara/adapters/<kind>/{identity.json,adapter.log,adapter.pid,state.json,
+update.json,update.log}`. Claude also keeps `catalog.json`; Pi keeps
+  `prompt-ids.json`. A release install also keeps `install.json` beside the
+  versioned binary with its pinned registry and replayed install flags.
 - Commands: `clara-adapter-<kind> install --pair <code>` (plus `--no-service`,
   `--no-runner`) and `clara adapter install|list|status|start|stop|logs|verify|
 upgrade|remove <kind> [--pair <code>] [--from <path>] [--container <name>]`.
-  `--reuse-pairing` reruns the saved install without enrolling; `upgrade` does
-  not enroll either. `install --pair --container` runs the installer inside a
-  running container; `upgrade` never rebuilds an image.
+  `--reuse-pairing` reruns the saved install without enrolling and stops the
+  old service or background process first; `upgrade` does not enroll either.
+  `install --pair --container` runs the installer inside a running container;
+  `upgrade` never rebuilds an image. The panel's update sends
+  `POST /harness/v1/maintenance/update`; the adapter's detached
+  `apply-update --plan <path>` supervisor performs the switch.
 - Registry: `<registry>/<kind>/manifest.json` and `v<version>-install.sh`;
   `CLARA_ADAPTER_REGISTRY_URL` overrides. `pnpm adapters:build` and
   `pnpm adapters:serve` provide a local registry; releases verify every
