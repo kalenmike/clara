@@ -105,8 +105,6 @@ export function MessageItem({
           Model switched to <span className="min-w-0 break-words">{message.model.id}</span>
         </Note>
       )
-    case 'location-switched':
-      return <Note>Location switched</Note>
     case 'compaction':
       return <Note>Context compaction {message.status}</Note>
     case 'agent-switched':
