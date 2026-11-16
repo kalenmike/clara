@@ -6,6 +6,7 @@
 //     [--version 0.1.0-dev+abc1234] [--tag adapters-v0.1.0-dev+abc1234]
 //     [--targets linux-x64,darwin-arm64,...|all] [--all-targets]
 //     [--artifact-base https://github.com/<owner>/<repo>/releases/download/<tag>]
+//     [--registry-url https://clara.example/adapters]
 //     [--from-release <tag|latest> --repo <owner/repo>
 //       [--api-url https://api.github.com]]
 //     [--build dist/adapters] [--out dist/adapters]
@@ -79,6 +80,9 @@ const outRoot = resolve(repoRoot, readString(args.out, buildRoot))
 const serve = Boolean(args['serve'])
 const serveHost = readString(args.host, '127.0.0.1')
 const servePort = Number(readString(args.port, '8799'))
+const registryBase = serve
+  ? `http://${serveHost}:${servePort}`
+  : readString(args['registry-url'], 'https://clara.kalenmichael.com/adapters').replace(/\/+$/, '')
 const artifactBaseOverride = args['artifact-base'] !== undefined || serve
 const artifactBase = serve
   ? `http://${serveHost}:${servePort}`
@@ -283,6 +287,7 @@ function installScript(kind, artifacts) {
   return template
     .replaceAll('__KIND__', kind)
     .replaceAll('__VERSION__', version)
+    .replaceAll('__REGISTRY__', registryBase)
     .replaceAll('__DEFAULT_ARGS__', kind === 'opencode' ? '--no-runner' : '')
     .replaceAll('__ARTIFACT_CASES__', cases)
 }

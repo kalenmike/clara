@@ -185,7 +185,10 @@ use the CI workflow for a complete registry.
   the archive hash, extracts it, and runs the adapter installer.
 - The default release URL is
   `https://github.com/kalenmike/clara/releases/download/adapters-v<version>`.
-  Override it with `--artifact-base` when the release lives elsewhere.
+  Override it with `--artifact-base` when the release lives elsewhere. The
+  install script records the registry base (`https://clara.kalenmichael.com/adapters`
+  by default, the local server with `--serve`); override it with
+  `--registry-url` for another deployment.
 
 The shell installer covers Linux and macOS. Windows users extract the archive
 and run the adapter with Node. Release assets must be publicly readable for the
