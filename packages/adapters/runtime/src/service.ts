@@ -46,6 +46,15 @@ function selfArgs(entry: string, command: string): string[] {
   return [...nodeArgs(entry), command]
 }
 
+/** The process arguments that run one adapter CLI command, including the script. */
+export function selfCommand(
+  entry: string,
+  command: string,
+  args: readonly string[] = []
+): string[] {
+  return [...selfArgs(entry, command), ...args]
+}
+
 function run(command: string, args: string[]): boolean {
   return spawnSync(command, args, { stdio: 'ignore' }).status === 0
 }
@@ -301,6 +310,44 @@ export function tailAdapterLog(paths: AdapterPaths, lines = 80): string {
   return text.slice(-lines).join('\n')
 }
 
+export type AdapterServiceSnapshot = {
+  kind: 'systemd' | 'launchd' | 'none'
+  path?: string
+  content?: string
+}
+
+/** Keep the service definition a failed update should restore. */
+export function snapshotAdapterService(name: string): AdapterServiceSnapshot {
+  const kind = adapterServiceKind(name)
+  const path =
+    kind === 'systemd'
+      ? systemdUnitPath(name)
+      : kind === 'launchd'
+        ? launchAgentPath(name)
+        : undefined
+  if (!path || !existsSync(path)) return { kind }
+  try {
+    return { kind, path, content: readFileSync(path, 'utf8') }
+  } catch {
+    return { kind }
+  }
+}
+
+/** Write back a saved service definition; starting it is the caller's job. */
+export function restoreAdapterService(name: string, snapshot: AdapterServiceSnapshot): string[] {
+  if (!snapshot.path || snapshot.content === undefined) return []
+  if (snapshot.kind === 'systemd') {
+    if (run('systemctl', ['--user', 'stop', unitName(name)])) {
+      // The new unit must not keep running while the old one is restored.
+    }
+  }
+  if (snapshot.kind === 'launchd') run('launchctl', ['unload', snapshot.path])
+  mkdirSync(dirname(snapshot.path), { recursive: true, mode: 0o700 })
+  writeFileSync(snapshot.path, snapshot.content, { mode: 0o600 })
+  if (snapshot.kind === 'systemd') run('systemctl', ['--user', 'daemon-reload'])
+  return [`restore ${snapshot.kind} service ${snapshot.path}`]
+}
+
 export function removeAdapterService(input: AdapterServiceInput): string[] {
   const actions: string[] = [...stopAdapterProcess(input.paths)]
   if (process.platform === 'linux') {
@@ -364,4 +411,9 @@ function isAlive(pid: number): boolean {
   } catch {
     return false
   }
+}
+
+/** Whether a pid is alive, for update supervision and status. */
+export function adapterProcessAlive(pid: number): boolean {
+  return isAlive(pid)
 }

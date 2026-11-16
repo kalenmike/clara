@@ -35,5 +35,6 @@ export const CLAUDE_CAPABILITIES = {
   worktrees: true,
   git: true,
   events: true,
+  maintenance: { update: true },
   host: { metrics: true },
 }

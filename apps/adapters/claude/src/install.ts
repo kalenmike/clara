@@ -3,6 +3,7 @@ import { stdin, stdout } from 'node:process'
 import {
   REINSTALL_GRANT_MESSAGE,
   adapterLogSize,
+  adapterVersion,
   argValue,
   describeError,
   enrollAdapter,
@@ -36,7 +37,7 @@ import { detectClaudeInstallation, readClaudeAuth, readClaudeVersion } from './d
 import { AgentSdkGateway } from './sdk.ts'
 import { claudeAdapterDaemonEntry } from './package-paths.ts'
 
-const ADAPTER_VERSION = '0.1.0'
+const ADAPTER_VERSION = adapterVersion('0.1.0')
 const PERMISSION_MODES: ClaudePermissionMode[] = [
   'default',
   'acceptEdits',

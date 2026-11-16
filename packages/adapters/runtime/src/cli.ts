@@ -38,6 +38,8 @@ import {
   writeAdapterPid,
 } from './service.ts'
 import { readState, writeState } from './state.ts'
+import { recordInstallProvenance } from './provenance.ts'
+import { applyAdapterUpdate, registerAdapterUpdateRoutes } from './update.ts'
 import { AdapterTransport } from './transport.ts'
 import type {
   AdapterConfig,
@@ -133,6 +135,15 @@ export async function runAdapterCli<THarness>(
     return
   }
   if (command === 'install') {
+    if (hasFlag(args, '--reuse-pairing') && !hasFlag(args, '--dry-run')) {
+      for (const action of stopAdapter(definition.name, definition.paths)) console.log(action)
+    }
+    recordInstallProvenance({
+      kind: definition.name,
+      version: definition.version,
+      args,
+      env: process.env,
+    })
     const helpers = installHelpers(definition)
     if (definition.install) await definition.install(args, helpers)
     else await helpers.pair(args)
@@ -169,6 +180,13 @@ export async function runAdapterCli<THarness>(
   if (command === 'config-path') {
     console.log(definition.paths.configPath)
     console.log(definition.paths.identityPath)
+    return
+  }
+  if (command === 'apply-update') {
+    await applyAdapterUpdate(
+      { kind: definition.name, label: definition.label, paths: definition.paths },
+      args
+    )
     return
   }
   throw new Error(`unknown command: ${command}`)
@@ -215,6 +233,13 @@ async function serve<THarness>(
     ],
   })
   app.route('/', hostMetrics.routes)
+  registerAdapterUpdateRoutes(app, {
+    kind: definition.name,
+    label: definition.label,
+    version: definition.version,
+    paths: definition.paths,
+    containerized: Boolean(host.container),
+  })
   const harness = definition.describe(config)
   const wsUrl =
     argValue(args, '--ws-url') ?? process.env.CLARA_ADAPTER_WS_URL?.trim() ?? config.wsUrl

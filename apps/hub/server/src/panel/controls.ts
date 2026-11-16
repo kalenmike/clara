@@ -9,6 +9,7 @@ import type {
   PanelHarnessMutationResponse,
   PanelHarnessPairingMutationResponse,
   PanelHarnessTestResult,
+  PanelHarnessUpdateResult,
   PanelPushStorage,
   PanelRelayMutationResponse,
   PanelRelayUpdate,
@@ -40,6 +41,7 @@ export type PanelControlService = {
   createAdapterPairing: (input: AdapterInstallOfferInput) => Promise<AdapterInstallOffer>
   cancelHarnessPairing: (id: string) => Promise<void>
   testHarness: (id: string) => Promise<PanelHarnessTestResult>
+  updateHarness: (id: string) => Promise<PanelHarnessUpdateResult>
   deleteHarness: (id: string) => Promise<PanelHarnessMutationResponse>
   forgetHarness: (id: string) => Promise<PanelHarnessMutationResponse>
   revokeDevice: (id: string) => { id: string } | undefined

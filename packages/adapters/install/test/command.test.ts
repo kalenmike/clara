@@ -3,6 +3,7 @@ import type { PanelInstallManifest } from '@clara/shared-types'
 import {
   buildInstallPlan,
   buildInstallScript,
+  adapterRegistryBase,
   dockerInvocation,
   sshInvocation,
   validateDockerTarget,
@@ -69,7 +70,15 @@ describe('install command helpers', () => {
     expect(script).toContain(`'--pair' 'clara-harness1_code'`)
     expect(script).toContain("'--no-runner'")
     expect(script).toContain("'--opencode-url' 'http://127.0.0.1:4096'")
+    expect(script).toContain("CLARA_ADAPTER_REGISTRY_URL='https://clara.example/adapters'")
     expect(script).toContain('checksum did not match')
+  })
+
+  it('derives the registry base from the installer URL', () => {
+    expect(adapterRegistryBase('https://clara.example/adapters/opencode/v1-install.sh')).toBe(
+      'https://clara.example/adapters'
+    )
+    expect(adapterRegistryBase('not a url')).toBeUndefined()
   })
 
   it('starts the adapter and waits for an authenticated hub link', () => {

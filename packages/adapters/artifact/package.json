@@ -1,0 +1,22 @@
+{
+  "name": "@clara/adapter-artifact",
+  "private": true,
+  "version": "0.1.0",
+  "type": "module",
+  "description": "Adapter release target detection, verified downloads, safe archive extraction, and install provenance.",
+  "exports": {
+    ".": "./src/index.ts"
+  },
+  "scripts": {
+    "clean": "node ../../../tools/build/clean.mjs dist",
+    "build": "tsup",
+    "typecheck": "tsc -p tsconfig.json",
+    "test": "vitest run"
+  },
+  "devDependencies": {
+    "@types/node": "^24.19.2",
+    "tsup": "^9.0.0",
+    "typescript": "~6.0.3",
+    "vitest": "^5.0.5"
+  }
+}

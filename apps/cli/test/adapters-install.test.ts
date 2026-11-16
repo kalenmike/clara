@@ -6,7 +6,7 @@ import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import { afterEach, describe, expect, it } from 'vitest'
 import type { DockerResult, DockerRunner } from '../src/adapters/container.ts'
-import { ChecksumError } from '../src/adapters/download.ts'
+import { ChecksumError } from '@clara/adapter-artifact'
 import {
   adapterBinaryPath,
   adapterCommand,

@@ -1,10 +1,10 @@
 import { join } from 'node:path'
-import { AdapterRegistry, ADAPTER_KINDS } from '../adapters/registry.ts'
 import {
   detectAdapterTarget,
   UnsupportedPlatformError,
   type AdapterTarget,
-} from '../adapters/platform.ts'
+} from '@clara/adapter-artifact'
+import { AdapterRegistry, ADAPTER_KINDS } from '../adapters/registry.ts'
 import {
   adapterEnv,
   adapterRuntimeState,

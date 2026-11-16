@@ -1,8 +1,10 @@
 import { describe, expect, it } from 'vitest'
 import type { PanelInstallInfo } from '@clara/shared-types'
 import {
+  adapterRepairCommand,
   installManifest,
   installOffered,
+  latestAdapterVersion,
   registryCommand,
   registryError,
   repoCommand,
@@ -56,9 +58,16 @@ describe('install panel helpers', () => {
 
   it('builds the registry command and skips the runner for OpenCode', () => {
     expect(registryCommand(info, 'opencode', 'code')).toBe(
-      'curl -fsSL https://clara.example/adapters/opencode/install.sh | sh -s -- --pair code --no-runner'
+      "curl -fsSL https://clara.example/adapters/opencode/install.sh | CLARA_ADAPTER_REGISTRY_URL='https://clara.example/adapters' sh -s -- --pair code --no-runner"
     )
     expect(registryCommand(info, 'claude', 'code')).toBeUndefined()
+  })
+
+  it('builds a repair command that reuses the saved pairing', () => {
+    expect(adapterRepairCommand(info, 'opencode')).toBe(
+      "curl -fsSL https://clara.example/adapters/opencode/install.sh | CLARA_ADAPTER_REGISTRY_URL='https://clara.example/adapters' sh -s -- --reuse-pairing --no-runner"
+    )
+    expect(latestAdapterVersion(info, 'opencode')).toBe('0.1.0-dev+abc1234')
   })
 
   it('keeps the repository command as a fallback', () => {

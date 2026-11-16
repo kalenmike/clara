@@ -52,9 +52,9 @@ and editing a label all take effect from this surface.
    **Host resources** adds CPU, memory, adapter disk, a container badge, and the
    sample age.
 8. **Paired harnesses** lists every adapter with label, kind, fingerprint,
-   transport, version, status, last seen, and last test. **Test** probes it;
-   **Delete** removes the connection but keeps identity and Clara metadata, and
-   **Forget** purges both.
+   transport, version, status, last seen, and last test. **Update** asks it to
+   pull the published release and restart; **Test** probes it; **Delete** removes
+   the connection but keeps identity and Clara metadata; **Forget** purges both.
 
 ## Core business rules
 
@@ -128,9 +128,9 @@ and editing a label all take effect from this surface.
   `PATCH` sets `{ "alias": "..." }` or `null`; `POST .../purge` deletes a
   revoked record.
 - Harness pairing: `POST /panel/api/v1/harnesses/pairings` creates a code and
-  `DELETE .../pairings/:id` cancels it. `POST /panel/api/v1/harnesses/:id/test`
-  and `/forget` act on one adapter; `DELETE /panel/api/v1/harnesses/:id` deletes
-  the connection.
+  `DELETE .../pairings/:id` cancels it. `POST /panel/api/v1/harnesses/:id/test`,
+  `/update`, and `/forget` act on one adapter; `DELETE /panel/api/v1/harnesses/:id`
+  deletes the connection.
 - Install entry: `GET /panel/api/v1/install` returns registry manifests and
   availability; `POST /panel/api/v1/install` returns the offer without running
   it; `POST /panel/api/v1/install/settings` toggles it.

@@ -71,7 +71,7 @@ export class InstallService {
     const harnessUrl = opencodeUrl
       ? ` ${quoteShellArgument('--opencode-url')} ${quoteShellArgument(opencodeUrl)}`
       : ''
-    return `curl -fsSL ${manifest.install} | sh -s -- --pair ${code}${noRunner}${harnessUrl}`
+    return `curl -fsSL ${manifest.install} | CLARA_ADAPTER_REGISTRY_URL=${quoteShellArgument(this.baseUrl())} sh -s -- --pair ${code}${noRunner}${harnessUrl}`
   }
 
   deepLink(code: string, kind?: string): string {

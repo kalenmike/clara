@@ -29,6 +29,8 @@ export type InstallScriptInput = {
   installUrl: string
   pairingCode: string
   opencodeUrl?: string
+  /** Registry base recorded by the adapter for later self-updates. */
+  registryUrl?: string
 }
 
 export function validateKind(kind: unknown): string {
@@ -135,10 +137,30 @@ export function validateDockerTarget(value: unknown): DockerInstallTarget {
 /** How long the install waits for the adapter to authenticate with the hub. */
 const START_TIMEOUT_SECONDS = 60
 
+/**
+ * The registry base that serves a manifest's installer. Installers live at
+ * `<registry>/<kind>/v<version>-install.sh`.
+ */
+export function adapterRegistryBase(installUrl: string): string | undefined {
+  try {
+    const url = new URL(installUrl)
+    url.pathname = url.pathname.replace(/\/[^/]+\/?$/, '')
+    url.pathname = url.pathname.replace(/\/[^/]+\/?$/, '')
+    url.search = ''
+    url.hash = ''
+    if (!url.pathname || url.pathname === '/') return undefined
+    return url.toString().replace(/\/+$/, '')
+  } catch {
+    return undefined
+  }
+}
+
 export function buildInstallScript(input: InstallScriptInput): string {
   const args = ['--pair', input.pairingCode]
   if (input.kind === 'opencode') args.push('--no-runner')
   if (input.opencodeUrl) args.push('--opencode-url', input.opencodeUrl)
+  const registryUrl = input.registryUrl ?? adapterRegistryBase(input.installUrl)
+  const installer = `sh "$tmp" ${args.map(shellQuote).join(' ')}`
 
   return [
     'set -eu',
@@ -167,7 +189,7 @@ export function buildInstallScript(input: InstallScriptInput): string {
     '  echo "The adapter installer checksum did not match." >&2',
     '  exit 1',
     'fi',
-    `sh "$tmp" ${args.map(shellQuote).join(' ')}`,
+    `${registryUrl ? `CLARA_ADAPTER_REGISTRY_URL=${shellQuote(registryUrl)} ` : ''}${installer}`,
     '',
     '# The installer starts a service or a background process when it can, but a',
     '# clean exit does not prove the adapter stayed up. Start it (idempotent) and',

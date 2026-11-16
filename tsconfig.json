@@ -59,6 +59,9 @@
       "path": "./packages/adapters/install"
     },
     {
+      "path": "./packages/adapters/artifact"
+    },
+    {
       "path": "./packages/orchestration/control"
     },
     {

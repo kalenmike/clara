@@ -845,6 +845,11 @@ async function handleHarness(
       return
     }
 
+    if (method === 'POST' && id && action === 'update') {
+      sendJson(response, method, 200, await controls.updateHarness(id))
+      return
+    }
+
     if (method === 'POST' && id && action === 'forget') {
       sendJson(response, method, 200, await controls.forgetHarness(id))
       return

@@ -121,10 +121,13 @@
     "apps/adapters/pi": {
       "project": ["src/**/*.ts", "test/**/*.ts"],
       "ignoreDependencies": ["ws"]
+    },
+    "packages/adapters/artifact": {
+      "project": ["src/**/*.ts", "test/**/*.ts"]
     }
   },
   "ignore": ["tools/build/feature-flags.d.mts", "tools/build/version.d.mts"],
-  "ignoreBinaries": ["ss", "rustc", "ldd"],
+  "ignoreBinaries": ["ldd", "rustc", "ss", "systemd-run"],
   "ignoreDependencies": ["yaml", "cloudflare", "better-sqlite3"],
   "rules": {
     "exports": "off",

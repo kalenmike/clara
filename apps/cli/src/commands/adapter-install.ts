@@ -1,3 +1,4 @@
+import { detectAdapterTarget } from '@clara/adapter-artifact'
 import { readManifest as readRunnerManifest } from '@clara/runner'
 import { AdapterRegistry, ADAPTER_KINDS, type AdapterKind } from '../adapters/registry.ts'
 import {
@@ -8,7 +9,6 @@ import {
   type UpgradeReport,
 } from '../adapters/install.ts'
 import { issueAdapterPairing, type PairingTransport } from '../adapters/pairing.ts'
-import { detectAdapterTarget } from '../adapters/platform.ts'
 import {
   adapterHasPairing,
   readAdapterState,
