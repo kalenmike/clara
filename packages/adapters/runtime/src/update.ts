@@ -484,7 +484,7 @@ function startUpdateSupervisor(paths: AdapterPaths, planPath: string, kind: stri
           process.execPath,
           ...args,
         ],
-        { stdio: 'ignore', env: process.env, windowsHide: true }
+        { stdio: 'ignore', env: process.env, windowsHide: true, timeout: 10_000 }
       )
       if (result.status === 0) return
       console.error('systemd-run could not start the update supervisor; falling back')
