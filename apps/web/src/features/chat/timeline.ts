@@ -95,7 +95,10 @@ export function buildTimeline(
     if (!visibleIDs.has(message.id)) return
 
     if (message.type !== 'assistant') {
-      flushHidden()
+      // A prompt starts a new turn, so the previous turn's trailing hidden work
+      // stops here. System events happen inside a turn, and splitting their
+      // surrounding hidden steps would leave two Thinking rows in one turn.
+      if (message.type === 'user') flushHidden()
       if (message.type === 'synthetic') {
         const event = readClaraEvent(message) ?? readSystemReminder(message)
         if (event) {

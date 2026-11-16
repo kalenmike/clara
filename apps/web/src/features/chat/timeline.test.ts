@@ -319,6 +319,41 @@ describe('buildTimeline', () => {
     })
   })
 
+  it('keeps one thinking row when a system event splits hidden work', () => {
+    const before = priced(
+      assistant([{ type: 'reasoning', text: 'first' }, toolPart('tool-1')], 3),
+      100,
+      10,
+      0.01
+    )
+    const event = synthetic('User confirmed. Starting work.', { clara: { kind: 'build-start' } }, 4)
+    const after = priced(assistant([{ type: 'reasoning', text: 'second' }], 5), 200, 20, 0.02)
+
+    const items = timeline([user('Go'), before, event, after])
+
+    expect(items.map((item) => item.type)).toEqual(['message', 'event', 'hidden-activity'])
+    expect(items[2]).toMatchObject({
+      type: 'hidden-activity',
+      streaming: false,
+      summary: {
+        chars: 11,
+        tools: 1,
+        turns: 2,
+        input: 300,
+        output: 30,
+        cost: 0.03,
+      },
+    })
+  })
+
+  it('closes trailing hidden work before the next prompt', () => {
+    const hidden = priced(assistant([{ type: 'reasoning', text: 'working' }], 3), 100, 10)
+
+    const items = timeline([user('Go'), hidden, user('Again', 9)])
+
+    expect(items.map((item) => item.type)).toEqual(['message', 'hidden-activity', 'message'])
+  })
+
   it('includes hidden internals from a visible reply', () => {
     const reply = priced(
       assistant(
