@@ -5,7 +5,7 @@ import {
   isAdapterTarget,
   targetFor,
   UnsupportedPlatformError,
-} from '../src/adapters/platform.ts'
+} from '../src/index.ts'
 
 describe('adapter platform detection', () => {
   it('maps every supported operating system and architecture', () => {

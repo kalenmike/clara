@@ -9,7 +9,7 @@ import {
   extractArchive,
   type CommandResult,
   type CommandRunner,
-} from '../src/adapters/archive.ts'
+} from '../src/index.ts'
 
 const roots: string[] = []
 

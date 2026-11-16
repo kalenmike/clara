@@ -24,6 +24,7 @@
     "uninstall:local": "node scripts/install.mjs --uninstall"
   },
   "dependencies": {
+    "@clara/adapter-artifact": "workspace:*",
     "@clara/engine": "workspace:*",
     "@clara/hub-server": "workspace:*",
     "@clara/lab-server": "workspace:*",

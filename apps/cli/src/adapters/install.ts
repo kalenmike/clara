@@ -11,7 +11,7 @@ import {
 } from 'node:fs'
 import { tmpdir } from 'node:os'
 import { dirname, join, resolve } from 'node:path'
-import { archiveFormat, extractArchive } from './archive.ts'
+import { archiveFormat, extractArchive } from '@clara/adapter-artifact'
 import {
   containerRuntimeState,
   inspectContainer,
@@ -21,8 +21,13 @@ import {
   stopContainer,
   type DockerRunner,
 } from './container.ts'
-import { downloadVerified, type DownloadProgress } from './download.ts'
-import { detectAdapterTarget, isAdapterTarget, type AdapterTarget } from './platform.ts'
+import {
+  detectAdapterTarget,
+  downloadVerified,
+  isAdapterTarget,
+  type AdapterTarget,
+  type DownloadProgress,
+} from '@clara/adapter-artifact'
 import type { AdapterKind, AdapterRegistry } from './registry.ts'
 import {
   adapterEnv,

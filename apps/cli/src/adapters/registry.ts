@@ -2,7 +2,7 @@ import { existsSync, readFileSync } from 'node:fs'
 import { join } from 'node:path'
 import type { PanelInstallArtifact, PanelInstallManifest } from '@clara/shared-types'
 import { resolvePaths } from '../paths.ts'
-import type { AdapterTarget } from './platform.ts'
+import type { AdapterTarget } from '@clara/adapter-artifact'
 
 export const ADAPTER_KINDS = ['opencode', 'claude', 'pi'] as const
 export type AdapterKind = (typeof ADAPTER_KINDS)[number]
