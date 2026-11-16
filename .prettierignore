@@ -12,6 +12,10 @@ pnpm-lock.yaml
 **/src-tauri/gen
 **/src-tauri/binaries
 apps/hub/server/src/embedded-assets.generated.mjs
+apps/web/public/install
+apps/web/public/install.ps1
+apps/web/public/release/*
+!apps/web/public/release/README.md
 tools/docs/.docusaurus
 tools/docs/build
 packages/contracts/api-contract/src/generated
