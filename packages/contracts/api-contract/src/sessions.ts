@@ -1,4 +1,5 @@
 import { z } from 'zod'
+import { claraHarnessHostSchema } from './info.ts'
 import { claraJsonValueSchema } from './json.ts'
 import { claraModelRefSchema, claraTokenUsageSchema, type ClaraTokenUsage } from './models.ts'
 import { claraPermissionRuleSchema } from './permissions.ts'
@@ -20,6 +21,7 @@ export const claraProjectWorkspaceSchema = passthroughObject({
   harnessID: z.string(),
   harnessKind: z.string(),
   harnessLabel: z.string(),
+  harnessHost: claraHarnessHostSchema.optional(),
   online: z.boolean(),
   directory: z.string(),
   canonical: z.string().optional(),

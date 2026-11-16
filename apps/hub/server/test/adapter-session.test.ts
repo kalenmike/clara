@@ -263,6 +263,50 @@ describe('adapter sessions', () => {
     }
   })
 
+  it('stores the host an adapter reports on ready.ack', async () => {
+    const frames: WireFrame[] = []
+    const hosts: Array<{ harnessId: string; host: unknown }> = []
+    const adapters: AdapterSessionHandler = {
+      pairingToken: async () => undefined,
+      credential: async (id) =>
+        id === 'adapter-a'
+          ? { adapterId: 'adapter-a', harnessId: 'harness-a', key: ADAPTER_KEY }
+          : undefined,
+      enroll: async () => {
+        throw new Error('not used')
+      },
+      setLive: async () => undefined,
+      clearLive: async () => undefined,
+      setHost: (harnessId, host) => {
+        hosts.push({ harnessId, host })
+      },
+    }
+    const agent = new Agent({
+      api: api(),
+      devices: devices(),
+      info: { version: 'test', protocol: PROTOCOL_VERSION },
+      send: (frame) => frames.push(frame),
+      adapters,
+    })
+
+    try {
+      const client = await connect(agent, frames, { adapterId: 'adapter-a', key: ADAPTER_KEY })
+      await waitFor(() => (agent.getSnapshot().length > 0 ? true : undefined))
+      await send(client, agent, {
+        type: 'ready.ack',
+        agent: { version: 'test', protocol: PROTOCOL_VERSION },
+        host: { hostname: 'build-box', platform: 'linux', arch: 'x64' },
+      })
+      await waitFor(() => (hosts.length > 0 ? true : undefined))
+      expect(hosts[0]).toEqual({
+        harnessId: 'harness-a',
+        host: { hostname: 'build-box', platform: 'linux', arch: 'x64' },
+      })
+    } finally {
+      agent.close()
+    }
+  })
+
   it('clears the live adapter when its transport socket closes', async () => {
     const frames: WireFrame[] = []
     let live: ((request: Request) => Promise<Response>) | undefined

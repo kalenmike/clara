@@ -610,7 +610,11 @@ async function runPairAdapter(args: string[]): Promise<void> {
       key: secretKey.key,
       keyVersion: secretKey.version,
     })
-    const pairing = await store.createPairing({ kind, label })
+    const pairing = await store.createPairing({
+      kind,
+      label,
+      ...(transport === 'docker' ? { installMethod: 'docker' as const } : {}),
+    })
     const relay = transport === 'relay' ? usableRelay(config.relay) : undefined
     if (transport === 'relay' && !relay) {
       console.error(

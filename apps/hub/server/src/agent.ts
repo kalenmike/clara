@@ -20,6 +20,7 @@ import {
   parseWireFrame,
   type AdapterAction,
   type AdapterEnrollAction,
+  type AdapterHostIdentity,
   type AdapterState,
   type AgentInfo,
   type ClaraAction,
@@ -161,6 +162,11 @@ export type AdapterSessionHandler = {
     transport: PanelTransport
   ) => Promise<void>
   clearLive: (harnessId: string, fetch?: (request: Request) => Promise<Response>) => Promise<void>
+  /**
+   * Keep the machine or container an adapter reports. Optional so tests and
+   * older embeddings can omit host tracking without breaking a session.
+   */
+  setHost?: (harnessId: string, host: AdapterHostIdentity) => Promise<void> | void
 }
 
 /**
@@ -741,7 +747,15 @@ export class Agent {
         case 'adapter.error':
           session.adapterBridge?.handleState(payload)
           return
-        case 'ready.ack':
+        case 'ready.ack': {
+          const setHost = this.options.adapters?.setHost
+          if (session.harnessId && payload.host && setHost) {
+            Promise.resolve(setHost(session.harnessId, payload.host)).catch((cause) => {
+              this.options.log?.('could not store the adapter host report', cause)
+            })
+          }
+          return
+        }
         case 'pong':
           return
         case 'ping':

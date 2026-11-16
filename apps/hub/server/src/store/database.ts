@@ -6,7 +6,7 @@ import { openSqlite, type SqliteDatabase } from '@clara/sqlite'
 
 export type ClaraDatabase = SqliteDatabase
 
-export const SCHEMA_VERSION = 16
+export const SCHEMA_VERSION = 17
 
 const BUSY_TIMEOUT_MS = 5_000
 const DATABASE_MODE = 0o600
@@ -612,6 +612,41 @@ const MIGRATIONS: Migration[] = [
       CREATE INDEX IF NOT EXISTS panel_sessions_expiry
         ON panel_sessions(idle_expires_at, absolute_expires_at);
     `)
+  },
+  /**
+   * Adapters can report the machine or container they run on, and a panel
+   * install records whether it ran locally, over SSH, or inside Docker. Both
+   * are display metadata so identical harness kinds stay distinguishable.
+   */
+  (db) => {
+    const connections = db
+      .prepare(
+        "SELECT name FROM sqlite_master WHERE type = 'table' AND name = 'harness_connections'"
+      )
+      .get()
+    if (connections) {
+      const columns = db.prepare('PRAGMA table_info(harness_connections)').all() as Array<{
+        name: string
+      }>
+      const names = new Set(columns.map((column) => column.name))
+      if (!names.has('host_json')) {
+        db.exec('ALTER TABLE harness_connections ADD COLUMN host_json TEXT')
+      }
+      if (!names.has('install_method')) {
+        db.exec('ALTER TABLE harness_connections ADD COLUMN install_method TEXT')
+      }
+    }
+    const pairings = db
+      .prepare("SELECT name FROM sqlite_master WHERE type = 'table' AND name = 'harness_pairings'")
+      .get()
+    if (pairings) {
+      const columns = db.prepare('PRAGMA table_info(harness_pairings)').all() as Array<{
+        name: string
+      }>
+      if (!columns.some((column) => column.name === 'install_method')) {
+        db.exec('ALTER TABLE harness_pairings ADD COLUMN install_method TEXT')
+      }
+    }
   },
 ]
 

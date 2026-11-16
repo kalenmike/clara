@@ -7,6 +7,11 @@ import {
   randomBytes,
   sealSecret,
 } from '@clara/crypto'
+import type {
+  AdapterHostIdentity,
+  HarnessContainerRuntime,
+  HarnessInstallMethod,
+} from '@clara/shared-types'
 import type { ClaraDatabase } from '../store/database.ts'
 import {
   HarnessValidationError,
@@ -29,6 +34,8 @@ type ConnectionRow = {
   label: string
   transport: HarnessTransport | null
   online: number
+  host_json: string | null
+  install_method: string | null
   adapter_version: string | null
   protocol_version: number | null
   harness_version: string | null
@@ -66,6 +73,7 @@ type PairingRow = SecretRow & {
   expires_at: number
   used_at: number | null
   used_harness_id: string | null
+  install_method: string | null
 }
 
 const PAIRING_TTL_MS = 10 * 60_000
@@ -84,6 +92,7 @@ export type EnrollAdapterInput = {
   harnessVersion?: string
   capabilities: Record<string, unknown>
   transport: HarnessTransport
+  host?: AdapterHostIdentity
 }
 
 export type EnrollAdapterResult = {
@@ -206,6 +215,28 @@ export class HarnessStore {
   }
 
   /**
+   * Replace the adapter's host report. The install method is owned by the
+   * pairing, so a reconnect cannot change it. Returns true only when the stored
+   * report changed, keeping panel notifications quiet on an unchanged reconnect.
+   */
+  setHost(harnessId: string, host: AdapterHostIdentity): boolean {
+    const row = this.db
+      .prepare('SELECT host_json FROM harness_connections WHERE harness_id = ?')
+      .get(harnessId) as { host_json: string | null } | undefined
+    if (!row) return false
+    const next = JSON.stringify(normalizeHostIdentity(host))
+    if (row.host_json === next) return false
+    this.db
+      .prepare(
+        `UPDATE harness_connections
+            SET host_json = ?, updated_at = ?
+          WHERE harness_id = ?`
+      )
+      .run(next, Date.now(), harnessId)
+    return true
+  }
+
+  /**
    * Online is live-session state, not saved configuration. Clear it when the
    * hub starts so a stopped adapter cannot look online from a previous run.
    */
@@ -219,7 +250,11 @@ export class HarnessStore {
       .run(Date.now())
   }
 
-  async createPairing(input: { kind: string; label: string }): Promise<HarnessPairing> {
+  async createPairing(input: {
+    kind: string
+    label: string
+    installMethod?: HarnessInstallMethod
+  }): Promise<HarnessPairing> {
     this.db
       .prepare(
         `DELETE FROM harness_pairings
@@ -247,8 +282,8 @@ export class HarnessStore {
       .prepare(
         `INSERT INTO harness_pairings
            (id, kind, label, token_ciphertext, token_nonce, key_version, fingerprint,
-            created_at, expires_at)
-         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)`
+            created_at, expires_at, install_method)
+         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`
       )
       .run(
         id,
@@ -259,7 +294,8 @@ export class HarnessStore {
         this.keyVersion,
         fingerprint,
         now,
-        now + PAIRING_TTL_MS
+        now + PAIRING_TTL_MS,
+        input.installMethod ?? null
       )
     return {
       id,
@@ -269,6 +305,7 @@ export class HarnessStore {
       fingerprint,
       createdAt: now,
       expiresAt: now + PAIRING_TTL_MS,
+      ...(input.installMethod ? { installMethod: input.installMethod } : {}),
     }
   }
 
@@ -276,28 +313,33 @@ export class HarnessStore {
     const rows = this.db
       .prepare(
         `SELECT id, kind, label, fingerprint, created_at, expires_at,
-                token_ciphertext AS ciphertext, token_nonce AS nonce, key_version, used_at
+                token_ciphertext AS ciphertext, token_nonce AS nonce, key_version, used_at,
+                install_method
            FROM harness_pairings
           WHERE used_at IS NULL AND expires_at > ?
           ORDER BY created_at ASC`
       )
       .all(Date.now()) as PairingRow[]
-    return rows.map((row) => ({
-      id: row.id,
-      kind: row.kind,
-      label: row.label,
-      token: '',
-      fingerprint: row.fingerprint,
-      createdAt: row.created_at,
-      expiresAt: row.expires_at,
-    }))
+    return rows.map((row) => {
+      const installMethod = parseInstallMethod(row.install_method)
+      return {
+        id: row.id,
+        kind: row.kind,
+        label: row.label,
+        token: '',
+        fingerprint: row.fingerprint,
+        createdAt: row.created_at,
+        expiresAt: row.expires_at,
+        ...(installMethod ? { installMethod } : {}),
+      }
+    })
   }
 
   async pairingToken(id: string): Promise<string | undefined> {
     const row = this.db
       .prepare(
         `SELECT id, token_ciphertext AS ciphertext, token_nonce AS nonce,
-                key_version, fingerprint, expires_at, used_at
+                key_version, fingerprint, expires_at, used_at, install_method
            FROM harness_pairings
           WHERE id = ? AND expires_at > ?`
       )
@@ -318,7 +360,7 @@ export class HarnessStore {
       .prepare(
         `SELECT id, kind, label, token_ciphertext AS ciphertext, token_nonce AS nonce,
                 key_version, fingerprint, created_at, expires_at,
-                used_at, used_harness_id
+                used_at, used_harness_id, install_method
            FROM harness_pairings WHERE id = ?`
       )
       .get(input.pairId) as PairingRow | undefined
@@ -411,7 +453,9 @@ export class HarnessStore {
             `UPDATE harness_connections
                 SET harness_id = ?, kind = ?, label = ?, transport = ?, online = 0,
                     adapter_version = ?, protocol_version = ?, harness_version = ?,
-                    capabilities_json = ?, credential_id = ?, last_seen_at = ?, updated_at = ?
+                    capabilities_json = ?, credential_id = ?, host_json = COALESCE(?, host_json),
+                    install_method = COALESCE(?, install_method),
+                    last_seen_at = ?, updated_at = ?
               WHERE id = ?`
           )
           .run(
@@ -424,6 +468,8 @@ export class HarnessStore {
             input.harnessVersion ?? null,
             JSON.stringify(input.capabilities),
             input.adapterId,
+            input.host ? JSON.stringify(normalizeHostIdentity(input.host)) : null,
+            parseInstallMethod(pairing.install_method) ?? null,
             now,
             now,
             connectionID
@@ -434,8 +480,8 @@ export class HarnessStore {
             `INSERT INTO harness_connections
                (id, kind, label, created_at, updated_at, harness_id, credential_id,
                 transport, online, adapter_version, protocol_version, harness_version,
-                capabilities_json, last_seen_at)
-             VALUES (?, ?, ?, ?, ?, ?, ?, ?, 0, ?, ?, ?, ?, ?)`
+                capabilities_json, host_json, install_method, last_seen_at)
+             VALUES (?, ?, ?, ?, ?, ?, ?, ?, 0, ?, ?, ?, ?, ?, ?, ?)`
           )
           .run(
             connectionID,
@@ -450,6 +496,8 @@ export class HarnessStore {
             input.protocolVersion,
             input.harnessVersion ?? null,
             JSON.stringify(input.capabilities),
+            input.host ? JSON.stringify(normalizeHostIdentity(input.host)) : null,
+            parseInstallMethod(pairing.install_method) ?? null,
             now
           )
       }
@@ -494,6 +542,7 @@ export class HarnessStore {
 const selectConnection = `
   SELECT c.id, c.harness_id, c.kind, c.label, c.transport, c.online,
          c.adapter_version, c.protocol_version, c.harness_version, c.capabilities_json,
+         c.host_json, c.install_method,
          c.last_test_at, c.last_test_ok, c.last_test_error,
          c.last_seen_at, c.created_at, c.updated_at, c.credential_id,
          ac.fingerprint AS credential_fingerprint
@@ -501,6 +550,8 @@ const selectConnection = `
     LEFT JOIN adapter_credentials ac ON ac.adapter_id = c.credential_id`
 
 function toConnection(row: ConnectionRow): HarnessConnection {
+  const host = parseHost(row.host_json)
+  const installMethod = parseInstallMethod(row.install_method)
   return {
     id: row.id,
     harnessId: row.harness_id,
@@ -508,6 +559,9 @@ function toConnection(row: ConnectionRow): HarnessConnection {
     label: row.label,
     transport: row.transport === 'relay' ? 'relay' : 'local',
     online: row.online === 1,
+    ...(host || installMethod
+      ? { host: { ...host, ...(installMethod ? { installMethod } : {}) } }
+      : {}),
     ...(row.credential_fingerprint ? { fingerprint: row.credential_fingerprint } : {}),
     ...(row.adapter_version ? { adapterVersion: row.adapter_version } : {}),
     ...(row.protocol_version !== null ? { protocolVersion: row.protocol_version } : {}),
@@ -533,6 +587,71 @@ function parseObject(value: string | null): Record<string, unknown> {
   } catch {
     return {}
   }
+}
+
+const MAX_HOST_VALUE = 253
+const CONTAINER_RUNTIMES = new Set<HarnessContainerRuntime>([
+  'docker',
+  'podman',
+  'kubernetes',
+  'other',
+])
+const INSTALL_METHODS = new Set<HarnessInstallMethod>(['local', 'ssh', 'docker'])
+
+function parseInstallMethod(value: string | null): HarnessInstallMethod | undefined {
+  return value && INSTALL_METHODS.has(value as HarnessInstallMethod)
+    ? (value as HarnessInstallMethod)
+    : undefined
+}
+
+/** Keep a hostile or malformed report from bloating the database or panel. */
+function normalizeHostIdentity(host: AdapterHostIdentity): AdapterHostIdentity {
+  const hostname = normalizeHostValue(host.hostname)
+  const platform = normalizeHostValue(host.platform)
+  const arch = normalizeHostValue(host.arch)
+  const runtime = host.container?.runtime
+  return {
+    ...(hostname ? { hostname } : {}),
+    ...(platform ? { platform } : {}),
+    ...(arch ? { arch } : {}),
+    ...(runtime && CONTAINER_RUNTIMES.has(runtime) ? { container: { runtime } } : {}),
+  }
+}
+
+function parseHost(value: string | null): AdapterHostIdentity | undefined {
+  if (!value) return undefined
+  try {
+    const parsed = JSON.parse(value) as unknown
+    if (!parsed || typeof parsed !== 'object' || Array.isArray(parsed)) return undefined
+    const record = parsed as Record<string, unknown>
+    const container =
+      record.container && typeof record.container === 'object' && !Array.isArray(record.container)
+        ? (record.container as Record<string, unknown>)
+        : undefined
+    const runtime = container?.runtime
+    const host = normalizeHostIdentity({
+      ...(typeof record.hostname === 'string' ? { hostname: record.hostname } : {}),
+      ...(typeof record.platform === 'string' ? { platform: record.platform } : {}),
+      ...(typeof record.arch === 'string' ? { arch: record.arch } : {}),
+      ...(typeof runtime === 'string' && CONTAINER_RUNTIMES.has(runtime as HarnessContainerRuntime)
+        ? { container: { runtime: runtime as HarnessContainerRuntime } }
+        : {}),
+    })
+    return Object.keys(host).length > 0 ? host : undefined
+  } catch {
+    return undefined
+  }
+}
+
+function normalizeHostValue(value: string | undefined): string | undefined {
+  if (!value) return undefined
+  let cleaned = ''
+  for (const character of value) {
+    const code = character.codePointAt(0) ?? 0
+    if (code > 0x1f && code !== 0x7f) cleaned += character
+  }
+  const trimmed = cleaned.trim()
+  return trimmed ? trimmed.slice(0, MAX_HOST_VALUE) : undefined
 }
 
 function credentialAad(adapterId: string): string {

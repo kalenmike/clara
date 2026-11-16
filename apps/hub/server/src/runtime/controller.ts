@@ -9,7 +9,12 @@ import {
   encodePairingCode,
   type HarnessPairingPayload,
 } from '@clara/shared-types'
-import { installLabel, validateKind, validateOpencodeUrl } from '@clara/adapter-install'
+import {
+  installLabel,
+  isAdapterInstallMethod,
+  validateKind,
+  validateOpencodeUrl,
+} from '@clara/adapter-install'
 import type {
   AdapterInstallMethod,
   AdapterInstallOffer,
@@ -137,6 +142,8 @@ function adapterSessions(harness: HarnessManager) {
     ) => harness.setLive(harnessId, fetch, transport),
     clearLive: (harnessId: string, fetch?: (request: Request) => Promise<Response>) =>
       harness.clearLive(harnessId, fetch),
+    setHost: (harnessId: string, host: Parameters<HarnessManager['setHost']>[1]) =>
+      harness.setHost(harnessId, host),
   }
 }
 
@@ -1010,6 +1017,7 @@ export class RuntimeController {
     const kind = typeof record.kind === 'string' ? record.kind.trim() : ''
     const label = typeof record.label === 'string' ? record.label.trim() : ''
     if (!kind) throw new PanelControlError(400, 'invalid_kind', 'Choose a harness type')
+    const installMethod = isAdapterInstallMethod(record.method) ? record.method : undefined
     const requestedTransport =
       record.transport === 'local' || record.transport === 'relay' || record.transport === 'docker'
         ? record.transport
@@ -1039,7 +1047,11 @@ export class RuntimeController {
     }
     const transport = requestedTransport
     const pairing = await harnessCall(() =>
-      this.options.harness.createPairing({ kind, label: label || kind })
+      this.options.harness.createPairing({
+        kind,
+        label: label || kind,
+        ...(installMethod ? { installMethod } : {}),
+      })
     )
     const localPort = this.options.config.local.port
     const room = transport === 'relay' && relay ? relay.room : 'local'
@@ -1089,6 +1101,7 @@ export class RuntimeController {
         kind,
         label: label || kind,
         transport,
+        ...(pairing.installMethod ? { installMethod: pairing.installMethod } : {}),
         code,
         wsUrl,
         room,
@@ -1125,6 +1138,7 @@ export class RuntimeController {
       kind,
       label: installLabel(kind),
       transport,
+      ...(input.method ? { method: input.method } : {}),
       ...(input.wsUrl ? { wsUrl: input.wsUrl } : {}),
     })
     const command = install.command(resolved.manifest, pairing.pairing.code, opencodeUrl)

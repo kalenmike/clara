@@ -114,6 +114,7 @@ function harnessConnection(): HarnessConnection {
     transport: 'local',
     online: true,
     fingerprint: 'harness-fingerprint',
+    host: { hostname: 'build-box', platform: 'linux', arch: 'x64', installMethod: 'local' },
     capabilities: {},
     lastTestAt: now,
     lastTestOk: true,
@@ -400,6 +401,12 @@ describe('PanelRuntime', () => {
       }),
     ])
     expect(snapshot.harnesses[0]?.fingerprint).toBe('harness-fingerprint')
+    expect(snapshot.harnesses[0]?.host).toEqual({
+      hostname: 'build-box',
+      platform: 'linux',
+      arch: 'x64',
+      installMethod: 'local',
+    })
   })
 
   it('warns about broad config permissions without revealing contents', async () => {

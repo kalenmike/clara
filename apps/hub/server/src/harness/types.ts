@@ -1,4 +1,4 @@
-import type { HttpMethod } from '@clara/shared-types'
+import type { HarnessHost, HarnessInstallMethod, HttpMethod } from '@clara/shared-types'
 
 export type HarnessKind = string
 export type HarnessTransport = 'local' | 'relay'
@@ -10,6 +10,8 @@ export type HarnessConnection = {
   label: string
   transport: HarnessTransport
   online: boolean
+  /** The machine or container the adapter reports, plus its install method. */
+  host?: HarnessHost
   /** Fingerprint of the paired adapter credential. */
   fingerprint?: string
   adapterVersion?: string
@@ -107,4 +109,6 @@ export type HarnessPairing = {
   fingerprint: string
   createdAt: number
   expiresAt: number
+  /** Recorded from the panel install flow; absent for a plain pairing code. */
+  installMethod?: HarnessInstallMethod
 }
