@@ -49,7 +49,12 @@ const installScript = resolve(
 const installScriptPs1 = resolve(dirname(installScript), 'install.ps1')
 const token = process.env.GITHUB_TOKEN?.trim() || process.env.GH_TOKEN?.trim()
 
-const cliTag = await resolveTag(args['cli-tag'], fetchLatestCommandTag, 'command')
+let cliTag
+try {
+  cliTag = await resolveTag(args['cli-tag'], fetchLatestCommandTag, 'command')
+} catch (cause) {
+  fail(`No published command release: ${message(cause)}`)
+}
 const cli = await readCommandRelease(cliTag)
 const desktop = await readDesktopRelease(args['desktop-tag'])
 
@@ -92,11 +97,7 @@ console.log(`Manifest:  ${join(releaseDir, 'manifest.json')}`)
 
 async function resolveTag(value, fetchLatest, label) {
   if (!value || value === true || value === 'latest') {
-    try {
-      return await fetchLatest({ repo, apiUrl, token })
-    } catch (cause) {
-      fail(`No published ${label} release: ${message(cause)}`)
-    }
+    return fetchLatest({ repo, apiUrl, token })
   }
   const tag = String(value).trim()
   if (!versionFromTag(tag)) fail(`Cannot derive a ${label} version from ${tag}.`)
@@ -142,8 +143,9 @@ async function readDesktopRelease(value) {
   try {
     tag = await resolveTag(value, fetchLatestDesktopTag, 'desktop')
   } catch (cause) {
-    if (args['require-desktop']) fail(message(cause))
-    console.warn(`release registry: ${message(cause)}`)
+    const detail = message(cause)
+    if (value || args['require-desktop'] || !detail.includes('No published')) fail(detail)
+    console.warn(`release registry: ${detail}`)
     return undefined
   }
   const release = await releaseMetadata(tag)
