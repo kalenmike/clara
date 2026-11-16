@@ -1,14 +1,19 @@
 import { ATTENTION_LABELS, type AttentionKind } from './attention'
+import { nativeNotificationsAvailable, showNativeNotification } from './native'
 import { getServiceWorkerRegistration } from './push'
 
 export type NotificationPermissionState = NotificationPermission | 'unsupported'
 
 export function readNotificationPermission(): NotificationPermissionState {
+  // The desktop shell's notification plugin grants permission itself and does
+  // not expose the Web Notifications permission model.
+  if (nativeNotificationsAvailable()) return 'granted'
   if (typeof window === 'undefined' || !('Notification' in window)) return 'unsupported'
   return Notification.permission
 }
 
 export async function requestNotificationPermission(): Promise<NotificationPermissionState> {
+  if (nativeNotificationsAvailable()) return 'granted'
   if (!('Notification' in window)) return 'unsupported'
   try {
     return await Notification.requestPermission()
@@ -25,8 +30,17 @@ export async function showTestDesktopNotification(): Promise<boolean> {
   if (readNotificationPermission() !== 'granted') return false
 
   const title = 'Clara · Test'
+  const body = 'Desktop notifications are working. Inbox alerts will look like this.'
+  if (nativeNotificationsAvailable()) {
+    return showNativeNotification({
+      title,
+      body,
+      extra: { sessionID: 'test', kind: 'review' },
+    })
+  }
+
   const options: NotificationOptions = {
-    body: 'Desktop notifications are working. Inbox alerts will look like this.',
+    body,
     tag: 'clara:test',
     icon: '/favicon.png',
     badge: '/favicon.png',
@@ -70,6 +84,22 @@ export async function showDesktopNotification(input: {
   if (readNotificationPermission() !== 'granted') return
 
   const title = `Clara · ${ATTENTION_LABELS[input.kind]}`
+  if (nativeNotificationsAvailable()) {
+    if (
+      showNativeNotification({
+        title,
+        body: input.body,
+        extra: {
+          url: input.url,
+          sessionID: input.sessionID,
+          kind: input.kind,
+        },
+      })
+    ) {
+      return
+    }
+  }
+
   try {
     const registration = await getServiceWorkerRegistration()
     if (registration) {

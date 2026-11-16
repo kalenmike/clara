@@ -11,6 +11,10 @@ import {
   readNotificationPermission,
   showDesktopNotification,
 } from '@/features/notifications/notifier'
+import {
+  focusMainWindow,
+  subscribeNativeNotificationActions,
+} from '@/features/notifications/native'
 import { loadSessionAttention, resolveProjectID } from '@/features/notifications/session-attention'
 import { isPushActive } from '@/features/notifications/push'
 import { isAutomationSession } from '@/features/sessions/session-automation'
@@ -32,6 +36,15 @@ export function NotificationProvider({ children }: { children: ReactNode }) {
   const { subscribe } = useEventStream()
   const queryClient = useQueryClient()
   const navigate = useNavigate()
+
+  // The desktop shell routes native notification clicks through the plugin.
+  // Register before the provider can raise an alert so the plugin reports it.
+  useEffect(() => {
+    return subscribeNativeNotificationActions((action) => {
+      void focusMainWindow()
+      if (action.url) navigate(action.url)
+    })
+  }, [navigate])
 
   useEffect(() => {
     if (!client) return
