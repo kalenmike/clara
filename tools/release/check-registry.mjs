@@ -185,6 +185,9 @@ function checkInstallers(key) {
 
 async function checkReleases(value) {
   const cliTag = await resolveTag(args['cli-tag'], fetchLatestCommandTag, 'command')
+  if (value.cli.tag !== cliTag) {
+    problems.push(`cli tag ${value.cli.tag} does not match release ${cliTag}`)
+  }
   const cliAssets = await assets(cliTag)
   const cliManifestAsset = cliAssets.get('manifest.json')
   if (!cliManifestAsset) {
@@ -207,6 +210,9 @@ async function checkReleases(value) {
   const desktopTag = await resolveTag(args['desktop-tag'], fetchLatestDesktopTag, 'desktop')
   if (versionFromTag(desktopTag) !== value.desktop.version) {
     problems.push(`desktop version ${value.desktop.version} does not match release ${desktopTag}`)
+  }
+  if (value.desktop.tag !== desktopTag) {
+    problems.push(`desktop tag ${value.desktop.tag} does not match release ${desktopTag}`)
   }
   const desktopAssets = await assets(desktopTag)
   const mapped = desktopArtifactsFromAssets(desktopAssets)

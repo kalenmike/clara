@@ -22,7 +22,7 @@ export const DESKTOP_ASSETS = [
     pattern: /^Clara_.*_amd64\.AppImage$/,
     required: true,
   },
-  { platform: 'win32-x64', type: 'nsis', pattern: /^Clara_.*_x64-setup\.exe$/i, required: true },
+  { platform: 'win32-x64', type: 'nsis', pattern: /^Clara_.*_x64.*-setup\.exe$/i, required: true },
   {
     platform: 'linux-arm64',
     type: 'appimage',
@@ -32,7 +32,7 @@ export const DESKTOP_ASSETS = [
   {
     platform: 'win32-arm64',
     type: 'nsis',
-    pattern: /^Clara_.*_arm64-setup\.exe$/i,
+    pattern: /^Clara_.*_arm64.*-setup\.exe$/i,
     required: false,
   },
 ]
