@@ -1,497 +1,125 @@
 # Clara
 
-A secure web client for agent harnesses: projects, sessions, streaming chat,
-agents, models, slash commands, `@` mentions, and live usage. Clara reaches a
-harness through an **adapter**, a small process on the harness machine that
-connects out to the Clara hub over an end-to-end encrypted WebSocket, either
-through the Cloudflare relay or over a local connection on a trusted network.
-The repository includes an adapter for [OpenCode](https://opencode.ai).
+> [!WARNING]
+> **Clara is a work in progress.** Install paths, APIs, and interfaces may
+> change. Run it with a hub and harness you control, and expect rough edges.
 
-## Requirements
+Clara is a browser, home-screen, and desktop client for agent harnesses. It lets
+you browse projects, start and steer sessions, approve tool calls, and watch
+usage from another device. A small **hub** on your machine carries the connection
+to a paired **adapter**, which owns the harness connection and keeps the harness
+password on its own host. Traffic is end-to-end encrypted, over a local WebSocket
+or the optional Cloudflare relay.
 
-- Node 22 (see `.nvmrc`)
-- pnpm 11
-- Bun 1.4+ to build or run the hub executable
-- Rust and the platform WebView packages to build either desktop app
-- A running harness and its adapter. This release includes the OpenCode 2.1.x
-  adapter.
-- Optional: a Cloudflare account and your own domain for remote access
+The included adapters target OpenCode 2.1.x, Claude Code 2.1.325, and Pi 1.5.x.
 
-## Workspace
-
-```text
-apps/
-  web/                    React/Vite SPA, deployed to Cloudflare Pages or the local stack
-  desktop/                Tauri shell for the Clara client
-  hub/
-    server/               Hub service, CLI, Bun executable, /v1 API, and local WS + relay
-    panel/                Authenticated hub panel and setup surface
-  orchestrator/           Loopback engine service, REST/SSE/MCP (legacy path)
-  adapters/
-    opencode/             OpenCode harness adapter, binding, and standalone bin
-tools/
-  cli/                    Developer CLI for the stack, worktrees, and docs
-  lab/                    Loopback pipeline preview and agent probe
-  docs/                   User guide and internal documentation site
-packages/
-  contracts/              shared-types, api-contract, harness-protocol
-  api/                    api-client, mcp
-  orchestration/          engine, policy, control, mcp
-  adapters/               runtime, binding, runner
-  preview/                Pipeline preview, diagnostics, and snapshot diff SDK
-  crypto/                 Device-key derivation, AES-GCM envelopes, replay guard
-infra/
-  relay/                  Cloudflare Worker + RelayRoom Durable Object
-  docker/                 Desktop build image and the OpenCode adapter container
-```
-
-## Development workflow
-
-All new work happens in a task worktree under `../clara-worktrees`:
+## Install
 
 ```bash
-pnpm task session start my-change
-# move the session to ../clara-worktrees/my-change, or cd there
-pnpm check && pnpm build
-pnpm cli:build       # Packaged `clara` command (host OS)
-pnpm cli:install     # Install that build for the current user
-pnpm desktop:build   # Clara client installer (host OS)
-pnpm desktop:build:release # Installers collected for a release (host OS)
-pnpm hub:binary      # Clara Hub Bun executable (host OS)
-pnpm hub:headless    # Headless Clara Hub archive for the host OS
-pnpm task session close my-change
+curl -fsSL https://clara.kalenmichael.com/install | sh
 ```
 
-Run `start` and `close` from the primary checkout. `start` creates branch
-`task/my-change` and installs dependencies; `close` refuses uncommitted work,
-runs the checks and build, merges into the primary `HEAD`, then removes the
-worktree and branch. See [docs/development.md](docs/development.md).
-
-## Fast setup
-
-With a harness running, a local checkout needs:
+The installer detects your platform, verifies the signed release manifest and
+archive checksum, and installs the `clara` command. On macOS, and on Linux and
+Windows with a desktop session, it also installs Clara Desktop. Use
+`--no-desktop` for a terminal-only install:
 
 ```bash
-pnpm install
-clara start --build
+curl -fsSL https://clara.kalenmichael.com/install | sh -s -- --no-desktop
+```
+
+On Windows, use PowerShell:
+
+```powershell
+irm https://clara.kalenmichael.com/install.ps1 | iex
+```
+
+See [Install the Clara command](tools/docs/guide/get-clara.md) for the Windows
+flags, direct release downloads, and signature details.
+
+### What you need
+
+- A machine to run the hub and the `clara` command.
+- A harness machine with one of the included adapters, or your own adapter.
+- A browser, installed PWA, or Clara Desktop.
+- Optional: a Cloudflare account and domain if devices connect from outside your
+  network.
+
+## Set up
+
+```bash
+clara setup
 clara status hub --open
-# In the panel: create the hub owner account, then follow the Setup modal:
-# choose Local only or configure the relay, pair a harness, and pair a client.
-# The modal can be dismissed and resumed from Settings -> Setup.
-# Alternatively, print a local code:
-clara pair --no-relay
-# Open http://127.0.0.1:8080 and pair.
 ```
 
-Until the owner account exists, the hub serves only its loopback setup screen
-and starts no transports. For a headless install, create it from a shell:
+Setup creates the hub owner account, starts the hub, engine, and web client, and
+offers to install a per-user login service. In the hub panel, pair a harness,
+then pair the browser or desktop client you want to use. You can dismiss the
+Setup modal and return from **Settings → Setup**.
+
+For a terminal pairing code instead:
 
 ```bash
-clara-server setup --password-stdin
+clara pair hub
 ```
 
-The Setup modal asks for Local only or a relay with an HTTPS Web URL; choose the
-path that matches where your devices will connect. An unattended start can set
-`CLARA_ADMIN_USERNAME` and `CLARA_ADMIN_PASSWORD` (or
-`CLARA_ADMIN_PASSWORD_FILE`) instead of using the panel setup screen.
-
-For orchestration only, install the harness adapter after the stack is up:
-
-```bash
-clara adapter install opencode --pair <code>
-```
-
-Only the OpenCode, Claude Code, and Pi adapters are included with this release.
-The hub and web client are harness-neutral: another adapter can implement the
-same Clara Harness Protocol and appear in the panel.
-
-The hub does **not** read OpenCode's `service.json`; the adapter discovers its
-harness on its own machine. The harness connection is saved in the authenticated
-panel, and the adapter credential is stored in SQLite encrypted at rest. See
-[First run](#first-run) for the token file and container networking details.
-
-## Development quick start
-
-```bash
-pnpm install
-opencode service start      # or: opencode serve
-pnpm dev                    # web on :5173 and the hub service on :8788
-clara pair                  # print a pairing code for the connect screen
-```
-
-Open <http://localhost:5173> and pair with the code from `clara pair`, or
-sign in to the panel at <http://localhost:8790> and create a code under
-**Clients → Pair Client**.
-
-### First run
-
-1. Start the hub (`pnpm dev` or `clara start hub`).
-2. Open the panel at <http://127.0.0.1:8790> with `clara status hub --open`.
-3. Create the hub owner account. No other hub service starts until this account
-   exists. For a headless install, run
-   `clara-server setup --password-stdin` instead.
-4. Follow the Setup modal. Choose **Local only** or configure the relay with an
-   HTTPS Web URL, then pair a harness and run the printed install command on the
-   harness machine. The adapter finds the harness or prompts for its URL and
-   credentials. Inside a container, the adapter connects to the hub at
-   `ws://server:8788/ws` on the `clara` network; for a containerized OpenCode,
-   the adapter uses a name such as `http://opencode:4096`.
-5. Pair a client from the modal, then scan the QR or open the link on the
-   browser or installed app you want to use. The code expires after 10 minutes
-   and enrolls one device. Dismiss the modal at any time and resume from
-   **Settings → Setup**.
-
-### Hub panel
-
-The hub service serves an authenticated dashboard and setup surface on its own
-listener. In development, run the API and the panel separately:
-
-```bash
-pnpm dev:server
-pnpm dev:panel   # http://localhost:5174
-```
-
-In a production build, the panel ships inside the hub service and is available at
-<http://127.0.0.1:8790> after `pnpm build` and `clara start hub`.
-Run `clara status hub --open` to open it in a browser; the command only opens a
-panel that is already being served. The panel never travels through the relay.
-From it you can create one-time browser pairing links and QR codes, add and
-manage harness adapters, disable the harness connection, local transport, relay,
-or push, start and stop the local engine service,
-and stop every external connection while the process, panel, and database stay
-alive. Settings and harness connections are stored at `CLARA_DB_PATH` or
-`~/.local/share/clara/clara.db` (mode `0600`); adapter credentials are encrypted
-with `secrets.key`. The harness password stays in the adapter's own config on the
-adapter host. The panel never returns device keys, adapter credentials, relay
-tokens, push endpoints, sync values, or file contents. See
-[docs/features/panel/index.md](docs/features/panel/index.md) and
-[docs/features/panel/controls.md](docs/features/panel/controls.md).
-
-### Hub API
-
-The hub serves its versioned API on the local listener (default
-<http://127.0.0.1:8788>). Swagger UI is at `/docs` and the OpenAPI document is at
-`/openapi.json`. The browser reaches the same API over the E2EE WebSocket; local
-tools use the bearer token stored in `api.token` in the hub config directory.
-
-Install the read-only API MCP for agents testing frontend code against live
-data:
-
-```bash
-clara-dev mcp install --api
-```
-
-The MCP reads `CLARA_API_URL` and `CLARA_API_TOKEN_FILE`. See
-[docs/architecture/api.md](docs/architecture/api.md).
-
-### Local stack
-
-The checkout CLI runs the stack as detached host processes. `clara start` starts
-the engine, the hub with its panel, and the web client; pass a target to start
-one service instead:
-
-```bash
-clara start --build
-clara start hub --build
-clara start web --build
-clara start engine
-clara status
-clara restart
-clara stop
-```
-
-`--build` builds the selected packages before starting. `stop` without a target
-stops the stack; pass a target to stop one service. `clara start engine
---foreground` runs the engine in the foreground instead.
-
-Local state lives under `~/.config/clara` and `~/.local/share/clara`. Hub
-settings, adapter credentials, and the database are described in
-[docs/development.md](docs/development.md#local-state); back the directories up
-with your normal file tools while the stack is stopped.
-
-`status` uses one table for every service and exits nonzero when any selected
-service is not running. It accepts a target and `--json`:
-
-```text
-Clara stack
-
-SERVICE  STATE             URL
-engine   running (local)   http://127.0.0.1:8789
-hub      running (local)   http://127.0.0.1:8788
-web      running (local)   http://127.0.0.1:8080
-
-Details
-  engine  database: local data directory; pid: 12345
-  hub     panel: http://127.0.0.1:8790 (running); admin: configured
-```
-
-`clara status --json` prints `{ "ok": true, "services": [...] }` with the same
-record for each service. The scoped `clara status hub --json`,
-`clara status web --json`, and `clara status engine --json` commands print one
-record with the same shape.
-
-### Hub
-
-The hub runs on its own as a detached host process:
-
-```bash
-clara start hub --build
-clara status hub
-clara-server setup --password-stdin
-clara pair
-```
-
-Its panel and local WebSocket listen on host loopback. Use an SSH tunnel for
-remote panel access; the panel's `Host`/`Origin` guard still expects a loopback
-origin. See [docs/features/connection.md](docs/features/connection.md) and
-[docs/features/panel/index.md](docs/features/panel/index.md).
-
-### Web
-
-The built SPA is served locally instead of Cloudflare Pages. It starts with
-`clara start`, or on its own with:
-
-```bash
-clara start web --build
-clara status web
-clara stop web
-```
-
-Open <http://127.0.0.1:8080>. The local server serves the same
-`apps/web/dist` bundle as `pnpm --filter @clara/web build`.
-
-Pairing mode comes from the hub. `clara pair` prints a relay code when the hub
-has a relay configured and a local code otherwise; add `--no-relay` to force a
-local code and print the local web app link. The relay code already carries its
-`wss://…/room/<id>` URL, so `VITE_CLARA_WS_URL` is only needed when the browser
-must use a different relay endpoint than the hub:
-
-```bash
-VITE_CLARA_WS_URL=wss://relay.example pnpm --filter @clara/web build
-```
-
-The default Web URL is `http://127.0.0.1:8080`. Set **Web URL** in the hub panel
-for Pages or a remote deployment; `CLARA_PAIRING_BASE_URL` still overrides the
-panel for automation. A `--no-relay` code prints the local web app link even
-when the configured Web URL is remote.
-
-Local pairing works from `http://127.0.0.1:8080` or an SSH tunnel. An HTTPS page
-cannot open a `ws://` socket, so phones and remote browsers still need the relay.
-See [docs/features/install.md](docs/features/install.md) and
-[docs/features/connection.md](docs/features/connection.md).
-
-### Engine
-
-The engine also runs without the hub or web client:
-
-```bash
-clara start engine --build
-clara status engine
-clara stop engine
-```
-
-It serves REST, SSE, and MCP on `127.0.0.1:8789` with its bearer token and needs
-only a run workspace plus a harness adapter to execute work orders. The bundled
-default config routes to the standard packages; set `CLARA_ENGINE_CONFIG` to an
-`index.yml` to supply your own routing. The included OpenCode adapter and Clara
-Lab talk to it directly; the web client is not required. See
-[docs/features/orchestration/index.md](docs/features/orchestration/index.md).
-
-### Local WebSocket mode
-
-Pair with the local hub directly from **Clients → Pair Client** with
-**Local connection only**, or run:
-
-```bash
-clara pair
-```
-
-The pairing payload carries the hub's own `ws://127.0.0.1:8788/ws` URL, so no
-build-time endpoint is needed. Scan the QR or paste the code on the connect
-screen. Local mode still uses E2EE; it does not fall back to plaintext.
-
-Choose the panel's local-only option, or add `--no-relay`
-(`clara pair --no-relay`), to force a local-only code and print the local
-web app link even when the hub has a relay configured. The local listener runs
-alongside the relay client, so this exercises the WebSocket transport without
-sending traffic through Cloudflare. For the dev app,
-set **Web URL** to `http://localhost:5173` in the hub panel (or set
-`CLARA_PAIRING_BASE_URL=http://localhost:5173` when pairing) so the printed link
-opens Vite directly.
-
-A `local` pairing code only works where that URL is reachable, and an HTTPS page
-cannot open a `ws://` socket. For phones, configure the relay instead.
-
-### Relay mode
-
-1. Deploy the Worker once:
-
-   ```bash
-   cd infra/relay
-   pnpm exec wrangler secret put CLARA_AGENT_TOKEN
-   cd ../..
-   pnpm deploy:relay
-   ```
-
-2. Build the web app with:
-
-   ```bash
-   VITE_CLARA_WS_URL=wss://relay.example pnpm --filter @clara/web build
-   ```
-
-   Use your own relay host. `pnpm deploy:web` reads `VITE_CLARA_WS_URL` from the
-   environment the same way.
-
-3. Deploy `apps/web/dist` to your Pages project and attach your own domain.
-
-4. Configure the hub. Open **Connections → Relay** in the hub panel and save
-   your relay URL with the same hub token you set on the Worker. The hub
-   generates a random room and stores the token encrypted in
-   `~/.config/clara/relay-credentials.json`. Use **Regenerate room** to replace
-   the room; it cannot be typed. Set **Web URL** to
-   `https://your-clara.example` for a Pages deployment.
-
-   Environment variables remain available as a CI or headless fallback. The
-   systemd unit reads `~/.config/clara/server.env` (`KEY=value`, mode `0600`):
-
-   ```bash
-   CLARA_RELAY_URL=wss://relay.example
-   CLARA_RELAY_ROOM=<generated on first run, persisted in server.json>
-   CLARA_AGENT_TOKEN=<must match the Worker secret>
-   ```
-
-   Each variable wins over the matching panel value when it is set, and is never
-   written to disk. A URL with no hub token in either the environment or the
-   panel stops the hub at startup with an error naming the missing token.
-
-5. Restart the hub service and check `relay connecting` / `relay online` in its log.
-   `clara pair` must then print a random `Room:` and a `/room/<id>` link;
-   a `Room: local` code is local-only and cannot work through the relay.
-
-`VITE_CLARA_WS_URL` is the relay deployment switch: it retargets relay-room
-pairings and is ignored for `local` pairing codes. When unset, the pairing
-payload's URL is used. See
-[docs/architecture/relay.md](docs/architecture/relay.md) for the full topology.
-
-## Push notifications
-
-When Clara is connected through the hub, **Settings → Notifications** can
-enable Web Push. The hub generates a VAPID key pair on first run and stores
-subscriptions at `~/.config/clara/subscriptions.json`.
-
-- On iPhone and iPad, add Clara to the Home Screen from Safari and open it from
-  that icon before enabling push.
-- Brave on desktop needs **Use Google services for push messaging** enabled at
-  `brave://settings/privacy`; Brave has no push service of its own, so
-  subscribing fails until that setting is on and the browser is relaunched.
-- The hub must be able to reach the browser vendor's push service over HTTPS.
-- Revoking a device in the panel clears that device's stored push
-  subscriptions. `clara pair --revoke-all` clears all of them.
-- `CLARA_VAPID_SUBJECT` overrides the VAPID contact subject. The default is
-  `https://clara.local`; the hub panel can edit the contact stored in
-  `vapid.json`.
-- Test push from a production build with the hub URL
-  (`VITE_CLARA_WS_URL=ws://127.0.0.1:8788 pnpm build && pnpm preview`) or the
-  deployed PWA; the Vite dev server does not enable the service worker.
-
-## Client settings sync
-
-The hub can store non-secret browser preferences for paired devices, with
-per-namespace revisions, deletes, and size limits over the E2EE session. The
-storage and protocol exist; the web client does not sync settings yet and there
-is no UI for it. See [docs/features/sync.md](docs/features/sync.md).
-
-## Scripts
-
-| Command                   | Purpose                                                     |
-| ------------------------- | ----------------------------------------------------------- |
-| `pnpm task session start` | Create a task worktree under `../clara-worktrees`           |
-| `pnpm task session list`  | List task worktrees                                         |
-| `pnpm task session close` | Check, merge, and remove a task worktree                    |
-| `pnpm dev`                | Web dev server and hub service                              |
-| `pnpm dev:web`            | Web only                                                    |
-| `pnpm dev:panel`          | Hub panel dev server                                        |
-| `pnpm dev:server`         | Hub service only                                            |
-| `pnpm dev:relay`          | Local `wrangler dev` for the Worker/DO                      |
-| `pnpm build`              | Build every workspace package                               |
-| `clara pair`              | Print a browser or adapter pairing code                     |
-| `clara status hub --open` | Open the hub panel in a browser                             |
-| `clara start [target]`    | Start the stack or one target                               |
-| `clara stop [target]`     | Stop the stack or one target                                |
-| `clara restart [target]`  | Restart the stack or one target                             |
-| `clara status [target]`   | Probe the stack or one target                               |
-| `clara logs [target]`     | Follow a service log                                        |
-| `clara adapter install`   | Install, upgrade, verify, or remove a harness adapter       |
-| `clara start runner`      | Run script steps for a workspace                            |
-| `clara rebuild`           | Rebuild Clara, recover services, inspect, and verify health |
-| `pnpm test`               | Run crypto, protocol, server, web, and Worker tests         |
-| `pnpm check`              | Typecheck + lint + format + Knip + tests                    |
-| `pnpm commitlint`         | Lint the last commit message                                |
-| `pnpm deploy:web`         | Build and deploy the Pages project                          |
-| `pnpm deploy:web:release` | Generate or copy the release registry, then deploy Pages    |
-| `pnpm release:registry`   | Rebuild the signed CLI and desktop registry                 |
-| `pnpm release:check`      | Check the registry against the latest releases              |
-| `pnpm deploy:relay`       | Deploy the Worker and DO migration                          |
-| `pnpm format`             | Prettier write                                              |
-| `pnpm format:check`       | Prettier check                                              |
-
-## Security
-
-- Cloudflare sees ciphertext and routing metadata only.
-- The browser never receives the harness password.
-- A pairing link carries a one-time enrollment token, never a long-lived key.
-  The browser stores its per-device key as a non-extractable `CryptoKey` in
-  IndexedDB. The hub stores device keys encrypted with `secrets.key`.
-- Web Push subscriptions live at `~/.config/clara/subscriptions.json`; VAPID
-  keys live at `~/.config/clara/vapid.json`. Both use mode `0600`.
-- Hub settings, client sync data, and harness connections live in
-  `~/.local/share/clara/clara.db` (mode `0600`). Adapter credentials are
-  encrypted with `secrets.key` (mode `0600`) or `CLARA_SECRET_KEY`; the database
-  alone does not expose them. The harness URL and password stay in the adapter's
-  config on the adapter host. Push endpoints and sync secrets remain in their
-  existing files.
-- The hub panel requires a superadmin login. It listens on `127.0.0.1:8790`
-  by default, guards every request with Host/Origin/fetch-metadata checks, and
-  serves only a local setup screen until the owner account exists. No local
-  WebSocket, relay, harness probe, push, orchestration, or pairing starts before
-  then. The setup screen needs no token; `CLARA_ADMIN_SETUP_TOKEN` adds one for
-  an explicitly remote install, and `CLARA_ADMIN_PASSWORD` creates the owner
-  before startup for CI. A lost password is reset by a host command, which
-  writes a reset token in `admin-setup.txt` (mode `0600`).
-  It never returns device keys, adapter credentials, the relay token, push
-  endpoints, sync values, or file contents. A one-time pairing code is returned
-  only by the authenticated request that creates it, never in the status
-  snapshot. It is not exposed through the relay or Pages.
-- A lost panel password is reset with `clara-server admin reset`. That command
-  writes a new one-time reset token.
-  There is deliberately no network password-reset endpoint.
-- Never commit `.env`, `.dev.vars`, `service.json`, push subscriptions, VAPID
-  keys, pairing codes, tokens, device keys, `secrets.key`, or `admin-setup.txt`.
-- Revoke a lost device with `clara pair --revoke <deviceId>` or from the
-  panel. `clara pair --revoke-all` revokes every device and clears all
-  stored push subscriptions.
-
-See [docs/architecture/e2ee.md](docs/architecture/e2ee.md).
-
-## Stack
-
-Vite 8 · React 19 · TypeScript 6 · Tailwind CSS 4 · shadcn/ui · TanStack Query 5
-· React Router 8 · `@opencode/client` 2.1.1 · Node 22 · `ws` · Cloudflare
-Workers/Durable Objects.
-
-The included OpenCode adapter and Clara Lab pin `@opencode/client` to the server
-minor because the API is generated per release. See
-[docs/architecture/overview.md](docs/architecture/overview.md).
+Self-hosting details, relay setup, and headless installs are in the
+[self-hosting guide](tools/docs/guide/self-hosting/index.md).
+
+## Everyday commands
+
+| Command                        | What it does                              |
+| ------------------------------ | ----------------------------------------- |
+| `clara start` / `clara stop`   | Start or stop the local stack             |
+| `clara status`                 | Show service health and versions          |
+| `clara logs -f`                | Follow every service log                  |
+| `clara pair hub`               | Print a browser pairing code              |
+| `clara adapter install <kind>` | Install and pair a harness adapter        |
+| `clara desktop install`        | Install or update Clara Desktop           |
+| `clara update`                 | Verify and install a newer signed release |
+
+`clara doctor` prints paths, versions, login service state, and the installed
+desktop version.
+
+## What Clara does
+
+- Projects and sessions across every paired harness, with an inbox for work that
+  needs you.
+- Streaming chat, tool calls, approvals, questions, and plan handoff.
+- Model selection, token usage, and cost.
+- One-click adapter setup from the hub panel or Clara Desktop.
+- Local-only or relay connections with E2EE, per-device keys, and revocation.
+- Clara Desktop with native notifications, plus optional orchestration and Clara
+  Lab.
 
 ## Documentation
 
-End-user and self-hosting documentation lives in
-[tools/docs/guide/index.md](tools/docs/guide/index.md). Run the site locally with
-`clara start docs`; it serves the guide at `/guide/` and the developer docs at
-`/internals/`.
+- [User guide](tools/docs/guide/index.md) — pairing, sessions, chat, settings,
+  notifications, and desktop.
+- [Install and self-host](tools/docs/guide/self-hosting/index.md) — the hub,
+  adapters, relay, backups, and updates.
+- [Internal documentation](docs/README.md) — architecture, feature specs, and
+  development.
+- [Shipped scope](docs/features/capabilities.md) — what is implemented, partial,
+  or missing.
+- [AGENTS.md](AGENTS.md) — the repository contract for coding agents.
 
-Developer and agent documentation starts at [docs/README.md](docs/README.md).
-Feature specs follow [docs/features/GUIDE.md](docs/features/GUIDE.md); shipped
-scope lives in [docs/features/capabilities.md](docs/features/capabilities.md).
+Run the documentation site locally with `pnpm docs`; it serves the user guide at
+`/guide/` and the internal docs at `/internals/`.
 
-Agent instructions are in [AGENTS.md](AGENTS.md).
+## Work on Clara
+
+Clara is a pnpm workspace on Node 22, with Bun 1.4+ for the packaged command and
+Tauri/Rust for the desktop shell.
+
+```bash
+pnpm task session start my-change
+pnpm check
+pnpm build
+pnpm task session close my-change
+```
+
+Work happens in a task worktree under `../clara-worktrees`. The full workflow,
+workspace layout, release commands, and tooling live in
+[docs/development.md](docs/development.md). Agent-specific rules are in
+[AGENTS.md](AGENTS.md).
