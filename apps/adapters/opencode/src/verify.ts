@@ -61,6 +61,33 @@ export async function verifyOpenCode(
   }
 
   try {
+    const plugins = await gateway.client.plugin.list({ location: { directory } })
+    const plugin = plugins.data.find((entry) => entry.id === 'clara-policy')
+    if (!plugin) {
+      checks.push({
+        name: 'plugin',
+        status: 'fail',
+        detail:
+          'the Clara policy plugin is not loaded; reinstall the OpenCode binding or restart OpenCode',
+      })
+    } else if (plugin.state.status === 'failed') {
+      checks.push({
+        name: 'plugin',
+        status: 'fail',
+        detail: `the Clara policy plugin failed: ${plugin.state.error}`,
+      })
+    } else {
+      checks.push({
+        name: 'plugin',
+        status: 'ok',
+        detail: 'the Clara policy plugin is loaded',
+      })
+    }
+  } catch (cause) {
+    checks.push({ name: 'plugin', status: 'fail', detail: messageOf(cause) })
+  }
+
+  try {
     const sessions = await gateway.client.session.list({ directory })
     checks.push({
       name: 'sessions',
