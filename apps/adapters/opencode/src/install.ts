@@ -59,6 +59,7 @@ const CAPABILITIES = {
   worktrees: true,
   git: true,
   events: true,
+  maintenance: { update: true },
 }
 
 export type InstallOptions = {

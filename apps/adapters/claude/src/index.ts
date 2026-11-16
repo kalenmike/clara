@@ -1,10 +1,6 @@
 #!/usr/bin/env node
 import { join } from 'node:path'
-import {
-  adapterVersion,
-  runAdapterCli,
-  type AdapterDefinition,
-} from '@clara/adapter-runtime'
+import { adapterVersion, runAdapterCli, type AdapterDefinition } from '@clara/adapter-runtime'
 import { CLAUDE_CAPABILITIES } from './capabilities.ts'
 import { claudePaths, adapterConfigPath, type ClaudeConfig } from './config.ts'
 import { EventBus } from './events.ts'

@@ -35,5 +35,6 @@ export const PI_CAPABILITIES = {
   worktrees: true,
   git: true,
   events: true,
+  maintenance: { update: true },
   host: { metrics: true },
 }

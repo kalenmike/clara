@@ -81,10 +81,7 @@ export function readAdapterProvenance(root: string): AdapterInstallProvenance | 
 }
 
 /** Write the install record atomically so a status read never sees half of it. */
-export function writeAdapterProvenance(
-  root: string,
-  provenance: AdapterInstallProvenance
-): void {
+export function writeAdapterProvenance(root: string, provenance: AdapterInstallProvenance): void {
   const path = adapterProvenancePath(root)
   mkdirSync(dirname(path), { recursive: true, mode: 0o700 })
   const temp = `${path}.${process.pid}.tmp`

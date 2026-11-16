@@ -1,9 +1,5 @@
 #!/usr/bin/env node
-import {
-  adapterVersion,
-  runAdapterCli,
-  type AdapterDefinition,
-} from '@clara/adapter-runtime'
+import { adapterVersion, runAdapterCli, type AdapterDefinition } from '@clara/adapter-runtime'
 import { openCodePaths, type OpenCodeConfig } from './config.ts'
 import { createAdapterApp } from './handler.ts'
 import {
@@ -53,6 +49,7 @@ const CAPABILITIES = {
   worktrees: true,
   git: true,
   events: true,
+  maintenance: { update: true },
   host: { metrics: true },
 }
 

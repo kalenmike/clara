@@ -49,7 +49,13 @@ export type InstallProvenanceInput = {
  * cannot self-update, which is safer than guessing a different registry.
  */
 export function recordInstallProvenance(input: InstallProvenanceInput): void {
-  if (input.args.includes('--dry-run')) return
+  if (
+    input.args.includes('--dry-run') ||
+    input.args.includes('--help') ||
+    input.args.includes('-h')
+  ) {
+    return
+  }
   const root = recordableInstallRoot(input.kind)
   if (!root) return
   const source = input.env.CLARA_ADAPTER_SOURCE?.trim() === 'local' ? 'local' : 'registry'

@@ -1,11 +1,7 @@
 #!/usr/bin/env node
 import { join } from 'node:path'
 import type { AdapterProbe } from '@clara/adapter-runtime'
-import {
-  adapterVersion,
-  runAdapterCli,
-  type AdapterDefinition,
-} from '@clara/adapter-runtime'
+import { adapterVersion, runAdapterCli, type AdapterDefinition } from '@clara/adapter-runtime'
 import { PI_CAPABILITIES } from './capabilities.ts'
 import {
   adapterConfigPath,
