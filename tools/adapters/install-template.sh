@@ -93,4 +93,5 @@ tar -xzf "$tmp" -C "$root" || fail "Could not extract the adapter."
 chmod +x "$root/clara-adapter-$KIND"
 say "Installed to $root"
 
+export CLARA_ADAPTER_VERSION="$VERSION"
 exec "$root/clara-adapter-$KIND" install "$@" $DEFAULT_ARGS

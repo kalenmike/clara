@@ -182,6 +182,7 @@ export async function installAdapter(
   }
 
   saveAdapterRecord(record, paths)
+  const provenanceEnv = installProvenanceEnv(deps, record, request)
 
   if (request.pairCode) {
     deps.onPhase?.('pairing')
@@ -189,7 +190,8 @@ export async function installAdapter(
       deps,
       command,
       ['install', '--pair', request.pairCode, ...(record.installArgs ?? [])],
-      request.kind
+      request.kind,
+      { env: provenanceEnv }
     )
     if (result.code !== 0) {
       record = { ...record, lastError: failureText('install', result) }
@@ -204,7 +206,8 @@ export async function installAdapter(
       deps,
       command,
       ['install', '--reuse-pairing', ...(record.installArgs ?? [])],
-      request.kind
+      request.kind,
+      { env: provenanceEnv }
     )
     if (result.code !== 0) {
       record = { ...record, lastError: failureText('reinstall', result) }
@@ -223,6 +226,20 @@ export async function installAdapter(
     }
   }
   return record
+}
+
+/** Tell a freshly staged adapter its version and where it came from. */
+function installProvenanceEnv(
+  deps: InstallDeps,
+  record: AdapterInstallRecord,
+  request: InstallRequest
+): NodeJS.ProcessEnv {
+  return {
+    CLARA_ADAPTER_VERSION: record.version,
+    ...(request.from
+      ? { CLARA_ADAPTER_SOURCE: 'local' }
+      : { CLARA_ADAPTER_REGISTRY_URL: deps.registry.baseUrl() }),
+  }
 }
 
 /**
@@ -587,7 +604,9 @@ export async function runAdapterBinary(
   options: RunOptions = {}
 ): Promise<BinaryResult> {
   const paths = deps.paths ?? resolvePaths()
-  const env = kind ? adapterEnv(paths, kind) : process.env
+  const env = kind
+    ? { ...adapterEnv(paths, kind), ...options.env }
+    : { ...process.env, ...options.env }
   return (deps.runBinary ?? ((command, list) => runStreamed(command, list, env, options)))(
     binary,
     args
@@ -608,6 +627,8 @@ export async function runAdapterCommand(
 export type RunOptions = {
   /** Keep the child's output out of the terminal and return stdout instead. */
   capture?: boolean
+  /** Extra environment for the adapter child, merged over its data paths. */
+  env?: NodeJS.ProcessEnv
 }
 
 /**

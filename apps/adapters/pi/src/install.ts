@@ -1,6 +1,7 @@
 import {
   REINSTALL_GRANT_MESSAGE,
   adapterLogSize,
+  adapterVersion,
   describeError,
   enrollAdapter,
   enrollmentFailure,
@@ -37,7 +38,7 @@ import {
 import { probePiRpc } from './pi/client.ts'
 import { piAdapterDaemonEntry } from './package-paths.ts'
 
-const ADAPTER_VERSION = '0.1.0'
+const ADAPTER_VERSION = adapterVersion('0.1.0')
 
 export type InstallResult = {
   actions: string[]

@@ -1,5 +1,9 @@
 #!/usr/bin/env node
-import { runAdapterCli, type AdapterDefinition } from '@clara/adapter-runtime'
+import {
+  adapterVersion,
+  runAdapterCli,
+  type AdapterDefinition,
+} from '@clara/adapter-runtime'
 import { openCodePaths, type OpenCodeConfig } from './config.ts'
 import { createAdapterApp } from './handler.ts'
 import {
@@ -11,7 +15,7 @@ import { OpenCodeGateway } from './opencode.ts'
 import { verifyOpenCode } from './verify.ts'
 
 const ADAPTER_NAME = 'opencode'
-const ADAPTER_VERSION = '0.1.0'
+const ADAPTER_VERSION = adapterVersion('0.1.0')
 
 const CAPABILITIES = {
   projects: { list: true, update: true, archive: true, unarchive: true, delete: true },

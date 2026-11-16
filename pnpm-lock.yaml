@@ -610,6 +610,9 @@ importers:
 
   packages/adapters/runtime:
     dependencies:
+      '@clara/adapter-artifact':
+        specifier: workspace:*
+        version: link:../artifact
       '@clara/api-contract':
         specifier: workspace:*
         version: link:../../contracts/api-contract

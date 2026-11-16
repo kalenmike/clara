@@ -14,6 +14,7 @@
     "test": "vitest run"
   },
   "dependencies": {
+    "@clara/adapter-artifact": "workspace:*",
     "@clara/api-contract": "workspace:*",
     "@clara/crypto": "workspace:*",
     "@clara/harness-protocol": "workspace:*",

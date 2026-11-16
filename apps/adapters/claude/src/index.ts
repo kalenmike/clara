@@ -1,6 +1,10 @@
 #!/usr/bin/env node
 import { join } from 'node:path'
-import { runAdapterCli, type AdapterDefinition } from '@clara/adapter-runtime'
+import {
+  adapterVersion,
+  runAdapterCli,
+  type AdapterDefinition,
+} from '@clara/adapter-runtime'
 import { CLAUDE_CAPABILITIES } from './capabilities.ts'
 import { claudePaths, adapterConfigPath, type ClaudeConfig } from './config.ts'
 import { EventBus } from './events.ts'
@@ -13,7 +17,7 @@ import { SessionStore } from './store.ts'
 import { verifyClaude } from './verify.ts'
 
 const ADAPTER_NAME = 'claude'
-const ADAPTER_VERSION = '0.1.0'
+const ADAPTER_VERSION = adapterVersion('0.1.0')
 
 type Harness = { claude: ClaudeConfig }
 

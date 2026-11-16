@@ -38,6 +38,7 @@ import {
   writeAdapterPid,
 } from './service.ts'
 import { readState, writeState } from './state.ts'
+import { recordInstallProvenance } from './provenance.ts'
 import { AdapterTransport } from './transport.ts'
 import type {
   AdapterConfig,
@@ -133,6 +134,15 @@ export async function runAdapterCli<THarness>(
     return
   }
   if (command === 'install') {
+    if (hasFlag(args, '--reuse-pairing') && !hasFlag(args, '--dry-run')) {
+      for (const action of stopAdapter(definition.name, definition.paths)) console.log(action)
+    }
+    recordInstallProvenance({
+      kind: definition.name,
+      version: definition.version,
+      args,
+      env: process.env,
+    })
     const helpers = installHelpers(definition)
     if (definition.install) await definition.install(args, helpers)
     else await helpers.pair(args)

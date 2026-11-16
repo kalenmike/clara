@@ -1,7 +1,11 @@
 #!/usr/bin/env node
 import { join } from 'node:path'
 import type { AdapterProbe } from '@clara/adapter-runtime'
-import { runAdapterCli, type AdapterDefinition } from '@clara/adapter-runtime'
+import {
+  adapterVersion,
+  runAdapterCli,
+  type AdapterDefinition,
+} from '@clara/adapter-runtime'
 import { PI_CAPABILITIES } from './capabilities.ts'
 import {
   adapterConfigPath,
@@ -24,7 +28,7 @@ import { SessionService } from './sessions.ts'
 import { verifyPi } from './verify.ts'
 
 const ADAPTER_NAME = 'pi'
-const ADAPTER_VERSION = '0.1.0'
+const ADAPTER_VERSION = adapterVersion('0.1.0')
 
 type Harness = { pi: PiConfig }
 
