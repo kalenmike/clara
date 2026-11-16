@@ -167,6 +167,7 @@ jobs:
             --dir dist/release/archives \
             --out dist/release \
             --version "${{ needs.prepare.outputs.version }}" \
+            --tag "${{ needs.prepare.outputs.tag }}" \
             --channel stable \
             --base-url "https://github.com/${{ github.repository }}/releases/download/${{ needs.prepare.outputs.tag }}" \
             --require-platforms
@@ -178,6 +179,7 @@ jobs:
           node apps/cli/scripts/sign-manifest.mjs \
             --manifest dist/release/manifest.json \
             --install-script apps/cli/scripts/install.sh \
+            --base-url "https://github.com/${{ github.repository }}/releases/download/${{ needs.prepare.outputs.tag }}" \
             --out dist/release
 
       - name: Publish the release

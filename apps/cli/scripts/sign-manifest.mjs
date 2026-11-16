@@ -1,24 +1,26 @@
 #!/usr/bin/env node
-// Sign a release manifest and prepare the installer public key.
+// Sign a release manifest and prepare the installer scripts.
 //
 //   CLARA_RELEASE_SIGNING_KEY=<pem> node scripts/sign-manifest.mjs \
 //     --manifest dist/release/manifest.json \
 //     --install-script scripts/install.sh \
+//     --base-url https://github.com/owner/repo/releases/latest/download \
 //     --out dist/release
 //
 // Writes `manifest.json.sig` (base64 Ed25519 signature), `public-key.txt`
-// (base64 SPKI, for the binary build), and an `install.sh` with the public key
-// substituted for `__CLARA_RELEASE_PUBLIC_KEY__`.
+// (base64 SPKI, for the binary build), and installers with the public key and
+// release base URL substituted for their placeholders.
 
 import { createPrivateKey, createPublicKey, sign } from 'node:crypto'
-import { copyFileSync, readFileSync, writeFileSync } from 'node:fs'
-import { join, resolve } from 'node:path'
+import { existsSync, readFileSync, writeFileSync } from 'node:fs'
+import { dirname, join, resolve } from 'node:path'
 
 const args = parseArgs(process.argv.slice(2))
 const manifestPath = resolve(requireArg('manifest'))
 const outDir = resolve(args.out ?? '.')
 const bytes = readFileSync(manifestPath)
 const keyValue = process.env.CLARA_RELEASE_SIGNING_KEY ?? args.key
+const baseUrl = requireArg('base-url').replace(/\/+$/, '')
 
 if (!keyValue) {
   fail('set CLARA_RELEASE_SIGNING_KEY to an Ed25519 private key in PEM form')
@@ -40,16 +42,21 @@ console.log(`public key: ${join(outDir, 'public-key.txt')}`)
 
 const installScript = args['install-script'] ? resolve(args['install-script']) : undefined
 if (installScript) {
-  const text = readFileSync(installScript, 'utf8')
-  writeFileSync(
-    join(outDir, 'install.sh'),
-    text.replaceAll('__CLARA_RELEASE_PUBLIC_KEY__', publicKey)
-  )
-  console.log(`installer: ${join(outDir, 'install.sh')}`)
+  writeInstaller(installScript, join(outDir, 'install.sh'), true)
+  const powershell = join(dirname(installScript), 'install.ps1')
+  if (existsSync(powershell)) writeInstaller(powershell, join(outDir, 'install.ps1'), false)
 }
 
 if (args['public-key-out']) {
-  copyFileSync(join(outDir, 'public-key.txt'), resolve(args['public-key-out']))
+  writeFileSync(resolve(args['public-key-out']), `${publicKey}\n`)
+}
+
+function writeInstaller(source, target, publicKeySubstitution) {
+  let text = readFileSync(source, 'utf8')
+  text = text.replaceAll('__CLARA_RELEASE_BASE_URL__', baseUrl)
+  if (publicKeySubstitution) text = text.replaceAll('__CLARA_RELEASE_PUBLIC_KEY__', publicKey)
+  writeFileSync(target, text)
+  console.log(`installer: ${target}`)
 }
 
 function parseArgs(argv) {
