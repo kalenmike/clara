@@ -93,7 +93,7 @@ export function StatusBar({
           tone={orchestration.tone}
           label={`Orchestration · ${orchestration.status}`}
           title={redact(orchestration.detail)}
-          onClick={() => onSelect('overview')}
+          onClick={() => onSelect(orchestration.tab)}
         />
         <StatusItem
           tone="idle"

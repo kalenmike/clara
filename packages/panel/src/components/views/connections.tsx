@@ -1,4 +1,7 @@
 import type { PanelSnapshot } from '@clara/shared-types'
+import { AdapterRegistryCard } from '../adapter-registry-card.tsx'
+import { ClientSyncCard } from '../client-sync-card.tsx'
+import { OrchestrationCard } from '../orchestration-card.tsx'
 import { LocalCard, PushCard, RelayCard } from '../overview-cards.tsx'
 import { View } from '../shell/view.tsx'
 
@@ -20,29 +23,29 @@ export function ConnectionsView({
       id="connections"
       kicker="Transports"
       title="Connections"
-      description="Loopback, relay, and push delivery. Each switch saves immediately."
+      description="Loopback, relay, push, orchestration, client sync, and adapters. Each switch saves immediately."
     >
-      <div className="grid items-start gap-3 md:grid-cols-2 xl:grid-cols-3">
+      <div className="grid items-start gap-3 md:grid-cols-2">
         <LocalCard
           local={snapshot.local}
           config={snapshot.config}
           sessions={localSessions}
           controls={snapshot.controls}
           onChanged={onChanged}
-          defaultExpanded
         />
         <RelayCard
           relay={snapshot.relay}
           controls={snapshot.controls}
           onChanged={onChanged}
           now={now}
-          defaultExpanded
         />
-        <PushCard
-          push={snapshot.push}
+        <PushCard push={snapshot.push} controls={snapshot.controls} onChanged={onChanged} />
+        <ClientSyncCard sync={snapshot.controls.sync} onChanged={onChanged} />
+        <OrchestrationCard orchestration={snapshot.controls.orchestration} onChanged={onChanged} />
+        <AdapterRegistryCard
+          config={snapshot.config}
           controls={snapshot.controls}
           onChanged={onChanged}
-          defaultExpanded
         />
       </div>
     </View>

@@ -42,6 +42,18 @@ describe('panel tab metadata', () => {
     expect(PANEL_TABS.filter((tab) => !tab.primary).map((tab) => tab.id)).toEqual(['settings'])
   })
 
+  it('keeps the primary rail order stable', () => {
+    expect(PANEL_TABS.filter((tab) => tab.primary).map((tab) => tab.id)).toEqual([
+      'overview',
+      'harness',
+      'clients',
+      'connections',
+      'traffic',
+      'activity',
+      'sessions',
+    ])
+  })
+
   it('gives every tab a label, title, and description', () => {
     for (const tab of PANEL_TABS) {
       expect(tab.label.length).toBeGreaterThan(0)

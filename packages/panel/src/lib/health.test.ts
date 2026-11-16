@@ -195,6 +195,7 @@ describe('orchestrationHealth', () => {
     expect(orchestrationHealth(orchestration())).toMatchObject({
       tone: 'ok',
       status: 'Running',
+      tab: 'connections',
     })
   })
 
