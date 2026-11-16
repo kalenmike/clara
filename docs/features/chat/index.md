@@ -66,7 +66,9 @@ sender name, and a timestamp above the content, separated by a divider.
    fails, so the prompt that started a run stays expanded while the agent thinks.
    A collapsed message shows its header and one line: the prompt's first line,
    the first assistant text, or the shell command. Collapse state lives in memory
-   for the open session.
+   for the open session. The header's fold-all button collapses every message
+   unless they are already all collapsed, and only that fully collapsed state
+   expands them again; the icon reflects the next action.
 5. Internal output is hidden by default. The header toggle covers reasoning, tool
    calls, shell commands, collapsed **System Reminder** rows whose detail drops
    the reminder tags, and untagged synthetic, skill, and compaction notices; the
