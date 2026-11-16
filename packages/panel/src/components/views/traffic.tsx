@@ -18,7 +18,7 @@ export function TrafficView({
       title="Traffic"
       description="Bytes, requests, and errors through the hub over the last hour."
     >
-      <div className="w-full max-w-5xl">
+      <div className="w-full">
         <TrafficCard
           traffic={snapshot.traffic}
           monitoring={snapshot.controls.monitoring}

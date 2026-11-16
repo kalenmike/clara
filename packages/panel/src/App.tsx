@@ -69,10 +69,6 @@ function Panel({
   return (
     <div className="panel-shell">
       <TitleBar
-        data={data}
-        error={error}
-        updatedAt={updatedAt}
-        now={clock}
         refreshing={refreshing}
         onRefresh={refresh}
         onLogout={() => void session.logout()}
