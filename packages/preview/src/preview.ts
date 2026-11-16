@@ -1,5 +1,5 @@
 import { resolve } from 'node:path'
-import { compileRun, loadCatalog } from '@clara/orchestration/loader'
+import { compileRun, compileWrapperRun, loadCatalog } from '@clara/orchestration/loader'
 import type {
   CompiledNode,
   CompiledRun,
@@ -109,6 +109,17 @@ export function listTargets(catalog: LoadedCatalog): TargetInfo[] {
       ...(pipeline.description ? { description: pipeline.description } : {}),
     })
   }
+  for (const wrapper of root.wrappers.values()) {
+    push({
+      ref: wrapper.id,
+      label: `${wrapper.name ?? wrapper.id} wrapper`,
+      packageId: root.manifest.id,
+      packageName: root.manifest.name,
+      kind: 'wrapper',
+      wrapperId: wrapper.id,
+      ...(wrapper.description ? { description: wrapper.description } : {}),
+    })
+  }
 
   for (const [namespace, packages] of root.imports) {
     for (const pkg of packages) {
@@ -139,6 +150,19 @@ export function listTargets(catalog: LoadedCatalog): TargetInfo[] {
           alias,
           ...(pkg.wrap ? { wrappedBy: pkg.wrap } : {}),
           ...(pipeline.description ? { description: pipeline.description } : {}),
+        })
+      }
+      for (const wrapper of pkg.wrappers.values()) {
+        push({
+          ref: `${namespace}:${alias}/${wrapper.id}`,
+          label: `${namespace}:${alias}/${wrapper.id} — ${wrapper.name ?? wrapper.id}`,
+          packageId: pkg.manifest.id,
+          packageName: pkg.manifest.name,
+          kind: 'wrapper',
+          wrapperId: wrapper.id,
+          namespace,
+          alias,
+          ...(wrapper.description ? { description: wrapper.description } : {}),
         })
       }
     }
@@ -295,6 +319,8 @@ export function diagnoseCompiled(
       })
     }
     context.seen.add(node.path)
+    // The wrapped-pipeline slot is an intentional empty placeholder.
+    if (node.slot) return
 
     const model = node.model?.trim()
     const provider = node.provider?.trim()
@@ -676,9 +702,14 @@ export function previewPipeline(input: PreviewInput = {}): PreviewResult {
       })
     : targets.find((target) => target.ref === '')
 
+  const wrapperTarget = requested
+    ? targets.find((target) => target.ref === requested && target.kind === 'wrapper')
+    : undefined
   let compiled: CompiledRun | undefined
   try {
-    compiled = compileRun(catalog, requested)
+    compiled = wrapperTarget
+      ? compileWrapperRun(catalog, requested as string)
+      : compileRun(catalog, requested)
   } catch (error) {
     diagnostics.push({
       severity: 'error',

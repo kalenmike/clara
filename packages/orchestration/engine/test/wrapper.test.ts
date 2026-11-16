@@ -2,7 +2,7 @@ import { mkdirSync, mkdtempSync, realpathSync, rmSync, writeFileSync } from 'nod
 import { tmpdir } from 'node:os'
 import { dirname, join } from 'node:path'
 import { describe, expect, it } from 'vitest'
-import { compileRun, loadCatalog, Runtime, Store } from '../src/index.ts'
+import { compileRun, compileWrapperRun, loadCatalog, Runtime, Store } from '../src/index.ts'
 
 function write(dir: string, path: string, content: string): void {
   const target = join(dir, path)
@@ -121,6 +121,25 @@ describe('pipeline wrappers', () => {
       // Explicit operator targets are not wrapped; the guard is a router boundary.
       expect(compileRun(catalog, 'ext:worker').root.kind).toBe('router')
       expect(compileRun(catalog, 'ext:worker/one').root.kind).toBe('pipeline')
+    } finally {
+      rmSync(dir, { recursive: true, force: true })
+    }
+  })
+
+  it('compiles a wrapper on its own with a preview slot', () => {
+    const { dir, config } = wrapperFixture()
+    try {
+      const run = compileWrapperRun(loadCatalog(config), 'g:guard')
+      expect(run.root.name).toBe('wrapper:guard')
+      expect(run.root.children?.map((child) => child.name)).toEqual(['start', 'work', 'stop'])
+      const work = run.root.children?.find((child) => child.name === 'work')
+      expect(work?.children?.map((child) => child.name)).toEqual(['wrapped', 'check'])
+      expect(work?.children?.[0]).toMatchObject({
+        kind: 'pipeline',
+        title: 'Wrapped pipeline',
+        slot: true,
+      })
+      expect(work?.workspace?.path).toMatch(/1-start$/)
     } finally {
       rmSync(dir, { recursive: true, force: true })
     }
