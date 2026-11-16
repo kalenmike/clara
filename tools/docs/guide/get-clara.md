@@ -50,6 +50,12 @@ Every platform archive also lives on the matching GitHub release. You can point
 the installer at a release directly with `--base-url`, or download the archive
 and put `clara` on your `PATH` yourself.
 
+The installer verifies an Ed25519 signature over the manifest when an
+Ed25519-capable `openssl` is available, then verifies the archive checksum. On
+macOS the system LibreSSL cannot verify Ed25519, so the installer prefers a
+Homebrew OpenSSL and otherwise warns before falling back to the checksum. Set
+`CLARA_REQUIRE_SIGNATURE=1` to refuse that fallback.
+
 ## Set up
 
 ```bash

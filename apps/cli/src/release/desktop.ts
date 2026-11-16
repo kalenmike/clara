@@ -278,9 +278,16 @@ function findIcon(directory: string): string | undefined {
 function installNsis(options: DesktopInstallOptions, archive: string, run: DesktopRunner): string {
   requireOk(run(archive, ['/S']), ['desktop installer'])
   const local = options.env?.LOCALAPPDATA?.trim() || join(homedir(), 'AppData', 'Local')
-  const path = join(local, 'Programs', APP_NAME, 'Clara.exe')
-  if (!existsSync(path)) {
-    throw new Error('The desktop installer finished but Clara.exe was not found.')
+  const candidates = [
+    join(local, 'Programs', APP_NAME, 'Clara.exe'),
+    join(local, 'Programs', APP_NAME, 'clara-desktop.exe'),
+    join(local, APP_NAME, 'Clara.exe'),
+    join(local, APP_NAME, 'clara-desktop.exe'),
+    join(local, 'clara-desktop', 'clara-desktop.exe'),
+  ]
+  const path = candidates.find((candidate) => existsSync(candidate))
+  if (!path) {
+    throw new Error(`The desktop installer finished but ${APP_NAME}.exe was not found.`)
   }
   options.log?.(`Installed the ${APP_NAME} desktop app.`)
   return path
@@ -288,9 +295,13 @@ function installNsis(options: DesktopInstallOptions, archive: string, run: Deskt
 
 function installMsi(options: DesktopInstallOptions, archive: string, run: DesktopRunner): string {
   requireOk(run('msiexec.exe', ['/i', archive, '/qn', '/norestart']), ['msiexec'])
-  const programFiles =
-    options.env?.PROGRAMFILES?.trim() || join(homedir(), 'AppData', 'Local', 'Programs')
-  const path = join(programFiles, APP_NAME, 'Clara.exe')
+  const programFiles = options.env?.PROGRAMFILES?.trim() || 'C:\\Program Files'
+  const path = [join(programFiles, APP_NAME, 'Clara.exe'), join(programFiles, APP_NAME, 'clara-desktop.exe')].find(
+    (candidate) => existsSync(candidate)
+  )
+  if (!path) {
+    throw new Error(`The MSI finished but ${APP_NAME}.exe was not found.`)
+  }
   options.log?.(`Installed the ${APP_NAME} desktop app.`)
   return path
 }

@@ -97,20 +97,48 @@ if ! fetch_manifest "$BASE_URL"; then
   fetch_manifest "$BASE_URL" || fail "Could not read the Clara release manifest."
 fi
 
-if [ "$PUBLIC_KEY" != "__CLARA_RELEASE_PUBLIC_KEY__" ] && [ -n "$PUBLIC_KEY" ]; then
-  command -v openssl >/dev/null 2>&1 || fail "Clara needs openssl to verify the release signature."
+verify_signature() {
+  if [ "$PUBLIC_KEY" = "__CLARA_RELEASE_PUBLIC_KEY__" ] || [ -z "$PUBLIC_KEY" ]; then
+    say "warning: this installer was not built with a release public key; verifying the checksum only."
+    return 0
+  fi
+
+  verifier=''
+  for candidate in /opt/homebrew/bin/openssl /usr/local/bin/openssl openssl; do
+    command -v "$candidate" >/dev/null 2>&1 || continue
+    case "$("$candidate" version 2>/dev/null || true)" in *LibreSSL*) continue ;; esac
+    if "$candidate" pkeyutl -help 2>&1 | grep -q 'rawin'; then
+      verifier="$candidate"
+      break
+    fi
+  done
+
+  if [ -z "$verifier" ]; then
+    if [ "${CLARA_REQUIRE_SIGNATURE:-}" = "1" ]; then
+      fail "Clara needs an Ed25519-capable openssl to verify this release."
+    fi
+    say "warning: no Ed25519-capable openssl found; verifying the checksum only."
+    return 0
+  fi
+
   {
     printf '%s\n' '-----BEGIN PUBLIC KEY-----'
     printf '%s\n' "$PUBLIC_KEY" | fold -w 64
     printf '%s\n' '-----END PUBLIC KEY-----'
   } > "$tmp/public.pem"
-  base64 -d "$tmp/manifest.json.sig" > "$tmp/manifest.sig" 2>/dev/null || base64 --decode "$tmp/manifest.json.sig" > "$tmp/manifest.sig"
-  openssl pkeyutl -verify -pubin -inkey "$tmp/public.pem" -rawin -in "$tmp/manifest.json" -sigfile "$tmp/manifest.sig" >/dev/null 2>&1 ||
+  if ! base64 -d "$tmp/manifest.json.sig" > "$tmp/manifest.sig" 2>/dev/null; then
+    if ! base64 -D "$tmp/manifest.json.sig" > "$tmp/manifest.sig" 2>/dev/null; then
+      "$verifier" base64 -d -A -in "$tmp/manifest.json.sig" -out "$tmp/manifest.sig" ||
+        fail "Could not decode the release signature."
+    fi
+  fi
+  "$verifier" pkeyutl -verify -pubin -inkey "$tmp/public.pem" -rawin \
+    -in "$tmp/manifest.json" -sigfile "$tmp/manifest.sig" >/dev/null 2>&1 ||
     fail "The release signature did not match."
   say "Verified the release signature."
-else
-  say "warning: this installer was not built with a release public key; verifying the checksum only."
-fi
+}
+
+verify_signature
 
 cli_manifest=$(awk '
   /^  "cli": \{/ { inside = 1 }
