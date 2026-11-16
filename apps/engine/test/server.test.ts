@@ -461,12 +461,17 @@ describe('engine package assets', () => {
         'std/maintenance/pipelines/rebuild.yml',
         'std/maintenance/scripts/build.yml',
         'std/content/agents/draft.md',
+        'std/session/index.yml',
+        'std/session/wrappers/worktree.yml',
+        'std/session/agents/resolve_conflicts.md',
         'default/index.yml',
         'default/routers/classifier.md',
       ])
     )
     expect(body.files['default/index.yml']).toContain('imports:')
+    expect(body.files['default/index.yml']).toContain('wrap: std:session/worktree')
     expect(body.files['std/maintenance/index.yml']).toContain('entry:')
+    expect(body.files['std/session/wrappers/worktree.yml']).toContain('workspace:')
 
     // Bounded, text-only, and rooted in the two bundled directories.
     expect(names.length).toBeLessThan(500)

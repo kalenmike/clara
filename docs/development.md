@@ -74,7 +74,11 @@ Edges the package manifests do not express are configured in `turbo.json`:
 `@clara/hub-server` builds after the hub panel and hashes `infra/relay/src`,
 `@clara/docs` hashes the root `docs/` tree, and `@clara/cli` and
 `@clara/desktop-host` use the `transit` task to hash the source-exported
-packages they bundle.
+packages they bundle. `@clara/engine` also hashes the orchestration loader,
+runtime, standard packages, default config, and bundled policy/sqlite sources,
+because tsup inlines them and copies the assets into `dist`. The cached CLI
+binary task hashes the same assets plus the engine, lab, and hub sources it
+embeds.
 
 The web and panel builds embed the checkout commit and dirty flag. `CLARA_COMMIT`
 and `CLARA_DIRTY` are part of their cache keys when set; without them, a

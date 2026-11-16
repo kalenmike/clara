@@ -36,6 +36,18 @@
       "outputs": ["dist/**"],
       "env": ["ENABLE_CLOUDFLARE_DEPLOYMENT"]
     },
+    "@clara/engine#build": {
+      "dependsOn": ["clean", "^build"],
+      "inputs": [
+        "$TURBO_DEFAULT$",
+        "$TURBO_ROOT$/packages/orchestration/engine/src/**",
+        "$TURBO_ROOT$/packages/orchestration/engine/std/**",
+        "$TURBO_ROOT$/packages/orchestration/engine/default/**",
+        "$TURBO_ROOT$/packages/orchestration/policy/src/**",
+        "$TURBO_ROOT$/packages/sqlite/src/**"
+      ],
+      "outputs": ["dist/**"]
+    },
     "@clara/docs#build": {
       "dependsOn": ["clean", "^build"],
       "inputs": ["$TURBO_DEFAULT$", "$TURBO_ROOT$/docs/**"],
@@ -57,6 +69,17 @@
     },
     "@clara/cli#build:binary:cached": {
       "dependsOn": ["clean", "transit", "@clara/hub-panel#build", "@clara/web#build"],
+      "inputs": [
+        "$TURBO_DEFAULT$",
+        "$TURBO_ROOT$/apps/engine/src/**",
+        "$TURBO_ROOT$/apps/hub/server/src/**",
+        "$TURBO_ROOT$/apps/lab-server/src/**",
+        "$TURBO_ROOT$/packages/orchestration/engine/src/**",
+        "$TURBO_ROOT$/packages/orchestration/engine/std/**",
+        "$TURBO_ROOT$/packages/orchestration/engine/default/**",
+        "$TURBO_ROOT$/packages/orchestration/policy/src/**",
+        "$TURBO_ROOT$/packages/sqlite/src/**"
+      ],
       "outputs": ["dist/**", "src/embedded-assets.generated.mjs"],
       "env": ["CLARA_VERSION", "CLARA_RELEASE_PUBLIC_KEY", "BUN_BIN"]
     }
