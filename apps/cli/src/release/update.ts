@@ -4,7 +4,12 @@ import { join } from 'node:path'
 import type { ClaraPaths } from '../paths.ts'
 import { version as currentVersion } from '../version.ts'
 import { downloadVerified, extractArchive } from './download.ts'
-import { fetchManifest, releaseBaseUrl, type ReleaseManifest } from './manifest.ts'
+import {
+  fetchManifest,
+  GITHUB_RELEASE_BASE_URL,
+  releaseBaseUrl,
+  type ReleaseManifest,
+} from './manifest.ts'
 import { platformKey } from './platform.ts'
 import {
   activateVersion,
@@ -38,6 +43,7 @@ export async function checkForUpdate(options: {
     ...(options.baseUrl ? { baseUrl: options.baseUrl } : {}),
     ...(options.publicKey ? { publicKey: options.publicKey } : {}),
     ...(options.fetchImpl ? { fetchImpl: options.fetchImpl } : {}),
+    fallbackBaseUrl: GITHUB_RELEASE_BASE_URL,
   })
   const artifact = fetched.manifest.artifacts[platform]
   if (!artifact) throw new Error(`The release has no ${platform} artifact.`)

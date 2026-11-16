@@ -8,6 +8,12 @@ on:
     tags:
       - 'v*'
   workflow_dispatch:
+    inputs:
+      dry_run:
+        description: 'Build and sign the release without publishing or uploading it'
+        required: false
+        default: false
+        type: boolean
 
 permissions:
   contents: write
@@ -61,6 +67,16 @@ jobs:
             platform: linux-arm64
             bun-target: bun-linux-arm64
             native: false
+          - name: linux-x64-musl
+            os: ubuntu-22.04
+            platform: linux-x64-musl
+            bun-target: bun-linux-x64-musl
+            native: false
+          - name: linux-arm64-musl
+            os: ubuntu-22.04
+            platform: linux-arm64-musl
+            bun-target: bun-linux-arm64-musl
+            native: false
           - name: darwin-x64
             os: macos-15-intel
             platform: darwin-x64
@@ -76,6 +92,11 @@ jobs:
             platform: win32-x64
             bun-target: bun-windows-x64
             native: true
+          - name: win32-arm64
+            os: windows-latest
+            platform: win32-arm64
+            bun-target: bun-windows-arm64
+            native: false
 
     steps:
       - uses: actions/checkout@v5
@@ -146,6 +167,7 @@ jobs:
             --dir dist/release/archives \
             --out dist/release \
             --version "${{ needs.prepare.outputs.version }}" \
+            --tag "${{ needs.prepare.outputs.tag }}" \
             --channel stable \
             --base-url "https://github.com/${{ github.repository }}/releases/download/${{ needs.prepare.outputs.tag }}" \
             --require-platforms
@@ -157,9 +179,11 @@ jobs:
           node apps/cli/scripts/sign-manifest.mjs \
             --manifest dist/release/manifest.json \
             --install-script apps/cli/scripts/install.sh \
+            --base-url "https://github.com/${{ github.repository }}/releases/download/${{ needs.prepare.outputs.tag }}" \
             --out dist/release
 
       - name: Publish the release
+        if: ${{ !inputs.dry_run }}
         env:
           GH_TOKEN: ${{ github.token }}
         run: |
@@ -173,3 +197,12 @@ jobs:
             dist/release/public-key.txt \
             dist/release/archives/* \
             --clobber
+
+  registry:
+    needs: [prepare, publish]
+    if: ${{ !inputs.dry_run }}
+    uses: ./.github/workflows/release-registry.yml
+    with:
+      cli_tag: ${{ needs.prepare.outputs.tag }}
+      desktop_tag: latest
+    secrets: inherit

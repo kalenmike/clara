@@ -8,6 +8,7 @@ const WITH_VALUE = new Set([
   'username',
   'password',
   'base-url',
+  'bin-dir',
   'file',
   'sha256',
   'version',

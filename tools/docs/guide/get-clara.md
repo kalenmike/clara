@@ -12,17 +12,51 @@ own. The checkout workflow still works for development.
 
 ## Install
 
-Download the archive for your platform from the latest Clara release and put
-`clara` somewhere on your `PATH`. The release also publishes an installer that
-verifies the signed release manifest and the archive checksum:
-
 ```bash
-curl -fsSL https://github.com/kalenmike/clara/releases/latest/download/install.sh | sh
+curl -fsSL https://clara.kalenmichael.com/install | sh
 ```
 
-On Windows, download `install.ps1` from the same release and run it in
-PowerShell. The installer puts `clara` in your user bin directory and adds it to
-your `PATH` when it is missing.
+The installer detects your platform, verifies the signed release manifest and
+the archive checksum, puts `clara` in your user bin directory, and adds it to
+your `PATH` when it is missing. On macOS, and on Linux with a desktop session,
+it also installs the Clara desktop app. Pass `--no-desktop` to install only the
+command, or `--desktop` to try the desktop app on a headless host:
+
+```bash
+curl -fsSL https://clara.kalenmichael.com/install | sh -s -- --no-desktop
+```
+
+On Windows, use PowerShell:
+
+```powershell
+irm https://clara.kalenmichael.com/install.ps1 | iex
+```
+
+Download `install.ps1` first when you need `-NoDesktop`:
+
+```powershell
+irm https://clara.kalenmichael.com/install.ps1 -OutFile install.ps1
+./install.ps1 -NoDesktop
+```
+
+The stable registry names the command and desktop releases separately, so the
+installer can take the newest of each:
+
+```bash
+curl -fsSL https://clara.kalenmichael.com/release/manifest.json
+```
+
+Every platform archive also lives on the matching GitHub release. You can point
+the installer at a release directly with `--base-url`, or download the archive
+and put `clara` on your `PATH` yourself.
+
+The shell installer verifies an Ed25519 signature over the manifest when an
+Ed25519-capable `openssl` is available, then verifies the archive checksum. On
+macOS the system LibreSSL cannot verify Ed25519, so the installer prefers a
+Homebrew OpenSSL and otherwise warns before falling back to the checksum. Set
+`CLARA_REQUIRE_SIGNATURE=1` to refuse that fallback. The PowerShell installer
+verifies the archive checksum; the installed command verifies the signed
+manifest on every update.
 
 ## Set up
 
@@ -120,11 +154,14 @@ workspace you name.
 clara update --check     # current and latest version
 clara update             # verify and install the newer release
 clara update --rollback  # return to the previous version
+clara desktop install    # install or update the desktop app
+clara desktop status     # show the installed desktop version
 ```
 
 Updates verify an Ed25519 signature over the release manifest and the archive
 checksum before replacing anything. The running stack restarts on the new
-version.
+version. The command reads the stable registry by default and falls back to the
+GitHub release when the registry is unreachable.
 
 ## Autostart
 
@@ -144,7 +181,7 @@ desktop sessions. macOS uses a LaunchAgent and Windows uses a logon task.
 ## Remove Clara
 
 ```bash
-clara uninstall            # stop, remove autostart, remove downloaded versions
+clara uninstall            # stop, remove autostart, command, and desktop app
 clara uninstall --purge    # also remove config, data, and cache
 ```
 

@@ -3,11 +3,12 @@
 //
 //   node scripts/release-manifest.mjs \
 //     --dir dist/release/archives --out dist/release \
-//     --version 0.2.0 --channel stable \
+//     --version 0.2.0 --tag v0.2.0 --channel stable \
 //     --base-url https://github.com/kalenmike/clara/releases/download/v0.2.0 \
 //     [--notes notes.md] [--require-platforms]
 //
 // Archive names are `clara-<platform>.tar.gz` or `clara-<platform>.zip`.
+// The manifest is the nested schemaVersion 2 shape with a `cli` component.
 
 import { createHash } from 'node:crypto'
 import {
@@ -36,6 +37,7 @@ const args = parseArgs(process.argv.slice(2))
 const directory = resolve(requireArg('dir'))
 const output = resolve(requireArg('out'))
 const version = requireArg('version')
+const tag = typeof args.tag === 'string' ? args.tag : undefined
 const channel = args.channel ?? 'stable'
 const baseUrl = requireArg('base-url').replace(/\/+$/, '')
 const notesFile = args.notes ? resolve(args.notes) : undefined
@@ -64,14 +66,18 @@ if (args['require-platforms']) {
 }
 
 const manifest = {
-  schemaVersion: 1,
-  version,
+  schemaVersion: 2,
   channel,
-  publishedAt: new Date().toISOString(),
-  ...(notesFile ? { notes: readFileSync(notesFile, 'utf8').trim() } : {}),
-  artifacts: Object.fromEntries(
-    Object.entries(artifacts).sort(([left], [right]) => left.localeCompare(right))
-  ),
+  generatedAt: new Date().toISOString(),
+  cli: {
+    version,
+    ...(tag ? { tag } : {}),
+    publishedAt: new Date().toISOString(),
+    ...(notesFile ? { notes: readFileSync(notesFile, 'utf8').trim() } : {}),
+    artifacts: Object.fromEntries(
+      Object.entries(artifacts).sort(([left], [right]) => left.localeCompare(right))
+    ),
+  },
   ...(args['adapters-registry'] ? { adapters: { registry: args['adapters-registry'] } } : {}),
 }
 
@@ -83,7 +89,7 @@ for (const script of ['install.sh', 'install.ps1']) {
 }
 
 console.log(`manifest: ${join(output, 'manifest.json')}`)
-for (const [platform, artifact] of Object.entries(manifest.artifacts)) {
+for (const [platform, artifact] of Object.entries(manifest.cli.artifacts)) {
   console.log(`  ${platform.padEnd(18)} ${formatSize(artifact.size)}  ${basename(artifact.url)}`)
 }
 

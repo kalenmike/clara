@@ -207,6 +207,35 @@ and `clara uninstall` treat it as a normal install. Use `--from <file|dir>`,
 `--dry-run`, and `--bin-dir <dir>` to change the source and target. See
 [features/hub-service.md](features/hub-service.md).
 
+The release workflow builds every manifest target: Linux glibc and musl on x64
+and arm64, macOS on x64 and arm64, and Windows on x64 and arm64. Native runners
+smoke-test their own build; cross builds are compile-only.
+
+### Release registry
+
+The website serves one stable installer and a signed nested manifest:
+
+```bash
+pnpm release:registry   # needs CLARA_RELEASE_SIGNING_KEY
+pnpm release:check
+pnpm deploy:web:release # generate, check, and deploy
+```
+
+`release:registry` reads the newest published `v*` command release and
+`desktop-v*` desktop release, composes `schemaVersion: 2` with `cli` and
+`desktop` objects, signs it, and writes `apps/web/public/install`,
+`install.ps1`, and `release/`. The `release-registry` workflow artifact carries
+the same files from CI. Deploy it with:
+
+```bash
+gh run download <run-id> -n release-registry -D dist/release-registry
+pnpm deploy:web:release --from dist/release-registry
+git add apps/web/public/install apps/web/public/install.ps1 apps/web/public/release
+```
+
+The generated files are committed like the adapter registry, so a later
+`pnpm deploy:web` keeps `/install` and `/release/manifest.json` online.
+
 ### Panel UI and adapter installs
 
 `packages/panel` (`@clara/panel`) owns the shared panel UI. The hub service serves

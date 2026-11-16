@@ -240,3 +240,13 @@ jobs:
             ls -lh dist/release 2>/dev/null || true
             echo '```'
           } >> "$GITHUB_STEP_SUMMARY"
+
+  registry:
+    name: registry
+    needs: [prepare, publish]
+    if: ${{ !inputs.dry_run }}
+    uses: ./.github/workflows/release-registry.yml
+    with:
+      cli_tag: latest
+      desktop_tag: ${{ needs.prepare.outputs.tag }}
+    secrets: inherit

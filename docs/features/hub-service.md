@@ -9,8 +9,9 @@ the same database, transports, pairing, and adapter routing.
 
 ## User flow
 
-1. Install a release. Unpack the archive and run `clara-server serve`, or install
-   `clara` with `install.sh` or `install.ps1` and run `clara setup`.
+1. Install a release. Unpack the archive and run `clara-server serve`, or run
+   the one-line installer to add `clara` and the desktop app, then run
+   `clara setup`.
 2. On first run the hub serves only its loopback panel. Create the owner account
    in the browser, or run `clara-server setup --username <name> --password-stdin`.
 3. Follow the Setup modal: choose Local only or configure the relay, pair a

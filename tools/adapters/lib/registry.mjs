@@ -9,7 +9,7 @@
 import { createHash } from 'node:crypto'
 import { existsSync, readFileSync } from 'node:fs'
 import { join } from 'node:path'
-import { assetMetadata } from './releases.mjs'
+import { assetMetadata } from '../../lib/releases.mjs'
 
 export const ADAPTER_KINDS = ['opencode', 'claude', 'pi']
 

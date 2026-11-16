@@ -53,7 +53,7 @@ import {
   fetchLatestAdapterTag,
   fetchReleaseAssets as fetchReleaseFromGitHub,
   versionFromTag,
-} from './lib/releases.mjs'
+} from '../lib/releases.mjs'
 import { SUPPORTED_TARGETS } from './lib/registry.mjs'
 
 const here = dirname(fileURLToPath(import.meta.url))

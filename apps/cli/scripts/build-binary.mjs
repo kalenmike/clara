@@ -34,9 +34,12 @@ const skipAssets = process.argv.includes('--skip-assets')
 const TARGETS = [
   'bun-linux-x64',
   'bun-linux-arm64',
+  'bun-linux-x64-musl',
+  'bun-linux-arm64-musl',
   'bun-darwin-x64',
   'bun-darwin-arm64',
   'bun-windows-x64',
+  'bun-windows-arm64',
 ]
 
 const target = arg('--target') ?? hostTarget()
@@ -147,7 +150,13 @@ function hostTarget() {
   const arch = process.arch === 'arm64' ? 'arm64' : 'x64'
   if (process.platform === 'darwin') return `bun-darwin-${arch}`
   if (process.platform === 'win32') return `bun-windows-${arch}`
-  return `bun-linux-${arch}`
+  return `bun-linux-${arch}${isMusl() ? '-musl' : ''}`
+}
+
+function isMusl() {
+  if (existsSync('/etc/alpine-release')) return true
+  const result = spawnSync('ldd', ['--version'], { encoding: 'utf8', timeout: 2_000 })
+  return /musl/i.test(`${result.stdout ?? ''}${result.stderr ?? ''}`)
 }
 
 function listFiles(directory) {
