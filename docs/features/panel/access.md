@@ -132,8 +132,9 @@ and editing a label all take effect from this surface.
   `/update`, and `/forget` act on one adapter; `DELETE /panel/api/v1/harnesses/:id`
   deletes the connection.
 - Install entry: `GET /panel/api/v1/install` returns registry manifests and
-  availability; `POST /panel/api/v1/install` returns the offer without running
-  it; `POST /panel/api/v1/install/settings` toggles it.
+  availability, and accepts `?refresh=true` to bypass the cache. A `POST` to the
+  same path returns the offer without running it; `POST .../install/settings`
+  toggles it.
 - Sessions: `GET /panel/api/v1/sessions` accepts `harnessID`, `running`,
   `archived`, `q`, and `limit` (1–500) and returns one status per paired harness.
 - QR rendering uses `qrcode.react` at the lowest error-correction level; the

@@ -1,15 +1,18 @@
-import { describe, expect, it } from 'vitest'
-import type { PanelInstallInfo } from '@clara/shared-types'
+import { afterEach, describe, expect, it } from 'vitest'
+import type { PanelInstallInfo, PanelInstallRegistryEntry } from '@clara/shared-types'
 import {
   adapterRepairCommand,
+  fetchInstallInfo,
   installManifest,
   installOffered,
   latestAdapterVersion,
+  registryCheckedAt,
   registryCommand,
   registryError,
   repoCommand,
   supportedPlatforms,
 } from './install.ts'
+import { configurePanelApi } from './panel-api.ts'
 
 const info: PanelInstallInfo = {
   enabled: true,
@@ -49,6 +52,48 @@ const info: PanelInstallInfo = {
 }
 
 describe('install panel helpers', () => {
+  afterEach(() => configurePanelApi(null))
+
+  it('reads the registry, asking for a fresh check when the user asks', async () => {
+    const paths: string[] = []
+    configurePanelApi(async (request) => {
+      paths.push(request.path)
+      return new Response(JSON.stringify(info), {
+        status: 200,
+        headers: { 'content-type': 'application/json' },
+      })
+    })
+
+    await fetchInstallInfo()
+    await fetchInstallInfo({ refresh: true })
+    expect(paths).toEqual(['/panel/api/v1/install', '/panel/api/v1/install?refresh=true'])
+  })
+
+  it('reports the most recent registry check time', () => {
+    expect(registryCheckedAt(info)).toBe(new Date(0).toISOString())
+    expect(registryCheckedAt(undefined)).toBeUndefined()
+
+    const entry = (checkedAt: string): PanelInstallRegistryEntry => ({
+      kind: 'opencode',
+      manifestUrl: 'https://clara.example/adapters/opencode/manifest.json',
+      ok: true,
+      checkedAt,
+    })
+    expect(
+      registryCheckedAt({
+        ...info,
+        registry: {
+          ...info.registry,
+          entries: [
+            entry('2026-11-16T10:00:00.000Z'),
+            entry('2026-11-16T12:00:00.000Z'),
+            entry('not-a-date'),
+          ],
+        },
+      })
+    ).toBe('2026-11-16T12:00:00.000Z')
+  })
+
   it('finds a manifest and its platforms', () => {
     expect(installManifest(info, 'opencode')?.version).toBe('0.1.0-dev+abc1234')
     expect(supportedPlatforms(installManifest(info, 'opencode'))).toEqual(['linux-x64'])

@@ -334,7 +334,9 @@ connection keeps that state; use **Forget** only when you want to discard it.
   neither `curl` nor `wget`. Select a different container, or copy the code and
   run the installer by hand.
 - **The adapter release is unavailable** — the registry manifest could not be
-  read. Check **Network → Adapter setup** and the registry URL.
+  read. Check **Network → Adapter setup** and the registry URL, then choose
+  **Check registry** to re-read the manifests; the card shows when the last
+  check finished.
 - **The adapter is behind the registry** — **Paired harnesses** shows the
   installed and published versions when they differ. Use **Update**; the
   adapter pulls and verifies the release itself. If the adapter was installed

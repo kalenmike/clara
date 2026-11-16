@@ -679,7 +679,17 @@ async function handleInstall(
   try {
     if (pathname === INSTALL_PATH) {
       if (method === 'GET' || method === 'HEAD') {
-        sendJson(response, method, 200, await install.info())
+        const refresh = booleanParam(
+          new URL(request.url ?? '/', 'http://localhost').searchParams,
+          'refresh'
+        )
+        if (refresh === 'invalid') {
+          sendJson(response, method, 400, {
+            error: { code: 'invalid_query', message: 'The refresh value must be true or false' },
+          })
+          return
+        }
+        sendJson(response, method, 200, await install.info(refresh === true))
         return
       }
       if (method !== 'POST') {
