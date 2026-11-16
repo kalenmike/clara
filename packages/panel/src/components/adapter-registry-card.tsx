@@ -2,8 +2,8 @@ import { useCallback, useEffect, useState } from 'react'
 import { Download, RefreshCw } from 'lucide-react'
 import { Button } from '@clara/ui/components/button'
 import type { PanelConfigInfo, PanelControls, PanelInstallInfo } from '@clara/shared-types'
-import { sourceLabel } from '../lib/format.ts'
-import { fetchInstallInfo } from '../lib/install.ts'
+import { formatTimestamp, sourceLabel } from '../lib/format.ts'
+import { fetchInstallInfo, registryCheckedAt } from '../lib/install.ts'
 import { postPanel } from '../lib/panel-api.ts'
 import { usePeek } from '../lib/peek-context.tsx'
 import { ConfigEditorRow } from './overview-cards.tsx'
@@ -25,11 +25,11 @@ export function AdapterRegistryCard({
   const [error, setError] = useState<string>()
   const enabled = controls.install.enabled
 
-  const load = useCallback(async () => {
+  const load = useCallback(async (refresh = false) => {
     setLoading(true)
     setError(undefined)
     try {
-      setInfo(await fetchInstallInfo())
+      setInfo(await fetchInstallInfo({ refresh }))
     } catch (cause) {
       setError(cause instanceof Error ? cause.message : String(cause))
     } finally {
@@ -55,6 +55,12 @@ export function AdapterRegistryCard({
   }
 
   const entries = info?.registry.entries ?? []
+  const checkedAt = registryCheckedAt(info)
+  const status = loading
+    ? 'Reading the latest adapter manifests.'
+    : info
+      ? availabilityText(info, checkedAt)
+      : undefined
 
   return (
     <CollapsibleCard
@@ -100,19 +106,16 @@ export function AdapterRegistryCard({
             type="button"
             variant="outline"
             size="xs"
-            onClick={() => void load()}
+            onClick={() => void load(true)}
             disabled={loading}
+            aria-busy={loading}
           >
             <RefreshCw className={`size-3 ${loading ? 'animate-spin' : ''}`} aria-hidden="true" />
-            Check registry
+            {loading ? 'Checking…' : 'Check registry'}
           </Button>
-          {info ? (
-            <span className="text-muted-foreground text-[10px]">
-              {info.available
-                ? 'Install actions are available.'
-                : (info.reason ?? 'Install actions are off.')}
-            </span>
-          ) : null}
+          <span role="status" aria-live="polite" className="text-muted-foreground text-[10px]">
+            {status}
+          </span>
         </div>
         <div className="space-y-2 pt-1">
           {entries.map((entry) => (
@@ -161,4 +164,11 @@ export function AdapterRegistryCard({
       </CardBody>
     </CollapsibleCard>
   )
+}
+
+function availabilityText(info: PanelInstallInfo, checkedAt: string | undefined): string {
+  const state = info.available
+    ? 'Install actions are available.'
+    : (info.reason ?? 'Install actions are off.')
+  return checkedAt ? `Checked ${formatTimestamp(checkedAt)}. ${state}` : state
 }

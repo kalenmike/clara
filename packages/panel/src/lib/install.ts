@@ -6,8 +6,15 @@ import type {
 } from '@clara/shared-types'
 import { getPanel, postPanel } from './panel-api.ts'
 
-export async function fetchInstallInfo(): Promise<PanelInstallInfo> {
-  return getPanel<PanelInstallInfo>('/panel/api/v1/install')
+/**
+ * Reads the registry status. Pass `refresh` for a user-initiated check so the
+ * hub re-reads the manifests instead of answering from its cache.
+ */
+export async function fetchInstallInfo(
+  options: { refresh?: boolean } = {}
+): Promise<PanelInstallInfo> {
+  const path = options.refresh ? '/panel/api/v1/install?refresh=true' : '/panel/api/v1/install'
+  return getPanel<PanelInstallInfo>(path)
 }
 
 /** Issue a one-time adapter pairing plus the command and desktop deep link. */
@@ -15,6 +22,21 @@ export async function createAdapterOffer(
   input: AdapterInstallOfferInput
 ): Promise<AdapterInstallOffer> {
   return postPanel<AdapterInstallOffer>('/panel/api/v1/install', input)
+}
+
+/** The most recent time the hub read the registry, for the checked status line. */
+export function registryCheckedAt(info: PanelInstallInfo | undefined): string | undefined {
+  let latest: number | undefined
+  let value: string | undefined
+  for (const entry of info?.registry.entries ?? []) {
+    const time = new Date(entry.checkedAt).getTime()
+    if (Number.isNaN(time)) continue
+    if (latest === undefined || time > latest) {
+      latest = time
+      value = entry.checkedAt
+    }
+  }
+  return value
 }
 
 export function installManifest(
