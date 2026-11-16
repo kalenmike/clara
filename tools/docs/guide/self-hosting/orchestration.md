@@ -162,7 +162,9 @@ imports:
 
 Remove the `wrap` line to run software work directly in the workspace, or point
 it at another package to give that package the same guard. Starting a specific
-pipeline from Clara Lab runs it directly and does not create a session.
+pipeline or package from Clara Lab runs it directly and does not create a
+session; preview the top entry to see the wrapper. The package list marks an
+imported package with its routed wrap.
 
 ## MCP
 
