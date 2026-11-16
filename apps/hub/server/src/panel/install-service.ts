@@ -67,11 +67,10 @@ export class InstallService {
 
   /** The one-line command a browser or terminal user can run. */
   command(manifest: PanelInstallManifest, code: string, opencodeUrl?: string): string {
-    const noRunner = manifest.harness === 'opencode' ? ' --no-runner' : ''
     const harnessUrl = opencodeUrl
       ? ` ${quoteShellArgument('--opencode-url')} ${quoteShellArgument(opencodeUrl)}`
       : ''
-    return `curl -fsSL ${manifest.install} | CLARA_ADAPTER_REGISTRY_URL=${quoteShellArgument(this.baseUrl())} sh -s -- --pair ${code}${noRunner}${harnessUrl}`
+    return `curl -fsSL ${manifest.install} | CLARA_ADAPTER_REGISTRY_URL=${quoteShellArgument(this.baseUrl())} sh -s -- --pair ${code}${harnessUrl}`
   }
 
   deepLink(code: string, kind?: string): string {

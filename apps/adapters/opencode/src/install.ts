@@ -18,6 +18,7 @@ import {
   selfEntry,
   startAdapterProcess,
   waitForAdapterAuthentication,
+  writeEngineConfig,
 } from '@clara/adapter-runtime'
 import { installRunner } from '@clara/runner'
 import {
@@ -174,6 +175,12 @@ export async function installOpenCode(options: InstallOptions): Promise<InstallR
     process.env.CLARA_ORCHESTRATION_URL?.trim() ??
     'http://127.0.0.1:8789'
   ).replace(/\/$/, '')
+  // A panel install lets the adapter runtime publish engine.json after it
+  // authenticates. An explicit --url is the CI/direct escape hatch, so persist
+  // it for the plugin, runner, and MCP bridge.
+  if (!options.dryRun && options.url) {
+    writeEngineConfig({ enabled: true, mode: 'direct', url })
+  }
 
   const daemon = await installOpenCodeAdapter(options)
   actions.push(...daemon.actions)
@@ -189,6 +196,7 @@ export async function installOpenCode(options: InstallOptions): Promise<InstallR
       mcp: options.mcp ?? false,
       url,
       ...(mcpEntry ? { mcpEntry } : {}),
+      ...(options.noRunner ? { noRunner: true } : {}),
       dryRun: options.dryRun,
     })
     actions.push(...binding.actions)
@@ -209,7 +217,10 @@ export async function installOpenCode(options: InstallOptions): Promise<InstallR
     actions.push('skip the OpenCode binding (--no-binding)')
   }
 
-  if (!options.noRunner) {
+  // The OpenCode binding enables the embedded runner on the adapter machine.
+  // Install the standalone shared-runner service only for an adapter-only
+  // install, so one workspace does not get two runners.
+  if (!options.noRunner && options.noBinding) {
     const runner = installRunner({
       ...(options.workspace ? { workspace: options.workspace } : {}),
       url,

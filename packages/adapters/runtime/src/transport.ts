@@ -31,6 +31,7 @@ import {
   type AgentInfo,
   type ClaraAction,
   type ClaraState,
+  type EngineRequestAction,
   type RelayGrantState,
   type WireFrame,
 } from '@clara/shared-types'
@@ -99,6 +100,8 @@ export class AdapterTransport {
   private sendChain: Promise<void> = Promise.resolve()
   private receive = new ReplayGuard()
   private pending = new Map<string, Pending>()
+  /** In-flight engine requests this adapter asked the hub to proxy. */
+  private readonly enginePending = new Map<string, Pending>()
   /** In-flight requests the hub sent to this adapter, keyed by request id. */
   private readonly inbound = new Map<string, AbortController>()
   private stopped = true
@@ -207,6 +210,71 @@ export class AdapterTransport {
       await this.send(action)
     } catch (cause) {
       this.pending.delete(id)
+      try {
+        controller.error(cause)
+      } catch {
+        // The stream may already be closed.
+      }
+      throw cause
+    }
+    return response
+  }
+
+  /**
+   * Send one engine request over the sealed adapter session. The hub attaches
+   * the engine token and streams the response back, so a proxy-mode adapter
+   * never needs the engine credential.
+   */
+  async fetchEngine(request: Request): Promise<Response> {
+    if (!this.socket || this.socket.readyState !== WebSocket.OPEN || !this.keys) {
+      throw new Error('The harness adapter is offline')
+    }
+    const url = new URL(request.url)
+    const id = bytesToBase64Url(randomBytes(12))
+    const body = request.body ? await request.text() : undefined
+    const action: EngineRequestAction = {
+      type: 'engine.request',
+      id,
+      method: request.method as EngineRequestAction['method'],
+      path: url.pathname,
+      ...(url.search ? { search: url.search } : {}),
+      headers: Object.fromEntries(request.headers.entries()),
+      ...(body === undefined ? {} : { body }),
+    }
+
+    let controller!: ReadableStreamDefaultController<Uint8Array>
+    const stream = new ReadableStream<Uint8Array>({
+      start(value) {
+        controller = value
+      },
+    })
+    const signal = request.signal
+    const response = new Promise<Response>((resolve, reject) => {
+      const onAbort = () => {
+        const pending = this.enginePending.get(id)
+        if (!pending) return
+        this.enginePending.delete(id)
+        try {
+          if (pending.started) pending.controller.error(new Error('Request aborted'))
+          else pending.reject(new Error('Request aborted'))
+        } catch {
+          // The stream may already be closed.
+        }
+        void this.send({ type: 'engine.abort', id }).catch(() => {})
+      }
+      signal.addEventListener('abort', onAbort, { once: true })
+      this.enginePending.set(id, {
+        controller,
+        stream,
+        resolve,
+        reject,
+        started: false,
+      })
+    })
+    try {
+      await this.send(action)
+    } catch (cause) {
+      this.enginePending.delete(id)
       try {
         controller.error(cause)
       } catch {
@@ -440,6 +508,12 @@ export class AdapterTransport {
       case 'adapter.error':
         this.handleResponse(payload)
         return
+      case 'engine.response':
+      case 'engine.chunk':
+      case 'engine.end':
+      case 'engine.error':
+        this.handleEngineResponse(payload)
+        return
       case 'ping':
         await this.send({ type: 'pong', at: payload.at })
         return
@@ -539,6 +613,40 @@ export class AdapterTransport {
     }
   }
 
+  private handleEngineResponse(
+    payload: Extract<
+      ClaraState,
+      { type: 'engine.response' | 'engine.chunk' | 'engine.end' | 'engine.error' }
+    >
+  ): void {
+    const pending = this.enginePending.get(payload.id)
+    if (!pending) return
+    switch (payload.type) {
+      case 'engine.response':
+        pending.started = true
+        pending.resolve(
+          new Response(pending.stream, {
+            status: payload.status,
+            statusText: payload.statusText,
+            headers: payload.headers,
+          })
+        )
+        return
+      case 'engine.chunk':
+        pending.controller.enqueue(base64UrlToBytes(payload.data))
+        return
+      case 'engine.end':
+        pending.controller.close()
+        this.enginePending.delete(payload.id)
+        return
+      case 'engine.error':
+        if (pending.started) pending.controller.error(new Error(payload.message))
+        else pending.reject(new Error(payload.message))
+        this.enginePending.delete(payload.id)
+        return
+    }
+  }
+
   private handleResponse(payload: AdapterResponseState): void {
     const pending = this.pending.get(payload.id)
     if (!pending) return
@@ -607,7 +715,7 @@ export class AdapterTransport {
   }
 
   private rejectAll(cause: unknown): void {
-    for (const pending of this.pending.values()) {
+    for (const pending of [...this.pending.values(), ...this.enginePending.values()]) {
       try {
         if (pending.started) pending.controller.error(cause)
         else pending.reject(cause)
@@ -616,6 +724,7 @@ export class AdapterTransport {
       }
     }
     this.pending.clear()
+    this.enginePending.clear()
   }
 
   private scheduleReconnect(): void {

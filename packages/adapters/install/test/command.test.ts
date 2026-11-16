@@ -68,7 +68,7 @@ describe('install command helpers', () => {
     expect(script).toContain('--proto "=https"')
     expect(script).toContain(`expected='${'a'.repeat(64)}'`)
     expect(script).toContain(`'--pair' 'clara-harness1_code'`)
-    expect(script).toContain("'--no-runner'")
+    expect(script).not.toContain("'--no-runner'")
     expect(script).toContain("'--opencode-url' 'http://127.0.0.1:4096'")
     expect(script).toContain("CLARA_ADAPTER_REGISTRY_URL='https://clara.example/adapters'")
     expect(script).toContain('checksum did not match')

@@ -34,6 +34,7 @@ export interface OpenCodeInstallInput {
   mcp: boolean
   url: string
   mcpEntry?: McpEntry
+  noRunner?: boolean
   dryRun?: boolean
   now?: number
 }
@@ -85,16 +86,22 @@ function isSymlink(path: string): boolean {
   }
 }
 
-function writeAdapterConfig(path: string, pluginPath: string, actions: string[]): void {
+function writeAdapterConfig(
+  path: string,
+  pluginPath: string,
+  noRunner: boolean | undefined,
+  actions: string[]
+): void {
   const current = existsSync(path) ? readJson(path) : {}
   const runner = isRecord(current.runner) ? current.runner : {}
+  const enabled = noRunner !== true
   const next = {
     ...current,
-    runner: { ...runner, enabled: false },
+    runner: { ...runner, enabled },
     plugin: pluginPath,
   }
   writeJson(path, next)
-  actions.push(`write adapter config ${path} (embedded runner disabled)`)
+  actions.push(`write adapter config ${path} (embedded runner ${enabled ? 'enabled' : 'disabled'})`)
 }
 
 export function installOpenCode(input: OpenCodeInstallInput): OpenCodeInstallResult {
@@ -138,7 +145,7 @@ export function installOpenCode(input: OpenCodeInstallInput): OpenCodeInstallRes
           `Add ${target} to its plugins list or restart OpenCode after this install.`
       )
     }
-    writeAdapterConfig(paths.adapterConfig, target, actions)
+    writeAdapterConfig(paths.adapterConfig, target, input.noRunner, actions)
     if (input.mcp) {
       if (!input.mcpEntry) throw new Error('The MCP entry path is unavailable')
       installOpenCodeMcp(paths.config, input.mcpEntry)
@@ -151,7 +158,11 @@ export function installOpenCode(input: OpenCodeInstallInput): OpenCodeInstallRes
     actions.push(`link plugin ${paths.plugin} -> ${target}`)
     actions.push(`write agent ${paths.agent}`)
     actions.push(`register plugin ${target} in ${paths.config}`)
-    actions.push(`write adapter config ${paths.adapterConfig} (embedded runner disabled)`)
+    actions.push(
+      `write adapter config ${paths.adapterConfig} (embedded runner ${
+        input.noRunner === true ? 'disabled' : 'enabled'
+      })`
+    )
     if (input.mcp) actions.push(`register MCP bridge in ${paths.config}`)
   }
 

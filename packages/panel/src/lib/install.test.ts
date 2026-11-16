@@ -56,16 +56,16 @@ describe('install panel helpers', () => {
     expect(registryError(info, 'claude')).toBe('missing')
   })
 
-  it('builds the registry command and skips the runner for OpenCode', () => {
+  it('builds the registry command with the runner enabled', () => {
     expect(registryCommand(info, 'opencode', 'code')).toBe(
-      "curl -fsSL https://clara.example/adapters/opencode/install.sh | CLARA_ADAPTER_REGISTRY_URL='https://clara.example/adapters' sh -s -- --pair code --no-runner"
+      "curl -fsSL https://clara.example/adapters/opencode/install.sh | CLARA_ADAPTER_REGISTRY_URL='https://clara.example/adapters' sh -s -- --pair code"
     )
     expect(registryCommand(info, 'claude', 'code')).toBeUndefined()
   })
 
   it('builds a repair command that reuses the saved pairing', () => {
     expect(adapterRepairCommand(info, 'opencode')).toBe(
-      "curl -fsSL https://clara.example/adapters/opencode/install.sh | CLARA_ADAPTER_REGISTRY_URL='https://clara.example/adapters' sh -s -- --reuse-pairing --no-runner"
+      "curl -fsSL https://clara.example/adapters/opencode/install.sh | CLARA_ADAPTER_REGISTRY_URL='https://clara.example/adapters' sh -s -- --reuse-pairing"
     )
     expect(latestAdapterVersion(info, 'opencode')).toBe('0.1.0-dev+abc1234')
   })
