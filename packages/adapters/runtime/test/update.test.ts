@@ -1,12 +1,17 @@
-import { mkdirSync, mkdtempSync, rmSync, writeFileSync } from 'node:fs'
+import { spawnSync } from 'node:child_process'
+import { createHash } from 'node:crypto'
+import { existsSync, mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs'
+import { createServer } from 'node:http'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import { afterEach, describe, expect, it } from 'vitest'
+import { readAdapterProvenance, writeAdapterProvenance } from '@clara/adapter-artifact'
 import {
   AdapterUpdateError,
   adapterUpdateStatusPath,
   parseManifest,
   readAdapterUpdateStatus,
+  stageAdapterUpdate,
 } from '../src/index.ts'
 
 const roots: string[] = []
@@ -96,5 +101,107 @@ describe('adapter update status', () => {
 
     writeFileSync(adapterUpdateStatusPath(adapterPaths), '{"schemaVersion":2}')
     expect(readAdapterUpdateStatus(adapterPaths).state).toBe('idle')
+  })
+})
+
+describe('adapter update staging', () => {
+  it('downloads, verifies, and extracts a newer release', async () => {
+    const base = tempDir()
+    const root = join(base, 'opencode', '0.1.0')
+    mkdirSync(root, { recursive: true })
+    writeFileSync(join(root, 'clara-adapter-opencode'), 'old')
+    writeAdapterProvenance(root, {
+      schemaVersion: 1,
+      kind: 'opencode',
+      version: '0.1.0',
+      platform: 'linux-x64',
+      source: 'registry',
+      registryUrl: 'http://127.0.0.1:1/adapters',
+      installedAt: new Date().toISOString(),
+    })
+
+    const artifactDir = tempDir()
+    writeFileSync(join(artifactDir, 'clara-adapter-opencode'), '#!/bin/sh\nexit 0\n', {
+      mode: 0o755,
+    })
+    const archive = join(tempDir(), 'adapter.tar.gz')
+    const tar = spawnSync('tar', ['-czf', archive, '-C', artifactDir, '.'])
+    expect(tar.status).toBe(0)
+    const bytes = readFileSync(archive)
+    const sha256 = createHash('sha256').update(bytes).digest('hex')
+
+    let port = 0
+    const server = createServer((request, response) => {
+      if (request.url === '/adapters/opencode/manifest.json') {
+        response.setHeader('content-type', 'application/json')
+        response.end(
+          JSON.stringify({
+            schemaVersion: 1,
+            harness: 'opencode',
+            version: '0.2.0',
+            artifacts: {
+              'linux-x64': {
+                url: `http://127.0.0.1:${port}/adapter.tar.gz`,
+                sha256,
+                size: bytes.length,
+              },
+            },
+          })
+        )
+        return
+      }
+      if (request.url === '/adapter.tar.gz') {
+        response.setHeader('content-type', 'application/octet-stream')
+        response.end(bytes)
+        return
+      }
+      response.statusCode = 404
+      response.end()
+    })
+    await new Promise<void>((resolve) => {
+      server.listen(0, '127.0.0.1', () => {
+        const address = server.address()
+        port = typeof address === 'object' && address ? address.port : 0
+        resolve()
+      })
+    })
+
+    const adapterPaths = paths(base)
+    adapterPaths.dataDir = join(base, 'data')
+    let planPath: string | undefined
+    try {
+      const provenance = readAdapterProvenance(root)
+      expect(provenance).toBeDefined()
+      writeAdapterProvenance(root, {
+        ...provenance!,
+        registryUrl: `http://127.0.0.1:${port}/adapters`,
+      })
+      const result = await stageAdapterUpdate(
+        {
+          kind: 'opencode',
+          label: 'OpenCode',
+          version: '0.1.0',
+          paths: adapterPaths,
+          containerized: false,
+          root,
+          platform: 'linux-x64',
+          supervise: (_paths, plan) => {
+            planPath = plan
+          },
+        },
+        '0.2.0'
+      )
+      expect(result).toEqual({ from: '0.1.0', to: '0.2.0' })
+      expect(existsSync(join(base, 'opencode', '0.2.0', 'clara-adapter-opencode'))).toBe(true)
+      expect(readAdapterUpdateStatus(adapterPaths).state).toBe('restarting')
+      expect(planPath).toBeDefined()
+      expect(JSON.parse(readFileSync(planPath!, 'utf8'))).toMatchObject({
+        from: '0.1.0',
+        to: '0.2.0',
+        newRoot: join(base, 'opencode', '0.2.0'),
+      })
+    } finally {
+      await new Promise<void>((resolve) => server.close(() => resolve()))
+    }
   })
 })

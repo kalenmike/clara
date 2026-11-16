@@ -23,6 +23,7 @@ import {
   extractArchive,
   isAdapterVersion,
   readAdapterProvenance,
+  type AdapterTarget,
 } from '@clara/adapter-artifact'
 import { jsonBody } from './http.ts'
 import { adapterInstallRoot } from './provenance.ts'
@@ -97,6 +98,12 @@ export type AdapterUpdateTarget = {
   version: string
   paths: AdapterPaths
   containerized: boolean
+  /** The install directory; defaults to the running adapter's directory. */
+  root?: string
+  platform?: AdapterTarget
+  fetchImpl?: typeof fetch
+  /** Start the restart supervisor; injected by tests that only stage. */
+  supervise?: (paths: AdapterPaths, planPath: string, kind: string) => void
 }
 
 export class AdapterUpdateError extends Error {
@@ -183,7 +190,7 @@ export async function stageAdapterUpdate(
   target: AdapterUpdateTarget,
   requestedVersion?: string
 ): Promise<{ from: string; to: string }> {
-  const root = adapterInstallRoot()
+  const root = target.root ?? adapterInstallRoot()
   if (!root) {
     throw new AdapterUpdateError(
       409,
@@ -225,8 +232,8 @@ export async function stageAdapterUpdate(
   let staging: string | undefined
   let archive: string | undefined
   try {
-    const platform = detectAdapterTarget()
-    const manifest = await fetchManifest(provenance.registryUrl, target.kind)
+    const platform = target.platform ?? detectAdapterTarget()
+    const manifest = await fetchManifest(provenance.registryUrl, target.kind, target.fetchImpl)
     if (requestedVersion && requestedVersion !== manifest.version) {
       throw new AdapterUpdateError(
         409,
@@ -284,6 +291,7 @@ export async function stageAdapterUpdate(
       destination: archive,
       sha256: artifact.sha256,
       ...(artifact.size !== undefined ? { size: artifact.size } : {}),
+      ...(target.fetchImpl ? { fetchImpl: target.fetchImpl } : {}),
     })
     extractArchive({ archive, dest: staging, format: archiveFormat(artifact.url) })
     const binary = join(staging, adapterBinaryName(target.kind, platform))
@@ -324,7 +332,8 @@ export async function stageAdapterUpdate(
       startedAt,
     })
 
-    startUpdateSupervisor(target.paths, planPath, target.kind)
+    if (target.supervise) target.supervise(target.paths, planPath, target.kind)
+    else startUpdateSupervisor(target.paths, planPath, target.kind)
     writeAdapterUpdateStatus(target.paths, {
       schemaVersion: 1,
       state: 'restarting',
@@ -492,9 +501,13 @@ function startUpdateSupervisor(paths: AdapterPaths, planPath: string, kind: stri
   }
 }
 
-async function fetchManifest(registryUrl: string, kind: string): Promise<AdapterManifest> {
+async function fetchManifest(
+  registryUrl: string,
+  kind: string,
+  fetchImpl: typeof fetch = fetch
+): Promise<AdapterManifest> {
   const url = `${registryUrl.replace(/\/+$/, '')}/${encodeURIComponent(kind)}/manifest.json`
-  const response = await fetch(url, {
+  const response = await fetchImpl(url, {
     headers: { accept: 'application/json', 'user-agent': 'clara-adapter' },
     redirect: 'follow',
     signal: AbortSignal.timeout(MANIFEST_TIMEOUT_MS),
