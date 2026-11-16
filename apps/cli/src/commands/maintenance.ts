@@ -28,7 +28,7 @@ import {
   type ServiceOptions,
 } from '../service-manager/index.ts'
 import { bold, dim } from '../ui/color.ts'
-import { failure, success } from '../ui/index.ts'
+import { failure, success, warn } from '../ui/index.ts'
 import { confirm } from '../ui/prompt.ts'
 import { version } from '../version.ts'
 import { parseFlags } from './flags.ts'
@@ -98,13 +98,21 @@ export async function runUninstallCommand(args: readonly string[]): Promise<numb
 
   await stopStack(paths, undefined)
   if (readDesktopInstallInfo(paths.configDir)) {
-    uninstallDesktop({
-      configDir: paths.configDir,
-      dataDir: paths.dataDir,
-      binDir: defaultBinDir(),
-      purge: parsed.flags.has('purge'),
-      log: (line) => console.log(dim(line)),
-    })
+    try {
+      uninstallDesktop({
+        configDir: paths.configDir,
+        dataDir: paths.dataDir,
+        binDir: defaultBinDir(),
+        purge: parsed.flags.has('purge'),
+        log: (line) => console.log(dim(line)),
+      })
+    } catch (cause) {
+      console.log(
+        warn(
+          `The desktop app was not removed: ${cause instanceof Error ? cause.message : String(cause)}`
+        )
+      )
+    }
   }
   const kind = detectService()
   applyPlan(uninstallPlan(kind, serviceOptions()))
