@@ -10,7 +10,7 @@
 // in. The generated files are committed like the adapter registry and deployed
 // with `pnpm deploy:web` or `pnpm deploy:web:release`.
 
-import { createPrivateKey, createPublicKey, sign } from 'node:crypto'
+import { createPrivateKey, createPublicKey, sign, verify } from 'node:crypto'
 import { existsSync, mkdirSync, readFileSync, writeFileSync } from 'node:fs'
 import { dirname, join, resolve } from 'node:path'
 import { fileURLToPath } from 'node:url'
@@ -49,13 +49,14 @@ const installScript = resolve(
 const installScriptPs1 = resolve(dirname(installScript), 'install.ps1')
 const token = process.env.GITHUB_TOKEN?.trim() || process.env.GH_TOKEN?.trim()
 
+const keys = signingKey()
 let cliTag
 try {
   cliTag = await resolveTag(args['cli-tag'], fetchLatestCommandTag, 'command')
 } catch (cause) {
   fail(`No published command release: ${message(cause)}`)
 }
-const cli = await readCommandRelease(cliTag)
+const cli = await readCommandRelease(cliTag, keys.publicKey)
 const desktop = await readDesktopRelease(args['desktop-tag'])
 
 const manifest = {
@@ -68,18 +69,17 @@ const manifest = {
 }
 
 const bytes = Buffer.from(`${JSON.stringify(manifest, null, 2)}\n`)
-const { privateKey, publicKey } = signingKey()
-const signature = sign(null, bytes, privateKey)
+const signature = sign(null, bytes, keys.privateKey)
 
 mkdirSync(releaseDir, { recursive: true })
 writeFileSync(join(releaseDir, 'manifest.json'), bytes)
 writeFileSync(join(releaseDir, 'manifest.json.sig'), `${signature.toString('base64')}\n`)
-writeFileSync(join(releaseDir, 'public-key.txt'), `${publicKey}\n`)
+writeFileSync(join(releaseDir, 'public-key.txt'), `${keys.publicKey}\n`)
 
-const shell = renderInstaller(installScript, publicKey)
+const shell = renderInstaller(installScript, keys.publicKey)
 writeFileSync(join(outDir, 'install'), shell, { mode: 0o755 })
 writeFileSync(join(releaseDir, 'install.sh'), shell, { mode: 0o755 })
-const powershell = renderInstaller(installScriptPs1, publicKey, false)
+const powershell = renderInstaller(installScriptPs1, keys.publicKey, false)
 writeFileSync(join(outDir, 'install.ps1'), powershell)
 writeFileSync(join(releaseDir, 'install.ps1'), powershell)
 
@@ -104,14 +104,29 @@ async function resolveTag(value, fetchLatest, label) {
   return tag
 }
 
-async function readCommandRelease(tag) {
+async function readCommandRelease(tag, publicKey) {
   const release = await releaseMetadata(tag)
   const version = versionFromTag(tag)
   if (!version) fail(`Cannot derive a command version from ${tag}.`)
   const assets = await assetsFor(tag)
   const manifestAsset = assets.get('manifest.json')
+  const signatureAsset = assets.get('manifest.json.sig')
   if (!manifestAsset) fail(`Release ${tag} has no manifest.json asset.`)
-  const published = await downloadJson(manifestAsset.browser_download_url)
+  if (!signatureAsset) fail(`Release ${tag} has no manifest.json.sig asset.`)
+  const manifestBytes = await downloadBytes(manifestAsset.browser_download_url)
+  const signature = Buffer.from(
+    (await downloadText(signatureAsset.browser_download_url)).trim(),
+    'base64'
+  )
+  if (!verifySignature(manifestBytes, signature, publicKey)) {
+    fail(`Release ${tag} manifest signature did not match.`)
+  }
+  let published
+  try {
+    published = JSON.parse(manifestBytes.toString('utf8'))
+  } catch (cause) {
+    fail(`Release ${tag} manifest is not valid JSON: ${message(cause)}`)
+  }
   if (published?.schemaVersion !== 2 || !published.cli) {
     fail(`Release ${tag} does not publish a v2 command manifest.`)
   }
@@ -180,7 +195,7 @@ async function assetsFor(tag) {
   }
 }
 
-async function downloadJson(url) {
+async function downloadBytes(url) {
   const response = await fetch(url, {
     headers: {
       accept: 'application/octet-stream',
@@ -189,7 +204,28 @@ async function downloadJson(url) {
     signal: AbortSignal.timeout(30_000),
   })
   if (!response.ok) fail(`Could not download ${url} (HTTP ${response.status}).`)
-  return response.json()
+  return Buffer.from(await response.arrayBuffer())
+}
+
+async function downloadText(url) {
+  return (await downloadBytes(url)).toString('utf8')
+}
+
+function verifySignature(bytes, signature, publicKey) {
+  try {
+    return verify(
+      null,
+      bytes,
+      createPublicKey({
+        key: Buffer.from(publicKey, 'base64'),
+        format: 'der',
+        type: 'spki',
+      }),
+      signature
+    )
+  } catch {
+    return false
+  }
 }
 
 function signingKey() {
