@@ -23,6 +23,10 @@ harness that owns the session.
 The arrows at the left edge step through messages; double-press to jump to the
 newest output or the top of the loaded history.
 
+When a session moves to another folder, a compact system row names the new
+folder. A long path shortens from the start so the final folder stays readable,
+and hovering shows the full path.
+
 ## Show internal work
 
 Internal output is hidden by default. Use the eye control in the thread header to
@@ -30,7 +34,8 @@ show reasoning, tool calls, shell commands, and system reminders. Tool cards
 expand to show input, output, duration, and status.
 
 Token and cost totals from hidden steps roll into the next visible reply, so
-turning internal output off does not lose usage.
+turning internal output off does not lose usage. A turn that ends on hidden work
+shows one **Thinking** summary at its end.
 
 ## Answer an approval
 
