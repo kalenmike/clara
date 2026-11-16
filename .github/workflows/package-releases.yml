@@ -8,6 +8,12 @@ on:
     tags:
       - 'v*'
   workflow_dispatch:
+    inputs:
+      dry_run:
+        description: 'Build and sign the release without publishing or uploading it'
+        required: false
+        default: false
+        type: boolean
 
 permissions:
   contents: write
@@ -61,6 +67,16 @@ jobs:
             platform: linux-arm64
             bun-target: bun-linux-arm64
             native: false
+          - name: linux-x64-musl
+            os: ubuntu-22.04
+            platform: linux-x64-musl
+            bun-target: bun-linux-x64-musl
+            native: false
+          - name: linux-arm64-musl
+            os: ubuntu-22.04
+            platform: linux-arm64-musl
+            bun-target: bun-linux-arm64-musl
+            native: false
           - name: darwin-x64
             os: macos-15-intel
             platform: darwin-x64
@@ -76,6 +92,11 @@ jobs:
             platform: win32-x64
             bun-target: bun-windows-x64
             native: true
+          - name: win32-arm64
+            os: windows-latest
+            platform: win32-arm64
+            bun-target: bun-windows-arm64
+            native: false
 
     steps:
       - uses: actions/checkout@v5
@@ -160,6 +181,7 @@ jobs:
             --out dist/release
 
       - name: Publish the release
+        if: ${{ !inputs.dry_run }}
         env:
           GH_TOKEN: ${{ github.token }}
         run: |

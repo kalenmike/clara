@@ -34,9 +34,12 @@ const skipAssets = process.argv.includes('--skip-assets')
 const TARGETS = [
   'bun-linux-x64',
   'bun-linux-arm64',
+  'bun-linux-x64-musl',
+  'bun-linux-arm64-musl',
   'bun-darwin-x64',
   'bun-darwin-arm64',
   'bun-windows-x64',
+  'bun-windows-arm64',
 ]
 
 const target = arg('--target') ?? hostTarget()
