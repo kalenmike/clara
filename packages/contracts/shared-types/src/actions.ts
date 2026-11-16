@@ -85,6 +85,26 @@ export type DeviceEnrollAction = {
 }
 
 /**
+ * An adapter asks the hub to forward one engine request. The hub attaches the
+ * engine token and returns the response over the same sealed adapter session.
+ * This is what lets a remote adapter use an engine it cannot reach directly.
+ */
+export type EngineRequestAction = {
+  type: 'engine.request'
+  id: string
+  method: HttpMethod
+  path: string
+  search?: string
+  headers?: Record<string, string>
+  body?: string
+}
+
+export type EngineAbortAction = {
+  type: 'engine.abort'
+  id: string
+}
+
+/**
  * Actions travel from a browser client to the hub. `body` is base64url
  * encoded so the payload stays JSON-safe on every runtime.
  */
@@ -99,6 +119,8 @@ export type ClaraAction =
       body?: string
     }
   | { type: 'http.abort'; id: string }
+  | EngineRequestAction
+  | EngineAbortAction
   | { type: 'ping'; at: number; presence?: PresenceSnapshot }
   | { type: 'pong'; at: number }
   | { type: 'ready'; agent: AgentInfo; relayGrant?: RelayGrantState }

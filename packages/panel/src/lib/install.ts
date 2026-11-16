@@ -39,8 +39,7 @@ export function registryCommand(
 ): string | undefined {
   const manifest = installManifest(info, kind)
   if (!manifest) return undefined
-  const noRunner = kind === 'opencode' ? ' --no-runner' : ''
-  return `curl -fsSL ${manifest.install} | ${registryEnv(info)}sh -s -- --pair ${code}${noRunner}`
+  return `curl -fsSL ${manifest.install} | ${registryEnv(info)}sh -s -- --pair ${code}`
 }
 
 /**
@@ -54,8 +53,7 @@ export function adapterRepairCommand(
 ): string | undefined {
   const manifest = installManifest(info, kind)
   if (!manifest) return undefined
-  const noRunner = kind === 'opencode' ? ' --no-runner' : ''
-  return `curl -fsSL ${manifest.install} | ${registryEnv(info)}sh -s -- --reuse-pairing${noRunner}`
+  return `curl -fsSL ${manifest.install} | ${registryEnv(info)}sh -s -- --reuse-pairing`
 }
 
 /** The newer published version for a connected adapter, when one exists. */

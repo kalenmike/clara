@@ -4,6 +4,11 @@ export interface RunnerConfig {
   url: string
   /** Engine bearer token. */
   token: string
+  /**
+   * Resolve the endpoint again before each request. Embedded runners use this
+   * so a direct-to-proxy switch or a token refresh needs no restart.
+   */
+  resolve?: () => { url: string; token: string }
   /** Absolute workspace path the runner executes in. */
   workspace: string
   /** Stable runner id. Defaults to host/pid based. */

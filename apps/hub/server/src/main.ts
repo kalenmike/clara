@@ -10,7 +10,7 @@ import {
   type AgentInfo,
   type HarnessPairingPayload,
 } from '@clara/shared-types'
-import { baseURL } from '@clara/service-control'
+import { clientURL } from '@clara/service-control'
 import {
   acquireRuntimeLock,
   isRuntimeLive,
@@ -316,7 +316,7 @@ async function runServe(
     endpoints: {
       web: config.pairingBaseUrl,
       hub: `http://${config.local.host}:${config.local.port}`,
-      engine: baseURL(),
+      engine: clientURL(),
     },
   }
 

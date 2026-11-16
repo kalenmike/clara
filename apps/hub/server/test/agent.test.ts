@@ -1409,6 +1409,93 @@ describe('agent adapter enrollment', () => {
     }
   })
 
+  it('publishes the engine descriptor to adapters and proxies requests', async () => {
+    const fake = await startFakeOpenCode()
+    const engineAuth: string[] = []
+    const engine = createServer((request, response) => {
+      engineAuth.push(request.headers.authorization ?? '')
+      response.setHeader('content-type', 'application/json')
+      response.end(JSON.stringify({ workspace: '/workspace/project' }))
+    })
+    await new Promise<void>((resolve) => engine.listen(0, '127.0.0.1', () => resolve()))
+    const address = engine.address()
+    if (!address || typeof address === 'string') throw new Error('engine did not bind')
+    const engineURL = `http://127.0.0.1:${address.port}`
+    try {
+      const adapterKey = generateKey()
+      const adapters: AdapterSessionHandler = {
+        pairingToken: async () => undefined,
+        credential: async (id) =>
+          id === 'adapter-engine'
+            ? { adapterId: 'adapter-engine', harnessId: 'harness-engine', key: adapterKey }
+            : undefined,
+        enroll: async () => ({
+          connection: { id: 'c', harnessId: 'h', label: 'h' },
+          reconnected: false,
+        }),
+        setLive: async () => undefined,
+        clearLive: async () => undefined,
+      }
+      const frames: WireFrame[] = []
+      const agent = new Agent({
+        api: fakeApi(fake),
+        devices: testDevices(generateKey()),
+        info: { version: 'test', protocol: PROTOCOL_VERSION },
+        send: (frame) => frames.push(frame),
+        adapters,
+        engine: {
+          info: () => ({
+            enabled: true,
+            direct: [engineURL],
+            proxy: true,
+            reachable: true,
+            token: 'engine-token',
+          }),
+          url: () => engineURL,
+          token: () => 'engine-token',
+        },
+      })
+      agents.push(agent)
+
+      const client = await openClient(
+        agent,
+        frames,
+        adapterKey,
+        { adapter: true, adapterId: 'adapter-engine' },
+        { sid: 'adapter-engine-connect' }
+      )
+      const ready = await waitFor(async () => {
+        const payloads = await readPayloads(client, frames)
+        return payloads.find((payload) => payload.type === 'ready')
+      })
+      expect(ready.type === 'ready' ? ready.agent.engine : undefined).toMatchObject({
+        enabled: true,
+        direct: [engineURL],
+        proxy: true,
+        reachable: true,
+        token: 'engine-token',
+      })
+
+      await send(client, agent, {
+        type: 'engine.request',
+        id: 'engine-request',
+        method: 'GET',
+        path: '/v1/config',
+      })
+      const states = await waitFor(async () => {
+        const values = await readStates(client, frames)
+        return values.find((payload) => payload.type === 'engine.end') ? values : undefined
+      })
+      expect(states.map((state) => state.type)).toEqual(
+        expect.arrayContaining(['engine.response', 'engine.chunk', 'engine.end'])
+      )
+      expect(engineAuth).toContain('Bearer engine-token')
+    } finally {
+      await new Promise<void>((resolve) => engine.close(() => resolve()))
+      await fake.close()
+    }
+  })
+
   it('keeps controller endpoints off browser sessions', async () => {
     const fake = await startFakeOpenCode()
     try {

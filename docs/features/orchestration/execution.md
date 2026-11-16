@@ -44,14 +44,14 @@ Field definitions live in [packages.md](packages.md).
 ## Runners
 
 The engine never spawns a process. A runner claims a script step, renews the
-lease, streams `step.output`, and reports the result. One shared standalone
-runner (`clara start runner`) serves the workspace; the OpenCode adapter's
-embedded runner is a fallback when `runner.enabled` is not `false`.
+lease, streams `step.output`, and reports the result. It belongs on the machine
+that owns the workspace, not the hub host: a panel install enables the OpenCode
+embedded runner there by default (`runner.enabled: false` or `--no-runner` turns
+it off). A shared `clara start runner` is optional; both read `engine.json`.
 
-Claims are capability-filtered: agent and router work is scoped to the owning
-harness or `requires.adapter`, while script work is shared by any runner with
-the `script` capability. With no capable runner the step stays ready, and one
-`no_runner` alert opens after `CLARA_RUNNER_WAIT_MS` (60 s).
+Claims are capability-filtered: agent work stays with its harness, while any
+runner with `script` can claim script work. With no capable runner the step
+stays ready and one `no_runner` alert opens after `CLARA_RUNNER_WAIT_MS`.
 
 ## Leases and heartbeats
 

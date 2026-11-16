@@ -215,7 +215,16 @@ export default {
   id: 'clara-policy',
 
   async setup(ctx: Any) {
-    const config = engineServiceConfig()
+    // Resolve the endpoint on every request so the adapter can publish a new
+    // direct URL, a proxy gateway, or a rotated token without a restart.
+    const config = {
+      get url(): string {
+        return engineServiceConfig().url
+      },
+      get token(): string {
+        return engineServiceConfig().token
+      },
+    }
     const localConfig = readAdapterConfig()
     let runner: Runner | undefined
     const active = new Map<string, ActiveWork>()
@@ -429,12 +438,10 @@ export default {
 
     const register = async (): Promise<void> => {
       try {
-        const settings = await call<{ workspace?: string | null }>(
-          config,
-          'GET',
-          '/v1/config'
-        ).catch(() => undefined)
-        const workspace = settings?.workspace?.trim() || resolveWorkspace(ctx)
+        // The engine's workspace is the engine host's path. Worker sessions,
+        // scripts, and policy checks belong to this adapter machine, so use
+        // the harness project directory instead of adopting the engine path.
+        const workspace = resolveWorkspace(ctx)
         configuredWorkspace = workspace
         const probe = await call(config, 'GET', '/v1/catalog').catch((error: unknown) => error)
         serviceNeedsWorkspace = needsExplicitWorkspace(probe)
@@ -459,6 +466,10 @@ export default {
 
     const startRunner = async (): Promise<void> => {
       if (runner || !runnerEnabled(localConfig)) return
+      // The adapter daemon publishes engine.json after it authenticates. Do
+      // not start a runner against the loopback default while that is pending.
+      const current = engineServiceConfig()
+      if (!current.token) return
       const workspace = currentWorkspace()
       const configured = Number(
         process.env.CLARA_RUNNER_CONCURRENCY ?? localConfig.runner?.concurrency ?? 2
@@ -472,6 +483,7 @@ export default {
       runner = createRunner({
         url: config.url,
         token: config.token,
+        resolve: () => engineServiceConfig(),
         workspace,
         id:
           process.env.CLARA_RUNNER_ID?.trim() ||
@@ -838,9 +850,23 @@ export default {
     }
 
     await register()
-    await startRunner()
+    if (adapterID) await startRunner()
     await adoptRuns()
     void deliverRuns()
+    const registration = setInterval(() => {
+      if (adapterID) {
+        clearInterval(registration)
+        return
+      }
+      void register().then(() => {
+        if (!adapterID) return
+        clearInterval(registration)
+        void startRunner()
+        void adoptRuns()
+        void deliverRuns()
+      })
+    }, 5_000)
+    registration.unref?.()
     const heartbeat = setInterval(() => {
       if (adapterID)
         void call(config, 'POST', `/v1/adapters/${adapterID}/heartbeat`).catch(() => {})
@@ -1397,9 +1423,11 @@ export default {
     console.log('[clara-policy] strict adapter ready')
 
     return () => {
+      clearInterval(registration)
       clearInterval(heartbeat)
       clearInterval(dispatchTimer)
       clearInterval(deliveryTimer)
+      void runner?.stop()
       for (const work of active.values()) {
         if (work.beatTimer) clearInterval(work.beatTimer)
       }

@@ -32,6 +32,16 @@ export type ClaraState =
   | { type: 'http.chunk'; id: string; data: string }
   | { type: 'http.end'; id: string }
   | { type: 'http.error'; id: string; message: string; code?: string }
+  | {
+      type: 'engine.response'
+      id: string
+      status: number
+      statusText: string
+      headers: Record<string, string>
+    }
+  | { type: 'engine.chunk'; id: string; data: string }
+  | { type: 'engine.end'; id: string }
+  | { type: 'engine.error'; id: string; message: string; code?: string }
   | { type: 'agent.status'; online: boolean; agent?: AgentInfo }
   | {
       type: 'push.status'

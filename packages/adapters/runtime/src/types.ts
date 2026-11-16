@@ -1,4 +1,4 @@
-import type { AgentEndpoints } from '@clara/shared-types'
+import type { AgentEndpoints, AgentEngineInfo } from '@clara/shared-types'
 
 /** Stable identity shared by every harness adapter. */
 export type AdapterIdentity = {
@@ -60,6 +60,7 @@ export type AdapterHubInfo = {
   protocol: number
   room?: string
   endpoints?: AgentEndpoints
+  engine?: AgentEngineInfo
   updatedAt: number
 }
 

@@ -17,6 +17,7 @@ import {
   removeIdentity,
   writeAdapterConfig,
 } from './config.ts'
+import { EngineOrchestrator } from './engine.ts'
 import { enrollAdapter } from './enroll.ts'
 import { describeError } from './errors.ts'
 import { createHostMetrics } from './host.ts'
@@ -303,16 +304,25 @@ async function serve<THarness>(
     writeAdapterConfig(definition.paths, { ...current, grant: state.grant })
   }
   let hubInfo: AdapterLiveState['hubInfo']
+  const orchestratorRef: { current?: EngineOrchestrator } = {}
   let writeLive: () => void = () => {}
   const rememberHubInfo = (info: AgentInfo) => {
+    const engine = info.engine ? { ...info.engine } : undefined
+    // The status file is readable by the adapter user; the token belongs in
+    // engine.token and engine.json, not in a diagnostics snapshot.
+    if (engine) delete engine.token
     hubInfo = {
       version: info.version,
       protocol: info.protocol,
       ...(info.room ? { room: info.room } : {}),
       ...(info.endpoints ? { endpoints: info.endpoints } : {}),
+      ...(engine ? { engine } : {}),
       updatedAt: Date.now(),
     }
     writeLive()
+    void orchestratorRef.current?.update(info.engine).catch((cause) => {
+      console.error(`[adapter] could not resolve the engine endpoint: ${describeError(cause)}`)
+    })
   }
   const transport = new AdapterTransport({
     wsUrl,
@@ -330,6 +340,15 @@ async function serve<THarness>(
     handler: async (request) => app.fetch(request),
     onRelayGrant: persistGrant,
     onHubInfo: rememberHubInfo,
+    log: (message, detail) => {
+      console.error(`[adapter] ${message}`)
+      if (process.env.CLARA_ADAPTER_DEBUG === '1' && detail !== undefined) {
+        console.error(detail)
+      }
+    },
+  })
+  orchestratorRef.current = new EngineOrchestrator({
+    transport,
     log: (message, detail) => {
       console.error(`[adapter] ${message}`)
       if (process.env.CLARA_ADAPTER_DEBUG === '1' && detail !== undefined) {
@@ -407,7 +426,7 @@ async function serve<THarness>(
     hostMetrics.stop()
     transport.close()
     writeLive()
-    process.exit(0)
+    void orchestratorRef.current?.close().finally(() => process.exit(0))
   }
   process.on('SIGINT', stop)
   process.on('SIGTERM', stop)
@@ -601,6 +620,13 @@ async function status<THarness>(definition: AdapterDefinition<THarness>): Promis
       console.log(`hub version: ${live.hubInfo.version}`)
       if (live.hubInfo.endpoints?.web) console.log(`web:      ${live.hubInfo.endpoints.web}`)
       if (live.hubInfo.endpoints?.engine) console.log(`engine:   ${live.hubInfo.endpoints.engine}`)
+      if (live.hubInfo.engine) {
+        const engine = live.hubInfo.engine
+        console.log(
+          `engine bridge: ${engine.enabled ? (engine.proxy ? 'direct or proxy' : 'direct only') : 'off'}` +
+            (engine.reachable ? ' (hub reachable)' : ' (hub unreachable)')
+        )
+      }
     }
     const health = live.harness
     console.log(

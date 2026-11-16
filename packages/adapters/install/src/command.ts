@@ -157,7 +157,6 @@ export function adapterRegistryBase(installUrl: string): string | undefined {
 
 export function buildInstallScript(input: InstallScriptInput): string {
   const args = ['--pair', input.pairingCode]
-  if (input.kind === 'opencode') args.push('--no-runner')
   if (input.opencodeUrl) args.push('--opencode-url', input.opencodeUrl)
   const registryUrl = input.registryUrl ?? adapterRegistryBase(input.installUrl)
   const installer = `sh "$tmp" ${args.map(shellQuote).join(' ')}`
@@ -209,17 +208,38 @@ export function buildInstallScript(input: InstallScriptInput): string {
     '  if [ -n "$pid" ] && kill -0 "$pid" 2>/dev/null && \\',
     '     grep -Eq "\\"pid\\":[[:space:]]*$pid([^0-9]|$)" "$data/state.json" 2>/dev/null && \\',
     '     grep -Eq \'"status":[[:space:]]*"authenticated"\' "$data/state.json" 2>/dev/null; then',
-    '    echo "Clara $kind adapter installed and connected."',
-    '    exit 0',
+    '    connected=1',
+    '    break',
     '  fi',
     '  tries=$((tries + 1))',
     '  sleep 1',
     'done',
-    'echo "The adapter was installed but did not start or connect." >&2',
-    'if [ -f "$data/state.json" ]; then cat "$data/state.json" >&2; fi',
-    'if [ -f "$data/adapter.log" ]; then tail -n 80 "$data/adapter.log" >&2; fi',
-    'echo "Run: $binary start" >&2',
-    'exit 1',
+    'if [ "${connected:-0}" != 1 ]; then',
+    '  echo "The adapter was installed but did not start or connect." >&2',
+    '  if [ -f "$data/state.json" ]; then cat "$data/state.json" >&2; fi',
+    '  if [ -f "$data/adapter.log" ]; then tail -n 80 "$data/adapter.log" >&2; fi',
+    '  echo "Run: $binary start" >&2',
+    '  exit 1',
+    'fi',
+    '# The OpenCode adapter asks the hub for the engine endpoint after it',
+    '# authenticates. A disabled orchestration service leaves the file disabled;',
+    '# do not fail the harness install for that.',
+    'if [ "$kind" = "opencode" ]; then',
+    '  engine_data="${CLARA_DATA_DIR:-${XDG_DATA_HOME:-$HOME/.local/share}/clara}"',
+    '  engine_file="$engine_data/engine.json"',
+    '  tries=0',
+    '  while [ "$tries" -lt 5 ]; do',
+    '    if [ -f "$engine_file" ] && grep -Eq \'"enabled":[[:space:]]*true\' "$engine_file"; then',
+    '      echo "Clara $kind adapter installed and connected; orchestration endpoint resolved."',
+    '      exit 0',
+    '    fi',
+    '    tries=$((tries + 1))',
+    '    sleep 1',
+    '  done',
+    '  echo "The engine endpoint will resolve when orchestration is available." >&2',
+    'fi',
+    'echo "Clara $kind adapter installed and connected."',
+    'exit 0',
   ].join('\n')
 }
 

@@ -50,6 +50,21 @@ Pairing, install, and user-visible behavior are in
 | `adapter.error`    | adapter → hub | `id`, `message`, `code` (defaults to `adapter_error`)                                  |
 | `adapter.enroll`   | adapter → hub | `harnessId`, `kind`, `label`, `credentialId`, `key`, versions, `capabilities`, `host?` |
 | `adapter.enrolled` | hub → adapter | `connectionId`, `harnessId`, `label`, `reconnected`, `relayGrant?`                     |
+| `engine.request`   | adapter → hub | `id`, `method`, `path`, `search?`, `headers?`, `body?`                                 |
+| `engine.abort`     | adapter → hub | `id` of the engine request whose caller cancelled                                      |
+| `engine.response`  | hub → adapter | `id`, `status`, `statusText`, `headers`                                                |
+| `engine.chunk`     | hub → adapter | `id`, base64url body chunk                                                             |
+| `engine.end`       | hub → adapter | `id`                                                                                   |
+| `engine.error`     | hub → adapter | `id`, `message`, `code`                                                                |
+
+The engine frames reuse the adapter's sealed session. The hub attaches its own
+engine bearer token, forwards only `/v1/` paths, and streams the response back.
+`AgentInfo.engine` carries the direct candidates, proxy support, hub-side
+health, and (direct mode only) the engine token. Browsers never receive it.
+The adapter probes the direct candidates from its own machine, writes a direct
+URL or a loopback gateway to the shared `engine.json`, and re-resolves on every
+hub reconnect. The pairing payload stays small because it carries no engine
+endpoint or credential.
 
 `host` is the adapter's own display identity: the OS or container hostname,
 `platform`, `arch`, and an optional `container.runtime`. It is not a hardware

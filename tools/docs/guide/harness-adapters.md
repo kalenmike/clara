@@ -163,12 +163,14 @@ Clara orchestration binding: the `clara` agent, the policy plugin, and an entry
 for that plugin in the OpenCode configuration, so a running OpenCode server
 reloads the plugin — and the Clara tools in the `clara` agent — without a
 restart. If OpenCode is reachable but has not loaded the plugin, the install
-prints a warning telling you to restart OpenCode. It also writes the shared
-runner configuration. A downloaded adapter build does not include the runner
-command: on a hub host, `clara adapter install opencode` starts the runner after
-pairing, or you can run `clara runner start` once the engine is running. Use
-`--no-runner` to skip the runner configuration, or `--no-service` to write the
-config without installing a user service.
+prints a warning telling you to restart OpenCode. The install also enables the
+embedded runner on the OpenCode machine. After the adapter authenticates, the
+hub supplies the engine endpoint: the adapter uses a reachable direct address
+when it can, and otherwise routes engine traffic through the same sealed hub
+connection. Docker and SSH installs therefore need no engine URL or engine token
+in the environment. Use `--no-runner` only when a separate shared runner owns
+scripts, or `--no-service` to write the config without installing a user
+service.
 
 ### Claude Code
 

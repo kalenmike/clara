@@ -13,17 +13,22 @@ export class RunnerHttpError extends Error {
 export class RunnerClient {
   private readonly base: string
   private readonly token: string
+  private readonly resolve?: () => { url: string; token: string }
 
-  constructor(config: Pick<RunnerConfig, 'url' | 'token'>) {
+  constructor(config: Pick<RunnerConfig, 'url' | 'token' | 'resolve'>) {
     this.base = config.url.replace(/\/+$/, '')
     this.token = config.token
+    this.resolve = config.resolve
   }
 
   private async request<T>(method: string, path: string, body?: unknown): Promise<T> {
-    const response = await fetch(`${this.base}${path}`, {
+    const current = this.resolve?.()
+    const base = (current?.url ?? this.base).replace(/\/+$/, '')
+    const token = current?.token ?? this.token
+    const response = await fetch(`${base}${path}`, {
       method,
       headers: {
-        authorization: `Bearer ${this.token}`,
+        authorization: `Bearer ${token}`,
         ...(body === undefined ? {} : { 'content-type': 'application/json' }),
       },
       ...(body === undefined ? {} : { body: JSON.stringify(body) }),

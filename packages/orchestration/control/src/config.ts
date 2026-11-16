@@ -114,6 +114,18 @@ export function baseURL(): string {
   return `http://${host()}:${port()}`
 }
 
+/**
+ * The URL a local client uses to call the engine. A wildcard bind address is
+ * not dialable, so loopback replaces it; an explicit client URL wins.
+ */
+export function clientURL(): string {
+  const configured = engineEnv('CLARA_ENGINE_CLIENT_URL', 'CLARA_ORCHESTRATION_CLIENT_URL')
+  if (configured) return configured.replace(/\/$/, '')
+  const bind = host()
+  const wildcard = bind === '0.0.0.0' || bind === '::' || bind === '[::]'
+  return `http://${wildcard ? '127.0.0.1' : bind}:${port()}`
+}
+
 export function configPath(): string | undefined {
   return engineEnv('CLARA_ENGINE_CONFIG', 'CLARA_ORCHESTRATION_CONFIG') || undefined
 }
