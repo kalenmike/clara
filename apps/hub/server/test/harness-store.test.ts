@@ -2,6 +2,7 @@ import { mkdtempSync, rmSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import { afterEach, beforeEach, describe, expect, it } from 'vitest'
+import type { AdapterHostIdentity, HarnessInstallMethod } from '@clara/shared-types'
 import { fingerprintKey, generateKey, generateSecretKey, loadSecretKey } from '@clara/crypto'
 import { HarnessStore } from '../src/harness/store.ts'
 import { HarnessValidationError } from '../src/harness/types.ts'
@@ -32,10 +33,13 @@ async function enroll(input: {
   key?: string
   kind?: string
   label?: string
+  host?: AdapterHostIdentity
+  installMethod?: HarnessInstallMethod
 }) {
   const pairing = await store.createPairing({
     kind: input.kind ?? 'opencode',
     label: input.label ?? 'OpenCode',
+    ...(input.installMethod ? { installMethod: input.installMethod } : {}),
   })
   return store.enroll({
     pairId: pairing.id,
@@ -49,6 +53,7 @@ async function enroll(input: {
     protocolVersion: 1,
     capabilities: { sessions: true },
     transport: 'local',
+    ...(input.host ? { host: input.host } : {}),
   })
 }
 
@@ -147,6 +152,78 @@ describe('harness store', () => {
     const second = await enroll({ harnessId: 'same', adapterId: 'new-adapter' })
     expect(second.connection.id).not.toBe(first.connection.id)
     expect(store.list()).toHaveLength(1)
+  })
+
+  it('stores the reported host and the install method from the pairing', async () => {
+    const result = await enroll({
+      host: { hostname: 'build-box', platform: 'linux', arch: 'x64' },
+      installMethod: 'ssh',
+    })
+    expect(result.connection.host).toEqual({
+      hostname: 'build-box',
+      platform: 'linux',
+      arch: 'x64',
+      installMethod: 'ssh',
+    })
+  })
+
+  it('refreshes a host on reconnect without changing the install method', async () => {
+    const first = await enroll({
+      harnessId: 'same',
+      host: { hostname: 'old-name', platform: 'linux' },
+      installMethod: 'docker',
+    })
+
+    expect(
+      store.setHost('same', {
+        hostname: 'new-name',
+        platform: 'linux',
+        arch: 'arm64',
+        container: { runtime: 'docker' },
+      })
+    ).toBe(true)
+    expect(store.get(first.connection.id)?.host).toEqual({
+      hostname: 'new-name',
+      platform: 'linux',
+      arch: 'arm64',
+      container: { runtime: 'docker' },
+      installMethod: 'docker',
+    })
+    expect(
+      store.setHost('same', {
+        hostname: 'new-name',
+        platform: 'linux',
+        arch: 'arm64',
+        container: { runtime: 'docker' },
+      })
+    ).toBe(false)
+  })
+
+  it('keeps a known host when a re-pair omits one', async () => {
+    const first = await enroll({
+      harnessId: 'same',
+      host: { hostname: 'build-box', platform: 'linux' },
+      installMethod: 'ssh',
+    })
+    const second = await enroll({ harnessId: 'same', adapterId: 'adapter-b' })
+    expect(second.connection.host).toEqual(first.connection.host)
+  })
+
+  it('drops malformed host fields instead of storing them', async () => {
+    const result = await enroll({
+      host: {
+        hostname: `bad\u0000name`,
+        platform: 'linux',
+        arch: 'x64',
+        container: { runtime: 'other' },
+      },
+    })
+    expect(result.connection.host).toEqual({
+      hostname: 'badname',
+      platform: 'linux',
+      arch: 'x64',
+      container: { runtime: 'other' },
+    })
   })
 
   it('rejects an expired or reused pairing code', async () => {

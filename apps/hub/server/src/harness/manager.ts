@@ -1,6 +1,12 @@
 import type { ClaraSession } from '@clara/api-contract'
 import { HarnessClient } from '@clara/harness-protocol'
-import type { AdapterEnrollAction, HostResourceMetrics, PanelTransport } from '@clara/shared-types'
+import type {
+  AdapterEnrollAction,
+  AdapterHostIdentity,
+  HarnessInstallMethod,
+  HostResourceMetrics,
+  PanelTransport,
+} from '@clara/shared-types'
 import type { ProjectStore } from '../projects/store.ts'
 import type { HarnessMetadataStore } from './metadata.ts'
 import type { EnrollAdapterInput, EnrollAdapterResult, HarnessStore } from './store.ts'
@@ -258,7 +264,11 @@ export class HarnessManager {
     await this.notify()
   }
 
-  async createPairing(input: { kind: string; label: string }): Promise<HarnessPairing> {
+  async createPairing(input: {
+    kind: string
+    label: string
+    installMethod?: HarnessInstallMethod
+  }): Promise<HarnessPairing> {
     return this.store.createPairing(input)
   }
 
@@ -299,6 +309,7 @@ export class HarnessManager {
       ...(action.harnessVersion ? { harnessVersion: action.harnessVersion } : {}),
       capabilities: action.capabilities,
       transport: transport === 'relay' ? 'relay' : 'local',
+      ...(action.host ? { host: action.host } : {}),
     })
   }
 
@@ -320,6 +331,12 @@ export class HarnessManager {
     if (fetch && this.live.get(harnessId) !== fetch) return
     this.live.delete(harnessId)
     this.store.setOnline(harnessId, false)
+    this.bump()
+    await this.notify()
+  }
+
+  async setHost(harnessId: string, host: AdapterHostIdentity): Promise<void> {
+    if (!this.store.setHost(harnessId, host)) return
     this.bump()
     await this.notify()
   }

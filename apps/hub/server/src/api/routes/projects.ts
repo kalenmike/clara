@@ -107,6 +107,7 @@ export function registerProjectRoutes(
           label: connection.label,
           online: connection.online,
           capabilities: connection.capabilities,
+          ...(connection.host ? { host: connection.host } : {}),
         }))
       )
     }

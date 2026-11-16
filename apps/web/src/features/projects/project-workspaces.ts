@@ -1,4 +1,5 @@
 import type { ClaraProject, ClaraProjectWorkspace } from '@clara/api-contract'
+import { harnessHostSummary } from '@clara/shared-types'
 
 /**
  * Workspaces on a project that can hold sessions, across every harness. Offline
@@ -76,16 +77,22 @@ function shortHarnessID(harnessID: string): string {
 }
 
 /**
- * Harness labels keyed by workspace id. Workspaces that share a label across
- * different harnesses get a short harness id appended so the picker can tell
- * them apart.
+ * Harness labels keyed by workspace id. The host the adapter reports is enough
+ * to tell two machines apart; a short harness id stays as the fallback when no
+ * host is known yet.
  */
 export function workspaceHarnessLabels(
   workspaces: readonly ClaraProjectWorkspace[]
 ): Map<string, string> {
+  const describe = (workspace: ClaraProjectWorkspace): string => {
+    const label = workspace.harnessLabel.trim() || workspace.harnessID
+    const host = harnessHostSummary(workspace.harnessHost)
+    return host ? `${label} · ${host}` : label
+  }
+
   const harnessesByLabel = new Map<string, Set<string>>()
   for (const workspace of workspaces) {
-    const label = workspace.harnessLabel.trim() || workspace.harnessID
+    const label = describe(workspace)
     const harnesses = harnessesByLabel.get(label) ?? new Set<string>()
     harnesses.add(workspace.harnessID)
     harnessesByLabel.set(label, harnesses)
@@ -93,7 +100,7 @@ export function workspaceHarnessLabels(
 
   const labels = new Map<string, string>()
   for (const workspace of workspaces) {
-    const label = workspace.harnessLabel.trim() || workspace.harnessID
+    const label = describe(workspace)
     const duplicate = (harnessesByLabel.get(label)?.size ?? 0) > 1
     labels.set(
       workspace.id,

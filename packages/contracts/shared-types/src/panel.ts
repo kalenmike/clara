@@ -6,9 +6,9 @@
  * agent on a loopback listener; it never travels through the relay.
  */
 
-import type { HostResourceMetrics } from './host.ts'
+import type { HarnessHost, HarnessInstallMethod, HostResourceMetrics } from './host.ts'
 
-export const PANEL_API_VERSION = 13
+export const PANEL_API_VERSION = 14
 
 export type PanelValueSource =
   'env' | 'file' | 'database' | 'default' | 'generated' | 'runtime' | 'none'
@@ -134,6 +134,8 @@ export type PanelHarness = {
   label: string
   transport: PanelHarnessTransport
   online: boolean
+  /** The machine or container the adapter reports, with the install method. */
+  host?: HarnessHost
   /** Fingerprint of the paired adapter credential. */
   fingerprint?: string
   adapterVersion?: string
@@ -157,6 +159,8 @@ export type PanelHarnessPairing = {
   label: string
   code: string
   transport: PanelHarnessSetupMode
+  /** Where the adapter will run, when the issuing flow named it. */
+  installMethod?: HarnessInstallMethod
   wsUrl: string
   room: string
   fingerprint: string
@@ -282,7 +286,7 @@ export type AdapterInstallOffer = {
 }
 
 /** Where an adapter install runs. `local` is the client's own machine. */
-export type AdapterInstallMethod = 'local' | 'ssh' | 'docker'
+export type AdapterInstallMethod = HarnessInstallMethod
 
 /**
  * What the panel asks the hub to issue. `method` says where the installer will

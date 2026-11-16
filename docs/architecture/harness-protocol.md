@@ -36,16 +36,22 @@ Pairing, install, and user-visible behavior are in
 
 ## Frames
 
-| Frame              | Direction     | Payload                                                                       |
-| ------------------ | ------------- | ----------------------------------------------------------------------------- |
-| `adapter.request`  | hub → adapter | `id`, `method`, `path`, `search?`, `headers?`, `body?`                        |
-| `adapter.abort`    | hub → adapter | `id` of the request whose caller cancelled                                    |
-| `adapter.response` | adapter → hub | `id`, `status`, `statusText`, `headers`                                       |
-| `adapter.chunk`    | adapter → hub | `id`, base64url body chunk                                                    |
-| `adapter.end`      | adapter → hub | `id`; the response body is complete                                           |
-| `adapter.error`    | adapter → hub | `id`, `message`, `code` (defaults to `adapter_error`)                         |
-| `adapter.enroll`   | adapter → hub | `harnessId`, `kind`, `label`, `credentialId`, `key`, versions, `capabilities` |
-| `adapter.enrolled` | hub → adapter | `connectionId`, `harnessId`, `label`, `reconnected`, `relayGrant?`            |
+| Frame              | Direction     | Payload                                                                                |
+| ------------------ | ------------- | -------------------------------------------------------------------------------------- |
+| `adapter.request`  | hub → adapter | `id`, `method`, `path`, `search?`, `headers?`, `body?`                                 |
+| `adapter.abort`    | hub → adapter | `id` of the request whose caller cancelled                                             |
+| `adapter.response` | adapter → hub | `id`, `status`, `statusText`, `headers`                                                |
+| `adapter.chunk`    | adapter → hub | `id`, base64url body chunk                                                             |
+| `adapter.end`      | adapter → hub | `id`; the response body is complete                                                    |
+| `adapter.error`    | adapter → hub | `id`, `message`, `code` (defaults to `adapter_error`)                                  |
+| `adapter.enroll`   | adapter → hub | `harnessId`, `kind`, `label`, `credentialId`, `key`, versions, `capabilities`, `host?` |
+| `adapter.enrolled` | hub → adapter | `connectionId`, `harnessId`, `label`, `reconnected`, `relayGrant?`                     |
+
+`host` is the adapter's own display identity: the OS or container hostname,
+`platform`, `arch`, and an optional `container.runtime`. It is not a hardware
+fingerprint and never leaves the sealed session. The adapter repeats it on
+`ready.ack`, so an upgraded adapter refreshes the stored host without a new
+pairing; the hub keeps the last report for offline harnesses.
 
 `ping`, `pong`, `ready`, `ready.ack`, and `agent.status` are shared with browser
 sessions. One `id` per call; chunks and the terminal frame repeat it. The adapter

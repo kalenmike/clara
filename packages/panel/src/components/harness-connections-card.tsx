@@ -1,7 +1,11 @@
 import { useState } from 'react'
 import { Cable, FlaskConical, Trash2 } from 'lucide-react'
 import { Button } from '@clara/ui/components/button'
-import type { PanelHarness, PanelHarnessTestResult } from '@clara/shared-types'
+import {
+  harnessHostSummary,
+  type PanelHarness,
+  type PanelHarnessTestResult,
+} from '@clara/shared-types'
 import { formatRelative, formatTimestamp, shortId } from '../lib/format.ts'
 import { harnessState } from '../lib/harness-state.ts'
 import { deletePanel, postPanel } from '../lib/panel-api.ts'
@@ -94,11 +98,14 @@ export function HarnessConnectionsCard({
           </EmptyState>
         ) : (
           <div className="-mx-1 overflow-x-auto">
-            <table className="w-full min-w-[1120px] border-collapse text-left text-xs">
+            <table className="w-full min-w-[1240px] border-collapse text-left text-xs">
               <thead>
                 <tr className="text-[10px] uppercase tracking-wide text-muted-foreground">
                   <th scope="col" className="px-1 py-2 font-medium">
                     Harness
+                  </th>
+                  <th scope="col" className="px-1 py-2 font-medium">
+                    Host
                   </th>
                   <th scope="col" className="px-1 py-2 font-medium">
                     Fingerprint
@@ -135,6 +142,7 @@ export function HarnessConnectionsCard({
                           {connection.harnessVersion ? ` · ${connection.harnessVersion}` : ''}
                         </div>
                       </td>
+                      <td className="px-1 py-2">{harnessHostSummary(connection.host) ?? '—'}</td>
                       <td
                         className="px-1 py-2 font-mono"
                         title={masked ? undefined : connection.fingerprint}

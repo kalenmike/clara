@@ -8,6 +8,7 @@ import type {
   ClaraSessionMessageAssistant,
   ClaraSessionMessage,
 } from '@clara/api-contract'
+import { harnessHostSummary } from '@clara/shared-types'
 import { Button } from '@clara/ui/components/button'
 import { Sheet, SheetContent, SheetDescription, SheetTitle } from '@clara/ui/components/sheet'
 import { ChatHeader } from '@/components/chat/chat-header'
@@ -103,11 +104,11 @@ function ChatPageContent() {
   const harnessID = session?.harnessID ?? workspace?.harnessID
   const harnessesQuery = useHarnesses()
   const harnessLabel = useMemo(() => {
-    const workspaceLabel = workspace?.harnessLabel?.trim()
-    if (workspaceLabel) return workspaceLabel
     const paired = harnessesQuery.data?.find((harness) => harness.harnessID === session?.harnessID)
-    return paired?.label?.trim() || undefined
-  }, [harnessesQuery.data, session?.harnessID, workspace?.harnessLabel])
+    const label = workspace?.harnessLabel?.trim() || paired?.label?.trim()
+    const host = harnessHostSummary(workspace?.harnessHost ?? paired?.host)
+    return [label, host].filter(Boolean).join(' · ') || undefined
+  }, [harnessesQuery.data, session?.harnessID, workspace?.harnessHost, workspace?.harnessLabel])
   useMarkSessionViewed(session)
   const snapshot = useChatSnapshot(sessionId ?? '')
   useActiveSessionStatus(sessionId ?? '')

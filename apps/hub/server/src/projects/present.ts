@@ -68,6 +68,7 @@ function toWorkspace(
     harnessID: workspace.harnessID,
     harnessKind: connection?.kind ?? '',
     harnessLabel: connection?.label ?? workspace.harnessID,
+    ...(connection?.host ? { harnessHost: connection.host } : {}),
     online: connection?.online ?? false,
     directory: workspace.directory,
     ...(workspace.canonical ? { canonical: workspace.canonical } : {}),

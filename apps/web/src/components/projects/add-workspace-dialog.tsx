@@ -2,6 +2,7 @@ import { useEffect, useMemo, useState } from 'react'
 import { FolderPlus, Loader2, Server } from 'lucide-react'
 import { toast } from 'sonner'
 import type { ClaraProject } from '@clara/api-contract'
+import { harnessHostSummary } from '@clara/shared-types'
 import { Button } from '@clara/ui/components/button'
 import {
   Dialog,
@@ -113,11 +114,15 @@ export function AddWorkspaceDialog({
                   <SelectValue placeholder="Choose a harness" />
                 </SelectTrigger>
                 <SelectContent>
-                  {(harnesses.data ?? []).map((harness) => (
-                    <SelectItem key={harness.harnessID} value={harness.harnessID}>
-                      {harness.label} {harness.online ? '' : '· offline'}
-                    </SelectItem>
-                  ))}
+                  {(harnesses.data ?? []).map((harness) => {
+                    const host = harnessHostSummary(harness.host)
+                    return (
+                      <SelectItem key={harness.harnessID} value={harness.harnessID}>
+                        {[harness.label, host].filter(Boolean).join(' · ')}
+                        {harness.online ? '' : ' · offline'}
+                      </SelectItem>
+                    )
+                  })}
                 </SelectContent>
               </Select>
             )}

@@ -17,6 +17,7 @@ import {
 import {
   PROTOCOL_VERSION,
   RELAY_AUTH_PREFIX,
+  type AdapterHostIdentity,
   type AgentInfo,
   type RelayGrantState,
 } from '@clara/shared-types'
@@ -80,6 +81,25 @@ describe('AdapterTransport authentication', () => {
 
     await hub.sendSealed(hello, { type: 'ready', agent: { version: 'test', protocol: 4 } })
     await waitFor(() => logs.includes('adapter authenticated'))
+    transport.close()
+  })
+
+  it('reports its host on ready.ack', async () => {
+    const hub = await startHub()
+    const logs: string[] = []
+    const host = { hostname: 'build-box', platform: 'linux', arch: 'x64' }
+    const transport = createTransport(hub, logs, undefined, { host })
+
+    transport.start()
+    const hello = await hub.hello()
+    await waitFor(() => logs.includes('adapter handshake complete'))
+    await hub.sendSealed(hello, { type: 'ready', agent: { version: 'test', protocol: 4 } })
+
+    const frames = await hub.waitForClient((value) =>
+      value.some((frame) => frame.payload.type === 'ready.ack')
+    )
+    const ack = frames.find((frame) => frame.payload.type === 'ready.ack')
+    expect(ack?.payload.host).toEqual(host)
     transport.close()
   })
 
@@ -428,6 +448,7 @@ function createTransport(
     new Response('{}', { status: 200 }),
   options: {
     grant?: string
+    host?: AdapterHostIdentity
     onRelayGrant?: (grant: RelayGrantState) => void
     onHubInfo?: (info: AgentInfo) => void
   } = {}
@@ -438,7 +459,12 @@ function createTransport(
     identity: { harnessId: 'harness', adapterId: 'adapter', key: hub.key },
     kind: 'opencode',
     label: 'OpenCode',
-    info: { adapterVersion: 'test', protocolVersion: 1, capabilities: {} },
+    info: {
+      adapterVersion: 'test',
+      protocolVersion: 1,
+      capabilities: {},
+      ...(options.host ? { host: options.host } : {}),
+    },
     handler,
     ...(options.onRelayGrant ? { onRelayGrant: options.onRelayGrant } : {}),
     ...(options.onHubInfo ? { onHubInfo: options.onHubInfo } : {}),

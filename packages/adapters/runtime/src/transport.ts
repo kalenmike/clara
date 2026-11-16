@@ -25,6 +25,7 @@ import {
   isHubHelloFrameV4,
   isSealedFrame,
   type AdapterAction,
+  type AdapterHostIdentity,
   type AdapterRequestAction,
   type AdapterResponseState,
   type AgentInfo,
@@ -52,6 +53,8 @@ export type AdapterTransportInfo = {
   protocolVersion: number
   harnessVersion?: string
   capabilities: Record<string, unknown>
+  /** Refreshed on every authenticated session so an upgrade needs no re-pair. */
+  host?: AdapterHostIdentity
 }
 
 export type AdapterTransportStatus = {
@@ -452,7 +455,11 @@ export class AdapterTransport {
           }
         }
         this.rememberHubInfo(payload.agent)
-        await this.send({ type: 'ready.ack', agent: payload.agent })
+        await this.send({
+          type: 'ready.ack',
+          agent: payload.agent,
+          ...(this.options.info.host ? { host: this.options.info.host } : {}),
+        })
         return
       }
       case 'agent.status':

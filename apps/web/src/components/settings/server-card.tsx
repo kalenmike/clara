@@ -11,6 +11,7 @@ import {
   CardTitle,
 } from '@clara/ui/components/card'
 import { Separator } from '@clara/ui/components/separator'
+import { harnessHostSummary } from '@clara/shared-types'
 import { useHarnesses } from '@/features/projects/use-projects'
 import { connectionUrl } from '@/lib/client'
 import { useConnection } from '@/providers/connection-provider'
@@ -72,13 +73,16 @@ export function ServerCard({ simplified }: { simplified: boolean }) {
                     : `${harnesses.filter((item) => item.online).length} of ${harnesses.length} online`
               }
             />
-            {harnesses.map((harness) => (
-              <Row
-                key={harness.harnessID}
-                label={harness.label}
-                value={harness.online ? 'online' : 'offline'}
-              />
-            ))}
+            {harnesses.map((harness) => {
+              const host = harnessHostSummary(harness.host)
+              return (
+                <Row
+                  key={harness.harnessID}
+                  label={host ? `${harness.label} · ${host}` : harness.label}
+                  value={harness.online ? 'online' : 'offline'}
+                />
+              )
+            })}
             <Row label="Stream" value={streamState} />
             {lastError && <Row label="Stream error" value={lastError} />}
             <Separator />

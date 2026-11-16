@@ -1,6 +1,7 @@
 import { useMemo } from 'react'
 import { Bot, CircleAlert, History } from 'lucide-react'
 import type { ClaraAgent } from '@clara/api-contract'
+import { harnessHostSummary } from '@clara/shared-types'
 import { Badge } from '@clara/ui/components/badge'
 import { Button } from '@clara/ui/components/button'
 import {
@@ -54,7 +55,9 @@ function HarnessAgentGroup({
   return (
     <section className="space-y-3 rounded-lg border p-3">
       <div className="flex flex-wrap items-center gap-2">
-        <h3 className="text-sm font-semibold">{harness.label}</h3>
+        <h3 className="text-sm font-semibold">
+          {[harness.label, harnessHostSummary(harness.host)].filter(Boolean).join(' · ')}
+        </h3>
         <Badge variant={harness.online ? 'secondary' : 'outline'}>
           {harness.online ? 'Online' : 'Offline'}
         </Badge>

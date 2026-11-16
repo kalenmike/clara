@@ -20,6 +20,7 @@ import {
 import { enrollAdapter } from './enroll.ts'
 import { describeError } from './errors.ts'
 import { createHostMetrics } from './host.ts'
+import { readHostIdentity } from './host-identity.ts'
 import {
   adapterInstallCommand,
   adapterProcessStatus,
@@ -205,6 +206,7 @@ async function serve<THarness>(
     },
     capabilities: definition.capabilities,
   }
+  const host = await readHostIdentity()
   const app = await definition.createApp({ config, probe, info })
   const hostMetrics = createHostMetrics({
     roots: [
@@ -247,6 +249,7 @@ async function serve<THarness>(
       protocolVersion: HARNESS_PROTOCOL_VERSION,
       ...(probe.version ? { harnessVersion: probe.version } : {}),
       capabilities: definition.capabilities,
+      ...(Object.keys(host).length > 0 ? { host } : {}),
     },
     handler: async (request) => app.fetch(request),
     onRelayGrant: persistGrant,

@@ -21,6 +21,7 @@ const connection = {
   label: 'Test harness',
   transport: 'local' as const,
   online: true,
+  host: { hostname: 'build-box', platform: 'linux', arch: 'x64', installMethod: 'ssh' as const },
   capabilities: { projects: { list: true, archive: true, unarchive: true, delete: true } },
   isActive: true,
   credentialConfigured: true,
@@ -214,6 +215,24 @@ describe('project store', () => {
 })
 
 describe('project routes', () => {
+  it('lists paired harnesses with the host they report', async () => {
+    const api = createTestApi()
+    const response = await api.fetch(request('/v1/harnesses'))
+    expect(response.status).toBe(200)
+    expect(await response.json()).toEqual([
+      expect.objectContaining({
+        harnessID: 'harness-a',
+        label: 'Test harness',
+        host: {
+          hostname: 'build-box',
+          platform: 'linux',
+          arch: 'x64',
+          installMethod: 'ssh',
+        },
+      }),
+    ])
+  })
+
   it('lists Clara projects without asking the harness', async () => {
     const api = createTestApi()
     const project = await createProject(api)
@@ -235,6 +254,12 @@ describe('project routes', () => {
     expect(project.workspaces).toHaveLength(1)
     expect(project.workspaces[0]).toMatchObject({
       harnessLabel: 'Test harness',
+      harnessHost: {
+        hostname: 'build-box',
+        platform: 'linux',
+        arch: 'x64',
+        installMethod: 'ssh',
+      },
       linked: true,
       projectIDs: ['hp1'],
       directory: '/workspace/demo',

@@ -36,6 +36,48 @@ export type HostDiskMetrics = {
   usedPercent: number
 }
 
+/** A container runtime an adapter can recognize from inside its own process. */
+export type HarnessContainerRuntime = 'docker' | 'podman' | 'kubernetes' | 'other'
+
+/** How Clara installed an adapter; recorded by the hub that issued the pairing. */
+export type HarnessInstallMethod = 'local' | 'ssh' | 'docker'
+
+/**
+ * The adapter's own description of where it runs. It is a display hint, not a
+ * hardware fingerprint: the hostname is the OS or container hostname, and the
+ * container flag only says that the process is containerized.
+ */
+export type AdapterHostIdentity = {
+  /** Operating system hostname, or the container hostname when containerized. */
+  hostname?: string
+  platform?: string
+  arch?: string
+  /** Present when the adapter process runs inside a container. */
+  container?: {
+    runtime?: HarnessContainerRuntime
+  }
+}
+
+/**
+ * The persisted host view exposed to the panel and web client. `installMethod`
+ * comes from the pairing that enrolled the adapter, not from the adapter
+ * itself, so a report cannot claim a different install path.
+ */
+export type HarnessHost = AdapterHostIdentity & {
+  installMethod?: HarnessInstallMethod
+}
+
+/** One line that tells identical harness kinds on different hosts apart. */
+export function harnessHostSummary(host: HarnessHost | undefined): string | undefined {
+  if (!host) return undefined
+  const hostname = host.hostname?.trim()
+  const suffix =
+    host.installMethod === 'ssh' ? 'SSH' : host.installMethod === 'docker' ? 'Docker' : undefined
+  const name = hostname || (host.container ? 'container' : undefined)
+  if (!name) return suffix
+  return suffix ? `${name} · ${suffix}` : name
+}
+
 /** A live resource sample from the machine, or container, running an adapter. */
 export type HostResourceMetrics = {
   sampledAt: string

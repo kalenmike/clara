@@ -1,5 +1,6 @@
 import { useEffect, useMemo } from 'react'
 import { Loader2, Plus } from 'lucide-react'
+import { harnessHostSummary } from '@clara/shared-types'
 import { EmptySessionView } from '@/components/chat/empty-session-view'
 import { InboxMonitorToggle } from '@/components/chat/inbox-monitor-toggle'
 import { resolveProjectWorkspaceTarget } from '@/features/projects/project-workspaces'
@@ -68,7 +69,12 @@ export function HomePage() {
   if (!workspaceTarget.startable) {
     return (
       <EmptySessionView
-        title={`${workspace.harnessLabel || 'The harness'} is offline`}
+        title={`${[
+          workspace.harnessLabel || 'The harness',
+          harnessHostSummary(workspace.harnessHost),
+        ]
+          .filter(Boolean)
+          .join(' · ')} is offline`}
         description={`Reconnect it, or choose another workspace from the project menu, before starting a new ${lowerSingular}.`}
         footer={<InboxMonitorToggle />}
       />

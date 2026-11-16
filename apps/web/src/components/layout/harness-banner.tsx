@@ -1,5 +1,6 @@
 import { useState } from 'react'
 import { AlertTriangle, Loader2, RefreshCw } from 'lucide-react'
+import { harnessHostSummary } from '@clara/shared-types'
 import { Button } from '@clara/ui/components/button'
 import { useHarnesses } from '@/features/projects/use-projects'
 import { useConnection } from '@/providers/connection-provider'
@@ -32,7 +33,11 @@ export function HarnessBanner() {
   const message =
     harnesses.length === 0
       ? 'No harness is paired yet. Add an adapter in the hub panel.'
-      : `Offline: ${offline.map((harness) => harness.label).join(', ')}.`
+      : `Offline: ${offline
+          .map((harness) =>
+            [harness.label, harnessHostSummary(harness.host)].filter(Boolean).join(' · ')
+          )
+          .join(', ')}.`
 
   return (
     <div
