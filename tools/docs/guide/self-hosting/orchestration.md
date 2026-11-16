@@ -48,17 +48,31 @@ clara status engine --json
 clara adapter install opencode
 ```
 
-The command links the OpenCode plugin, installs the `Clara` agent, and writes
-the shared runner configuration. A downloaded adapter build does not bundle the
-runner command: `clara adapter install opencode` starts the shared runner on a
-hub host after pairing, or you can start it yourself once the engine is running:
+The command links the OpenCode plugin, installs the `Clara` agent, and enables
+the embedded runner on the machine that runs OpenCode. The runner executes
+workspace-specific scripts there, while the engine and its run state stay on the
+hub host. A panel install does this automatically and does not need an
+environment variable.
+
+After the adapter authenticates, the hub tells it where the engine can be
+reached. The adapter tests the direct addresses from its own machine and, when
+none answer, uses a sealed route through the hub. That route is the same
+WebSocket the adapter already uses, so neither Docker nor SSH needs an engine
+port, a second relay room, or an engine token on the harness machine. The
+resolved endpoint is written to `engine.json` and updated when the adapter
+reconnects.
+
+`CLARA_ENGINE_URL`, `CLARA_ENGINE_TOKEN`, and the
+`CLARA_ORCHESTRATION_*` names are for CI and development overrides. A normal
+panel install should not need them.
+
+Add `--mcp` to register the MCP bridge with the harness. The OpenCode adapter
+is included with this release; another harness needs its own adapter. Use
+`--no-runner` only when scripts should run through a separate shared runner:
 
 ```bash
 clara runner start
 ```
-
-Add `--mcp` to register the MCP bridge with the harness. The OpenCode adapter
-is included with this release; another harness needs its own adapter.
 
 After installation, select the **Clara** agent in OpenCode. She is the
 human-facing entry point: a concrete request starts a run, a status question

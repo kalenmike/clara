@@ -20,30 +20,31 @@ process. `CLARA_ORCHESTRATION_*` is a compatibility name for one release.
 
 1. Start the service from the hub panel's **Orchestration** switch, with
    `clara start engine`, or let the MCP bridge start it on first use.
-2. Install the adapter and shared runner with
-   `clara adapter install opencode --pair <code>`. `--mcp` registers the MCP
-   bridge, `--no-runner` skips runner config, and `--no-service` writes config
-   without a user service. One host and workspace share one runner.
+2. Install the adapter from the hub panel or with
+   `clara adapter install opencode --pair <code>`; it enables the
+   adapter-machine runner and resolves the engine endpoint after authentication
+   ([endpoints.md](endpoints.md)). `--mcp`, `--no-runner`, and `--no-service`
+   select the other pieces.
 3. Preview a package in Clara Lab: choose host files, read the workspace the
    engine reports, compile the target, inspect rendered prompts and policy, then
    drive the run by hand. See [lab.md](lab.md).
-4. Select the **Clara** agent in the harness. She is the human interface, not a
-   worker: new work calls `clara_start` and replies with the run id, a status
-   question reads the engine, small talk creates no run, and an ambiguous
-   request gets one question.
+4. Select the **Clara** agent. She is the human interface: new work calls
+   `clara_start`, a status question reads the engine, and small talk is quiet.
 5. The engine compiles the pipeline, pins the snapshot, creates the run, and
-   returns work orders. In conductor mode the adapter dispatches the first order
-   to a managed worker session and records the calling session as the run origin.
-6. Workers report with `clara_complete`, `clara_fail`, `clara_route`, and
-   `clara_spawn`, always carrying the work token from their lease.
-7. The engine advances the run immediately and opens alerts for failures,
-   exhausted budgets, and stalls.
-8. The adapter claims a terminal run or alert, then queues it into the origin
-   session as a synthetic prompt; the claim is persisted first and released if
-   the prompt fails. A finished root run wakes its origin exactly once. Clara
-   reports it and waits for a decision.
-9. A generic MCP caller that does not use the adapter stays in manual
-   work-order mode: `clara_start` returns an order and the caller executes it.
+   returns work orders; conductor mode dispatches the first to a worker.
+6. Workers report with `clara_complete`, `clara_fail`, `clara_route`, or
+   `clara_spawn`, carrying the lease work token.
+7. The engine advances immediately and opens alerts for failures, budgets, and
+   stalls.
+8. The adapter claims a terminal run or alert and queues it into the origin
+   session; a finished root run wakes its origin exactly once.
+9. An MCP caller without the adapter executes returned orders itself.
+
+## Endpoint discovery
+
+The hub publishes an adapter-only endpoint descriptor after authentication; the
+adapter probes direct URLs and otherwise uses the sealed hub proxy. See
+[endpoints.md](endpoints.md).
 
 ## Core business rules
 
