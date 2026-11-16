@@ -1,0 +1,89 @@
+name: release-registry
+
+# Rebuild the signed release registry from the newest command and desktop
+# releases. The artifact is deployed manually with `pnpm deploy:web:release`
+# and committed like the adapter registry.
+
+on:
+  workflow_call:
+    inputs:
+      cli_tag:
+        description: 'Command release tag or latest'
+        required: false
+        type: string
+        default: latest
+      desktop_tag:
+        description: 'Desktop release tag, latest, or none'
+        required: false
+        type: string
+        default: latest
+    secrets:
+      CLARA_RELEASE_SIGNING_KEY:
+        required: true
+  workflow_dispatch:
+    inputs:
+      cli_tag:
+        description: 'Command release tag or latest'
+        required: false
+        type: string
+        default: latest
+      desktop_tag:
+        description: 'Desktop release tag, latest, or none'
+        required: false
+        type: string
+        default: latest
+
+permissions:
+  contents: read
+
+jobs:
+  registry:
+    name: build
+    runs-on: ubuntu-22.04
+    steps:
+      - uses: actions/checkout@v5
+
+      - uses: actions/setup-node@v5
+        with:
+          node-version: 22
+          package-manager-cache: false
+
+      - name: Generate the registry
+        env:
+          CLARA_RELEASE_SIGNING_KEY: ${{ secrets.CLARA_RELEASE_SIGNING_KEY }}
+          GITHUB_TOKEN: ${{ github.token }}
+        run: >-
+          node tools/release/registry.mjs
+          --out apps/web/public
+          --repo "${{ github.repository }}"
+          --cli-tag "${{ inputs.cli_tag }}"
+          --desktop-tag "${{ inputs.desktop_tag }}"
+
+      - name: Check the registry
+        run: node tools/release/check-registry.mjs --dir apps/web/public --offline
+
+      - uses: actions/upload-artifact@v6
+        with:
+          name: release-registry
+          if-no-files-found: error
+          path: |
+            apps/web/public/install
+            apps/web/public/install.ps1
+            apps/web/public/release/**
+
+      - name: Summary
+        run: |
+          {
+            echo "## Release registry"
+            echo ""
+            echo "- Command: \`${{ inputs.cli_tag }}\`"
+            echo "- Desktop: \`${{ inputs.desktop_tag }}\`"
+            echo "- Artifact: \`release-registry\`"
+            echo ""
+            echo '```'
+            cat apps/web/public/release/manifest.json
+            echo '```'
+            echo ""
+            echo "Deploy with \`gh run download <run-id> -n release-registry -D dist/release-registry\`"
+            echo "and \`pnpm deploy:web:release --from dist/release-registry\`."
+          } >> "$GITHUB_STEP_SUMMARY"

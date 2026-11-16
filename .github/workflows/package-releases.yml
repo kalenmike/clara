@@ -197,3 +197,12 @@ jobs:
             dist/release/public-key.txt \
             dist/release/archives/* \
             --clobber
+
+  registry:
+    needs: [prepare, publish]
+    if: ${{ !inputs.dry_run }}
+    uses: ./.github/workflows/release-registry.yml
+    with:
+      cli_tag: ${{ needs.prepare.outputs.tag }}
+      desktop_tag: latest
+    secrets: inherit
