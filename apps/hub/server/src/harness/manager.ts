@@ -1,5 +1,6 @@
 import type { ClaraSession } from '@clara/api-contract'
 import { HarnessClient } from '@clara/harness-protocol'
+import type { HarnessInfo } from '@clara/harness-protocol'
 import type {
   AdapterEnrollAction,
   AdapterHostIdentity,
@@ -323,6 +324,33 @@ export class HarnessManager {
     this.store.setOnline(harnessId, true)
     this.bump()
     await this.notify()
+    void this.refreshInfo(harnessId)
+  }
+
+  /**
+   * A reconnect is the only time an adapter can report a new version or
+   * capability set outside enrollment. Read `/info` in the background so an
+   * upgrade or a manual restart updates the panel without a new pairing.
+   */
+  private async refreshInfo(harnessId: string): Promise<void> {
+    const fetch = this.live.get(harnessId)
+    if (!fetch) return
+    try {
+      const info = await withTimeout(
+        new HarnessClient({ fetch, baseUrl: 'http://adapter' }).info(
+          AbortSignal.timeout(3_000)
+        ),
+        3_500,
+        () => {}
+      )
+      if (this.live.get(harnessId) !== fetch) return
+      if (this.store.setAdapterInfo(harnessId, adapterInfo(info))) {
+        this.bump()
+        await this.notify()
+      }
+    } catch {
+      // An older adapter may not expose /info; enrollment data still applies.
+    }
   }
 
   async clearLive(harnessId: string, fetch?: Fetch): Promise<void> {
@@ -403,6 +431,20 @@ function timeoutError(timeoutMs: number): Error {
   const error = new Error(`The adapter did not answer within ${timeoutMs}ms`)
   error.name = 'TimeoutError'
   return error
+}
+
+function adapterInfo(info: HarnessInfo): {
+  adapterVersion: string
+  protocolVersion: number
+  harnessVersion?: string
+  capabilities: Record<string, unknown>
+} {
+  return {
+    adapterVersion: info.adapter.version,
+    protocolVersion: info.protocol,
+    ...(info.harness.version ? { harnessVersion: info.harness.version } : {}),
+    capabilities: info.capabilities,
+  }
 }
 
 function isHostResourceMetrics(value: unknown): value is HostResourceMetrics {

@@ -237,6 +237,61 @@ export class HarnessStore {
   }
 
   /**
+   * Record the adapter's own description from `/info` after an authenticated
+   * session. Enrollment carries the first copy; a reconnect or upgrade may
+   * replace it without a new pairing.
+   */
+  setAdapterInfo(
+    harnessId: string,
+    info: {
+      adapterVersion: string
+      protocolVersion: number
+      harnessVersion?: string
+      capabilities: Record<string, unknown>
+    }
+  ): boolean {
+    const row = this.db
+      .prepare(
+        `SELECT adapter_version, protocol_version, harness_version, capabilities_json
+           FROM harness_connections WHERE harness_id = ?`
+      )
+      .get(harnessId) as
+      | {
+          adapter_version: string | null
+          protocol_version: number | null
+          harness_version: string | null
+          capabilities_json: string | null
+        }
+      | undefined
+    if (!row) return false
+    const capabilities = JSON.stringify(info.capabilities)
+    if (
+      row.adapter_version === info.adapterVersion &&
+      row.protocol_version === info.protocolVersion &&
+      row.harness_version === (info.harnessVersion ?? null) &&
+      row.capabilities_json === capabilities
+    ) {
+      return false
+    }
+    this.db
+      .prepare(
+        `UPDATE harness_connections
+            SET adapter_version = ?, protocol_version = ?, harness_version = ?,
+                capabilities_json = ?, updated_at = ?
+          WHERE harness_id = ?`
+      )
+      .run(
+        info.adapterVersion,
+        info.protocolVersion,
+        info.harnessVersion ?? null,
+        capabilities,
+        Date.now(),
+        harnessId
+      )
+    return true
+  }
+
+  /**
    * Online is live-session state, not saved configuration. Clear it when the
    * hub starts so a stopped adapter cannot look online from a previous run.
    */

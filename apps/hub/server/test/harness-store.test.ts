@@ -199,6 +199,33 @@ describe('harness store', () => {
     ).toBe(false)
   })
 
+  it('refreshes the adapter version and capabilities on reconnect', async () => {
+    const first = await enroll({ harnessId: 'same' })
+    expect(first.connection.adapterVersion).toBe('0.1.0')
+
+    expect(
+      store.setAdapterInfo('same', {
+        adapterVersion: '0.2.0',
+        protocolVersion: 1,
+        harnessVersion: '2.1.1',
+        capabilities: { sessions: true, maintenance: { update: true } },
+      })
+    ).toBe(true)
+    expect(store.get(first.connection.id)).toMatchObject({
+      adapterVersion: '0.2.0',
+      harnessVersion: '2.1.1',
+      capabilities: { sessions: true, maintenance: { update: true } },
+    })
+    expect(
+      store.setAdapterInfo('same', {
+        adapterVersion: '0.2.0',
+        protocolVersion: 1,
+        harnessVersion: '2.1.1',
+        capabilities: { sessions: true, maintenance: { update: true } },
+      })
+    ).toBe(false)
+  })
+
   it('keeps a known host when a re-pair omits one', async () => {
     const first = await enroll({
       harnessId: 'same',
