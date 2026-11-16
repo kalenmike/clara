@@ -1,6 +1,6 @@
 import { existsSync } from 'node:fs'
 import { join } from 'node:path'
-import { readAdapterState } from '../adapters/state.ts'
+import { readAdapterRecords } from '../adapters/state.ts'
 import { resolvePaths, type ClaraPaths } from '../paths.ts'
 
 /**
@@ -22,7 +22,7 @@ export function resolveRole(input: RoleInput): ClaraRole {
 }
 
 export function detectRole(paths: ClaraPaths = resolvePaths()): ClaraRole {
-  const state = readAdapterState(paths)
+  const state = readAdapterRecords(paths)
   return resolveRole({
     hasHubConfig: existsSync(join(paths.configDir, 'server.json')),
     hasStackState: existsSync(paths.stateFile),

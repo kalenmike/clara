@@ -3,8 +3,8 @@ import { mkdtempSync, readFileSync, rmSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import { afterEach, beforeEach, describe, expect, it } from 'vitest'
-import { downloadVerified, extractArchive } from '../src/release/download.ts'
-import { platformKey } from '../src/release/platform.ts'
+import { downloadVerified, extractArchive } from '../src/download.ts'
+import { platformKey } from '../src/platform.ts'
 
 let dir: string
 

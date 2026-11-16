@@ -25,9 +25,11 @@
   },
   "dependencies": {
     "@clara/adapter-artifact": "workspace:*",
+    "@clara/adapter-state": "workspace:*",
     "@clara/engine": "workspace:*",
     "@clara/hub-server": "workspace:*",
     "@clara/lab-server": "workspace:*",
+    "@clara/release": "workspace:*",
     "@clara/runner": "workspace:*",
     "@clara/runtime-state": "workspace:*",
     "@clara/service-control": "workspace:*",

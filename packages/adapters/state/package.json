@@ -1,0 +1,25 @@
+{
+  "name": "@clara/adapter-state",
+  "private": true,
+  "version": "0.1.0",
+  "type": "module",
+  "description": "Shared adapter install records and on-disk discovery for the CLI and adapter runtime.",
+  "exports": {
+    ".": "./src/index.ts"
+  },
+  "scripts": {
+    "clean": "node ../../../tools/build/clean.mjs dist",
+    "build": "tsup",
+    "typecheck": "tsc -p tsconfig.json",
+    "test": "vitest run"
+  },
+  "dependencies": {
+    "@clara/adapter-artifact": "workspace:*"
+  },
+  "devDependencies": {
+    "@types/node": "^24.19.2",
+    "tsup": "^9.0.0",
+    "typescript": "~6.0.3",
+    "vitest": "^5.0.5"
+  }
+}

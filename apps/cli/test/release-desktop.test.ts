@@ -12,7 +12,7 @@ import {
   readDesktopInstallInfo,
   uninstallDesktop,
 } from '../src/release/desktop.ts'
-import { parseManifest, type ReleaseManifest } from '../src/release/manifest.ts'
+import { parseManifest, type ReleaseManifest } from '@clara/release'
 
 let root: string
 

@@ -1,6 +1,6 @@
 import { generateKeyPairSync, sign } from 'node:crypto'
 import { describe, expect, it } from 'vitest'
-import { parseManifest, verifyManifestSignature } from '../src/release/manifest.ts'
+import { parseManifest, verifyManifestSignature } from '../src/manifest.ts'
 
 const keyPair = generateKeyPairSync('ed25519')
 const privateKey = keyPair.privateKey

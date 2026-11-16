@@ -28,11 +28,12 @@ import {
   type AdapterTarget,
   type DownloadProgress,
 } from '@clara/adapter-artifact'
+import { defaultBinDir, removeBinaryLink } from '@clara/release'
 import type { AdapterKind, AdapterRegistry } from './registry.ts'
 import {
   adapterEnv,
   deleteAdapterRecord,
-  readAdapterState,
+  readAdapterRecords,
   saveAdapterRecord,
   type AdapterInstallRecord,
 } from './state.ts'
@@ -152,7 +153,7 @@ export async function installAdapter(
   const paths = deps.paths ?? resolvePaths()
   if (request.container) return installContainerAdapter(request, paths, deps)
   const target = request.target ?? detectAdapterTarget()
-  const previous = readAdapterState(paths).adapters[request.kind]
+  const previous = readAdapterRecords(paths).adapters[request.kind]
   const staged = request.from
     ? stageLocalAdapter(request, paths, target, previous, deps)
     : await pullAdapter(request, paths, target, previous, deps)
@@ -256,7 +257,7 @@ async function installContainerAdapter(
   if (!name) throw new Error('--container needs a container name.')
   const docker = deps.docker ?? runDocker
   const info = inspectContainer(name, docker)
-  const previous = readAdapterState(paths).adapters[request.kind]
+  const previous = readAdapterRecords(paths).adapters[request.kind]
   const now = () => new Date((deps.now ?? Date.now)()).toISOString()
 
   if (request.pairCode) {
@@ -492,7 +493,7 @@ export async function upgradeAdapter(
   options: { target?: AdapterTarget; start?: boolean } = {}
 ): Promise<UpgradeReport> {
   const paths = deps.paths ?? resolvePaths()
-  const record = readAdapterState(paths).adapters[kind]
+  const record = readAdapterRecords(paths).adapters[kind]
   if (!record) throw new Error(`The ${kind} adapter is not installed.`)
   if (record.container) {
     throw new Error(
@@ -535,7 +536,7 @@ export async function removeAdapter(
   options: { purge?: boolean } = {}
 ): Promise<string[]> {
   const paths = deps.paths ?? resolvePaths()
-  const record = readAdapterState(paths).adapters[kind]
+  const record = readAdapterRecords(paths).adapters[kind]
   if (!record) throw new Error(`The ${kind} adapter is not installed.`)
   if (record.container) return removeContainerAdapter(record, deps, paths)
 
@@ -559,6 +560,13 @@ export async function removeAdapter(
 
   rmSync(join(paths.dataDir, 'adapters', kind), { recursive: true, force: true })
   deleteAdapterRecord(kind, paths)
+  if (record.path) {
+    removeBinaryLink({
+      name: `clara-adapter-${kind}`,
+      source: join(record.path, adapterBinaryName(kind, record.platform)),
+      binDir: defaultBinDir(),
+    })
+  }
   actions.push(`remove ${record.path}`)
   return actions
 }

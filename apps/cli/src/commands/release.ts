@@ -3,7 +3,7 @@ import { liveState, restartStack, statusStack } from '../service/lifecycle.ts'
 import { resolvePaths } from '../paths.ts'
 import { resolvePorts } from '../ports.ts'
 import { runSetup as setup } from '../setup/setup.ts'
-import { applyLocalArchive, applyUpdate, checkForUpdate, rollback } from '../release/update.ts'
+import { applyLocalArchive, applyUpdate, checkForUpdate, rollback } from '@clara/release'
 import { detectService } from '../service-manager/index.ts'
 import { detectRole } from '../state/role.ts'
 import { cyan, dim } from '../ui/color.ts'
@@ -105,6 +105,7 @@ export async function runUpdateCommand(args: readonly string[]): Promise<number>
   try {
     check = await checkForUpdate({
       paths,
+      fallbackVersion: version(),
       ...(parsed.options.has('base-url') ? { baseUrl: parsed.options.get('base-url') } : {}),
     })
   } catch (cause) {
