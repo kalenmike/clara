@@ -165,6 +165,7 @@ function baseInput(wsUrl: string): EnrollmentInput {
     key: ADAPTER_KEY,
     adapterVersion: '0.1.0',
     capabilities: { sessions: { list: true } },
+    host: { hostname: 'test-host', platform: 'linux', arch: 'x64' },
     timeoutMs: 5_000,
   }
 }
@@ -185,6 +186,7 @@ describe('enrollAdapter', () => {
       harnessId: 'harness-1',
       credentialId: ADAPTER_ID,
       kind: 'opencode',
+      host: { hostname: 'test-host', platform: 'linux', arch: 'x64' },
     })
   })
 

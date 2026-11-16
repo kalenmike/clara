@@ -1,5 +1,6 @@
 import type { HttpMethod } from './actions.ts'
 import type { RelayGrantState } from './grant.ts'
+import type { AdapterHostIdentity } from './host.ts'
 
 /**
  * Adapter frames travel inside the same sealed WebSocket session as a browser
@@ -39,6 +40,8 @@ export type AdapterEnrollAction = {
   protocolVersion: number
   harnessVersion?: string
   capabilities: AdapterCapabilities
+  /** The machine or container running this adapter, when it can tell. */
+  host?: AdapterHostIdentity
 }
 
 export type AdapterAction = AdapterRequestAction | AdapterAbortAction | AdapterEnrollAction

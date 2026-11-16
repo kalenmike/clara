@@ -21,11 +21,13 @@ import {
   isHubHelloFrameV4,
   isSealedFrame,
   type AdapterEnrolledState,
+  type AdapterHostIdentity,
   type AdapterState,
   type ClaraState,
 } from '@clara/shared-types'
 import { REINSTALL_GRANT_MESSAGE, isLocalHubUrl } from './config.ts'
 import { describeError, isConnectionFailure } from './errors.ts'
+import { readHostIdentity } from './host-identity.ts'
 import { adapterInstallCommand } from './service.ts'
 
 export type EnrollmentInput = {
@@ -45,6 +47,8 @@ export type EnrollmentInput = {
   adapterVersion: string
   harnessVersion?: string
   capabilities: Record<string, unknown>
+  /** Override the detected host report; tests use it to stay deterministic. */
+  host?: AdapterHostIdentity
   timeoutMs?: number
 }
 
@@ -92,6 +96,7 @@ export async function enrollAdapter(input: EnrollmentInput): Promise<AdapterEnro
     // grant and the relay would refuse the upgrade anyway.
     throw new Error(REINSTALL_GRANT_MESSAGE)
   }
+  const host = input.host ?? (await readHostIdentity())
   const protocols = input.grant
     ? [RELAY_SUBPROTOCOL, `${RELAY_ROLE_PREFIX}client`, `${RELAY_AUTH_PREFIX}${input.grant}`]
     : undefined
@@ -220,6 +225,7 @@ export async function enrollAdapter(input: EnrollmentInput): Promise<AdapterEnro
             protocolVersion: HARNESS_PROTOCOL_VERSION,
             ...(input.harnessVersion ? { harnessVersion: input.harnessVersion } : {}),
             capabilities: input.capabilities,
+            ...(host ? { host } : {}),
           })
           return
         }
