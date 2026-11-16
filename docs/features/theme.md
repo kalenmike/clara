@@ -2,130 +2,140 @@
 
 ## Summary
 
-Clara lets people choose a color theme independently from light, dark, or system
-mode. The original palette remains available as Default, and every other theme,
-including the Clara house palette, has a matching light and dark variant. This is
-for people who want the workspace to match their editor, terminal, or personal
-taste without giving up automatic appearance changes.
-
-The hub panel shares the same palettes and type tokens. The server-served panel
-keeps its own Light, Dark, and System switch in the panel browser; the bundled
-`/hub` panel follows the client's mode and color theme and hides that switch.
-Clara Lab at `/lab` follows the same client theme; the standalone lab service
-has no client to inherit from, so it follows the operating system and uses the
-Default palette.
+Clara chooses a color theme independently from light, dark, or system mode. It
+ships Default, Solarized, Tokyo Night, Gruvbox, Nord, Rose Pine, Catppuccin, and
+Clara, and people can add a theme from a JSON file or pasted document. Imported
+themes are data, not CSS: only allowlisted color tokens are accepted, so a theme
+can recolor the app but cannot inject a stylesheet.
 
 ## User flow
 
-1. Open **Settings** and find the **Appearance** card.
-2. Choose **Light**, **Dark**, or **System** for the mode. System follows the
-   operating system and changes automatically.
-3. Pick one of the color themes from the swatch grid: Default, Solarized, Tokyo
-   Night, Gruvbox, Nord, Rose Pine, Catppuccin, or Clara.
-4. The sidebar, chat, panels, dialogs, menus, and toasts update immediately.
-5. Reload Clara or return later; the same color theme and mode are restored.
-6. Press `ctrl+x` then `t` to switch between light and dark without changing the
-   selected color theme.
-7. Open Clara in another tab; a theme change made there is reflected as well.
-8. If the saved value cannot be read, Clara falls back to the Default palette.
+1. Open **Settings → Appearance** and choose **Light**, **Dark**, or **System**.
+2. Pick a palette from the swatch grid.
+3. Choose **Import theme**, then upload a `.json` file or paste the JSON. The
+   dialog reports problems while typing and previews the light and dark result
+   once the document is valid.
+4. Press **Add theme**; Clara stores it, selects it, and applies it immediately.
+5. Remove a custom theme with its bin button. Removing the active theme falls
+   back to Default.
+6. Reload Clara or return later; the selected palette and custom list are
+   restored. `ctrl+x` then `t` toggles light and dark without changing palette.
+7. With **Theme** sync on, the custom list and selection appear on the other
+   paired devices; see [sync](sync.md).
 
 ## Core business rules
 
-1. Mode and color theme are independent. Mode controls light, dark, or system;
-   color theme controls the palette. Every palette supports both light and dark.
-2. Default is the palette Clara already used before color themes existed, so
-   existing users see no change until they choose another theme.
-3. The color theme is stored locally in `clara.colorTheme`; the mode remains
-   stored under `clara.theme` by `next-themes`. Neither is sent to the harness
-   server. When **Theme** sync is enabled on this device, the Clara hub
-   stores both keys and its values win on a pull; see [sync](sync.md).
-4. The selected palette is applied as `data-theme` on the document root, while
-   the mode is applied as the existing `.dark` class. Theme tokens are CSS
-   custom properties, so choosing a theme does not remount the app.
-5. Notification accents (success, warning, info, and danger) come from the
-   selected palette so in-app toasts stay in family; their icons and wording
-   still carry the meaning. Other semantic status colors (for example green for
-   working, amber for warnings, and rose for failures) and the deliberately
-   dark pair terminal do not change between color themes.
+1. **Mode and palette are independent.** Every palette supplies both variants.
+2. **Default is the hardcoded base.** `:root` and `.dark` in `tokens.css` define
+   it, so the app has styles before JavaScript runs, before a hub is paired, and
+   in standalone surfaces. Selecting Default clears every inline token. Named
+   palettes live in `themes.json` and apply at runtime; `data-theme` records the
+   selected id but no longer selects a CSS block.
+3. **An imported theme is never CSS.** The document is versioned JSON with a
+   `name`, a `light` map, and a `dark` map. Keys must be known color tokens.
+   Values are hex colors, CSS color functions, or `var(--token)` pointing at
+   another allowlisted token. Semicolons, braces, quotes, backslashes, `@`, `!`,
+   control characters, `url()`, `attr()`, and every other CSS construct are
+   rejected. Both variants are required and must set `background`, `foreground`,
+   `primary`, and `primary-foreground`; other tokens fall back to Default.
+4. **Limits.** A name is 48 characters, a value 120, a theme 16 KB, one device
+   keeps 20 custom themes, an import file is 64 KB, and the synchronized catalog
+   is 60 KB. Ids are generated once as `custom-` plus eight hex characters and
+   never come from the file, so an upload cannot shadow a built-in palette.
+5. **Local first, sync opt-in.** The selection and custom list are stored in
+   `localStorage`. With Theme sync on, the hub stores both keys plaintext and
+   wins on a pull; the catalog applies before the selection so a theme that
+   arrived with the id can resolve. Applying sets allowlisted custom properties
+   inline on the document root; a mode observer swaps variants when `.dark`
+   changes.
 
 ## Edge cases
 
-- **Unknown or missing stored value** — Clara uses Default and repairs the
-  stored value the next time a theme is selected.
-- **Storage unavailable** — private browsing or blocked storage keeps the choice
-  in memory for the current tab and falls back to Default after a reload.
-- **System mode** — when the operating system switches appearance, Clara swaps
-  to the light or dark variant of the selected palette without a reload.
-- **Two tabs open** — changing the theme in one tab updates the other through
-  the browser storage event.
-- **Before React mounts** — a small startup read applies the stored palette
-  before the main application renders, avoiding a flash of the wrong theme.
-- **Invalid or removed theme** — a stale local value never breaks the UI; CSS
-  simply falls back to the Default tokens.
-- **Disconnected from the server** — theme selection still works because it is
-  entirely local.
-- **Preview swatches** — the two chips on each option show the light and dark
-  background and primary accent, not a full application preview.
-- **Mode changed while a menu or dialog is open** — the open surface updates in
-  place because the tokens change on the root element.
-- **Theme changed while a toast is open** — the toast recolors in place because
-  its accent is a CSS custom property.
+- **Invalid JSON or unknown token** — the dialog lists the failing paths and
+  nothing is stored.
+- **CSS injection or unsupported color** — values with declaration syntax,
+  remote resources, unsupported references, or a color the browser rejects are
+  refused before storage.
+- **Oversized file or list** — the import is refused and existing themes are
+  untouched.
+- **Partial theme** — missing tokens use Default in both preview and app.
+- **Theme removed on another device** — the next pull replaces the catalog; if
+  the selected id is gone, Clara uses Default and repairs the selection on the
+  next push.
+- **Two devices add at once** — the catalog is one value and the hub's copy wins;
+  the losing theme can be imported again.
+- **Unknown stored value or unavailable storage** — Clara uses Default; an
+  import reports that the browser could not store the theme.
+- **Two tabs open** — a change in one tab updates the other through the storage
+  event.
+- **Name with control, bidi, or zero-width characters** — rejected so a theme
+  cannot spoof another label.
 
 ## Out of scope
 
-- A theme editor or user-defined palettes.
+- A visual theme editor, export, or sharing from the UI.
+- Importing VS Code, Neovim, or terminal schemes directly.
+- Themeable radius, fonts, font size, or density.
 - Per-project, per-session, or per-agent themes.
-- Syncing appearance settings to the harness server. Cross-device sharing is
-  available only through the optional Clara settings sync described in
-  [sync](sync.md).
-- Importing VS Code, Neovim, or terminal color schemes.
-- Theming the pair terminal, diff colors, or non-notification semantic status
-  colors.
-- Changing the font family, font size, or density.
-- Updating the browser toolbar color to match the palette.
+- Theming the pair terminal, diff colors, or non-notification status colors.
+- A conflict-resolution UI for two devices that edit the list at once.
+- Custom theme selection in the standalone panel or standalone lab; they keep
+  Default, while embedded surfaces inherit the web client's theme.
 
 ## Known gaps
 
-- The document's `theme-color` and the installed app's manifest background stay
-  dark (`#0a0a0a`), so browser chrome and the iOS Home Screen window strip may
-  not match a light or custom palette.
-- Native form controls follow the light or dark `color-scheme`, not the accent
-  colors of the selected palette.
+- The document `theme-color` and installed-app manifest background stay dark
+  (`#0a0a0a`), so browser chrome may not match a light or custom palette.
+- The Default palette is written twice: `tokens.css` and the `default` entry in
+  `themes.json` used for previews. A test compares both variants.
 
 ## Technical appendix
 
 <details>
 <summary>Routes, data, and references</summary>
 
-- Settings route: `/settings`
-- Appearance card: `src/components/settings/theme-card.tsx`
-- Theme catalog and local store: `src/features/theme/color-theme.ts`
-- React binding: `src/features/theme/use-color-theme.ts`
-- Palette CSS: `packages/theme/src/theme.css` for Tailwind hosts and
-  `packages/theme/src/tokens.css` for plain CSS hosts, imported by the web
-  `src/index.css`, the panel `standalone.css`, and the lab `standalone.css`
-- Default palette: `:root` and `.dark` in `packages/theme/src/tokens.css`
-- Panel tokens: `packages/panel/src/styles/globals.css` aliases `--panel-*` to
-  the semantic tokens so the served panel uses the Default palette and the
-  bundled `/hub` panel inherits the client mode and color theme
-- Lab tokens: `packages/lab/src/styles.css` aliases `--lab-*` to the semantic
-  tokens; the bundled `/lab` route inherits the client theme and the standalone
-  entry applies the Default palette from the system preference
-- Mode provider: `src/providers/theme-provider.tsx` (wraps `next-themes`)
-- Storage keys: `clara.theme` (mode), `clara.colorTheme` (palette); both are
-  eligible for optional client settings sync
-- Root markers: `class="dark"` (mode), `data-theme="<value>"` (palette)
-- Theme values: `default`, `solarized`, `tokyo-night`, `gruvbox`, `nord`,
-  `rose-pine`, `catppuccin`, `clara`
-- Notification status tokens: `--status-success`, `--status-warning`,
-  `--status-info`, and `--status-danger`; each palette overrides all four, and
-  the Default palette maps danger to `--destructive`
+- Route: `/settings`; card: `src/components/settings/theme-card.tsx`; import
+  dialog and preview: `custom-theme-dialog.tsx`, `use-theme-import.ts`,
+  `theme-preview.tsx`
+- Store and selection: `src/features/theme/color-theme.ts`; schema and tokens:
+  `packages/theme/src/schema.ts`, `packages/theme/src/tokens.ts`; catalog:
+  `packages/theme/src/themes.json` and `catalog.ts`
+- Import document:
+
+  ```json
+  {
+    "schemaVersion": 1,
+    "name": "My theme",
+    "light": {
+      "background": "#fff",
+      "foreground": "#111",
+      "primary": "#05f",
+      "primary-foreground": "#fff"
+    },
+    "dark": {
+      "background": "#000",
+      "foreground": "#eee",
+      "primary": "#3af",
+      "primary-foreground": "#000"
+    }
+  }
+  ```
+
+- Stored catalog: `{ "version": 1, "themes": [{ "id": "custom-…", "name", "light", "dark" }] }`
+- Storage keys: `clara.theme` (mode), `clara.colorTheme` (palette id),
+  `clara.customThemes` (catalog); all three are eligible for settings sync
+- Root markers: `class="dark"` (mode), `data-theme="<id>"` (palette marker);
+  palette values are inline `--<token>` properties, never a generated stylesheet
+- Tokens: background, foreground, card, popover, primary, secondary, muted,
+  accent, destructive, `status-*`, border, input, ring, `chart-1`–`chart-5`, and
+  `sidebar-*`, each with `-foreground` where the palette uses one
+- Mode provider: `src/providers/theme-provider.tsx` (wraps `next-themes`);
+  panel/lab tokens alias the semantic tokens and inherit the web client them
 - Light/dark sources: Solarized Light/Dark, Tokyo Night Day/Night, Gruvbox
   Light/Dark, Nord Light/Dark, Rosé Pine Dawn/Main, Catppuccin Latte/Mocha
-- Clara is the house palette, built from orchid `#e066ff`, turquoise `#00ced1`,
-  aqua `#7ffffd`, and medium purple `#9370db`, with a darkened orchid for
-  readable light-mode primary text; the dark variant uses the logo navy
-  `#101f3b` as its background so logo tiles blend into the app chrome
-- Related: [shortcuts](shortcuts.md), [capabilities](capabilities.md)
+- Clara is the house palette from orchid `#e066ff`, turquoise `#00ced1`, aqua
+  `#7ffffd`, and medium purple `#9370db`, over logo navy `#101f3b`
+- Related: [sync](sync.md), [settings](settings.md), [shortcuts](shortcuts.md),
+  [capabilities](capabilities.md)
 
 </details>

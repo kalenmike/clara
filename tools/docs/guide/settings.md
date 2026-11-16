@@ -33,8 +33,37 @@ Choose **Light**, **Dark**, or **System** mode, then pick a palette: Default,
 Solarized, Tokyo Night, Gruvbox, Nord, Rose Pine, Catppuccin, or Clara. Every
 palette has light and dark variants.
 
-Theme and mode are stored on this device. Press `ctrl+x` then `t` to toggle light
-and dark without changing the palette.
+To add your own, choose **Import theme**, then upload a theme file or paste its
+JSON. Clara checks the document, shows the problems it finds, and previews the
+light and dark result before you add it. Only the known color tokens are
+accepted; stylesheets, selectors, remote resources, and unknown tokens are
+rejected. A theme may set only a few colors; anything it leaves out follows
+Default. Use the bin button on a custom theme to remove it.
+
+```json
+{
+  "schemaVersion": 1,
+  "name": "Mine",
+  "light": {
+    "background": "#ffffff",
+    "foreground": "#111111",
+    "primary": "#0055ff",
+    "primary-foreground": "#ffffff"
+  },
+  "dark": {
+    "background": "#000000",
+    "foreground": "#eeeeee",
+    "primary": "#33aaff",
+    "primary-foreground": "#000000"
+  }
+}
+```
+
+Theme, mode, and your custom themes are stored on this device. Turn on
+**Theme** in **Settings → Sync** to store the list and the selected palette on
+your hub for your other paired devices. Remove a theme on one device and it
+disappears from the others. Press `ctrl+x` then `t` to toggle light and dark
+without changing the palette.
 
 The hub panel opened from Clara at `/hub` uses this theme and mode. The
 server-served panel keeps its own Light, Dark, and System switch. Clara Lab at
