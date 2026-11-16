@@ -21,18 +21,15 @@ paired hub's bridge; the app runs neither service.
 3. Paste a browser pairing code from the hub panel (or from `clara pair`) and
    connect.
 4. Use Clara as usual: browse projects, start and steer sessions, answer
-   approvals, and read usage. A link in a message opens in the system browser
-   instead of replacing the app.
-5. Install a newer build to update; there is no in-app updater yet. Settings →
-   App identifies the desktop app and shows the `Clara Desktop` surface label
-   with the same version and build stamp as the web client.
+   approvals, and read usage. A message link opens in the system browser.
+5. Install a newer build to update; Settings → App shows the `Clara Desktop`
+   surface label and version.
 6. Open **Hub** and use **Harness → Pair Harness** to install an adapter on
-   **This computer**, an **SSH host** from `~/.ssh/config`, or a local **Docker
-   container**. A `clara://adapter?code=…` link opens the same flow; see
+   **This computer**, an **SSH host**, or a local **Docker container**. A
+   `clara://adapter?code=…` link opens the same flow; see
    [harness-adapters.md](harness-adapters.md).
-7. Open **Hub** from the connected app to use the hub panel in this window.
-   Sign in with the hub owner account and work from the paired hub's live state
-   over the encrypted connection, without opening its loopback page.
+7. Open **Hub** from the connected app to use the hub panel in this window over
+   the encrypted connection, without opening its loopback page.
 8. Open **Clara Lab** from the sidebar to preview packages and drive a run by
    hand. It needs a lab service on the engine host and reaches it through the
    hub bridge, so hub and engine can both be remote.
@@ -72,6 +69,9 @@ paired hub's bridge; the app runs neither service.
    hub bridge under `/v1/lab`. The app runs no lab process and holds no engine
    token; the lab service lives next to the engine. See
    [orchestration/lab.md](orchestration/lab.md).
+10. Notifications are native. The shell registers `tauri-plugin-notification`;
+    Web Audio keeps the per-state sounds, and a click focuses the window and
+    opens the session. Web Push is not part of the app.
 
 ## Edge cases
 
@@ -84,8 +84,8 @@ paired hub's bridge; the app runs neither service.
 - Installers are unsigned, so the operating system may warn on first launch.
 - There is no service worker, so the PWA install prompt, update banner, and
   cache-recovery action do not appear; Settings reports updates as installed
-  with the app. Web Push needs a worker, so the switch stays hidden and inbox
-  attention is limited to the running window.
+  with the app. Web Push needs a worker, so that row is hidden. Native
+  notifications still alert and hold phone pushes while the window runs.
 - The QR camera path depends on the webview exposing a camera; pasting the code
   always works. WebCrypto must be available, and pairing fails rather than
   silently degrading outside a secure context.
@@ -100,7 +100,6 @@ paired hub's bridge; the app runs neither service.
 ## Out of scope
 
 - Signed and notarized installers and an auto-updater.
-- Native notifications and notification-click routing.
 - `clara://` browser-pairing deep links and single-instance forwarding.
 - Running the hub service, a panel listener, or a relay inside the app.
 - Running the lab service in the app or as a bundled sidecar.
@@ -109,8 +108,8 @@ paired hub's bridge; the app runs neither service.
 ## Known gaps
 
 - The update surface is a status text until the native updater replaces it.
-- Native notifications and deep links are the next desktop changes; the web
-  notification module and pairing capture are the intended seams.
+- Desktop notifications use the platform service: Windows reports a click only
+  while the toast is visible, and macOS may use the deprecated notification path.
 
 ## Technical appendix
 
@@ -129,9 +128,11 @@ paired hub's bridge; the app runs neither service.
   over budget, lab markers only in the desktop artifact.
 - The window is created in Rust so navigation can be intercepted; CSP, window
   size, frontend path, and bundle identifier live in `tauri.conf.json`. The
-  identifier is `com.kalenmichael.clara`, and changing it resets the webview's
-  stored pairing.
-- The shell exposes `hub_runtime` through `withGlobalTauri`;
+  shell also registers `tauri-plugin-notification` with `notification:default`
+  and a `focus_main_window` command; the identifier is `com.kalenmichael.clara`,
+  and changing it resets the webview's stored pairing.
+- The shell exposes `hub_runtime` through `withGlobalTauri`; the notification
+  plugin exposes `window.__TAURI__.notification`, and
   `apps/web/src/lib/desktop-runtime.ts` asks for the live local `wsUrl` on boot
   and reconnect.
 - `/hub` renders `@clara/panel` and calls `/v1/hub-panel`; the bridge adds no
