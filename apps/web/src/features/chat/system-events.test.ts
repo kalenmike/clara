@@ -1,6 +1,14 @@
 import { describe, expect, it } from 'vitest'
-import type { ClaraSessionMessageSynthetic } from '@clara/api-contract'
-import { isSystemReminder, readClaraEvent, readSystemReminder } from './system-events'
+import type {
+  ClaraSessionMessageLocationSwitched,
+  ClaraSessionMessageSynthetic,
+} from '@clara/api-contract'
+import {
+  isSystemReminder,
+  locationEvent,
+  readClaraEvent,
+  readSystemReminder,
+} from './system-events'
 
 function synthetic(
   text: string,
@@ -15,6 +23,20 @@ function synthetic(
     text,
     description,
     metadata,
+  }
+}
+
+function locationSwitched(
+  directory: string,
+  created = 1,
+  subpath?: string
+): ClaraSessionMessageLocationSwitched {
+  return {
+    id: `location-${created}`,
+    type: 'location-switched',
+    time: { created },
+    location: { directory },
+    ...(subpath ? { subpath } : {}),
   }
 }
 
@@ -35,6 +57,26 @@ describe('readClaraEvent', () => {
     )
 
     expect(event?.label).toBe('User confirmed. Starting saved draft.')
+  })
+})
+
+describe('locationEvent', () => {
+  it('prefers the harness subpath over the absolute directory', () => {
+    const event = locationEvent(
+      locationSwitched('/home/me/worktrees/feature', 2, '../worktrees/feature')
+    )
+
+    expect(event).toEqual({
+      id: 'location-2',
+      kind: 'location-switched',
+      label: 'Location switched',
+      context: '../worktrees/feature',
+      time: 2,
+    })
+  })
+
+  it('falls back to the directory when there is no subpath', () => {
+    expect(locationEvent(locationSwitched('/repo'))?.context).toBe('/repo')
   })
 })
 

@@ -110,3 +110,24 @@ export function truncateMiddle(value: string, max = 60): string {
   const half = Math.floor((max - 1) / 2)
   return `${value.slice(0, half)}…${value.slice(-half)}`
 }
+
+/**
+ * Keep the end of a path visible when it is too long for one row. The final
+ * segment always survives, so `…/worktrees/feature-name` still says which
+ * folder a session moved to.
+ */
+export function truncatePathStart(value: string, max = 48): string {
+  if (value.length <= max) return value
+  const segments = value.split('/').filter((segment) => segment.length > 0)
+  const last = segments[segments.length - 1]
+  if (!last) return value
+  if (last.length + 2 > max) return `…${last.slice(-(max - 1))}`
+
+  let tail = last
+  for (let index = segments.length - 2; index >= 0; index -= 1) {
+    const candidate = `${segments[index]}/${tail}`
+    if (candidate.length + 2 > max) break
+    tail = candidate
+  }
+  return `…/${tail}`
+}

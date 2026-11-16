@@ -7,7 +7,7 @@ import {
   getVisibleMessages,
 } from '@/features/chat/message-visibility'
 import type { SystemEvent } from '@/features/chat/system-events'
-import { readClaraEvent, readSystemReminder } from '@/features/chat/system-events'
+import { locationEvent, readClaraEvent, readSystemReminder } from '@/features/chat/system-events'
 import { hasUsage, summarizeSteps, type UsageSummary } from '@/features/chat/usage-summary'
 
 export type TimelineItem =
@@ -108,6 +108,10 @@ export function buildTimeline(
         if (options.showInternal) {
           items.push({ type: 'message', key: `message:${message.id}`, message })
         }
+        return
+      }
+      if (message.type === 'location-switched') {
+        items.push({ type: 'event', key: `event:${message.id}`, event: locationEvent(message) })
         return
       }
       items.push({ type: 'message', key: `message:${message.id}`, message })

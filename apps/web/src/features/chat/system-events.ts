@@ -1,11 +1,19 @@
-import type { ClaraJsonValue, ClaraSessionMessageSynthetic } from '@clara/api-contract'
+import type {
+  ClaraJsonValue,
+  ClaraSessionMessageLocationSwitched,
+  ClaraSessionMessageSynthetic,
+} from '@clara/api-contract'
 
 /** Synthetic inputs Clara writes for one-click actions. */
 export type ClaraEventKind = 'plan-request' | 'plan-update' | 'build-start' | 'draft-start'
 
 /** Every system event Clara can render in the transcript. */
 export type SystemEventKind =
-  ClaraEventKind | 'question-answer' | 'question-dismissed' | 'system-reminder'
+  | ClaraEventKind
+  | 'location-switched'
+  | 'question-answer'
+  | 'question-dismissed'
+  | 'system-reminder'
 
 const SYSTEM_REMINDER_TAG = /<system-reminder>([\s\S]*?)<\/system-reminder>/gi
 const SYSTEM_REMINDER_LABEL = 'System Reminder'
@@ -14,6 +22,8 @@ export type SystemEvent = {
   id: string
   kind: SystemEventKind
   label: string
+  /** Short inline context shown beside the label, such as a path. */
+  context?: string
   detail?: string
   time: number
 }
@@ -49,6 +59,20 @@ export function readClaraEvent(message: ClaraSessionMessageSynthetic): SystemEve
     kind,
     label: message.description?.trim() || CLARA_LABELS[kind],
     detail,
+    time: message.time.created,
+  }
+}
+
+/**
+ * The harness records a session moving to another directory as a message. Show
+ * it as a system row so the switch reads as a transcript event, not a prompt.
+ */
+export function locationEvent(message: ClaraSessionMessageLocationSwitched): SystemEvent {
+  return {
+    id: message.id,
+    kind: 'location-switched',
+    label: 'Location switched',
+    context: message.subpath?.trim() || message.location.directory,
     time: message.time.created,
   }
 }

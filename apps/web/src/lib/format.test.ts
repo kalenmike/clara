@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { formatSessionAge } from './format'
+import { formatSessionAge, truncatePathStart } from './format'
 
 const NOW = Date.UTC(2026, 10, 8, 12, 0, 0)
 const MINUTE = 60_000
@@ -35,5 +35,27 @@ describe('formatSessionAge', () => {
     expect(age(345 * DAY)).toBe('started 11 months ago')
     expect(age(365 * DAY)).toBe('started 1 year ago')
     expect(age(2 * 365 * DAY)).toBe('started 2 years ago')
+  })
+})
+
+describe('truncatePathStart', () => {
+  it('leaves a path that fits unchanged', () => {
+    expect(truncatePathStart('../worktrees/feature')).toBe('../worktrees/feature')
+  })
+
+  it('keeps the last segments and elides the start', () => {
+    expect(truncatePathStart('/home/me/clara-worktrees/feature-name', 30)).toBe(
+      '…/clara-worktrees/feature-name'
+    )
+  })
+
+  it('always keeps the final segment visible', () => {
+    expect(truncatePathStart('/home/me/a/very-long-feature-name', 24)).toBe(
+      '…/very-long-feature-name'
+    )
+  })
+
+  it('trims an oversized final segment from its own start', () => {
+    expect(truncatePathStart('/home/me/a-very-long-feature-name', 12)).toBe('…eature-name')
   })
 })

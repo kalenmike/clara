@@ -3,6 +3,7 @@ import {
   ChevronRight,
   CircleHelp,
   CircleSlash,
+  FolderSymlink,
   Hammer,
   Info,
   ListTodo,
@@ -10,7 +11,7 @@ import {
   RefreshCw,
 } from 'lucide-react'
 import type { SystemEvent, SystemEventKind } from '@/features/chat/system-events'
-import { formatDateTime, formatRelativeTime } from '@/lib/format'
+import { formatDateTime, formatRelativeTime, truncatePathStart } from '@/lib/format'
 import { cn } from '@clara/ui/lib/utils'
 
 /**
@@ -21,10 +22,15 @@ export function SystemEventRow({ event }: { event: SystemEvent }) {
   const [open, setOpen] = useState(false)
   const Icon = iconFor(event.kind)
   const detail = event.detail?.trim()
+  const context = event.context?.trim()
   const content = (
     <>
       <Icon className={cn('size-3 shrink-0', colorFor(event.kind))} aria-hidden="true" />
-      <span className="min-w-0 truncate font-medium text-foreground/75">{event.label}</span>
+      <span className="min-w-0 truncate font-medium text-foreground/75">
+        {event.label}
+        {context ? '.' : ''}
+      </span>
+      {context ? <ContextPath value={context} /> : null}
       <span className="text-muted-foreground/50" aria-hidden="true">
         ·
       </span>
@@ -74,6 +80,29 @@ export function SystemEventRow({ event }: { event: SystemEvent }) {
   )
 }
 
+/**
+ * A long path keeps its final directory in view. Only the leading part
+ * truncates, so the folder a session moved to never disappears.
+ */
+function ContextPath({ value }: { value: string }) {
+  const truncated = truncatePathStart(value)
+  const cut = truncated.lastIndexOf('/')
+  const head = cut > 0 ? truncated.slice(0, cut) : ''
+  const tail = cut > 0 ? truncated.slice(cut + 1) : truncated
+
+  return (
+    <span className="flex min-w-0 items-baseline" title={value}>
+      {head ? (
+        <>
+          <span className="min-w-0 truncate">{head}</span>
+          <span aria-hidden="true">/</span>
+        </>
+      ) : null}
+      <span className="shrink-0">{tail}</span>
+    </span>
+  )
+}
+
 function iconFor(kind: SystemEventKind) {
   switch (kind) {
     case 'plan-request':
@@ -84,6 +113,8 @@ function iconFor(kind: SystemEventKind) {
       return Hammer
     case 'draft-start':
       return Play
+    case 'location-switched':
+      return FolderSymlink
     case 'question-answer':
       return CircleHelp
     case 'question-dismissed':
@@ -104,6 +135,8 @@ function colorFor(kind: SystemEventKind): string {
     case 'plan-update':
     case 'question-answer':
       return 'text-sky-500'
+    case 'location-switched':
+      return 'text-amber-500'
     case 'question-dismissed':
       return 'text-muted-foreground/60'
     case 'system-reminder':
