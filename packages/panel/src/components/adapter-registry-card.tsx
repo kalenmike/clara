@@ -148,8 +148,8 @@ export function AdapterRegistryCard({
               entry.installedVersion &&
               entry.installedVersion !== entry.manifest.version ? (
                 <span className="w-full text-amber-700 dark:text-amber-300">
-                  The connected adapter reports v{entry.installedVersion}. Reinstall from this
-                  registry to move it to v{entry.manifest.version}.
+                  The connected adapter reports v{entry.installedVersion}. Update it from the paired
+                  harness list to move it to v{entry.manifest.version}.
                 </span>
               ) : null}
               {entry.error ? (

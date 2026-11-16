@@ -404,7 +404,7 @@ function fakeControls(initial: Partial<PanelControls> = {}): FakeControls {
           artifacts: {},
         },
         command:
-          'curl -fsSL https://clara.example/adapters/opencode/install.sh | sh -s -- --pair clara-harness1_test --no-runner',
+          "curl -fsSL https://clara.example/adapters/opencode/install.sh | CLARA_ADAPTER_REGISTRY_URL='https://clara.example/adapters' sh -s -- --pair clara-harness1_test --no-runner",
         deepLink: 'clara://adapter?code=clara-harness1_test',
       }
     },
@@ -415,6 +415,7 @@ function fakeControls(initial: Partial<PanelControls> = {}): FakeControls {
       latencyMs: 1,
       checkedAt: new Date(0).toISOString(),
     }),
+    updateHarness: async () => ({ from: '0.1.0', to: '0.2.0' }),
     deleteHarness: async () => ({
       harnesses: [],
       harness: { configured: false, paired: 0, online: 0, desired: false, effective: false },
@@ -630,6 +631,10 @@ describe('panel server', () => {
 
     const tested = await post(server, 'harnesses/harness-1/test', {})
     expect(tested.status).toBe(200)
+
+    const updated = await post(server, 'harnesses/harness-1/update', {})
+    expect(updated.status).toBe(200)
+    expect(await updated.json()).toEqual({ from: '0.1.0', to: '0.2.0' })
   })
 
   it('serves the adapter registry and issues setup offers', async () => {

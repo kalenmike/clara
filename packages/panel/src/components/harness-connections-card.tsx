@@ -1,13 +1,16 @@
-import { useState } from 'react'
-import { Cable, FlaskConical, Trash2 } from 'lucide-react'
+import { useEffect, useState } from 'react'
+import { Cable, FlaskConical, RefreshCw, Trash2 } from 'lucide-react'
 import { Button } from '@clara/ui/components/button'
 import {
   harnessHostSummary,
   type PanelHarness,
   type PanelHarnessTestResult,
+  type PanelHarnessUpdateResult,
+  type PanelInstallInfo,
 } from '@clara/shared-types'
 import { formatRelative, formatTimestamp, shortId } from '../lib/format.ts'
 import { harnessState } from '../lib/harness-state.ts'
+import { adapterRepairCommand, fetchInstallInfo, latestAdapterVersion } from '../lib/install.ts'
 import { deletePanel, postPanel } from '../lib/panel-api.ts'
 import { PEEK_MASK } from '../lib/peek.ts'
 import { usePeek } from '../lib/peek-context.tsx'
@@ -33,6 +36,88 @@ export function HarnessConnectionsCard({
   } | null>(null)
   const [error, setError] = useState<string>()
   const [test, setTest] = useState<PanelHarnessTestResult>()
+  const [installInfo, setInstallInfo] = useState<PanelInstallInfo>()
+  const [updateTarget, setUpdateTarget] = useState<{
+    connection: PanelHarness
+    to: string
+  } | null>(null)
+  const [update, setUpdate] = useState<{
+    id: string
+    kind: string
+    from: string
+    to: string
+    startedAt: number
+  }>()
+  const [updateFailure, setUpdateFailure] = useState<{ message: string; kind: string }>()
+
+  const loadInstallInfo = async () => {
+    try {
+      setInstallInfo(await fetchInstallInfo())
+    } catch {
+      // The update action reports its own error when the registry is unavailable.
+    }
+  }
+
+  useEffect(() => {
+    if (!enabled) return
+    void loadInstallInfo()
+  }, [enabled])
+
+  useEffect(() => {
+    if (!update) return
+    const connection = harnesses.find((item) => item.id === update.id)
+    if (
+      connection?.online &&
+      connection.adapterVersion &&
+      connection.adapterVersion !== update.from
+    ) {
+      setUpdate(undefined)
+      setUpdateFailure(undefined)
+    }
+  }, [harnesses, update])
+
+  useEffect(() => {
+    if (!update) return
+    const remaining = Math.max(0, 3 * 60_000 - (Date.now() - update.startedAt))
+    const timer = window.setTimeout(() => {
+      setUpdate(undefined)
+      setUpdateFailure({
+        message:
+          'The adapter did not reconnect with the new version. Check its log or run the repair command below on the harness machine.',
+        kind: harnesses.find((item) => item.id === update.id)?.kind ?? '',
+      })
+    }, remaining)
+    return () => window.clearTimeout(timer)
+  }, [update, harnesses])
+
+  const runUpdate = async (connection: PanelHarness) => {
+    setPending(`update:${connection.id}`)
+    setUpdateFailure(undefined)
+    try {
+      const result = await postPanel<PanelHarnessUpdateResult>(
+        `/panel/api/v1/harnesses/${connection.id}/update`,
+        {}
+      )
+      setUpdate({
+        id: connection.id,
+        kind: connection.kind,
+        from: result.from,
+        to: result.to,
+        startedAt: Date.now(),
+      })
+      setUpdateTarget(null)
+      onChanged()
+      void loadInstallInfo()
+    } catch (cause) {
+      setUpdateFailure({
+        message: cause instanceof Error ? cause.message : String(cause),
+        kind: connection.kind,
+      })
+      setUpdateTarget(null)
+    } finally {
+      setPending(undefined)
+    }
+  }
 
   const runTest = async (connection: PanelHarness) => {
     setPending(`test:${connection.id}`)
@@ -71,6 +156,8 @@ export function HarnessConnectionsCard({
     }
   }
 
+  const repair = updateFailure ? adapterRepairCommand(installInfo, updateFailure.kind) : undefined
+
   return (
     <CollapsibleCard
       title="Paired harnesses"
@@ -83,6 +170,21 @@ export function HarnessConnectionsCard({
     >
       <CardBody>
         {error ? <Notice tone="danger">{redact(error)}</Notice> : null}
+        {update ? (
+          <Notice tone="warning">
+            {redact(
+              `Updating ${update.kind} from v${update.from} to v${update.to}. The adapter will restart and reconnect.`
+            )}
+          </Notice>
+        ) : null}
+        {updateFailure ? (
+          <Notice tone="danger">
+            {redact(updateFailure.message)}
+            {repair ? (
+              <div className="mt-1 break-all font-mono text-[10px] text-foreground">{repair}</div>
+            ) : null}
+          </Notice>
+        ) : null}
         {test ? (
           <Notice tone={test.ok ? 'warning' : 'danger'}>
             {test.ok
@@ -133,6 +235,17 @@ export function HarnessConnectionsCard({
               <tbody>
                 {harnesses.map((connection) => {
                   const status = harnessState(connection, enabled)
+                  const latest = latestAdapterVersion(installInfo, connection.kind)
+                  const updating = update?.id === connection.id
+                  const updateAvailable =
+                    enabled &&
+                    installInfo?.available === true &&
+                    connection.online &&
+                    Boolean(connection.adapterVersion) &&
+                    Boolean(latest) &&
+                    latest !== connection.adapterVersion &&
+                    connection.host?.installMethod !== 'docker' &&
+                    connection.host?.container === undefined
                   return (
                     <tr key={connection.id} className="border-t border-border">
                       <td className="px-1 py-2">
@@ -140,6 +253,12 @@ export function HarnessConnectionsCard({
                         <div className="font-mono text-[10px] text-muted-foreground">
                           {connection.kind} · {masked ? PEEK_MASK : shortId(connection.harnessId)}
                           {connection.harnessVersion ? ` · ${connection.harnessVersion}` : ''}
+                          {connection.adapterVersion
+                            ? ` · adapter v${connection.adapterVersion}`
+                            : ''}
+                          {latest && latest !== connection.adapterVersion
+                            ? ` · update v${latest}`
+                            : ''}
                         </div>
                       </td>
                       <td className="px-1 py-2">{harnessHostSummary(connection.host) ?? '—'}</td>
@@ -202,12 +321,29 @@ export function HarnessConnectionsCard({
                       </td>
                       <td className="px-1 py-2 text-right">
                         <div className="inline-flex flex-wrap items-center justify-end gap-1">
+                          {updateAvailable || updating ? (
+                            <Button
+                              type="button"
+                              variant="outline"
+                              size="xs"
+                              onClick={() =>
+                                latest ? setUpdateTarget({ connection, to: latest }) : undefined
+                              }
+                              disabled={pending !== undefined || updating || !latest}
+                            >
+                              <RefreshCw
+                                className={`size-3 ${updating ? 'animate-spin' : ''}`}
+                                aria-hidden="true"
+                              />
+                              {updating ? 'Updating…' : 'Update'}
+                            </Button>
+                          ) : null}
                           <Button
                             type="button"
                             variant="outline"
                             size="xs"
                             onClick={() => void runTest(connection)}
-                            disabled={pending !== undefined}
+                            disabled={pending !== undefined || updating}
                           >
                             <FlaskConical className="size-3" aria-hidden="true" />
                             {pending === `test:${connection.id}` ? 'Testing…' : 'Test'}
@@ -217,7 +353,7 @@ export function HarnessConnectionsCard({
                             variant="destructive"
                             size="xs"
                             onClick={() => setRemoveTarget({ connection, forget: false })}
-                            disabled={pending !== undefined}
+                            disabled={pending !== undefined || updating}
                           >
                             <Trash2 className="size-3" aria-hidden="true" />
                             {pending === `delete:${connection.id}` ? 'Deleting…' : 'Delete'}
@@ -227,7 +363,7 @@ export function HarnessConnectionsCard({
                             variant="outline"
                             size="xs"
                             onClick={() => setRemoveTarget({ connection, forget: true })}
-                            disabled={pending !== undefined}
+                            disabled={pending !== undefined || updating}
                           >
                             {pending === `forget:${connection.id}` ? 'Forgetting…' : 'Forget'}
                           </Button>
@@ -243,8 +379,9 @@ export function HarnessConnectionsCard({
         <p className="pt-2 text-xs text-muted-foreground">
           Every paired harness is independent; a workspace chooses the one it belongs to. Delete
           removes the connection but keeps the adapter identity and Clara metadata; Forget purges
-          both. Test probes that adapter's harness endpoint. Fingerprints identify the credential
-          without revealing it.
+          both. Test probes that adapter's harness endpoint. Update asks the connected adapter to
+          pull the published release and restart; it must be online. Fingerprints identify the
+          credential without revealing it.
         </p>
         <ConfirmDialog
           open={removeTarget != null}
@@ -272,6 +409,26 @@ export function HarnessConnectionsCard({
           }}
           onConfirm={() => {
             if (removeTarget) void remove(removeTarget.connection, removeTarget.forget)
+          }}
+        />
+        <ConfirmDialog
+          open={updateTarget != null}
+          title={
+            updateTarget ? `Update "${updateTarget.connection.label}" to v${updateTarget.to}?` : ''
+          }
+          description={
+            updateTarget
+              ? `The adapter restarts from v${updateTarget.connection.adapterVersion ?? 'unknown'} to v${updateTarget.to}. Active runs on Claude Code or Pi may be interrupted; OpenCode sessions stay in the harness. The adapter must reconnect to the hub when it is done.`
+              : ''
+          }
+          confirmLabel="Update"
+          pendingLabel="Updating…"
+          pending={updateTarget != null && pending === `update:${updateTarget.connection.id}`}
+          onOpenChange={(open) => {
+            if (!open) setUpdateTarget(null)
+          }}
+          onConfirm={() => {
+            if (updateTarget) void runUpdate(updateTarget.connection)
           }}
         />
       </CardBody>

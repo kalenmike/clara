@@ -8,7 +8,7 @@
 
 import type { HarnessHost, HarnessInstallMethod, HostResourceMetrics } from './host.ts'
 
-export const PANEL_API_VERSION = 14
+export const PANEL_API_VERSION = 15
 
 export type PanelValueSource =
   'env' | 'file' | 'database' | 'default' | 'generated' | 'runtime' | 'none'
@@ -196,6 +196,12 @@ export type PanelHarnessTestResult = {
 export type PanelHarnessMutationResponse = {
   harnesses: PanelHarness[]
   harness: PanelHarnessState
+}
+
+/** The version pair the hub accepted for a remote adapter update. */
+export type PanelHarnessUpdateResult = {
+  from: string
+  to: string
 }
 
 /** One downloadable adapter build in a registry manifest. */

@@ -40,7 +40,39 @@ export function registryCommand(
   const manifest = installManifest(info, kind)
   if (!manifest) return undefined
   const noRunner = kind === 'opencode' ? ' --no-runner' : ''
-  return `curl -fsSL ${manifest.install} | sh -s -- --pair ${code}${noRunner}`
+  return `curl -fsSL ${manifest.install} | ${registryEnv(info)}sh -s -- --pair ${code}${noRunner}`
+}
+
+/**
+ * A no-CLI recovery command for an adapter that is already paired. It reuses
+ * the saved pairing, so no new code is needed, and records the registry for
+ * the next self-update.
+ */
+export function adapterRepairCommand(
+  info: PanelInstallInfo | undefined,
+  kind: string
+): string | undefined {
+  const manifest = installManifest(info, kind)
+  if (!manifest) return undefined
+  const noRunner = kind === 'opencode' ? ' --no-runner' : ''
+  return `curl -fsSL ${manifest.install} | ${registryEnv(info)}sh -s -- --reuse-pairing${noRunner}`
+}
+
+/** The newer published version for a connected adapter, when one exists. */
+export function latestAdapterVersion(
+  info: PanelInstallInfo | undefined,
+  kind: string
+): string | undefined {
+  return installManifest(info, kind)?.version
+}
+
+function registryEnv(info: PanelInstallInfo | undefined): string {
+  const base = info?.registry.baseUrl
+  return base ? `CLARA_ADAPTER_REGISTRY_URL=${shellQuote(base)} ` : ''
+}
+
+function shellQuote(value: string): string {
+  return `'${value.replaceAll("'", `'\\''`)}'`
 }
 
 /** Whether the hub can issue an adapter setup offer. */

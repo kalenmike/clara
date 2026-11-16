@@ -337,9 +337,7 @@ export class HarnessManager {
     if (!fetch) return
     try {
       const info = await withTimeout(
-        new HarnessClient({ fetch, baseUrl: 'http://adapter' }).info(
-          AbortSignal.timeout(3_000)
-        ),
+        new HarnessClient({ fetch, baseUrl: 'http://adapter' }).info(AbortSignal.timeout(3_000)),
         3_500,
         () => {}
       )

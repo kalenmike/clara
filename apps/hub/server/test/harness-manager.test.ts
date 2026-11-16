@@ -70,6 +70,34 @@ describe('harness manager', () => {
     expect(manager.connection('harness-a')?.online).toBe(false)
   })
 
+  it('refreshes the adapter version and capabilities on reconnect', async () => {
+    const enrolled = await enroll()
+    await manager.setLive(
+      'harness-a',
+      async (request) => {
+        const path = new URL(request.url).pathname
+        if (path === '/harness/v1/info') {
+          return Response.json({
+            protocol: 1,
+            adapter: { name: 'opencode', version: '0.2.0' },
+            harness: { kind: 'opencode', version: '2.1.1' },
+            capabilities: { sessions: true, maintenance: { update: true } },
+          })
+        }
+        return Response.json({ ok: true })
+      },
+      'local'
+    )
+
+    await waitFor(() => manager.connection('harness-a')?.adapterVersion === '0.2.0')
+    expect(manager.connection('harness-a')).toMatchObject({
+      id: enrolled.connection.id,
+      adapterVersion: '0.2.0',
+      harnessVersion: '2.1.1',
+      capabilities: { sessions: true, maintenance: { update: true } },
+    })
+  })
+
   it('keeps other harnesses when one is removed', async () => {
     const first = await enroll('harness-a', 'adapter-a')
     await enroll('harness-b', 'adapter-b')
@@ -206,3 +234,12 @@ describe('harness manager', () => {
     expect(probe.ok).toBe(false)
   })
 })
+
+async function waitFor(check: () => boolean, timeoutMs = 1_500): Promise<void> {
+  const deadline = Date.now() + timeoutMs
+  while (Date.now() < deadline) {
+    if (check()) return
+    await new Promise((resolve) => setTimeout(resolve, 25))
+  }
+  throw new Error('Timed out waiting for the condition')
+}

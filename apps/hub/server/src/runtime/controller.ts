@@ -9,6 +9,9 @@ import {
   encodePairingCode,
   type HarnessPairingPayload,
 } from '@clara/shared-types'
+import { compareVersions } from '@clara/adapter-artifact'
+import { isHarnessInfo } from '@clara/harness-protocol'
+import type { HarnessInfo } from '@clara/harness-protocol'
 import {
   installLabel,
   isAdapterInstallMethod,
@@ -30,6 +33,7 @@ import type {
   PanelHarnessPairingMutationResponse,
   PanelHarnessSetupMode,
   PanelHarnessTestResult,
+  PanelHarnessUpdateResult,
   PanelInstallManifest,
   PanelLocalAddress,
   PanelOrchestrationControl,
@@ -61,7 +65,7 @@ import {
   type ServerConfig,
 } from '../config.ts'
 import type { HarnessManager } from '../harness/manager.ts'
-import { HarnessValidationError } from '../harness/types.ts'
+import { HarnessOfflineError, HarnessValidationError } from '../harness/types.ts'
 import { broadcast, LocalTransport } from '../local-server.ts'
 import { PanelControlError } from '../panel/controls.ts'
 import { harnessList, harnessState, toPanelHarnessTest } from '../panel/harness.ts'
@@ -1178,6 +1182,123 @@ export class RuntimeController {
     return toPanelHarnessTest(result)
   }
 
+  async updateHarness(id: string): Promise<PanelHarnessUpdateResult> {
+    const connection = this.options.harness.list().find((item) => item.id === id)
+    if (!connection) {
+      throw new PanelControlError(
+        404,
+        'harness_not_found',
+        'That harness connection no longer exists.'
+      )
+    }
+    if (!connection.online) {
+      throw new PanelControlError(409, 'harness_offline', 'Connect the adapter before updating it.')
+    }
+    if (connection.host?.installMethod === 'docker' || connection.host?.container) {
+      throw new PanelControlError(
+        409,
+        'container_adapter',
+        'This adapter runs in a container. Rebuild and recreate the container to upgrade it.'
+      )
+    }
+    const install = this.options.install
+    if (!install) {
+      throw new PanelControlError(503, 'install_unavailable', 'Adapter setup is not available.')
+    }
+    const resolved = await install.manifest(connection.kind)
+    const to = resolved.manifest.version
+    const from = connection.adapterVersion
+    if (!from) {
+      throw new PanelControlError(
+        409,
+        'update_unavailable',
+        'The adapter has not reported a release version.'
+      )
+    }
+    if (compareVersions(to, from) <= 0) {
+      throw new PanelControlError(409, 'already_current', `The adapter already runs ${from}.`)
+    }
+
+    let info: HarnessInfo | undefined
+    try {
+      const response = await this.options.harness.requestFor(
+        connection.harnessId,
+        { method: 'GET', path: '/info' },
+        AbortSignal.timeout(5_000)
+      )
+      if (!response.ok) {
+        throw new PanelControlError(
+          409,
+          'update_unsupported',
+          `The adapter answered its update check with ${response.status}.`
+        )
+      }
+      const body = (await response.json()) as unknown
+      if (!isHarnessInfo(body)) {
+        throw new PanelControlError(409, 'update_unsupported', 'The adapter returned invalid info.')
+      }
+      info = body
+    } catch (cause) {
+      if (cause instanceof HarnessOfflineError) {
+        throw new PanelControlError(409, 'harness_offline', 'The adapter went offline.')
+      }
+      if (cause instanceof Error && cause.name === 'TimeoutError') {
+        throw new PanelControlError(504, 'update_timeout', 'The adapter did not answer in time.')
+      }
+      throw cause
+    }
+    if (!info) {
+      throw new PanelControlError(409, 'update_unsupported', 'The adapter did not report its info.')
+    }
+    const maintenance = info.capabilities.maintenance as { update?: unknown } | undefined
+    if (maintenance?.update !== true) {
+      throw new PanelControlError(
+        409,
+        'update_unsupported',
+        'This adapter version cannot update itself. Reinstall it with the current command.'
+      )
+    }
+
+    let response: Response
+    try {
+      response = await this.options.harness.requestFor(
+        connection.harnessId,
+        {
+          method: 'POST',
+          path: '/maintenance/update',
+          headers: { 'content-type': 'application/json' },
+          body: JSON.stringify({ version: to }),
+        },
+        AbortSignal.timeout(5 * 60_000)
+      )
+    } catch (cause) {
+      if (cause instanceof HarnessOfflineError) {
+        throw new PanelControlError(409, 'harness_offline', 'The adapter went offline.')
+      }
+      if (cause instanceof Error && cause.name === 'TimeoutError') {
+        throw new PanelControlError(
+          504,
+          'update_timeout',
+          'The adapter did not finish the update request in time.'
+        )
+      }
+      throw cause
+    }
+    if (!response.ok) {
+      const failure = await readHarnessFailure(response)
+      throw new PanelControlError(
+        response.status,
+        failure?.code ?? 'update_failed',
+        failure?.message ?? `The adapter refused the update (${response.status}).`
+      )
+    }
+    const body = (await response.json()) as { from?: unknown; to?: unknown }
+    return {
+      from: typeof body.from === 'string' ? body.from : from,
+      to: typeof body.to === 'string' ? body.to : to,
+    }
+  }
+
   async deleteHarness(id: string): Promise<PanelHarnessMutationResponse> {
     await harnessCall(async () => this.options.harness.remove(id))
     return this.harnessMutation()
@@ -1461,6 +1582,27 @@ function normalizeBindHost(value: string | null | undefined): string {
     )
   }
   return host
+}
+
+async function readHarnessFailure(
+  response: Response
+): Promise<{ code?: string; message?: string } | undefined> {
+  try {
+    const value = (await response.json()) as {
+      error?: { code?: unknown; message?: unknown }
+      message?: unknown
+    }
+    return {
+      ...(typeof value.error?.code === 'string' ? { code: value.error.code } : {}),
+      ...(typeof value.error?.message === 'string'
+        ? { message: value.error.message }
+        : typeof value.message === 'string'
+          ? { message: value.message }
+          : {}),
+    }
+  } catch {
+    return undefined
+  }
 }
 
 async function harnessCall<T>(operation: () => Promise<T>): Promise<T> {
