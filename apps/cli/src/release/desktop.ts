@@ -296,9 +296,10 @@ function installNsis(options: DesktopInstallOptions, archive: string, run: Deskt
 function installMsi(options: DesktopInstallOptions, archive: string, run: DesktopRunner): string {
   requireOk(run('msiexec.exe', ['/i', archive, '/qn', '/norestart']), ['msiexec'])
   const programFiles = options.env?.PROGRAMFILES?.trim() || 'C:\\Program Files'
-  const path = [join(programFiles, APP_NAME, 'Clara.exe'), join(programFiles, APP_NAME, 'clara-desktop.exe')].find(
-    (candidate) => existsSync(candidate)
-  )
+  const path = [
+    join(programFiles, APP_NAME, 'Clara.exe'),
+    join(programFiles, APP_NAME, 'clara-desktop.exe'),
+  ].find((candidate) => existsSync(candidate))
   if (!path) {
     throw new Error(`The MSI finished but ${APP_NAME}.exe was not found.`)
   }
