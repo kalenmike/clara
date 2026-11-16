@@ -3,9 +3,7 @@
   "private": true,
   "version": "0.1.0",
   "type": "module",
-  "sideEffects": [
-    "*.css"
-  ],
+  "sideEffects": ["**/*.css"],
   "exports": {
     ".": "./src/index.ts",
     "./catalog": "./src/catalog.ts",
