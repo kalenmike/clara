@@ -14,7 +14,7 @@
 import { spawnSync } from 'node:child_process'
 import { dirname, resolve } from 'node:path'
 import { fileURLToPath } from 'node:url'
-import { fetchLatestAdapterTag, versionFromTag } from './lib/releases.mjs'
+import { fetchLatestAdapterTag, versionFromTag } from '../lib/releases.mjs'
 
 const here = dirname(fileURLToPath(import.meta.url))
 const repoRoot = resolve(here, '../..')

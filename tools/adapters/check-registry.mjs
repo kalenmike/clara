@@ -14,7 +14,7 @@
 
 import { dirname, resolve } from 'node:path'
 import { fileURLToPath } from 'node:url'
-import { fetchLatestAdapterTag, fetchReleaseAssets, versionFromTag } from './lib/releases.mjs'
+import { fetchLatestAdapterTag, fetchReleaseAssets, versionFromTag } from '../lib/releases.mjs'
 import { ADAPTER_KINDS, SUPPORTED_TARGETS, checkRegistry } from './lib/registry.mjs'
 
 const here = dirname(fileURLToPath(import.meta.url))

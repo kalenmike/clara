@@ -1,14 +1,15 @@
-// GitHub release helpers shared by the adapter build and the registry check.
+// GitHub release helpers shared by the adapter, desktop, and release tooling.
 //
-// Adapter releases use their own tag prefix so the hub installer releases (`v*`)
-// never get confused with adapter archives. `latest` always means the newest
-// published `adapters-v*` release, which is what the web registry must mirror.
+// Adapter and desktop releases use their own tag prefixes so the command
+// releases (`v*`) never get confused with their archives. `latest` always means
+// the newest published release with that prefix.
 
 export const ADAPTER_TAG_PREFIX = 'adapters-v'
+export const DESKTOP_TAG_PREFIX = 'desktop-v'
 
-/** The version carried by an adapter tag, or undefined when it has none. */
+/** The version carried by an adapter, desktop, or command tag. */
 export function versionFromTag(tag) {
-  const match = /^(?:adapters-)?v(.+)$/.exec(tag)
+  const match = /^(?:adapters-|desktop-)?v(.+)$/.exec(tag)
   return match ? match[1] : undefined
 }
 
@@ -20,12 +21,25 @@ export function isAdapterTag(value) {
   )
 }
 
+export function isDesktopTag(value) {
+  return (
+    typeof value === 'string' &&
+    value.startsWith(DESKTOP_TAG_PREFIX) &&
+    value.length > DESKTOP_TAG_PREFIX.length
+  )
+}
+
+export function isCommandTag(value) {
+  return typeof value === 'string' && /^v\d/.test(value)
+}
+
 /**
- * The newest published adapter release tag. Drafts are skipped because their
- * assets are not downloadable and a registry built from one would 404.
+ * The newest published release tag matching `prefix`, or a command tag when
+ * `prefix` is empty. Drafts are skipped because their assets are not
+ * downloadable and a registry built from one would 404.
  */
-export async function fetchLatestAdapterTag(options) {
-  const { repo, apiUrl, token, fetchImpl } = options
+export async function fetchLatestReleaseTag(options) {
+  const { repo, apiUrl, token, fetchImpl, prefix = '', label = `${prefix}*` } = options
   for (let page = 1; page <= 20; page += 1) {
     const batch = await githubJson(`${apiUrl}/repos/${repo}/releases?per_page=100&page=${page}`, {
       token,
@@ -33,12 +47,37 @@ export async function fetchLatestAdapterTag(options) {
     })
     if (!Array.isArray(batch) || batch.length === 0) break
     const release = batch.find(
-      (entry) => entry && entry.draft !== true && isAdapterTag(entry.tag_name)
+      (entry) =>
+        entry &&
+        entry.draft !== true &&
+        entry.prerelease !== true &&
+        (prefix ? entry.tag_name?.startsWith(prefix) : isCommandTag(entry.tag_name))
     )
     if (release) return release.tag_name
     if (batch.length < 100) break
   }
-  throw new Error(`No published ${ADAPTER_TAG_PREFIX}* release was found in ${repo}`)
+  throw new Error(`No published ${label} release was found in ${repo}`)
+}
+
+export function fetchLatestAdapterTag(options) {
+  return fetchLatestReleaseTag({ ...options, prefix: ADAPTER_TAG_PREFIX })
+}
+
+export function fetchLatestDesktopTag(options) {
+  return fetchLatestReleaseTag({ ...options, prefix: DESKTOP_TAG_PREFIX })
+}
+
+export function fetchLatestCommandTag(options) {
+  return fetchLatestReleaseTag({ ...options, prefix: '', label: 'v*' })
+}
+
+/** One release, including its tag, notes, dates, and assets. */
+export async function fetchRelease(options) {
+  const { repo, apiUrl, tag, token, fetchImpl } = options
+  return githubJson(`${apiUrl}/repos/${repo}/releases/tags/${encodeURIComponent(tag)}`, {
+    token,
+    fetchImpl,
+  })
 }
 
 /** Every asset of one release, keyed by file name. */
@@ -77,7 +116,7 @@ export async function githubJson(url, options = {}) {
   const { token, fetchImpl = fetch } = options
   const headers = {
     accept: 'application/vnd.github+json',
-    'user-agent': 'clara-adapters',
+    'user-agent': 'clara-release',
     'x-github-api-version': '2022-11-28',
   }
   if (token) headers.authorization = `Bearer ${token}`
