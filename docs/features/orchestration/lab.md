@@ -23,13 +23,11 @@ It is for people writing custom pipelines, not an end-user surface.
    and **Run setup check** reports whether the host path compiles, whether the
    engine can read its path, and whether a strict target has a live adapter.
 3. On **Review**, choose a pipeline from the collapsible tree. The compiled graph
-   lays the entry and every step out top to bottom, with type colors and icons,
-   `provider/model` and its inheritance source, and declared inputs; hovering an
-   input highlights the step that produced it. Select a node to open the bottom
-   Detail panel with Prompt, Inputs, Policy, Limits, Routes, Source, and Raw
-   tabs. Diagnostics sit above the graph, and **Compare run** diffs the pinned
-   snapshot. The tree marks packages with a routed wrap and explains that
-   explicit targets run directly, while the entry shows the wrapper.
+   lays the entry and steps out top to bottom with type colors, icons,
+   `provider/model` inheritance, and declared inputs; hovering an input
+   highlights its source. Select a node for the bottom Detail panel's Prompt,
+   Inputs, Policy, Limits, Routes, Source, and Raw tabs. Diagnostics sit above
+   the graph; **Compare run** diffs snapshots and routed wraps are marked.
 4. Press **Run this pipeline** to open the Debug dock. Start a run there and step
    through one current-step card at a time, typing a result and choosing
    **Complete and continue**, or **Choose route** for a router.
