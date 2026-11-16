@@ -42,10 +42,10 @@ browser client, then speaks the Clara Harness Protocol. The hub routes typed
 2. Adapter pairing uses the same one-time code, fingerprint, expiry, E2EE
    handshake, replay guard, and revocation as browser pairing; a relay code
    carries a ten-minute enrollment grant, then a thirty-day refreshed grant.
-3. Included installers place different pieces, all with `--pair <code>`: OpenCode
-   installs the daemon, its binding, and shared-runner config; Claude Code and Pi
-   install only the daemon and a user service. `--no-runner`, `--no-service`, and
-   `--from <path>` select those pieces or a checkout build.
+3. Included installers place different pieces, all with `--pair <code>`: OpenCode installs the daemon, its binding,
+   and shared-runner config; Claude Code and Pi install only the daemon and a user service. `--no-runner`, `--no-service`,
+   and `--from <path>` select those pieces or a checkout build. The binding registers the policy plugin in the OpenCode
+   config, so a running server reloads it and its Clara tools without a restart; the install warns when it is not loaded.
 4. On the target the adapter discovers and authenticates the harness, keeps its
    password in `config.json`, translates traffic into Clara frames, and samples
    its machine for `host.metrics`. The hub never holds the password.
