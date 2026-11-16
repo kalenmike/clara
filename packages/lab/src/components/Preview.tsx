@@ -246,6 +246,12 @@ export function Preview({
             {!target ? (
               <span className="muted">Entry router — it chooses a pipeline at runtime.</span>
             ) : null}
+            {pipelineInfo.wrappedBy && target ? (
+              <div className="muted text-xs">
+                Routed wrap: <code>{pipelineInfo.wrappedBy}</code>. Explicit targets run directly;
+                preview the entry to see the wrapper.
+              </div>
+            ) : null}
             {compiled?.root.enforcement ? (
               <Badge tone={compiled.root.enforcement === 'strict' ? 'warn' : 'idle'}>
                 {compiled.root.enforcement}
@@ -280,6 +286,12 @@ export function Preview({
                         <div>{pkg.name}</div>
                         <div className="muted">{pkg.dir}</div>
                       </div>
+                      {pkg.wrap ? (
+                        <div className="package-group">
+                          <span className="group-label">routed wrap</span>
+                          <span className="muted">{pkg.wrap}</span>
+                        </div>
+                      ) : null}
                       {pkg.pipelines.length ? (
                         <div className="package-group">
                           <span className="group-label">pipelines</span>
@@ -317,6 +329,18 @@ export function Preview({
                         <div className="package-group">
                           <span className="group-label">scripts</span>
                           <span className="muted">{pkg.scripts.map((t) => t.name).join(', ')}</span>
+                        </div>
+                      ) : null}
+                      {pkg.wrappers.length ? (
+                        <div className="package-group">
+                          <span className="group-label">wrappers</span>
+                          {pkg.wrappers.map((wrapper) => (
+                            <div key={wrapper.id} className="muted" title={wrapper.description}>
+                              <strong>{wrapper.name}</strong>
+                              {wrapper.workspace ? ` · ${wrapper.workspace}` : ''}
+                              {` · before ${wrapper.before} · after ${wrapper.after} · cleanup ${wrapper.cleanup}`}
+                            </div>
+                          ))}
                         </div>
                       ) : null}
                     </details>

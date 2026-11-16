@@ -30,6 +30,33 @@ describe('pipeline preview', () => {
     expect(result.catalog?.packages.map((pkg) => pkg.id)).toContain('software')
   })
 
+  it('shows routed wrappers without making them targets', () => {
+    const result = previewPipeline({ workspace: root })
+    const software = result.compiled?.root.routes?.find(
+      (route) => route.when === 'software-development'
+    )?.target
+    expect(software?.kind).toBe('group')
+    expect(software?.name).toBe('wrapper:worktree')
+
+    const session = result.catalog?.packages.find((pkg) => pkg.id === 'session')
+    expect(session?.wrappers.map((wrapper) => wrapper.id)).toEqual(['worktree'])
+    expect(session?.wrappers[0]).toMatchObject({
+      name: 'Worktree session',
+      workspace: 'start_session',
+      before: 1,
+      after: 2,
+      cleanup: 1,
+    })
+    expect(result.catalog?.packages.find((pkg) => pkg.id === 'software')?.wrap).toBe(
+      'std:session/worktree'
+    )
+    expect(result.targets.map((target) => target.ref)).not.toContain('std:session')
+
+    const explicit = previewPipeline({ workspace: root, target: 'std:software' })
+    expect(explicit.selected?.wrappedBy).toBe('std:session/worktree')
+    expect(explicit.compiled?.root.name).toBe('classifier')
+  })
+
   it('compiles the maintenance rebuild pipeline', () => {
     const result = previewPipeline({ workspace: root, target: 'std:maintenance/rebuild' })
     expect(result.selected?.ref).toBe('std:maintenance/rebuild')

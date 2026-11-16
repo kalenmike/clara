@@ -122,6 +122,7 @@ export function listTargets(catalog: LoadedCatalog): TargetInfo[] {
           kind: 'entry',
           namespace,
           alias,
+          ...(pkg.wrap ? { wrappedBy: pkg.wrap } : {}),
           ...(pkg.entry.router
             ? { entryKind: 'router' as const }
             : { entryKind: 'pipeline' as const }),
@@ -136,6 +137,7 @@ export function listTargets(catalog: LoadedCatalog): TargetInfo[] {
           kind: 'pipeline',
           namespace,
           alias,
+          ...(pkg.wrap ? { wrappedBy: pkg.wrap } : {}),
           ...(pipeline.description ? { description: pipeline.description } : {}),
         })
       }
@@ -159,6 +161,23 @@ export function describePackages(catalog: LoadedCatalog): PackageEntryInfo[] {
       ...(pkg.manifest.defaults
         ? { defaults: pkg.manifest.defaults as unknown as Record<string, unknown> }
         : {}),
+      ...(pkg.wrap ? { wrap: pkg.wrap } : {}),
+      wrappers: [...pkg.wrappers.values()].map((wrapper) => ({
+        id: wrapper.id,
+        name: wrapper.name ?? wrapper.id,
+        ...(wrapper.description ? { description: wrapper.description } : {}),
+        ...(wrapper.source ? { source: wrapper.source } : {}),
+        ...(wrapper.workspace
+          ? {
+              workspace: `${wrapper.workspace.from}${
+                wrapper.workspace.field ? `.${wrapper.workspace.field}` : ''
+              }`,
+            }
+          : {}),
+        before: wrapper.before.length,
+        after: wrapper.after.length,
+        cleanup: wrapper.cleanup.length,
+      })),
       pipelines: [...pkg.pipelines.values()].map((pipeline) => ({
         id: pipeline.id,
         name: pipeline.name,

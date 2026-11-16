@@ -58,6 +58,20 @@ export interface TargetInfo {
   namespace?: string
   alias?: string
   description?: string
+  /** Import-level wrapper applied when a router selects this package. */
+  wrappedBy?: string
+}
+
+export interface WrapperInfo {
+  id: string
+  name: string
+  description?: string
+  source?: string
+  /** The workspace source, as `from` or `from.field`. */
+  workspace?: string
+  before: number
+  after: number
+  cleanup: number
 }
 
 export interface PackageEntryInfo {
@@ -69,10 +83,13 @@ export interface PackageEntryInfo {
   alias?: string
   entry: { pipeline?: string; router?: string }
   defaults?: Record<string, unknown>
+  /** Import-level wrapper applied when a router selects this package. */
+  wrap?: string
   pipelines: Array<{ id: string; name: string; description?: string; source?: string }>
   routers: Array<{ id: string; description?: string; source?: string }>
   agents: Array<{ name: string; description?: string; source?: string }>
   scripts: Array<{ name: string; description?: string; source?: string }>
+  wrappers: WrapperInfo[]
 }
 
 export type SourceKind = 'config' | 'package' | 'pipeline' | 'router' | 'agent' | 'script' | 'other'
