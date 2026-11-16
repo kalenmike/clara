@@ -106,6 +106,9 @@ fi
 
 verify_signature() {
   if [ "$PUBLIC_KEY" = "__CLARA_RELEASE_PUBLIC_KEY__" ] || [ -z "$PUBLIC_KEY" ]; then
+    if [ "${CLARA_REQUIRE_SIGNATURE:-}" = "1" ]; then
+      fail "This installer was not built with a release public key."
+    fi
     say "warning: this installer was not built with a release public key; verifying the checksum only."
     return 0
   fi
