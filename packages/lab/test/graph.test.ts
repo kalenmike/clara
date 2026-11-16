@@ -101,6 +101,17 @@ describe('review graph layout', () => {
       title: 'Worktree',
     })
     expect(classifyNode(wrapper)).toBe('wrapper')
+    expect(
+      classifyNode(
+        compiled({
+          path: 'wrapper/work/body',
+          kind: 'pipeline',
+          name: 'wrapped',
+          title: 'Wrapped pipeline',
+          slot: true,
+        })
+      )
+    ).toBe('slot')
 
     const child = compiled({
       path: 'feature/1-brief',
@@ -175,6 +186,16 @@ describe('pipeline tree', () => {
         namespace: 'std',
         alias: 'software',
       },
+      {
+        ref: 'std:session/worktree',
+        label: 'Worktree session',
+        packageId: 'session',
+        packageName: 'Session',
+        kind: 'wrapper',
+        wrapperId: 'worktree',
+        namespace: 'std',
+        alias: 'session',
+      },
     ]
     const tree = buildPipelineTree(
       [
@@ -204,12 +225,38 @@ describe('pipeline tree', () => {
           scripts: [],
           wrappers: [],
         },
+        {
+          id: 'session',
+          name: 'Session',
+          version: 1,
+          dir: '/session',
+          namespace: 'std',
+          alias: 'session',
+          entry: {},
+          pipelines: [],
+          routers: [],
+          agents: [],
+          scripts: [],
+          wrappers: [
+            {
+              id: 'worktree',
+              name: 'Worktree session',
+              before: 1,
+              after: 2,
+              cleanup: 1,
+            },
+          ],
+        },
       ],
       targets
     )
     expect(tree.map((item) => item.id)).toEqual(['root', 'std'])
     expect(tree[0]?.packages[0]?.entry?.ref).toBe('')
-    expect(tree[1]?.packages[0]?.entry?.ref).toBe('std:software')
-    expect(tree[1]?.packages[0]?.pipelines[0]?.ref).toBe('std:software/feature')
+    const software = tree[1]?.packages.find((pkg) => pkg.id === 'software')
+    expect(software?.entry?.ref).toBe('std:software')
+    expect(software?.pipelines[0]?.ref).toBe('std:software/feature')
+    const session = tree[1]?.packages.find((pkg) => pkg.id === 'session')
+    expect(session?.disabled).toBe(false)
+    expect(session?.wrappers[0]?.ref).toBe('std:session/worktree')
   })
 })

@@ -8,6 +8,7 @@ import {
   PanelLeftOpen,
   Route,
   Workflow,
+  Wrench,
 } from 'lucide-react'
 import { ScrollArea } from '@clara/ui/components/scroll-area'
 import { cn } from '@clara/ui/lib/utils'
@@ -36,7 +37,11 @@ export function PipelineTree({
     const keys = new Set<string>()
     for (const namespace of tree) {
       for (const pkg of namespace.packages) {
-        if (pkg.entry?.ref === selected || pkg.pipelines.some((leaf) => leaf.ref === selected)) {
+        if (
+          pkg.entry?.ref === selected ||
+          pkg.pipelines.some((leaf) => leaf.ref === selected) ||
+          pkg.wrappers.some((leaf) => leaf.ref === selected)
+        ) {
           keys.add(`ns:${namespace.id}`)
           keys.add(`pkg:${namespace.id}:${pkg.id}`)
         }
@@ -145,6 +150,15 @@ export function PipelineTree({
                                     onSelect={onSelect}
                                   />
                                 ))}
+                                {pkg.wrappers.map((leaf) => (
+                                  <LeafRow
+                                    key={leaf.ref}
+                                    depth={2}
+                                    leaf={leaf}
+                                    selected={selected === leaf.ref}
+                                    onSelect={onSelect}
+                                  />
+                                ))}
                               </div>
                             ) : null}
                           </div>
@@ -227,6 +241,8 @@ function LeafRow({
     >
       {leaf.kind === 'entry' ? (
         <Route className="size-3.5 shrink-0" />
+      ) : leaf.kind === 'wrapper' ? (
+        <Wrench className="size-3.5 shrink-0 text-amber-500" />
       ) : (
         <Workflow className="size-3.5 shrink-0" />
       )}

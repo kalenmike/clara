@@ -2,6 +2,7 @@ import { useEffect, useMemo, useRef, useState } from 'react'
 import {
   Bot,
   Boxes,
+  CircleDashed,
   Layers,
   Maximize2,
   RotateCcw,
@@ -76,6 +77,13 @@ const KIND_STYLE: Record<
     border: 'border-rose-500/45 bg-rose-500/[0.06]',
     glow: 'shadow-rose-500/20',
   },
+  slot: {
+    icon: CircleDashed,
+    label: 'Slot',
+    accent: 'text-indigo-500 dark:text-indigo-400',
+    border: 'border-dashed border-indigo-500/60 bg-indigo-500/[0.04]',
+    glow: 'shadow-indigo-500/20',
+  },
 }
 
 interface HoveredInput {
@@ -89,11 +97,13 @@ export function PipelineGraph({
   packages,
   selected,
   onSelect,
+  rootBadge = 'Entry',
 }: {
   root: CompiledNode
   packages: PackageEntryInfo[]
   selected?: CompiledNode
   onSelect: (node: CompiledNode) => void
+  rootBadge?: string
 }) {
   const layout = useMemo(() => buildReviewLayout(root, packages), [root, packages])
   const containerRef = useRef<HTMLDivElement>(null)
@@ -350,6 +360,7 @@ export function PipelineGraph({
                 layoutNode={node}
                 nodeByPath={layout.nodeByPath}
                 rootPath={layout.root}
+                rootBadge={rootBadge}
                 selected={selectedPath === node.path}
                 highlighted={sourceHighlight === node.path}
                 onSelect={onSelect}
@@ -368,6 +379,7 @@ function GraphNodeCard({
   layoutNode,
   nodeByPath,
   rootPath,
+  rootBadge,
   selected,
   highlighted,
   onSelect,
@@ -377,6 +389,7 @@ function GraphNodeCard({
   layoutNode: ReviewNode
   nodeByPath: Map<string, ReviewNode>
   rootPath: string
+  rootBadge?: string
   selected: boolean
   highlighted: boolean
   onSelect: (node: CompiledNode) => void
@@ -418,9 +431,9 @@ function GraphNodeCard({
         <span className={cn('text-[10px] font-semibold tracking-[0.11em] uppercase', style.accent)}>
           {style.label}
         </span>
-        {layoutNode.path === rootPath ? (
+        {layoutNode.path === rootPath && rootBadge ? (
           <span className="rounded-full border border-primary/35 bg-primary/10 px-1.5 py-0.5 text-[9px] font-semibold tracking-wide text-primary uppercase">
-            Entry
+            {rootBadge}
           </span>
         ) : null}
         {node.enforcement ? (
@@ -435,10 +448,21 @@ function GraphNodeCard({
         <div className="truncate font-mono text-[9px] text-muted-foreground">{node.name}</div>
       </div>
 
-      <ModelLine model={layoutNode.model} script={layoutNode.kind === 'script'} />
+      {node.slot ? (
+        <div className="mt-1.5 flex items-center gap-1.5 rounded-md border border-dashed border-indigo-500/40 bg-indigo-500/5 px-2 py-1 text-[10px] text-indigo-600 dark:text-indigo-300">
+          <CircleDashed className="size-3.5 shrink-0" aria-hidden="true" />
+          <span className="truncate">Runtime pipeline runs here</span>
+        </div>
+      ) : (
+        <ModelLine model={layoutNode.model} script={layoutNode.kind === 'script'} />
+      )}
 
       <div className="mt-1.5 min-h-0 border-t pt-1">
-        {inputs.length ? (
+        {node.slot ? (
+          <div className="px-1 text-[10px] text-muted-foreground">
+            The routed pipeline replaces this slot.
+          </div>
+        ) : inputs.length ? (
           <div className="space-y-0.5">
             {inputs.map(([label, path]) => {
               const active =
