@@ -92,6 +92,9 @@ export class HarnessMetadataStore {
 
   overlaySession(harnessId: string, session: ClaraSession): ClaraSession {
     const state = this.session(harnessId, session.id)
+    // The harness and the hub both track the newest viewed idle watermark.
+    // Keep whichever is newer so a lagging clock never resurrects unread.
+    const viewed = Math.max(session.time.viewed ?? 0, state.viewedAt ?? 0)
     const canonical = session.location?.directory
     let project =
       session.projectID && session.projectID !== 'global'
@@ -115,18 +118,18 @@ export class HarnessMetadataStore {
     }
     if (state.snoozedAt !== undefined) metadata.snoozed = true
     else delete metadata.snoozed
+    const time = {
+      ...session.time,
+      ...(state.archivedAt !== undefined ? { archived: state.archivedAt } : {}),
+      ...(viewed > 0 ? { viewed } : {}),
+    }
     return {
       ...session,
       harnessID: harnessId,
       ...(project ? { projectID: project.id } : {}),
       ...(workspace ? { workspaceID: workspace.id } : {}),
       ...(state.titleOverride ? { title: state.titleOverride } : {}),
-      ...(state.archivedAt !== undefined
-        ? { time: { ...session.time, archived: state.archivedAt } }
-        : {}),
-      ...(state.viewedAt !== undefined
-        ? { time: { ...session.time, viewed: state.viewedAt } }
-        : {}),
+      time,
       metadata,
     }
   }
@@ -153,15 +156,23 @@ export class HarnessMetadataStore {
       .run(harnessId, sessionId, archived ? Date.now() : null, Date.now(), Date.now())
   }
 
-  setViewed(harnessId: string, sessionId: string): void {
+  /**
+   * Advance the viewed watermark. The caller passes the idle transition the
+   * viewer observed, so a stale or duplicate report never marks a newer turn
+   * read, and a clock mismatch between the hub and the adapter cannot leave a
+   * session unread forever.
+   */
+  setViewed(harnessId: string, sessionId: string, idle?: number): void {
+    const viewedAt = idle ?? Date.now()
     this.db
       .prepare(
         `INSERT INTO clara_sessions
            (harness_id, session_id, project_id, viewed_at, first_seen_at, last_seen_at)
          VALUES (?, ?, 'unknown', ?, ?, ?)
-         ON CONFLICT(harness_id, session_id) DO UPDATE SET viewed_at = excluded.viewed_at`
+         ON CONFLICT(harness_id, session_id) DO UPDATE SET
+           viewed_at = MAX(COALESCE(clara_sessions.viewed_at, 0), excluded.viewed_at)`
       )
-      .run(harnessId, sessionId, Date.now(), Date.now(), Date.now())
+      .run(harnessId, sessionId, viewedAt, Date.now(), Date.now())
   }
 
   setTitle(harnessId: string, sessionId: string, title: string | undefined): void {
