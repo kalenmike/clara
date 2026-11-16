@@ -50,7 +50,7 @@ sync, local orchestration, and adapter setup.
 9. **Orchestration** starts or stops a local service and reports local, Docker,
    external, or stopped state. External instances stay under their own management.
 10. **Adapter setup** sets the registry URL and allows install actions. The hub
-    reads the manifest and returns a command; it never runs the adapter itself.
+    reads the manifest and never runs the adapter; **Check registry** re-reads it.
 11. **Traffic** reports minute rates, two sparklines, totals, the
     local-versus-relay split, the peak minute, and errors. An amber **Spike**
     badge compares the last minute with the previous half hour.
