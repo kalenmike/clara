@@ -27,11 +27,9 @@ export function openSqlite(path: string, options: SqliteOpenOptions = {}): Sqlit
     ...(options.fileMustExist ? { create: false } : {}),
   }
   // Bun 1.4 rejects an empty options object with SQLITE_MISUSE.
-  const db = (
-    Object.keys(databaseOptions).length > 0
-      ? new Database(path, databaseOptions)
-      : new Database(path)
-  ) as unknown as BunDatabase
+  const db = (Object.keys(databaseOptions).length > 0
+    ? new Database(path, databaseOptions)
+    : new Database(path)) as unknown as BunDatabase
   return new BunSqliteDatabase(db) as unknown as SqliteDatabase
 }
 
