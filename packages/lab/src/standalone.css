@@ -6,9 +6,32 @@
  * web client owns the document and applies the chosen mode and color theme.
  */
 
+@import 'tailwindcss';
+@import 'tw-animate-css';
+@import 'shadcn/tailwind.css';
 @import '@fontsource-variable/geist';
-@import '@clara/theme/tokens.css';
+@import '@clara/theme/theme.css';
 @import './styles.css';
+
+/*
+ * The standalone workbench is its own Vite root, so Tailwind must scan the lab
+ * and shared component packages explicitly. The bundled desktop route scans
+ * them from `apps/web/src/index.css` instead.
+ */
+@source './';
+@source '../../ui/src';
+
+@layer base {
+  * {
+    @apply border-border outline-ring/50;
+  }
+  body {
+    @apply bg-background text-foreground;
+  }
+  html {
+    @apply bg-background font-sans;
+  }
+}
 
 html,
 body,
