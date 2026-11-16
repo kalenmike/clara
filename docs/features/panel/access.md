@@ -40,8 +40,8 @@ and editing a label all take effect from this surface.
    a reachable WebSocket address; the panel suggests loopback, Docker bridge,
    LAN, and, in Clara Desktop, the container gateway.
 6. The hub returns a one-time code, registry manifest, copy command, and
-   `clara://adapter` link. Install actions are off until **Settings → Adapter
-   downloads** is enabled. A browser-only user runs the command on the harness
+   `clara://adapter` link. Install actions are off until **Network → Adapter
+   setup** is enabled. A browser-only user runs the command on the harness
    machine. Clara Desktop can install on **This computer**, an **SSH host**, or a
    local **Docker container**, streams the log, and can cancel; the hub host never
    receives SSH keys, Docker access, or a route to the harness machine.

@@ -60,7 +60,7 @@ relay or its room can require adapters and devices to pair again.
    answer remote or local; a direct WebSocket URL under **Advanced** is available
    when the adapter reaches the hub at another address. The hub returns a
    one-time code and command. Turn on adapter setup in
-   **Settings → Adapter downloads** first. Clara Desktop can install it on this
+   **Network → Adapter setup** first. Clara Desktop can install it on this
    computer, an SSH host, or a local container.
 3. Run the copied command on the harness machine, or install from Clara Desktop.
 4. The adapter connects out to the hub. **Paired harnesses** shows
@@ -79,9 +79,9 @@ and password stay in the adapter's own config on the harness machine.
 In a container, the adapter connects to `ws://server:8788/ws` on the `clara`
 network. `127.0.0.1` means the adapter container itself.
 
-## Adapter downloads
+## Adapter setup
 
-**Settings → Adapter downloads** sets the registry URL and turns SSH/Docker
+**Network → Adapter setup** sets the registry URL and turns SSH/Docker
 installs on or off. The registry publishes one manifest per harness at
 `<registry>/<harness>/manifest.json`; the default registry is
 `https://clara.kalenmichael.com/adapters`. The hub reads the manifest, verifies
@@ -142,10 +142,10 @@ prompts, or the harness API.
 
 ## Settings sync
 
-**Settings sync** can be enabled or disabled for every paired client, with a
-check interval. When it is off, the web Sync tab is hidden and sync requests are
-rejected. Each device keeps its own category choices; the hub stores the shared
-values.
+**Settings sync** can be enabled or disabled for every paired client from
+**Network → Client sync**, with a check interval. When it is off, the web Sync
+tab is hidden and sync requests are rejected. Each device keeps its own category
+choices; the hub stores the shared values.
 
 ## Environment variables
 

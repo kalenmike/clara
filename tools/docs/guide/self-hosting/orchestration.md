@@ -30,7 +30,7 @@ surface. Keep the choice on one device, or share it through the isolated
 
 ## Start the service
 
-From the hub panel, turn on **Settings → Orchestration**. Or run:
+From the hub panel, turn on **Network → Orchestration**. Or run:
 
 ```bash
 clara start engine

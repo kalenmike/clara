@@ -46,7 +46,7 @@ Inside the Clara repository you can use
    machine that hosts the harness. For a container, run it inside the container.
    The registry command downloads the adapter for that machine; the repository
    command works from a Clara checkout.
-6. Turn on adapter setup first in **Settings → Adapter downloads** if the code
+6. Turn on adapter setup first in **Network → Adapter setup** if the code
    cannot be created. A hosted or Docker-hosted hub does not need SSH or Docker
    access; the command runs where the harness is.
 7. The installer looks for the harness and starts a user service, or a
@@ -272,7 +272,7 @@ connection keeps that state; use **Forget** only when you want to discard it.
 - **Claude Code says it is not signed in** — sign in on the harness machine. The
   adapter does not store an API key.
 - **The code expired** — create a new code in the panel.
-- **Adapter setup is off** — turn on **Settings → Adapter downloads**. That
+- **Adapter setup is off** — turn on **Network → Adapter setup**. That
   switch only lets the hub read the registry and issue a code.
 - **The hub is hosted on another machine** — copy the command and run it on the
   harness machine, or open the link with Clara Desktop. The hub never runs the
@@ -283,8 +283,8 @@ connection keeps that state; use **Forget** only when you want to discard it.
   neither `curl` nor `wget`. Select a different container, or copy the code and
   run the installer by hand.
 - **The adapter release is unavailable** — the registry manifest could not be
-  read. Check **Settings → Adapter downloads** and the registry URL.
-- **The adapter is behind the registry** — **Settings → Adapter downloads**
+  read. Check **Network → Adapter setup** and the registry URL.
+- **The adapter is behind the registry** — **Network → Adapter setup**
   shows the installed version beside the published one when they differ.
   Reinstall the adapter with a new pairing code to update it; the hub never
   upgrades an adapter by itself.
