@@ -20,8 +20,9 @@ synchronized. See [connection](connection.md) for pairing and
    **Single setting** section can share **Orchestrator mode** on its own.
 4. The first time a category is turned on, Clara pulls the hub's copy: existing
    hub values win and keys the hub lacks are filled from this device.
-5. Change a synced setting normally. Clara writes local storage immediately and
-   pushes the changed key to the hub shortly after.
+5. Change a synced setting normally. Clara writes local storage immediately,
+   pushes the changed key shortly after, and an imported theme joins the same
+   push with its selection.
 6. Leave Clara open. Every 30 seconds by default, each device asks only for the
    namespace revision and pulls the full snapshot only when that revision moved.
 7. An admin can change the cadence or turn sync off in the hub panel; see
@@ -59,7 +60,13 @@ synchronized. See [connection](connection.md) for pairing and
    UI sounds, volume, per-state switches, and the desk idle window, while
    permission, the desktop switch, and this device's push subscription stay local;
    see [notifications](notifications.md).
-5. **Saved state and isolated choices.** A remote last project updates the
+5. **Themes move as one catalog plus a selection.** The **Theme** category
+   carries `clara.theme`, `clara.colorTheme`, and `clara.customThemes`; the list
+   is one versioned document that a pull replaces whole, with the hub's copy
+   winning. The catalog applies before the selected id, so a theme that arrived
+   with the selection resolves; a missing id falls back to Default and repairs on
+   the next push.
+6. **Saved state and isolated choices.** A remote last project updates the
    remembered value and never moves the current screen; the device's next project
    selection can overwrite it normally. The isolated **Orchestrator mode** setting
    is outside every category and shares only `clara.orchestratorMode`, the
@@ -70,11 +77,9 @@ synchronized. See [connection](connection.md) for pairing and
 
 - **Not connected** — the Sync tab stays visible but disabled until the hub
   transport is open, and no client can reach the hub.
-- **Admin disables sync** — connected clients update from the broadcast, the tab
-  disappears, and the engine stops. The stored namespace and each device's
-  category choices remain.
-- **Admin changes the cadence** — connected clients reschedule their next check,
-  and new pairings receive the value in the initial hub status.
+- **Admin changes sync** — disabling updates clients, hides the tab, stops the
+  engine, and keeps the stored namespace and choices; a cadence change reschedules
+  checks and reaches new pairings in the initial hub status.
 - **Unknown revision** — a client with no remembered revision pulls once to
   establish its cache before relying on revision checks.
 - **Page reload** — the saved revision avoids an unnecessary full pull, and any
@@ -86,12 +91,15 @@ synchronized. See [connection](connection.md) for pairing and
   is pushed so the namespace can heal.
 - **Model visibility conflict** — a pull replaces the entire per-harness hidden
   model group; individual toggles from the losing device are not merged.
+- **Custom theme conflicts** — the list is one value, so a pull replaces it. A
+  theme removed elsewhere makes the selected id fall back to Default and the
+  next push repairs it; two simultaneous additions keep the hub's list, and the
+  losing theme can be imported again.
+- **Theme catalog over the limit** — the hub rejects a value over 64 KB and the
+  client refuses a catalog over 60 KB before storage; local themes stay in place.
 - **Missing or extra keys in a choice** — a key the hub lacks is filled from the
   first enabled device, and keys for choices this device did not enable are
   ignored.
-- **Namespace limits** — 100 entries per push, 64 KB per value, 500 live entries,
-  and 1 MB per namespace; a value over them fails with `too_large` and the local
-  value stays in place.
 
 ## Out of scope
 
@@ -113,7 +121,8 @@ synchronized. See [connection](connection.md) for pairing and
 - Check result: `{ namespace, revision }`; snapshot:
   `{ namespace, revision, entries: [{ key, value, updatedAt }] }`
 - Categories and keys:
-  - Theme: `clara.theme`, `clara.colorTheme`; see [theme](theme.md)
+  - Theme: `clara.theme`, `clara.colorTheme`, `clara.customThemes` (v1 catalog
+    with generated `custom-` ids); see [theme](theme.md)
   - Preferences: `clara.defaultAgent`, `clara.lastAgent` (both v2, per harness),
     `clara.sessionWording`, `clara.costDisplay`
   - Models: `clara.hiddenModels` (v2, per harness); see [models](models.md)
@@ -131,7 +140,7 @@ synchronized. See [connection](connection.md) for pairing and
   return `sync: { enabled, intervalMs }`
 - Tables: `client_storage` and `client_storage_revisions`
 - Limits: 100 entries per push, 64 KB per value, 500 live entries, 1 MB per
-  namespace
+  namespace; the client caps a theme catalog at 60 KB and 20 themes
 - Health: the panel storage card shows sync counts and bytes, never keys or values
 
 Related: [settings.md](settings.md), [models.md](models.md), [theme.md](theme.md),
