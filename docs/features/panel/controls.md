@@ -17,16 +17,16 @@ state, and survives a hub restart.
 ## User flow
 
 1. Open **Network**. Local transport, relay, and push each carry a switch at the
-   top right of their card. The **Harness** header shows only its status chip,
-   because multiple harnesses are supported and the legacy harness gate has no
-   switch.
+   top right of their card. Client sync, orchestration, and adapter setup sit
+   beside them. The **Harness** header shows only its status chip, because
+   multiple harnesses are supported and the legacy harness gate has no switch.
 2. Toggle a feature. The panel posts the change, waits for the hub to apply it,
    then refreshes the snapshot. A feature that is off hides its details and its
    card cannot expand; turning it on makes the header expandable again.
 3. Read **Desired** and **Effective** on the switch and its card. Desired is the
    saved choice; effective also requires connections to be on and the transport
    to have started. A failed start shows an error instead of claiming success.
-4. In **Settings → Client sync**, turn settings sync on or off and choose the
+4. In **Network → Client sync**, turn settings sync on or off and choose the
    cadence at which paired clients check for changes. Turning it off hides the
    web Sync tab and rejects sync requests, but keeps the stored namespace and
    each device's category choices.
@@ -38,16 +38,16 @@ state, and survives a hub restart.
    including features that were off before the stop. Monitoring, client-sync,
    and orchestration controls stay editable because they start no Clara
    transport.
-7. Use the **Orchestration** switch in **Settings**. Turning it on starts a
+7. Use the **Orchestration** switch in **Network**. Turning it on starts a
    detached local instance and waits for `/health`; turning it off stops only a
    local instance started from this data directory. Container and external
    instances are detected, labelled, and left under their own management.
 8. Restart the hub at any time. Saved choices and the stopped-connections
    setting load before any transport starts. Starting with connections off
    brings up only the panel and database.
-9. Cards are accordions. The cards that form a view's body start expanded; the
-   Traffic card expands only while monitoring is on. Click a header to collapse
-   or reopen it.
+9. Cards are accordions. Every card on **Network** starts collapsed; the cards
+   that form another view's body start expanded. The Traffic card expands only
+   while monitoring is on. Click a header to collapse or reopen it.
 
 ## Core business rules
 

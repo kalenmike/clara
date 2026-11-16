@@ -8,11 +8,10 @@ sidebar_position: 4
 
 ## Summary
 
-The **Network** view configures how clients and adapters reach the hub and what
-the hub measures while they do. It owns the local listener and its direct-access
-mode, the relay target and generated room, the optional Cloudflare deployment,
-Web Push delivery, the traffic meter, and the storage health list. The panel
-stays on its own loopback port while the local listener rebinds.
+The **Network** view configures how clients and adapters reach the hub and stay
+in step. It owns the local listener and direct-access mode, the relay target and
+generated room, the optional Cloudflare deployment, Web Push, client settings
+sync, local orchestration, and adapter setup.
 
 ## User flow
 
@@ -45,14 +44,20 @@ stays on its own loopback port while the local listener rebinds.
    failing deliveries, VAPID key, and storage. **Retry storage** retries a failed
    read; **Reset subscriptions** deletes every subscription after confirmation.
    Push endpoints are never shown.
-8. **Traffic** reports the last minute's in and out rates, requests, and errors,
-   two sparklines, totals, the local-versus-relay split, the peak minute, and an
-   error breakdown. An amber **Spike** badge compares the last complete minute
-   with the previous half hour; it is a hint, not a verdict.
-9. The **Traffic** switch stops recording. The card collapses, counters are
-   discarded, and the client table drops its traffic columns. Turning it on
-   starts a fresh window with a one-minute warm-up and works while offline.
-10. **Activity** lists storage files with health, readable and writable state,
+8. **Client sync** turns settings sharing on or off and sets the cadence at which
+   paired clients check for changes. A local edit still pushes immediately, and
+   clients pull only when the server revision changes.
+9. **Orchestration** starts or stops a local service and reports local, Docker,
+   external, or stopped state. External instances stay under their own management.
+10. **Adapter setup** sets the registry URL and allows install actions. The hub
+    reads the manifest and returns a command; it never runs the adapter itself.
+11. **Traffic** reports minute rates, two sparklines, totals, the
+    local-versus-relay split, the peak minute, and errors. An amber **Spike**
+    badge compares the last minute with the previous half hour.
+12. The **Traffic** switch stops recording, discards counters, and drops the
+    client table's traffic columns. Turning it on starts a fresh warm-up window
+    and works while offline.
+13. **Activity** lists storage files with health, readable and writable state,
     mode, bytes, schema, and sync counts; it never shows file contents.
 
 ## Core business rules

@@ -64,7 +64,7 @@ the same database, transports, pairing, and adapter routing.
     verifies the artifact SHA-256 before extraction, installs under the data
     directory, and runs the adapter's own installer with a code from the hub.
     The hub issues the code and command but never executes an install; adapter
-    setup is off until the owner enables **Settings → Adapter downloads**.
+    setup is off until the owner enables **Network → Adapter setup**.
 11. `clara start` detaches one supervisor that starts engine → Lab → hub → web
     and restarts a crashed child a few times a minute. `status`/`ps` reads live
     state, `stop` stops the whole set, and `logs` follows one service.

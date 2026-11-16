@@ -316,7 +316,7 @@ export function useHarnessPairing({
   const notice = snapshot.controls.stopped
     ? 'External connections are off. Turn them on from Overview before pairing an adapter.'
     : !installEnabled
-      ? 'Adapter setup is off. Turn it on in Settings → Adapter downloads.'
+      ? 'Adapter setup is off. Turn it on in Network → Adapter setup.'
       : info && !info.available
         ? info.reason
         : !transportUsable

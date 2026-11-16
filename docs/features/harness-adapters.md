@@ -63,7 +63,7 @@ capability flags, not harness kind.
 7. Adapters are pulled, never shipped. The hub embeds no artifact and runs no
    install script; it verifies the manifest and returns the script URL, its
    SHA-256, and the command. Adapter setup is off until the owner enables
-   **Settings → Adapter downloads**.
+   **Network → Adapter setup**.
 8. Pi runs the user's own `pi` binary over `pi --mode rpc`, never the SDK, so
    Clara follows the installed version, authentication, `models.json`,
    extensions, skills, packages, MCP servers, and project trust. It has one

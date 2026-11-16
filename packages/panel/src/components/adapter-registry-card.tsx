@@ -61,7 +61,6 @@ export function AdapterRegistryCard({
       title="Adapter setup"
       description="Registry manifests and install commands"
       icon={<Download className="size-4" aria-hidden="true" />}
-      defaultExpanded
       action={
         <Badge tone={enabled ? 'success' : 'neutral'}>{enabled ? 'Setup on' : 'Setup off'}</Badge>
       }

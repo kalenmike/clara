@@ -54,7 +54,7 @@ dismissed and resumed from **Settings → Setup**.
 
 Pairing a harness creates a one-time code and command. The hub never runs the
 installer; run the command on the harness machine, or use Clara Desktop for a
-one-click install. Turn on adapter setup under **Settings → Adapter downloads**
+one-click install. Turn on adapter setup under **Network → Adapter setup**
 first.
 
 For an unattended install, set `CLARA_ADMIN_USERNAME` and

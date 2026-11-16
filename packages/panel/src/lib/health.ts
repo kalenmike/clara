@@ -172,7 +172,7 @@ export function pushHealth(push: PanelPushInfo): HealthItem {
 }
 
 export function orchestrationHealth(orchestration: PanelOrchestrationControl): HealthItem {
-  const base = { key: 'orchestration', label: 'Orchestration', tab: 'overview' } as const
+  const base = { key: 'orchestration', label: 'Orchestration', tab: 'connections' } as const
   const label = ORCHESTRATION_LABELS[orchestration.state]
   const detail = orchestration.error || orchestration.url
 
