@@ -74,13 +74,24 @@ export function SidebarSessionRow({
         <SessionStatusIcon status={status} />
       </span>
       <span className="min-w-0 flex-1">
-        <span
-          className={cn(
-            'block truncate text-sm md:text-xs',
-            unread ? 'font-semibold' : 'font-medium'
+        <span className="flex items-center gap-1.5">
+          <span
+            className={cn(
+              'min-w-0 flex-1 truncate text-sm md:text-xs',
+              unread ? 'font-semibold' : 'font-medium'
+            )}
+          >
+            {session.title || `Untitled ${lowerSingular}`}
+          </span>
+          {unread && (
+            <>
+              <span
+                aria-hidden="true"
+                className="size-2 shrink-0 rounded-full bg-sky-500 md:size-1.5"
+              />
+              <span className="sr-only">Unread</span>
+            </>
           )}
-        >
-          {session.title || `Untitled ${lowerSingular}`}
         </span>
         <span className="mt-0.5 flex items-center gap-1.5 text-xs text-muted-foreground md:text-[10px]">
           <span className="truncate">{session.agent ?? 'build'}</span>
