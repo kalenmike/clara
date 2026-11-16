@@ -51,4 +51,44 @@ describe('harness session metadata', () => {
     expect(metadata.harnessIdForSession('s-b')).toBe('harness-b')
     expect(metadata.harnessIdForSession('missing')).toBeUndefined()
   })
+
+  it('advances the viewed watermark and ignores a stale report', () => {
+    metadata.ensureSession('harness-a', 's1', 'p1')
+
+    metadata.setViewed('harness-a', 's1', 100)
+    expect(metadata.session('harness-a', 's1').viewedAt).toBe(100)
+
+    metadata.setViewed('harness-a', 's1', 50)
+    expect(metadata.session('harness-a', 's1').viewedAt).toBe(100)
+
+    metadata.setViewed('harness-a', 's1', 150)
+    expect(metadata.session('harness-a', 's1').viewedAt).toBe(150)
+  })
+
+  it('overlays the newer viewed watermark from either side', () => {
+    metadata.setViewed('harness-a', 's1', 20)
+    const hubAhead = metadata.overlaySession('harness-a', {
+      ...session(),
+      time: { created: 1, updated: 30, idle: 30, viewed: 10 },
+    })
+    expect(hubAhead.time).toMatchObject({ created: 1, updated: 30, idle: 30, viewed: 20 })
+
+    const harnessAhead = metadata.overlaySession('harness-a', {
+      ...session(),
+      time: { created: 1, updated: 40, idle: 40, viewed: 40 },
+    })
+    expect(harnessAhead.time.viewed).toBe(40)
+  })
+
+  it('keeps the archived and viewed overlays together', () => {
+    metadata.setArchived('harness-a', 's1', true)
+    metadata.setViewed('harness-a', 's1', 50)
+
+    const overlaid = metadata.overlaySession('harness-a', {
+      ...session(),
+      time: { created: 1, updated: 60, idle: 60 },
+    })
+    expect(overlaid.time.viewed).toBe(50)
+    expect(typeof overlaid.time.archived).toBe('number')
+  })
 })

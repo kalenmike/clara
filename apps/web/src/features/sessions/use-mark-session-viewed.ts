@@ -25,7 +25,11 @@ export function useMarkSessionViewed(session: ClaraSession | undefined): void {
 
     const mark = () => {
       if (!isViewing()) return
-      void client.session.view({ sessionID, idle }).catch(() => {})
+      void client.session.view({ sessionID, idle }).catch((cause: unknown) => {
+        // Keep marking best-effort, but surface a broken view route instead of
+        // leaving the row unread forever with no signal.
+        console.warn('Unable to mark session viewed', cause)
+      })
     }
 
     mark()

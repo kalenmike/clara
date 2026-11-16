@@ -30,7 +30,7 @@ type RecordedRequest = {
 type MetadataCalls = {
   archived: Array<[string, string, boolean]>
   snoozed: Array<[string, string, boolean]>
-  viewed: Array<[string, string]>
+  viewed: Array<[string, string, number | undefined]>
   titles: Array<[string, string, string | undefined]>
 }
 
@@ -152,8 +152,8 @@ function fixture(options: FixtureOptions = {}): Fixture {
         metadata.archived.push([harnessID, sessionID, archived]),
       setSnoozed: (harnessID: string, sessionID: string, snoozed: boolean) =>
         metadata.snoozed.push([harnessID, sessionID, snoozed]),
-      setViewed: (harnessID: string, sessionID: string) =>
-        metadata.viewed.push([harnessID, sessionID]),
+      setViewed: (harnessID: string, sessionID: string, idle?: number) =>
+        metadata.viewed.push([harnessID, sessionID, idle]),
       setTitle: (harnessID: string, sessionID: string, title: string | undefined) =>
         metadata.titles.push([harnessID, sessionID, title]),
     },
@@ -210,6 +210,9 @@ function respond(
     const found = findSession(harnessID, decodeURIComponent(match[1] ?? ''))
     if (found) return json({ data: found })
     return json({ error: { code: 'not_found', message: 'not found' } }, 404)
+  }
+  if (/^\/sessions\/[^/]+\/view$/.test(input.path) && input.method === 'POST') {
+    return new Response(null, { status: 204 })
   }
   if (match && (input.method === 'PATCH' || input.method === 'DELETE')) {
     return new Response(null, { status: 204 })
@@ -442,6 +445,31 @@ describe('multi-harness sessions and projects', () => {
     expect(fake.requests[0]?.harnessID).toBe('harness-b')
     expect(fake.metadata.titles).toEqual([['harness-b', 's-b', 'Renamed']])
     expect(fake.metadata.archived).toEqual([['harness-b', 's-b', true]])
+  })
+
+  it('forwards a numeric idle watermark and records it against the owning harness', async () => {
+    const fake = fixture({ sessions: { 'harness-b:project-b': [session('s-b', 'project-b', 10)] } })
+    const api = createTestApi(fake.harness)
+
+    const response = await api.fetch(post('/v1/sessions/s-b/view', { idle: 42 }))
+    expect(response.status).toBe(204)
+    expect(fake.requests[0]).toMatchObject({
+      harnessID: 'harness-b',
+      method: 'POST',
+      path: '/sessions/s-b/view',
+      body: { idle: 42 },
+    })
+    expect(fake.metadata.viewed).toEqual([['harness-b', 's-b', 42]])
+  })
+
+  it('rejects a boolean idle flag at the view route', async () => {
+    const fake = fixture({ sessions: { 'harness-b:project-b': [session('s-b', 'project-b', 10)] } })
+    const api = createTestApi(fake.harness)
+
+    const response = await api.fetch(post('/v1/sessions/s-b/view', { idle: true }))
+    expect(response.status).toBe(400)
+    expect(fake.requests).toEqual([])
+    expect(fake.metadata.viewed).toEqual([])
   })
 
   it('returns partial rows and an offline status when one harness cannot answer', async () => {

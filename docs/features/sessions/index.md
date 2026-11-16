@@ -56,7 +56,7 @@ walks a person through what needs them, and the interface calls a session a
    live run state. Once a session is idle, the latest message author decides;
    internal messages such as `idle`, `system`, and model switches are ignored. A
    follow-up queued while a run is active is a pending Inbox item. Unread Inbox
-   sessions use a heavier title weight until opened.
+   sessions use a heavier title weight and a blue dot until opened.
 3. **Drafts** holds sessions with no projected user or assistant message that are
    not running, including sessions whose first message was saved with the
    harness's no-reply mode. A saved draft is shown in the chat and can be
@@ -135,7 +135,8 @@ walks a person through what needs them, and the interface calls a session a
 - Inbox monitor: `src/features/sessions/inbox-monitor.tsx` and
   `use-inbox-sessions.ts`.
 - Unread: `isSessionUnread` compares `time.idle` with `time.viewed`;
-  `useMarkSessionViewed` calls `client.session.view` while the chat is visible.
+  `useMarkSessionViewed` reports the newest `time.idle` watermark through
+  `client.session.view` while the chat is visible.
 - Related: [lifecycle](lifecycle.md), [projects](projects.md),
   [activity](activity.md), [chat](../chat/index.md).
 

@@ -136,7 +136,7 @@ const moveBody = z
   })
   .passthrough()
 
-const viewBody = z.object({ idle: z.boolean().optional() }).passthrough()
+const viewBody = z.object({ idle: z.number().optional() }).passthrough()
 
 const interruptBody = z.object({ resume: z.boolean().optional() }).passthrough()
 
@@ -523,6 +523,7 @@ export function registerSessionRoutes(
     validator('json', viewBody),
     async (c) => {
       const { sessionID } = c.req.valid('param')
+      const body = c.req.valid('json')
       const harnessID = resolveHarnessForSession(deps, sessionID)
       await forwardScopedResult(
         deps,
@@ -531,11 +532,13 @@ export function registerSessionRoutes(
           method: 'POST',
           path: `/sessions/${encodeURIComponent(sessionID)}/view`,
           headers: { 'content-type': 'application/json' },
-          body: JSON.stringify(c.req.valid('json')),
+          body: JSON.stringify(body),
         },
         c.req.raw.signal
       )
-      if (harnessID) deps.harness.metadata.setViewed(harnessID, sessionID)
+      // Record the watermark the viewer actually saw, not the hub wall clock:
+      // the adapter may run on a machine with a different clock.
+      if (harnessID) deps.harness.metadata.setViewed(harnessID, sessionID, body.idle)
       return c.body(null, 204)
     }
   )
