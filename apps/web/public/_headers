@@ -35,3 +35,24 @@
 
 /adapters/*/v*.zip
   Cache-Control: public, max-age=31536000, immutable
+
+# The release registry and one-line installers change with each release.
+/install
+  Content-Type: text/x-shellscript; charset=utf-8
+  Cache-Control: no-cache, max-age=0, must-revalidate
+
+/install.ps1
+  Content-Type: text/plain; charset=utf-8
+  Cache-Control: no-cache, max-age=0, must-revalidate
+
+/release/manifest.json
+  Content-Type: application/json; charset=utf-8
+  Cache-Control: no-cache, max-age=0, must-revalidate
+
+/release/manifest.json.sig
+  Content-Type: text/plain; charset=utf-8
+  Cache-Control: no-cache, max-age=0, must-revalidate
+
+/release/public-key.txt
+  Content-Type: text/plain; charset=utf-8
+  Cache-Control: public, max-age=3600
