@@ -59,9 +59,3 @@ tools/docs/build
 
 # Adapter manifests
 apps/web/public/adapters/*
-
-# Release registry
-apps/web/public/install
-apps/web/public/install.ps1
-apps/web/public/release/*
-!apps/web/public/release/README.md
