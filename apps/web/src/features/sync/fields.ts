@@ -38,7 +38,14 @@ import {
   readSessionWording,
   saveSessionWording,
 } from '@/features/sessions/wording'
-import { COLOR_THEME_KEY, isColorTheme, saveColorTheme } from '@/features/theme/color-theme'
+import {
+  COLOR_THEME_KEY,
+  CUSTOM_THEMES_KEY,
+  applyColorThemeValue,
+  applyCustomThemesValue,
+  readColorThemeValue,
+  readCustomThemesValue,
+} from '@/features/theme/color-theme'
 import {
   LAST_PROJECT_KEY,
   MONITOR_INBOX_KEY,
@@ -99,18 +106,19 @@ function themeModeField(overrides: SyncFieldOverrides): SyncField {
   }
 }
 
+function customThemesField(): SyncField {
+  return {
+    key: CUSTOM_THEMES_KEY,
+    read: () => readCustomThemesValue(),
+    apply: (value) => applyCustomThemesValue(value),
+  }
+}
+
 function colorThemeField(): SyncField {
   return {
     key: COLOR_THEME_KEY,
-    read: () => {
-      const value = readRaw(COLOR_THEME_KEY)
-      return isColorTheme(value) ? value : null
-    },
-    apply: (value) => {
-      if (!isColorTheme(value)) return false
-      saveColorTheme(value)
-      return true
-    },
+    read: () => readColorThemeValue(),
+    apply: (value) => applyColorThemeValue(value),
   }
 }
 
@@ -369,7 +377,7 @@ function orchestratorModeField(): SyncField {
 
 export function buildSyncFields(overrides: SyncFieldOverrides = {}): SyncFieldGroups {
   return {
-    theme: [themeModeField(overrides), colorThemeField()],
+    theme: [themeModeField(overrides), customThemesField(), colorThemeField()],
     preferences: [defaultAgentField(), lastAgentField(), wordingField(), costDisplayField()],
     models: [hiddenModelsField()],
     notifications: [notificationsField()],

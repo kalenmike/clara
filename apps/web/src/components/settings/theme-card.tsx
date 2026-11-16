@@ -1,5 +1,5 @@
-import { useTheme } from 'next-themes'
-import { Check, Monitor, Moon, Palette, Sun } from 'lucide-react'
+import { useState } from 'react'
+import { Palette, Upload } from 'lucide-react'
 import { Button } from '@clara/ui/components/button'
 import {
   Card,
@@ -9,19 +9,18 @@ import {
   CardTitle,
 } from '@clara/ui/components/card'
 import { Separator } from '@clara/ui/components/separator'
-import { COLOR_THEMES } from '@/features/theme/color-theme'
-import { useColorTheme } from '@/features/theme/use-color-theme'
-import { cn } from '@clara/ui/lib/utils'
-
-const MODES = [
-  { value: 'light', label: 'Light', icon: Sun },
-  { value: 'dark', label: 'Dark', icon: Moon },
-  { value: 'system', label: 'System', icon: Monitor },
-] as const
+import { useColorTheme, useColorThemes } from '@/features/theme/use-color-theme'
+import type { ColorThemeOption } from '@/features/theme/color-theme'
+import { CustomThemeDialog } from './custom-theme-dialog'
+import { ThemeModePicker } from './theme-mode-picker'
+import { ThemeOptionGrid } from './theme-option-grid'
+import { ThemeRemoveDialog } from './theme-remove-dialog'
 
 export function ThemeCard() {
-  const { theme: mode, setTheme: setMode } = useTheme()
   const { theme, setTheme } = useColorTheme()
+  const themes = useColorThemes()
+  const [importOpen, setImportOpen] = useState(false)
+  const [removing, setRemoving] = useState<ColorThemeOption | null>(null)
 
   return (
     <Card>
@@ -34,76 +33,35 @@ export function ThemeCard() {
         </CardDescription>
       </CardHeader>
       <CardContent className="space-y-4">
-        <div className="space-y-2">
-          <div className="text-xs font-medium">Mode</div>
-          <div className="flex flex-wrap gap-2">
-            {MODES.map((option) => (
-              <Button
-                key={option.value}
-                variant="outline"
-                size="sm"
-                onClick={() => setMode(option.value)}
-                aria-pressed={mode === option.value}
-                className={cn(mode === option.value && 'border-foreground/40 bg-accent')}
-              >
-                <option.icon className="size-4" />
-                {option.label}
-                {mode === option.value && <Check className="size-3.5" />}
-              </Button>
-            ))}
-          </div>
-        </div>
+        <ThemeModePicker />
 
         <Separator />
 
         <div className="space-y-2">
-          <div className="text-xs font-medium">Color theme</div>
-          <div className="grid gap-2 sm:grid-cols-2">
-            {COLOR_THEMES.map((option) => {
-              const selected = theme === option.value
-              return (
-                <button
-                  key={option.value}
-                  type="button"
-                  onClick={() => setTheme(option.value)}
-                  aria-pressed={selected}
-                  className={cn(
-                    'flex items-center gap-3 rounded-lg border p-2 text-left transition-colors',
-                    selected
-                      ? 'border-foreground/40 bg-accent'
-                      : 'border-border bg-background hover:bg-muted'
-                  )}
-                >
-                  <span className="flex shrink-0 gap-1" aria-hidden>
-                    {[option.preview.light, option.preview.dark].map(
-                      ([background, primary], index) => (
-                        <span
-                          key={index}
-                          className="size-6 rounded-md ring-1 ring-foreground/10"
-                          style={{ backgroundColor: background }}
-                        >
-                          <span
-                            className="m-1 block size-2 rounded-full"
-                            style={{ backgroundColor: primary }}
-                          />
-                        </span>
-                      )
-                    )}
-                  </span>
-                  <span className="min-w-0 flex-1 truncate text-xs font-medium">
-                    {option.label}
-                  </span>
-                  {selected && <Check className="size-3.5 shrink-0" />}
-                </button>
-              )
-            })}
+          <div className="flex items-center justify-between gap-2">
+            <div className="text-xs font-medium">Color theme</div>
+            <Button variant="outline" size="sm" onClick={() => setImportOpen(true)}>
+              <Upload className="size-3.5" />
+              Import theme
+            </Button>
           </div>
+          <ThemeOptionGrid
+            themes={themes}
+            selected={theme}
+            onSelect={setTheme}
+            onRemove={setRemoving}
+          />
         </div>
 
         <p className="text-[11px] text-muted-foreground">
-          Every color theme has a light and dark variant. System follows your device setting.
+          Every color theme has a light and dark variant. System follows your device setting. Custom
+          themes are stored on this device; with Theme sync on, your hub stores them for your other
+          devices.
         </p>
       </CardContent>
+
+      <CustomThemeDialog open={importOpen} onOpenChange={setImportOpen} />
+      <ThemeRemoveDialog theme={removing} onClose={() => setRemoving(null)} />
     </Card>
   )
 }

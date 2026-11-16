@@ -144,3 +144,11 @@ describe('notification sync field', () => {
     expect(local.desktop).toBe(true)
   })
 })
+
+describe('theme sync fields', () => {
+  it('applies the custom catalog before the selected theme', () => {
+    const keys = buildSyncFields().theme.map((field) => field.key)
+
+    expect(keys).toEqual(['clara.theme', 'clara.customThemes', 'clara.colorTheme'])
+  })
+})
