@@ -3,11 +3,12 @@
 //
 //   node scripts/release-manifest.mjs \
 //     --dir dist/release/archives --out dist/release \
-//     --version 0.2.0 --channel stable \
+//     --version 0.2.0 --tag v0.2.0 --channel stable \
 //     --base-url https://github.com/kalenmike/clara/releases/download/v0.2.0 \
 //     [--notes notes.md] [--require-platforms]
 //
 // Archive names are `clara-<platform>.tar.gz` or `clara-<platform>.zip`.
+// The manifest is the nested schemaVersion 2 shape with a `cli` component.
 
 import { createHash } from 'node:crypto'
 import {
