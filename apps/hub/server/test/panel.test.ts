@@ -430,17 +430,20 @@ function fakeControls(initial: Partial<PanelControls> = {}): FakeControls {
   }
 }
 
-function fakeInstall(): InstallService {
+function fakeInstall(refreshes: boolean[] = []): InstallService {
   return {
-    info: async (): Promise<PanelInstallInfo> => ({
-      enabled: true,
-      available: true,
-      registry: {
-        baseUrl: 'https://clara.example/adapters',
-        source: 'default',
-        entries: [],
-      },
-    }),
+    info: async (force = false): Promise<PanelInstallInfo> => {
+      refreshes.push(force)
+      return {
+        enabled: true,
+        available: true,
+        registry: {
+          baseUrl: 'https://clara.example/adapters',
+          source: 'default',
+          entries: [],
+        },
+      }
+    },
   } as unknown as InstallService
 }
 
@@ -639,7 +642,8 @@ describe('panel server', () => {
 
   it('serves the adapter registry and issues setup offers', async () => {
     const controls = fakeControls()
-    const install = fakeInstall()
+    const refreshes: boolean[] = []
+    const install = fakeInstall(refreshes)
     const server = await start(undefined, controls, undefined, install)
 
     const info = await get(server, 'panel/api/v1/install')
@@ -648,6 +652,13 @@ describe('panel server', () => {
       available: true,
       registry: { baseUrl: 'https://clara.example/adapters' },
     })
+
+    const refreshed = await get(server, 'panel/api/v1/install?refresh=true')
+    expect(refreshed.status).toBe(200)
+
+    const invalidRefresh = await get(server, 'panel/api/v1/install?refresh=maybe')
+    expect(invalidRefresh.status).toBe(400)
+    expect(refreshes).toEqual([false, true])
 
     const created = await post(server, 'install', {
       kind: 'opencode',
