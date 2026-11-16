@@ -14,6 +14,28 @@ function canBeAnchor(message: CollapsibleMessage): boolean {
 }
 
 /**
+ * Whether every collapsible message is folded. The all-messages button shows
+ * its expand action only in this state; any open message means collapse.
+ */
+function isAllCollapsed(
+  collapsibleIDs: readonly string[],
+  collapsed: ReadonlySet<string>
+): boolean {
+  return collapsibleIDs.length > 0 && collapsibleIDs.every((id) => collapsed.has(id))
+}
+
+/**
+ * The fold state the all-messages button produces. It folds every message
+ * unless they are already all folded, in which case it expands them again.
+ */
+export function toggledCollapseState(
+  collapsibleIDs: readonly string[],
+  collapsed: ReadonlySet<string>
+): Set<string> {
+  return isAllCollapsed(collapsibleIDs, collapsed) ? new Set() : new Set(collapsibleIDs)
+}
+
+/**
  * Keeps collapse state for the current session in memory.
  *
  * The newest prompt or reply starts expanded and every earlier reply starts
@@ -21,6 +43,9 @@ function canBeAnchor(message: CollapsibleMessage): boolean {
  * not take over the anchor, so the prompt that started the run stays open until
  * the agent actually replies. When the anchor moves, the previous one collapses
  * again unless the person expanded or collapsed it explicitly.
+ *
+ * The all-messages button folds every message unless they are already all
+ * folded; only that fully collapsed state expands them again.
  */
 export function useCollapsedMessages(sessionID: string, messages: ClaraSessionMessage[]) {
   const [collapsed, setCollapsed] = useState<Set<string>>(() => new Set())
@@ -74,7 +99,7 @@ export function useCollapsedMessages(sessionID: string, messages: ClaraSessionMe
     })
   }, [anchorID, collapsible, sessionID])
 
-  const allCollapsed = collapsibleIDs.length > 0 && collapsibleIDs.every((id) => collapsed.has(id))
+  const allCollapsed = isAllCollapsed(collapsibleIDs, collapsed)
 
   const toggleMessage = useCallback((id: string) => {
     manual.current.add(id)
@@ -89,10 +114,7 @@ export function useCollapsedMessages(sessionID: string, messages: ClaraSessionMe
   const toggleAll = useCallback(() => {
     if (collapsibleIDs.length === 0) return
     manual.current = new Set(collapsibleIDs)
-    setCollapsed((current) => {
-      const anyCollapsed = collapsibleIDs.some((id) => current.has(id))
-      return anyCollapsed ? new Set() : new Set(collapsibleIDs)
-    })
+    setCollapsed((current) => toggledCollapseState(collapsibleIDs, current))
   }, [collapsibleIDs])
 
   return {

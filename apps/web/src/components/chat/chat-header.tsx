@@ -173,6 +173,7 @@ export function ChatHeader({
         onClick={onToggleAll}
         disabled={!canToggleAll}
         aria-pressed={allCollapsed}
+        title={allCollapsed ? 'Expand all messages' : 'Collapse all messages'}
         className="size-8 max-md:size-11"
       >
         {allCollapsed ? (
