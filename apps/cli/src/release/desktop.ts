@@ -14,9 +14,14 @@ import {
 } from 'node:fs'
 import { homedir, tmpdir } from 'node:os'
 import { dirname, join } from 'node:path'
-import { downloadVerified, type Progress } from './download.ts'
-import { type DesktopArtifact, type ReleaseManifest } from './manifest.ts'
-import { platformKey, type PlatformInput } from './platform.ts'
+import {
+  downloadVerified,
+  platformKey,
+  type DesktopArtifact,
+  type PlatformInput,
+  type Progress,
+  type ReleaseManifest,
+} from '@clara/release'
 
 const APP_ID = 'com.kalenmichael.clara'
 const APP_NAME = 'Clara'

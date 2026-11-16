@@ -42,6 +42,7 @@ jobs:
       tag: ${{ steps.version.outputs.tag }}
       artifact_base: ${{ steps.version.outputs.artifact_base }}
       kinds: ${{ steps.version.outputs.kinds }}
+      public_key: ${{ steps.key.outputs.public_key }}
     steps:
       - uses: actions/checkout@v5
         with:
@@ -51,6 +52,17 @@ jobs:
         with:
           node-version: 22
           package-manager-cache: false
+
+      - id: key
+        env:
+          CLARA_RELEASE_SIGNING_KEY: ${{ secrets.CLARA_RELEASE_SIGNING_KEY }}
+        run: |
+          if [ -z "$CLARA_RELEASE_SIGNING_KEY" ]; then
+            echo "public_key=" >> "$GITHUB_OUTPUT"
+            exit 0
+          fi
+          key=$(node -e "const {createPrivateKey,createPublicKey}=require('node:crypto');const k=createPrivateKey(process.env.CLARA_RELEASE_SIGNING_KEY);console.log(createPublicKey(k).export({type:'spki',format:'der'}).toString('base64'))")
+          echo "public_key=$key" >> "$GITHUB_OUTPUT"
 
       - name: Resolve version and release URL
         id: version
@@ -135,6 +147,8 @@ jobs:
         run: pnpm --filter @clara/adapter-opencode build
 
       - name: Build adapter archives
+        env:
+          CLARA_RELEASE_PUBLIC_KEY: ${{ needs.prepare.outputs.public_key }}
         run: >-
           node tools/adapters/build.mjs
           --artifacts-only

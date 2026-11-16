@@ -11,7 +11,7 @@ import {
 import { issueAdapterPairing, type PairingTransport } from '../adapters/pairing.ts'
 import {
   adapterHasPairing,
-  readAdapterState,
+  readAdapterRecords,
   type AdapterInstallRecord,
 } from '../adapters/state.ts'
 import { resolvePaths } from '../paths.ts'
@@ -105,7 +105,7 @@ export async function runAdapterUpgrade(args: readonly string[]): Promise<number
   const parsed = parseAdapterArgs(args)
   const json = parsed.flags.has('--json')
   const paths = resolvePaths()
-  const state = readAdapterState(paths)
+  const state = readAdapterRecords(paths)
   const requested = parsed.values.length
     ? parsed.values.map((value) => parseKindSpec(value).kind)
     : ADAPTER_KINDS.filter((kind) => state.adapters[kind])

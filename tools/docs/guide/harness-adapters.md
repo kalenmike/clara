@@ -99,13 +99,34 @@ relay. Public or cloud installs should use the relay.
 
 ### Manage the adapter from its machine
 
-On a machine that only carries an adapter, use
-`clara adapter install <kind> --pair <code>` with a code from the hub host.
-`clara adapter list`, `start`, `stop`, `logs`, and `upgrade` stay local.
-`clara status` shows the hub endpoints reported by the adapter, but the service
-commands belong to the hub host; run `clara start`, `clara stop`, or
-`clara restart` there. `clara setup` is the explicit way to create a hub on the
-adapter machine too.
+The adapter installer links `clara-adapter-<kind>` into your user bin directory
+(`~/.local/bin`, or `%LOCALAPPDATA%\Clara\bin` on Windows), so you can run its
+local commands from a terminal even when the full Clara command is not installed:
+
+```bash
+clara-adapter-opencode status
+clara-adapter-opencode upgrade --check
+clara-adapter-opencode upgrade
+```
+
+The installer also writes the same local install record `clara adapter install`
+writes, so `clara status` shows the adapter when the Clara command is installed.
+
+On a machine that only carries an adapter, you can also bring the full command
+in on demand:
+
+```bash
+clara-adapter-opencode clara install   # download and verify the signed CLI
+clara-adapter-opencode clara status    # run the real `clara status`
+```
+
+After that, `clara status` shows the hub endpoints reported by the adapter, and
+`clara update` keeps the command current. To manage the adapter through Clara
+from the start, use `clara adapter install <kind> --pair <code>` with a code from
+the hub host. `clara adapter list`, `start`, `stop`, `logs`, and `upgrade` stay
+local. The service commands belong to the hub host; run `clara start`,
+`clara stop`, or `clara restart` there. `clara setup` is the explicit way to
+create a hub on the adapter machine too.
 
 Restarting the hub does not require restarting the adapter. A running adapter
 keeps retrying the link and returns to **Online** on its own once the hub is

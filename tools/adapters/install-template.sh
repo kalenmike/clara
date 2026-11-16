@@ -79,7 +79,7 @@ __ARTIFACT_CASES__
   *) fail "Clara has no $KIND build for $platform." ;;
 esac
 
-root="${CLARA_ADAPTER_DATA_DIR:-${XDG_DATA_HOME:-$HOME/.local/share}}/clara/adapters/$KIND/$VERSION"
+root="${CLARA_ADAPTER_DATA_DIR:-${CLARA_DATA_DIR:-${XDG_DATA_HOME:-$HOME/.local/share}/clara}/adapters/$KIND}/$VERSION"
 tmp=$(mktemp 2>/dev/null || echo "${TMPDIR:-/tmp}/clara-adapter-$$.tar.gz")
 trap 'rm -f "$tmp"' EXIT HUP INT TERM
 

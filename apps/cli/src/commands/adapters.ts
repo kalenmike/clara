@@ -8,7 +8,7 @@ import { AdapterRegistry, ADAPTER_KINDS } from '../adapters/registry.ts'
 import {
   adapterEnv,
   adapterRuntimeState,
-  readAdapterState,
+  readAdapterRecords,
   type AdapterInstallRecord,
   type AdapterRuntimeState,
 } from '../adapters/state.ts'
@@ -149,7 +149,7 @@ export type AdapterListEntry = AdapterInstallRecord & {
 export function adapterListReport(
   paths: ReturnType<typeof resolvePaths> = resolvePaths()
 ): AdapterListEntry[] {
-  const state = readAdapterState(paths)
+  const state = readAdapterRecords(paths)
   return ADAPTER_KINDS.flatMap((kind) => {
     const record = state.adapters[kind]
     if (!record) return []

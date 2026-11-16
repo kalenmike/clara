@@ -1,23 +1,26 @@
 import { rmSync } from 'node:fs'
 import { join } from 'node:path'
 import { homedir } from 'node:os'
+import { adapterBinaryName } from '@clara/adapter-artifact'
 import { isCompiled } from '../self.ts'
 import { resolvePaths } from '../paths.ts'
 import { resolvePorts } from '../ports.ts'
 import { defaultServices, statusStack } from '../service/lifecycle.ts'
 import { stopStack } from '../service/stop.ts'
 import { adapterHubLinks } from '../adapters/hubs.ts'
+import { readAdapterRecords } from '../adapters/state.ts'
 import { adapterListReport } from './adapters.ts'
 import { detectRole, roleLabel } from '../state/role.ts'
 import { serviceInstallGuard } from './role-guard.ts'
-import { releaseBaseUrl } from '../release/manifest.ts'
-import { desktopStatus, readDesktopInstallInfo, uninstallDesktop } from '../release/desktop.ts'
 import {
   defaultBinDir,
   installInfoPath,
   installsDir,
   readInstallInfo,
-} from '../release/version-store.ts'
+  releaseBaseUrl,
+  removeBinaryLink,
+} from '@clara/release'
+import { desktopStatus, readDesktopInstallInfo, uninstallDesktop } from '../release/desktop.ts'
 import {
   applyPlan,
   detectService,
@@ -127,6 +130,15 @@ export async function runUninstallCommand(args: readonly string[]): Promise<numb
   if (!isCompiled()) console.log(dim('Source checkout left in place.'))
 
   if (parsed.flags.has('purge')) {
+    const adapters = readAdapterRecords(paths)
+    for (const record of Object.values(adapters.adapters)) {
+      if (!record?.path) continue
+      removeBinaryLink({
+        name: `clara-adapter-${record.kind}`,
+        source: join(record.path, adapterBinaryName(record.kind, record.platform)),
+        binDir: defaultBinDir(),
+      })
+    }
     for (const directory of [paths.configDir, paths.dataDir, paths.cacheDir]) {
       rmSync(directory, { recursive: true, force: true })
       console.log(dim(`removed ${directory}`))

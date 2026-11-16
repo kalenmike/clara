@@ -167,6 +167,9 @@ importers:
       '@clara/adapter-artifact':
         specifier: workspace:*
         version: link:../../packages/adapters/artifact
+      '@clara/adapter-state':
+        specifier: workspace:*
+        version: link:../../packages/adapters/state
       '@clara/engine':
         specifier: workspace:*
         version: link:../engine
@@ -176,6 +179,9 @@ importers:
       '@clara/lab-server':
         specifier: workspace:*
         version: link:../../packages/lab-server
+      '@clara/release':
+        specifier: workspace:*
+        version: link:../../packages/release
       '@clara/runner':
         specifier: workspace:*
         version: link:../../packages/adapters/runner
@@ -616,6 +622,9 @@ importers:
       '@clara/adapter-artifact':
         specifier: workspace:*
         version: link:../artifact
+      '@clara/adapter-state':
+        specifier: workspace:*
+        version: link:../state
       '@clara/api-contract':
         specifier: workspace:*
         version: link:../../contracts/api-contract
@@ -625,6 +634,9 @@ importers:
       '@clara/harness-protocol':
         specifier: workspace:*
         version: link:../../contracts/harness-protocol
+      '@clara/release':
+        specifier: workspace:*
+        version: link:../../release
       '@clara/shared-types':
         specifier: workspace:*
         version: link:../../contracts/shared-types
@@ -641,6 +653,25 @@ importers:
       '@types/ws':
         specifier: ^8.18.2
         version: 8.18.2
+      tsup:
+        specifier: ^9.0.0
+        version: 9.0.0(jiti@2.7.0)(postcss@8.5.32)(tsx@4.23.15)(typescript@6.0.3)(yaml@2.9.1)
+      typescript:
+        specifier: ~6.0.3
+        version: 6.0.3
+      vitest:
+        specifier: ^5.0.5
+        version: 5.0.5(@opentelemetry/api@1.10.0)(@types/node@24.19.2)(vite@8.3.5(@types/node@24.19.2)(esbuild@0.28.2)(jiti@2.7.0)(terser@5.51.2)(tsx@4.23.15)(yaml@2.9.1))
+
+  packages/adapters/state:
+    dependencies:
+      '@clara/adapter-artifact':
+        specifier: workspace:*
+        version: link:../artifact
+    devDependencies:
+      '@types/node':
+        specifier: ^24.19.2
+        version: 24.19.2
       tsup:
         specifier: ^9.0.0
         version: 9.0.0(jiti@2.7.0)(postcss@8.5.32)(tsx@4.23.15)(typescript@6.0.3)(yaml@2.9.1)
@@ -957,6 +988,21 @@ importers:
       '@types/node':
         specifier: ^24.19.2
         version: 24.19.2
+      typescript:
+        specifier: ~6.0.3
+        version: 6.0.3
+      vitest:
+        specifier: ^5.0.5
+        version: 5.0.5(@opentelemetry/api@1.10.0)(@types/node@24.19.2)(vite@8.3.5(@types/node@24.19.2)(esbuild@0.28.2)(jiti@2.7.0)(terser@5.51.2)(tsx@4.23.15)(yaml@2.9.1))
+
+  packages/release:
+    devDependencies:
+      '@types/node':
+        specifier: ^24.19.2
+        version: 24.19.2
+      tsup:
+        specifier: ^9.0.0
+        version: 9.0.0(jiti@2.7.0)(postcss@8.5.32)(tsx@4.23.15)(typescript@6.0.3)(yaml@2.9.1)
       typescript:
         specifier: ~6.0.3
         version: 6.0.3

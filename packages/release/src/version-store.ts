@@ -2,17 +2,19 @@ import {
   chmodSync,
   copyFileSync,
   existsSync,
+  lstatSync,
   mkdirSync,
   readdirSync,
   readFileSync,
+  readlinkSync,
   renameSync,
   rmSync,
   symlinkSync,
   writeFileSync,
 } from 'node:fs'
 import { homedir } from 'node:os'
-import { dirname, join } from 'node:path'
-import type { ClaraPaths } from '../paths.ts'
+import { dirname, join, resolve } from 'node:path'
+import type { ClaraPaths } from './paths.ts'
 
 export type InstallInfo = {
   schemaVersion: 1
@@ -135,6 +137,97 @@ export function defaultBinDir(env: NodeJS.ProcessEnv = process.env): string {
     return join(base, 'Clara', 'bin')
   }
   return join(homedir(), '.local', 'bin')
+}
+
+/** The Windows launcher marker lets an uninstall remove only files Clara wrote. */
+const WINDOWS_LAUNCHER_MARKER = 'rem Clara command launcher'
+
+/** The path a named command is linked to inside the user's binary directory. */
+export function binaryLinkPath(name: string, binDir = defaultBinDir()): string {
+  return join(binDir, process.platform === 'win32' ? `${name}.cmd` : name)
+}
+
+/**
+ * Point a user command at an installed binary. POSIX uses an atomic symlink;
+ * Windows writes a small `.cmd` shim so a native binary is never copied or
+ * shadowed. A file Clara did not create is left alone instead of overwritten.
+ */
+export function linkBinary(input: { source: string; name: string; binDir?: string }): {
+  path: string
+  target: string
+} {
+  const binDir = input.binDir ?? defaultBinDir()
+  mkdirSync(binDir, { recursive: true, mode: 0o755 })
+  const target = binaryLinkPath(input.name, binDir)
+
+  if (process.platform === 'win32') {
+    if (existsSync(target) && !isWindowsLauncher(target, input.source)) {
+      throw new Error(`Refusing to replace ${target}; it was not written by Clara.`)
+    }
+    writeFileSync(target, `@echo off\r\n${WINDOWS_LAUNCHER_MARKER}\r\n"${input.source}" %*\r\n`, {
+      mode: 0o755,
+    })
+    return { path: target, target: input.source }
+  }
+
+  if (existsSync(target)) {
+    const stat = lstatSync(target)
+    if (!stat.isSymbolicLink()) {
+      throw new Error(`Refusing to replace ${target}; it is not a Clara symlink.`)
+    }
+  } else {
+    try {
+      if (!lstatSync(target).isSymbolicLink()) {
+        throw new Error(`Refusing to replace ${target}; it is not a Clara symlink.`)
+      }
+    } catch (cause) {
+      if ((cause as NodeJS.ErrnoException).code !== 'ENOENT') throw cause
+    }
+  }
+  const temporary = `${target}.${process.pid}.tmp`
+  rmSync(temporary, { force: true })
+  symlinkSync(input.source, temporary)
+  renameSync(temporary, target)
+  return { path: target, target: input.source }
+}
+
+/**
+ * Remove a command link only when it still points at the expected binary (or,
+ * on Windows, carries the Clara marker). Returns whether a file was removed.
+ */
+export function removeBinaryLink(input: {
+  name: string
+  source?: string
+  binDir?: string
+}): boolean {
+  const target = binaryLinkPath(input.name, input.binDir)
+  if (!existsSync(target)) return false
+  if (process.platform === 'win32') {
+    if (!isWindowsLauncher(target, input.source)) return false
+    rmSync(target, { force: true })
+    return true
+  }
+  const stat = lstatSync(target)
+  if (!stat.isSymbolicLink()) return false
+  if (input.source) {
+    try {
+      if (resolve(readlinkSync(target)) !== resolve(input.source)) return false
+    } catch {
+      return false
+    }
+  }
+  rmSync(target, { force: true })
+  return true
+}
+
+function isWindowsLauncher(path: string, source?: string): boolean {
+  try {
+    const text = readFileSync(path, 'utf8')
+    if (!text.includes(WINDOWS_LAUNCHER_MARKER)) return false
+    return source ? text.includes(source) : true
+  } catch {
+    return false
+  }
 }
 
 function parseVersion(value: string): { numbers: number[]; prerelease?: string[] } {

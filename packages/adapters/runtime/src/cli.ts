@@ -39,7 +39,19 @@ import {
 } from './service.ts'
 import { readState, writeState } from './state.ts'
 import { recordInstallProvenance } from './provenance.ts'
-import { applyAdapterUpdate, registerAdapterUpdateRoutes } from './update.ts'
+import { runClaraCommand } from './clara-command.ts'
+import {
+  ensureAdapterRecord,
+  forgetAdapterInstall,
+  recordAdapterInstall,
+} from './install-record.ts'
+import {
+  applyAdapterUpdate,
+  checkAdapterUpdate,
+  readAdapterUpdateStatus,
+  registerAdapterUpdateRoutes,
+  stageAdapterUpdate,
+} from './update.ts'
 import { AdapterTransport } from './transport.ts'
 import type {
   AdapterConfig,
@@ -147,18 +159,51 @@ export async function runAdapterCli<THarness>(
     const helpers = installHelpers(definition)
     if (definition.install) await definition.install(args, helpers)
     else await helpers.pair(args)
+    if (!hasFlag(args, '--dry-run') && !hasFlag(args, '--help') && !hasFlag(args, '-h')) {
+      const result = recordAdapterInstall({
+        name: definition.name,
+        version: definition.version,
+        args,
+        paired: Boolean(readAdapterConfig<THarness>(definition.paths)),
+      })
+      if (result?.link) console.log(`link ${result.link.path}`)
+      if (result?.warning) console.error(`warn ${result.warning}`)
+    }
     return
   }
   if (command === 'uninstall') {
+    if (hasFlag(args, '--help') || hasFlag(args, '-h')) {
+      if (definition.uninstall) await definition.uninstall(args)
+      else console.log(definition.help ?? defaultHelp(definition))
+      return
+    }
     if (definition.uninstall) {
       await definition.uninstall(args)
+      forgetAdapterInstall(definition.name)
       return
     }
     for (const action of uninstallAdapter(definition, args)) console.log(action)
+    forgetAdapterInstall(definition.name)
     return
   }
   if (command === 'status') {
     await status(definition)
+    return
+  }
+  if (command === 'upgrade') {
+    await upgrade(definition, args)
+    return
+  }
+  if (command === 'clara') {
+    const host = await readHostIdentity()
+    await runClaraCommand(
+      {
+        name: definition.name,
+        nativeStatus: () => status(definition),
+        containerized: Boolean(host.container),
+      },
+      args
+    )
     return
   }
   if (command === 'verify') {
@@ -216,6 +261,12 @@ async function serve<THarness>(
   const probe = await definition.probe(config, 3_000)
   writeAdapterPid(definition.paths)
   process.once('exit', () => clearAdapterPid(definition.paths))
+  const recorded = ensureAdapterRecord({
+    name: definition.name,
+    version: definition.version,
+    paired: true,
+  })
+  if (recorded?.warning) console.error(`[adapter] ${recorded.warning}`)
   const info: AdapterInfo = {
     adapter: { name: definition.name, version: definition.version },
     harness: {
@@ -561,6 +612,12 @@ async function status<THarness>(definition: AdapterDefinition<THarness>): Promis
   } else if (live) {
     console.log(`live:     stale (last ${live.hub.status}, updated ${formatAge(live.updatedAt)})`)
   }
+  const update = readAdapterUpdateStatus(definition.paths)
+  console.log(
+    `update:   ${update.state}` +
+      (update.from && update.to ? ` (${update.from} -> ${update.to})` : '') +
+      (update.error ? `: ${update.error}` : '')
+  )
   console.log(`log:      ${processStatus.log}`)
   const probe = await definition.probe(config, 3_000)
   if (definition.statusLines) {
@@ -569,6 +626,47 @@ async function status<THarness>(definition: AdapterDefinition<THarness>): Promis
   console.log(
     `reachable: ${probe.ok ? `yes${probe.version ? ` (${probe.version})` : ''}` : `no (${probe.code})`}`
   )
+}
+
+async function upgrade<THarness>(
+  definition: AdapterDefinition<THarness>,
+  args: string[]
+): Promise<void> {
+  const host = await readHostIdentity()
+  const target = {
+    kind: definition.name,
+    label: definition.label,
+    version: definition.version,
+    paths: definition.paths,
+    containerized: Boolean(host.container),
+  }
+  const json = hasFlag(args, '--json')
+  const check = await checkAdapterUpdate(target)
+  if (hasFlag(args, '--check')) {
+    if (json) console.log(JSON.stringify(check, null, 2))
+    else {
+      console.log(`current   ${check.current}`)
+      console.log(`latest    ${check.latest}`)
+      console.log(
+        check.available
+          ? 'An update is available. Run the same command without --check to install it.'
+          : 'The adapter is up to date.'
+      )
+    }
+    return
+  }
+  if (!check.available) {
+    if (json) console.log(JSON.stringify({ ...check, changed: false }, null, 2))
+    else console.log(`Clara ${definition.label} adapter ${definition.version} is up to date.`)
+    return
+  }
+  const result = await stageAdapterUpdate(target)
+  if (json) console.log(JSON.stringify({ ...check, ...result, changed: true }, null, 2))
+  else
+    console.log(
+      `Clara ${definition.label} adapter update ${result.from} -> ${result.to} staged; ` +
+        'it restarts through its supervisor.'
+    )
 }
 
 function uninstallAdapter<THarness>(

@@ -2,6 +2,7 @@ import { mkdirSync, mkdtempSync, rmSync, writeFileSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import { afterEach, describe, expect, it } from 'vitest'
+import { writeAdapterProvenance } from '@clara/adapter-artifact'
 import { saveAdapterRecord } from '../src/adapters/state.ts'
 import { resolvePaths } from '../src/paths.ts'
 import { detectRole, resolveRole, roleLabel } from '../src/state/role.ts'
@@ -54,6 +55,25 @@ describe('CLI role', () => {
       },
       local
     )
+    expect(detectRole(local)).toBe('adapter')
+  })
+
+  it('detects an adapter installed by its own installer', () => {
+    const local = paths()
+    const versionRoot = join(local.dataDir, 'adapters', 'opencode', '0.1.0')
+    mkdirSync(versionRoot, { recursive: true })
+    writeFileSync(join(versionRoot, 'clara-adapter-opencode'), 'binary')
+    writeAdapterProvenance(versionRoot, {
+      schemaVersion: 1,
+      kind: 'opencode',
+      version: '0.1.0',
+      platform: 'linux-x64',
+      source: 'registry',
+      registryUrl: 'https://example.test/adapters',
+      installedAt: '2026-11-16T00:00:00.000Z',
+    })
+    mkdirSync(join(local.configDir, 'adapters', 'opencode'), { recursive: true })
+    writeFileSync(join(local.configDir, 'adapters', 'opencode', 'config.json'), '{}')
     expect(detectRole(local)).toBe('adapter')
   })
 

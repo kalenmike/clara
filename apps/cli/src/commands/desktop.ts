@@ -6,8 +6,7 @@ import {
   readDesktopInstallInfo,
   uninstallDesktop,
 } from '../release/desktop.ts'
-import { fetchManifest, GITHUB_RELEASE_BASE_URL } from '../release/manifest.ts'
-import { defaultBinDir } from '../release/version-store.ts'
+import { defaultBinDir, fetchManifest, GITHUB_RELEASE_BASE_URL } from '@clara/release'
 import { dim } from '../ui/color.ts'
 import { failure, success, warn } from '../ui/index.ts'
 import { startSpinner } from '../ui/spinner.ts'

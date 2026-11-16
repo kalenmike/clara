@@ -1,51 +1,27 @@
-import { existsSync, mkdirSync, readFileSync, renameSync, rmSync, writeFileSync } from 'node:fs'
+import { existsSync, readFileSync } from 'node:fs'
 import { homedir } from 'node:os'
-import { dirname, join } from 'node:path'
-import { isAdapterKind, type AdapterKind } from './registry.ts'
-import { containerRuntimeState, isContainerRecord, type DockerRunner } from './container.ts'
+import { join } from 'node:path'
+import {
+  deleteAdapterRecord as deleteSharedAdapterRecord,
+  readAdapterRecords as readSharedAdapterRecords,
+  readAdapterState as readSharedAdapterState,
+  saveAdapterRecord as saveSharedAdapterRecord,
+  writeAdapterState as writeSharedAdapterState,
+  type AdapterContainerRecord as SharedAdapterContainerRecord,
+  type AdapterInstallRecord as SharedAdapterInstallRecord,
+  type AdapterStateFile as SharedAdapterStateFile,
+} from '@clara/adapter-state'
+import { ADAPTER_KINDS, type AdapterKind } from './registry.ts'
+import { containerRuntimeState, type DockerRunner } from './container.ts'
 import { resolvePaths, type ClaraPaths } from '../paths.ts'
 
 export type AdapterRuntimeState = 'running' | 'stopped' | 'unknown'
 
-/** A container that runs the adapter on Docker's behalf, not as a host process. */
-export type AdapterContainerRecord = {
-  name: string
-  /** The container's image entrypoint, replayed for `docker exec`. */
-  entry: string[]
-  /** The adapter's config directory inside the container. */
-  configDir?: string
-  /** The adapter's data directory inside the container, which holds `state.json`. */
-  dataDir?: string
-  compose?: {
-    project?: string
-    service?: string
-    file?: string
-  }
-}
+export type AdapterContainerRecord = SharedAdapterContainerRecord
 
-export type AdapterInstallRecord = {
-  kind: AdapterKind
-  version: string
-  platform: string
-  /** The versioned install directory that holds a host adapter binary. */
-  path?: string
-  /** Set when the adapter runs in a container instead of as a host process. */
-  container?: AdapterContainerRecord
-  /** A JavaScript entry run with Node instead of a native binary. */
-  entry?: string
-  /** The Node executable that runs `entry`; defaults to the current runtime. */
-  node?: string
-  /** Adapter install flags replayed when the adapter is reinstalled. */
-  installArgs?: string[]
-  installedAt: string
-  pairedAt?: string
-  lastError?: string
-}
+export type AdapterInstallRecord = SharedAdapterInstallRecord<AdapterKind>
 
-export type AdapterStateFile = {
-  schemaVersion: 1
-  adapters: Partial<Record<AdapterKind, AdapterInstallRecord>>
-}
+export type AdapterStateFile = SharedAdapterStateFile<AdapterKind>
 
 export type RunningProbe = {
   env?: NodeJS.ProcessEnv
@@ -60,24 +36,17 @@ export function adapterStatePath(paths: ClaraPaths = resolvePaths()): string {
   return join(paths.configDir, 'adapters.json')
 }
 
+/** The stored install records, without on-disk discovery. */
 export function readAdapterState(paths: ClaraPaths = resolvePaths()): AdapterStateFile {
-  const path = adapterStatePath(paths)
-  if (!existsSync(path)) return { schemaVersion: 1, adapters: {} }
-  try {
-    const parsed = JSON.parse(readFileSync(path, 'utf8')) as Partial<AdapterStateFile>
-    if (parsed.schemaVersion !== 1 || typeof parsed.adapters !== 'object' || !parsed.adapters) {
-      return { schemaVersion: 1, adapters: {} }
-    }
-    const adapters: AdapterStateFile['adapters'] = {}
-    for (const [kind, record] of Object.entries(parsed.adapters)) {
-      if (!isAdapterKind(kind) || !isRecord(record)) continue
-      if (!isRecordEntry(record)) continue
-      adapters[kind] = { ...record, kind }
-    }
-    return { schemaVersion: 1, adapters }
-  } catch {
-    return { schemaVersion: 1, adapters: {} }
-  }
+  return readSharedAdapterState<AdapterKind>(paths, { kinds: ADAPTER_KINDS })
+}
+
+/**
+ * The install records the command should act on: stored records plus an
+ * adapter installed by its own installer without writing `adapters.json`.
+ */
+export function readAdapterRecords(paths: ClaraPaths = resolvePaths()): AdapterStateFile {
+  return readSharedAdapterRecords<AdapterKind>(paths, ADAPTER_KINDS)
 }
 
 /** Write the record file atomically so a concurrent list never reads half of it. */
@@ -85,41 +54,21 @@ export function writeAdapterState(
   state: AdapterStateFile,
   paths: ClaraPaths = resolvePaths()
 ): void {
-  const path = adapterStatePath(paths)
-  mkdirSync(dirname(path), { recursive: true, mode: 0o700 })
-  const temp = `${path}.${process.pid}.tmp`
-  writeFileSync(temp, `${JSON.stringify(state, null, 2)}\n`, { mode: 0o600 })
-  try {
-    renameSync(temp, path)
-  } catch (cause) {
-    rmSync(temp, { force: true })
-    throw cause
-  }
+  writeSharedAdapterState(state, paths)
 }
 
 export function saveAdapterRecord(
   record: AdapterInstallRecord,
   paths: ClaraPaths = resolvePaths()
 ): AdapterStateFile {
-  const state = readAdapterState(paths)
-  const next: AdapterStateFile = {
-    schemaVersion: 1,
-    adapters: { ...state.adapters, [record.kind]: record },
-  }
-  writeAdapterState(next, paths)
-  return next
+  return saveSharedAdapterRecord(record, paths)
 }
 
 export function deleteAdapterRecord(
   kind: AdapterKind,
   paths: ClaraPaths = resolvePaths()
 ): AdapterStateFile {
-  const state = readAdapterState(paths)
-  const adapters = { ...state.adapters }
-  delete adapters[kind]
-  const next: AdapterStateFile = { schemaVersion: 1, adapters }
-  writeAdapterState(next, paths)
-  return next
+  return deleteSharedAdapterRecord(kind, paths)
 }
 
 /**
@@ -186,29 +135,4 @@ function isAlive(pid: number): boolean {
   } catch (error) {
     return (error as NodeJS.ErrnoException).code === 'EPERM'
   }
-}
-
-function isRecord(value: unknown): value is Record<string, unknown> {
-  return typeof value === 'object' && value !== null && !Array.isArray(value)
-}
-
-function isRecordEntry(
-  value: Record<string, unknown>
-): value is Omit<AdapterInstallRecord, 'kind'> {
-  const hasHostPath = typeof value.path === 'string'
-  const hasContainer = isContainerRecord(value.container)
-  if (value.container !== undefined && !hasContainer) return false
-  return (
-    (hasHostPath || hasContainer) &&
-    typeof value.version === 'string' &&
-    typeof value.platform === 'string' &&
-    typeof value.installedAt === 'string' &&
-    (value.entry === undefined || typeof value.entry === 'string') &&
-    (value.node === undefined || typeof value.node === 'string') &&
-    (value.installArgs === undefined ||
-      (Array.isArray(value.installArgs) &&
-        value.installArgs.every((arg) => typeof arg === 'string'))) &&
-    (value.pairedAt === undefined || typeof value.pairedAt === 'string') &&
-    (value.lastError === undefined || typeof value.lastError === 'string')
-  )
 }

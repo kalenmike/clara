@@ -10,7 +10,7 @@ import {
   readInstallInfo,
   stageBinary,
   writeInstallInfo,
-} from '../src/release/version-store.ts'
+} from '../src/version-store.ts'
 
 let root: string
 let paths: ClaraPaths

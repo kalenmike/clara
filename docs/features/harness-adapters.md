@@ -78,6 +78,7 @@ browser client, then speaks the Clara Harness Protocol. The hub routes typed
     verifies a strictly newer artifact, extracts a new version directory, and
     hands the restart to a detached supervisor that reinstalls with the saved
     pairing and restores the old version if the new one does not authenticate.
+12. A standalone install writes the host record and launcher and can download the signed CLI.
 
 ## Edge cases
 
@@ -119,8 +120,8 @@ browser client, then speaks the Clara Harness Protocol. The hub routes typed
   process.
 - Pi exposes no session lock or move: concurrent writes create branches, and a
   session is bound to its working directory.
-- A Pi extension confirmation maps to a Clara permission card, but **Always**
-  behaves as **Once** because the extension owns the policy.
+- A Pi extension confirmation maps to a permission card, but **Always** behaves
+  as **Once** because the extension owns the policy.
 
 ## Technical appendix
 
@@ -130,12 +131,11 @@ browser client, then speaks the Clara Harness Protocol. The hub routes typed
 - Config: `<config>/clara/adapters/<kind>/config.json`; data:
   `<data>/clara/adapters/<kind>/{identity.json,adapter.log,adapter.pid,state.json,
 update.json,update.log}`. Claude keeps `catalog.json`; Pi keeps `prompt-ids.json`.
-  A release install also keeps `install.json` beside the binary.
 - Commands: `clara-adapter-<kind> install --pair <code>` (plus `--no-service`,
-  `--no-runner`) and `clara adapter install|list|status|start|stop|logs|verify|
-upgrade|remove <kind> [--pair <code>] [--from <path>] [--container <name>]`.
-  `--reuse-pairing` stops the old process and reruns without enrolling; the
-  panel update posts to `/harness/v1/maintenance/update`, and the hidden
+  `--no-runner`), `clara-adapter-<kind> upgrade [--check]`, and
+  `clara-adapter-<kind> clara <command…>`. Hub-facing:
+  `clara adapter install|list|status|start|stop|logs|verify|upgrade|remove <kind>`.
+  The panel update posts to `/harness/v1/maintenance/update`; the hidden
   `apply-update --plan <path>` supervisor performs the switch.
 - Registry: `<registry>/<kind>/manifest.json` and `v<version>-install.sh`;
   `CLARA_ADAPTER_REGISTRY_URL` overrides. `pnpm adapters:build` and

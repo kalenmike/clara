@@ -1,4 +1,4 @@
-import { existsSync } from 'node:fs'
+import { existsSync, realpathSync } from 'node:fs'
 import { dirname, join, resolve } from 'node:path'
 import {
   adapterBinaryName,
@@ -15,12 +15,19 @@ import { selfEntry } from './service.ts'
 /**
  * The directory that holds this adapter's executable and install record.
  * Compiled releases have no script argument, so `process.execPath` is the
- * binary itself.
+ * binary itself. A launcher symlink is resolved to the version directory.
  */
 export function adapterInstallRoot(entry = selfEntry()): string | undefined {
-  if (entry) return dirname(resolve(entry))
-  return dirname(process.execPath)
-  return undefined
+  if (entry) return dirname(realPath(resolve(entry)))
+  return dirname(realPath(process.execPath))
+}
+
+function realPath(path: string): string {
+  try {
+    return realpathSync(path)
+  } catch {
+    return path
+  }
 }
 
 /** The release version this adapter runs, recorded at install time when possible. */

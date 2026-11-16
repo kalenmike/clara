@@ -71,6 +71,8 @@ Usage:
   clara-adapter-claude serve
   clara-adapter-claude start|stop|logs [--lines <n>]
   clara-adapter-claude status
+  clara-adapter-claude upgrade [--check] [--json]
+  clara-adapter-claude clara <command...> [options]
   clara-adapter-claude verify [--directory <path>] [--write] [--json]
   clara-adapter-claude uninstall [--purge]
   clara-adapter-claude config-path
@@ -95,6 +97,10 @@ Install options:
 
 Authentication stays on this machine. The adapter uses the existing Claude Code
 login, or ANTHROPIC_API_KEY / CLAUDE_CODE_OAUTH_TOKEN from its environment.
+
+The clara command runs the real Clara CLI. When it is missing, it downloads
+the signed release into the standard version store; the adapter never bundles
+the Clara services.
 
 The adapter connects out to the hub over the same WebSocket and E2EE session
 as the browser. It never listens on an inbound port.`

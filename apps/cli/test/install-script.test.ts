@@ -14,7 +14,7 @@ import { join } from 'node:path'
 import { fileURLToPath } from 'node:url'
 import { afterEach, describe, expect, it } from 'vitest'
 import { resolvePaths } from '../src/paths.ts'
-import { readInstallInfo, versionBinary } from '../src/release/version-store.ts'
+import { readInstallInfo, versionBinary } from '@clara/release'
 
 const script = fileURLToPath(new URL('../scripts/install.mjs', import.meta.url))
 const roots: string[] = []

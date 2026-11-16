@@ -1,8 +1,7 @@
 import { existsSync, mkdtempSync, readdirSync, readFileSync, rmSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
-import type { ClaraPaths } from '../paths.ts'
-import { version as currentVersion } from '../version.ts'
+import type { ClaraPaths } from './paths.ts'
 import { downloadVerified, extractArchive } from './download.ts'
 import {
   fetchManifest,
@@ -35,6 +34,10 @@ export async function checkForUpdate(options: {
   paths: ClaraPaths
   baseUrl?: string
   publicKey?: string
+  /** The running command's version when no install record exists. */
+  fallbackVersion?: string
+  /** Test-only escape hatch for a loopback registry. */
+  allowInsecure?: boolean
   fetchImpl?: typeof fetch
 }): Promise<UpdateCheck> {
   const platform = platformKey()
@@ -42,12 +45,13 @@ export async function checkForUpdate(options: {
   const fetched = await fetchManifest({
     ...(options.baseUrl ? { baseUrl: options.baseUrl } : {}),
     ...(options.publicKey ? { publicKey: options.publicKey } : {}),
+    ...(options.allowInsecure !== undefined ? { allowInsecure: options.allowInsecure } : {}),
     ...(options.fetchImpl ? { fetchImpl: options.fetchImpl } : {}),
     fallbackBaseUrl: GITHUB_RELEASE_BASE_URL,
   })
   const artifact = fetched.manifest.artifacts[platform]
   if (!artifact) throw new Error(`The release has no ${platform} artifact.`)
-  const current = readInstallInfo(options.paths)?.version ?? currentVersion()
+  const current = readInstallInfo(options.paths)?.version ?? options.fallbackVersion ?? '0.0.0'
   return {
     current,
     manifest: fetched.manifest,
@@ -92,6 +96,54 @@ export async function applyUpdate(options: {
   } finally {
     rmSync(archive, { force: true })
   }
+}
+
+/**
+ * Download and activate the newest published command. This is the bootstrap the
+ * adapter uses when the full CLI is not installed; an already-current install
+ * only has its launcher refreshed.
+ */
+export async function installLatest(options: {
+  paths: ClaraPaths
+  binDir?: string
+  baseUrl?: string
+  publicKey?: string
+  fallbackVersion?: string
+  onProgress?: (received: number, total: number) => void
+  /** Test-only escape hatch for a loopback registry. */
+  allowInsecure?: boolean
+  fetchImpl?: typeof fetch
+}): Promise<UpdateResult> {
+  const check = await checkForUpdate({
+    paths: options.paths,
+    ...(options.baseUrl ? { baseUrl: options.baseUrl } : {}),
+    ...(options.publicKey ? { publicKey: options.publicKey } : {}),
+    ...(options.fallbackVersion ? { fallbackVersion: options.fallbackVersion } : {}),
+    ...(options.allowInsecure !== undefined ? { allowInsecure: options.allowInsecure } : {}),
+    ...(options.fetchImpl ? { fetchImpl: options.fetchImpl } : {}),
+  })
+  const installed = readInstallInfo(options.paths)
+  if (
+    installed &&
+    compareVersions(installed.version, check.manifest.version) >= 0 &&
+    existsSync(versionBinary(options.paths, installed.version))
+  ) {
+    const binary = options.binDir
+      ? activateVersion(options.paths, installed.version, options.binDir)
+      : activateVersion(options.paths, installed.version)
+    return {
+      version: installed.version,
+      binary,
+      ...(installed.previous ? { previous: installed.previous } : {}),
+    }
+  }
+  return applyUpdate({
+    paths: options.paths,
+    check,
+    ...(options.binDir ? { binDir: options.binDir } : {}),
+    ...(options.onProgress ? { onProgress: options.onProgress } : {}),
+    ...(options.fetchImpl ? { fetchImpl: options.fetchImpl } : {}),
+  })
 }
 
 /** Install a release archive that was downloaded separately. */

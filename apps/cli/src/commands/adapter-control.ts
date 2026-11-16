@@ -7,7 +7,7 @@ import {
   stopContainer,
 } from '../adapters/container.ts'
 import { adapterCommand, adapterEntryPath, runAdapterCommand } from '../adapters/install.ts'
-import { readAdapterState, type AdapterInstallRecord } from '../adapters/state.ts'
+import { readAdapterRecords, type AdapterInstallRecord } from '../adapters/state.ts'
 import { resolvePaths } from '../paths.ts'
 import { parseKindSpec } from './adapter-args.ts'
 
@@ -27,7 +27,7 @@ export async function runAdapterControl(
   const spec = parseKindSpec(value)
   const extra = args.filter((_, position) => position !== index)
 
-  const record = readAdapterState(resolvePaths()).adapters[spec.kind]
+  const record = readAdapterRecords(resolvePaths()).adapters[spec.kind]
   if (!record) {
     throw new Error(
       `${spec.kind} adapter is not installed. Run: clara adapter install ${spec.kind}`
