@@ -123,7 +123,7 @@ export function DetailPanel({
                   </TabsTrigger>
                 ))}
               </TabsList>
-              <div className="h-[min(38vh,360px)] overflow-auto p-3">
+              <div className="h-[min(30vh,300px)] overflow-auto p-3">
                 <TabsContent value="prompt" className="m-0">
                   {node.kind === 'script' ? (
                     <div className="inspector-body">
