@@ -30,10 +30,9 @@ export function PipelineTree({
   onToggle: () => void
 }) {
   const tree = useMemo(() => buildPipelineTree(packages, targets), [packages, targets])
-  const [expanded, setExpanded] = useState<Set<string>>(() => new Set(['root', 'std']))
+  const [expanded, setExpanded] = useState<Set<string>>(() => new Set(['ns:root', 'ns:std']))
 
   useEffect(() => {
-    if (!selected) return
     const keys = new Set<string>()
     for (const namespace of tree) {
       for (const pkg of namespace.packages) {

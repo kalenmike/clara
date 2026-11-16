@@ -75,9 +75,11 @@ export function DetailPanel({
           <>
             <Badge tone={tone}>{node.kind}</Badge>
             <span className="min-w-0 truncate text-xs font-semibold">{node.title}</span>
-            <span className="hidden min-w-0 truncate font-mono text-[10px] text-muted-foreground md:inline">
-              {node.path}
-            </span>
+            {node.path && node.path !== node.packageId ? (
+              <span className="hidden min-w-0 truncate font-mono text-[10px] text-muted-foreground md:inline">
+                {node.path}
+              </span>
+            ) : null}
             {node.packageId ? (
               <span className="hidden rounded-full border px-1.5 py-0.5 text-[9px] text-muted-foreground lg:inline">
                 {node.packageId}

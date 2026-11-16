@@ -49,7 +49,7 @@ export interface NodeModelInfo {
 }
 
 const NODE_WIDTH = 274
-const NODE_BASE_HEIGHT = 110
+const NODE_BASE_HEIGHT = 124
 const NODE_INPUT_HEIGHT = 20
 const NODE_GAP_X = 24
 const LAYER_GAP_Y = 54

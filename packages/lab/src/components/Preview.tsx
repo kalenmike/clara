@@ -76,7 +76,8 @@ export function Preview({
   const [compareOpen, setCompareOpen] = useState(false)
   const [debugSignal, setDebugSignal] = useState(0)
   const [treeCollapsed, setTreeCollapsed] = useState(false)
-  const [detailOpen, setDetailOpen] = useState(true)
+  const [detailOpen, setDetailOpen] = useState(false)
+  const [diagnosticsOpen, setDiagnosticsOpen] = useState(false)
 
   const seenPreview = useRef(0)
 
@@ -171,6 +172,10 @@ export function Preview({
   const friendly = error ? friendlyError(error, 'host') : null
   const errorCount = diagnostics.filter((item) => item.severity === 'error').length
   const warningCount = diagnostics.filter((item) => item.severity === 'warning').length
+
+  useEffect(() => {
+    if (errorCount) setDiagnosticsOpen(true)
+  }, [errorCount])
 
   return (
     <div className="view preview-view flex h-full min-h-0 max-w-none flex-col overflow-hidden">
@@ -275,15 +280,33 @@ export function Preview({
               </div>
             </div>
             <div className="ml-auto flex items-center gap-1.5">
+              {diagnostics.length ? (
+                <button
+                  type="button"
+                  className="rounded-full border px-2 py-0.5 text-[10px] text-muted-foreground hover:bg-accent hover:text-foreground"
+                  onClick={() => setDiagnosticsOpen((value) => !value)}
+                  aria-expanded={diagnosticsOpen}
+                >
+                  {diagnosticsOpen ? 'Hide diagnostics' : 'Diagnostics'}
+                </button>
+              ) : null}
               {errorCount ? (
-                <span className="rounded-full border border-status-danger/40 bg-status-danger/10 px-2 py-0.5 text-[10px] text-status-danger">
+                <button
+                  type="button"
+                  className="rounded-full border border-status-danger/40 bg-status-danger/10 px-2 py-0.5 text-[10px] text-status-danger"
+                  onClick={() => setDiagnosticsOpen(true)}
+                >
                   {errorCount} error{errorCount === 1 ? '' : 's'}
-                </span>
+                </button>
               ) : null}
               {warningCount ? (
-                <span className="rounded-full border border-status-warning/40 bg-status-warning/10 px-2 py-0.5 text-[10px] text-status-warning">
+                <button
+                  type="button"
+                  className="rounded-full border border-status-warning/40 bg-status-warning/10 px-2 py-0.5 text-[10px] text-status-warning"
+                  onClick={() => setDiagnosticsOpen(true)}
+                >
                   {warningCount} warning{warningCount === 1 ? '' : 's'}
-                </span>
+                </button>
               ) : null}
               {compiled?.root.enforcement ? (
                 <span className="rounded-full border px-2 py-0.5 text-[10px] text-muted-foreground">
@@ -293,8 +316,8 @@ export function Preview({
             </div>
           </div>
 
-          {diagnostics.length ? (
-            <div className="max-h-32 shrink-0 overflow-auto border-b px-3 py-2">
+          {diagnostics.length && diagnosticsOpen ? (
+            <div className="max-h-40 shrink-0 overflow-auto border-b px-3 py-2">
               <Diagnostics
                 diagnostics={diagnostics}
                 onOpenSource={(path) => {

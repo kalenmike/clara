@@ -98,13 +98,13 @@ export function PipelineGraph({
   const layout = useMemo(() => buildReviewLayout(root, packages), [root, packages])
   const containerRef = useRef<HTMLDivElement>(null)
   const [viewport, setViewport] = useState({ width: 0, height: 0 })
-  const [fitMode, setFitMode] = useState<'width' | 'all' | 'custom'>('width')
+  const [fitMode, setFitMode] = useState<'width' | 'all' | 'custom'>('custom')
   const [customZoom, setCustomZoom] = useState(1)
   const [hovered, setHovered] = useState<HoveredInput | null>(null)
+  const centeredRoot = useRef<string | undefined>(undefined)
   const selectedPath = selected?.path
 
   useEffect(() => {
-    setFitMode('width')
     setHovered(null)
   }, [layout.root])
 
@@ -118,6 +118,22 @@ export function PipelineGraph({
     observer.observe(element)
     return () => observer.disconnect()
   }, [])
+
+  useEffect(() => {
+    const container = containerRef.current
+    const rootNode = layout.nodeByPath.get(layout.root)
+    if (!container || !rootNode || !viewport.width || centeredRoot.current === layout.root) {
+      return
+    }
+    centeredRoot.current = layout.root
+    setFitMode('custom')
+    setCustomZoom(1)
+    const left = rootNode.x + rootNode.width / 2 - container.clientWidth / 2
+    requestAnimationFrame(() => {
+      container.scrollLeft = Math.max(0, left)
+      container.scrollTop = 0
+    })
+  }, [layout, viewport.width])
 
   const widthFit = viewport.width
     ? Math.min(1, Math.max(0.25, (viewport.width - 28) / layout.width))
@@ -554,7 +570,7 @@ function edgeGeometry(
   const mid = (y1 + y2) / 2
   return {
     path: `M ${x1} ${y1} C ${x1} ${mid}, ${x2} ${mid}, ${x2} ${y2}`,
-    labelX: (x1 + x2) / 2,
-    labelY: mid,
+    labelX: x2,
+    labelY: y2 - 10,
   }
 }
