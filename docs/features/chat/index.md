@@ -72,20 +72,17 @@ sender name, and a timestamp above the content, separated by a divider.
 5. Internal output is hidden by default. The header toggle covers reasoning, tool
    calls, shell commands, collapsed **System Reminder** rows whose detail drops
    the reminder tags, and untagged synthetic, skill, and compaction notices; the
-   preference is stored in `localStorage` and shared across sessions. Clara's own
-   system events, question-answer summaries, and location switches stay visible
-   at every detail level; a location row names the new folder inline, eliding a
-   long path from the start so the final directory stays visible. Agent-switched
-   and system messages are never rendered, and a failed turn stays visible
-   because an error is never treated as internal output.
+   preference persists in `localStorage`. Clara's own system events,
+   question-answer summaries, and location switches stay visible at every detail
+   level; a location row names the new folder with a start-elided path.
+   Agent-switched and system messages are never rendered, and a failed turn stays
+   visible because an error is never treated as internal output.
 6. Token and cost details sit in a muted footer under the content, following the
    **Cost display** setting. With internal output off, the next visible reply
    absorbs hidden steps and shows one combined footer; a turn that ends on hidden
-   work keeps one compact **Thinking** footer. System rows inside a turn do not
-   split that footer, so a location switch between two hidden batches does not
-   produce a second Thinking row. The usage bar below the header shows
-   whole-session totals from the server rather than the loaded pages. See
-   [session panel](../session-panel.md) for cost and context detail.
+   work keeps one compact **Thinking** footer, even when system rows split the
+   steps. The usage bar below the header shows whole-session totals from the
+   server rather than loaded pages. See [session panel](../session-panel.md).
 
 ## Edge cases
 
@@ -120,9 +117,8 @@ sender name, and a timestamp above the content, separated by a divider.
 
 ## Known gaps
 
-- `idle` system messages are hidden to reduce noise.
-- Double-press navigation gestures are pointer-only; keyboard activation
-  performs the single step.
+- `idle` system messages are hidden to reduce noise; double-press navigation
+  gestures are pointer-only, so keyboard activation performs a single step.
 
 ## Technical appendix
 
