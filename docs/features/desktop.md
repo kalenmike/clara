@@ -15,16 +15,14 @@ paired hub's bridge; the app runs neither service.
 
 ## User flow
 
-1. Run the one-line installer, download an installer from a desktop release, or
-   build the app for the host platform from the checkout. The installer adds the
-   desktop app on macOS and on Linux and Windows with a desktop session.
+1. Run the one-line installer, download a desktop release installer, or build
+   from the checkout. The installer adds the desktop app on GUI hosts.
 2. Launch Clara. The window opens on the same connect screen as the web client.
 3. Paste a browser pairing code from the hub panel (or from `clara pair`) and
    connect.
 4. Use Clara as usual: browse projects, start and steer sessions, answer
    approvals, and read usage. A message link opens in the system browser.
-5. Run `clara desktop install` to update; Settings → App shows the `Clara
-Desktop` surface label and version.
+5. Run `clara desktop install` to update; Settings → App reports the version.
 6. Open **Hub** and use **Harness → Pair Harness** to install an adapter on
    **This computer**, an **SSH host**, or a local **Docker container**. A
    `clara://adapter?code=…` link opens the same flow; see
@@ -121,9 +119,8 @@ Desktop` surface label and version.
   has no `build` script, so `pnpm build` stays a web/Node build. Build, Docker,
   release, and install commands are in [../development.md](../development.md).
   The release workflow runs one platform per host; artifacts include
-  `clara-desktop` and the `clara-adapter-host` sidecar. The registry maps the
-  DMG, AppImage, and NSIS installers onto `desktop` artifacts, and
-  `clara desktop install` installs them per user.
+  `clara-desktop` and the `clara-adapter-host` sidecar. The registry maps DMG,
+  AppImage, and NSIS installers onto `desktop` artifacts.
 - Vite's `desktop` mode disables `vite-plugin-pwa`, sets
   `build.outDir = dist-desktop`, and defines `CLARA_DESKTOP`; the web build is
   the default. `apps/web/scripts/check-bundle.mjs` asserts the split: `sw.js`
