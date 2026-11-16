@@ -49,6 +49,7 @@ import { playAttentionSound, playDoneSound } from '@/features/notifications/soun
 import { DESK_IDLE_OPTIONS_MS, simplifiedInboxSoundPatch } from '@/features/notifications/settings'
 import { usePush } from '@/providers/push-provider'
 import { useSessionWording } from '@/features/sessions/use-wording'
+import { isDesktop } from '@/lib/runtime'
 
 const KIND_ICONS: Record<AttentionKind, typeof Eye> = {
   review: Eye,
@@ -103,9 +104,19 @@ export function NotificationsCard({
           </>
         )}
 
-        <PushNotificationsSetting setPermission={setPermission} isTouchDevice={isTouchDevice} />
+        {!isDesktop && (
+          <>
+            <PushNotificationsSetting setPermission={setPermission} />
+            <Separator />
+          </>
+        )}
 
-        <Separator />
+        {!isTouchDevice && (
+          <>
+            <HoldPhoneAlertsSetting />
+            <Separator />
+          </>
+        )}
 
         <div className="flex items-center justify-between gap-4">
           <div className="flex items-center gap-2">
@@ -307,13 +318,10 @@ function DesktopNotificationsSetting({
 
 function PushNotificationsSetting({
   setPermission,
-  isTouchDevice,
 }: {
   setPermission: (permission: NotificationPermissionState) => void
-  isTouchDevice: boolean
 }) {
   const push = usePush()
-  const { settings, update } = useNotificationSettings()
 
   const togglePush = async (enabled: boolean) => {
     if (enabled) await push.enable()
@@ -342,55 +350,57 @@ function PushNotificationsSetting({
       </div>
 
       {push.enabled && (
-        <>
-          <div className="flex flex-wrap items-center gap-2 pl-6">
-            <Button
-              type="button"
-              variant="outline"
-              size="sm"
-              onClick={() => void push.test()}
-              disabled={push.busy}
-            >
-              <Send className="size-3.5" /> Send test
-            </Button>
-            {push.count !== null && (
-              <span className="text-[11px] text-muted-foreground">
-                {push.count} {push.count === 1 ? 'device' : 'devices'} registered
-              </span>
-            )}
-          </div>
-
-          {!isTouchDevice && (
-            <div className="flex items-start justify-between gap-4 pl-6">
-              <div className="min-w-0">
-                <div className="text-xs">Hold phone alerts</div>
-                <p className="mt-0.5 text-[11px] text-muted-foreground">
-                  Stop mobile pushes while this window is visible and you have been active.
-                </p>
-              </div>
-              <Select
-                value={String(settings.deskIdleMs)}
-                onValueChange={(value) => update({ deskIdleMs: Number(value) })}
-              >
-                <SelectTrigger
-                  size="sm"
-                  className="w-[104px] shrink-0"
-                  aria-label="Hold phone alerts after inactivity"
-                >
-                  <SelectValue />
-                </SelectTrigger>
-                <SelectContent>
-                  {DESK_IDLE_OPTIONS_MS.map((ms) => (
-                    <SelectItem key={ms} value={String(ms)}>
-                      {ms / 60_000} min
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
-            </div>
+        <div className="flex flex-wrap items-center gap-2 pl-6">
+          <Button
+            type="button"
+            variant="outline"
+            size="sm"
+            onClick={() => void push.test()}
+            disabled={push.busy}
+          >
+            <Send className="size-3.5" /> Send test
+          </Button>
+          {push.count !== null && (
+            <span className="text-[11px] text-muted-foreground">
+              {push.count} {push.count === 1 ? 'device' : 'devices'} registered
+            </span>
           )}
-        </>
+        </div>
       )}
     </>
+  )
+}
+
+function HoldPhoneAlertsSetting() {
+  const { settings, update } = useNotificationSettings()
+
+  return (
+    <div className="flex items-start justify-between gap-4">
+      <div className="min-w-0">
+        <div className="text-sm">Hold phone alerts</div>
+        <p className="mt-0.5 text-xs text-muted-foreground">
+          Stop mobile pushes while this window is visible and you have been active.
+        </p>
+      </div>
+      <Select
+        value={String(settings.deskIdleMs)}
+        onValueChange={(value) => update({ deskIdleMs: Number(value) })}
+      >
+        <SelectTrigger
+          size="sm"
+          className="w-[104px] shrink-0"
+          aria-label="Hold phone alerts after inactivity"
+        >
+          <SelectValue />
+        </SelectTrigger>
+        <SelectContent>
+          {DESK_IDLE_OPTIONS_MS.map((ms) => (
+            <SelectItem key={ms} value={String(ms)}>
+              {ms / 60_000} min
+            </SelectItem>
+          ))}
+        </SelectContent>
+      </Select>
+    </div>
   )
 }
