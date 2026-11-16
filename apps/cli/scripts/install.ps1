@@ -64,6 +64,7 @@ try {
   Expand-Archive -LiteralPath $archive -DestinationPath $unpack -Force
   $binary = Join-Path $unpack 'clara.exe'
   $versionLine = (& $binary --version) -join ' '
+  if ($LASTEXITCODE -ne 0) { throw 'The downloaded Clara binary could not run on this machine.' }
   $version = ($versionLine -split '\s+')[0]
   if (-not $version) { $version = $manifest.cli.version }
   if ($RequestedVersion -and $RequestedVersion -ne $version) {

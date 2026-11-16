@@ -10,6 +10,8 @@
 set -eu
 
 BASE_URL="${CLARA_RELEASE_BASE_URL:-__CLARA_RELEASE_BASE_URL__}"
+BASE_URL_EXPLICIT=0
+if [ -n "${CLARA_RELEASE_BASE_URL:-}" ]; then BASE_URL_EXPLICIT=1; fi
 FALLBACK_BASE_URL='https://github.com/kalenmike/clara/releases/latest/download'
 REQUESTED_VERSION=""
 BIN_DIR="${CLARA_BIN_DIR:-$HOME/.local/bin}"
@@ -26,7 +28,7 @@ fail() {
 while [ $# -gt 0 ]; do
   case "$1" in
     --version) REQUESTED_VERSION="${2:-}"; shift 2 ;;
-    --base-url) BASE_URL="${2:-}"; shift 2 ;;
+    --base-url) BASE_URL="${2:-}"; BASE_URL_EXPLICIT=1; shift 2 ;;
     --bin-dir) BIN_DIR="${2:-}"; shift 2 ;;
     --desktop) DESKTOP_MODE='yes'; shift ;;
     --no-desktop) DESKTOP_MODE='no'; shift ;;
@@ -75,6 +77,11 @@ if [ "$DESKTOP_MODE" = 'auto' ]; then
     *) DESKTOP_MODE='no' ;;
   esac
 fi
+case "$DESKTOP_MODE" in
+  yes | always | 1) DESKTOP_MODE='yes' ;;
+  no | never | 0) DESKTOP_MODE='no' ;;
+  *) fail "CLARA_INSTALL_DESKTOP must be auto, yes, or no." ;;
+esac
 
 tmp=$(mktemp -d 2>/dev/null || echo "${TMPDIR:-/tmp}/clara-install-$$")
 trap 'rm -rf "$tmp"' EXIT HUP INT TERM
@@ -89,7 +96,7 @@ fetch_manifest() {
 
 say "Clara installer for $platform"
 if ! fetch_manifest "$BASE_URL"; then
-  if [ -n "${CLARA_RELEASE_BASE_URL:-}" ] || [ "$BASE_URL" = "$FALLBACK_BASE_URL" ]; then
+  if [ "$BASE_URL_EXPLICIT" = "1" ] || [ "$BASE_URL" = "$FALLBACK_BASE_URL" ]; then
     fail "Could not read the Clara release manifest from $BASE_URL."
   fi
   say "The registry is unavailable; using the GitHub release."
@@ -168,7 +175,9 @@ fi
 mkdir -p "$tmp/unpack"
 tar -xzf "$tmp/clara.tar.gz" -C "$tmp/unpack"
 chmod 755 "$tmp/unpack/clara"
-VERSION=$("$tmp/unpack/clara" --version 2>/dev/null | sed -n 's/^\([0-9][0-9A-Za-z.+-]*\).*/\1/p' | head -n 1)
+version_output=$("$tmp/unpack/clara" --version 2>/dev/null) ||
+  fail "The downloaded Clara binary could not run on this machine."
+VERSION=$(printf '%s\n' "$version_output" | sed -n 's/^\([0-9][0-9A-Za-z.+-]*\).*/\1/p' | head -n 1)
 if [ -z "$VERSION" ]; then
   VERSION=$(printf '%s' "$cli_manifest" | sed -n 's/.*"version"[[:space:]]*:[[:space:]]*"\([^"]*\)".*/\1/p' | head -n 1)
 fi
