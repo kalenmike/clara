@@ -22,10 +22,12 @@ import {
   type AdapterEnrollAction,
   type AdapterHostIdentity,
   type AdapterState,
+  type AgentEngineInfo,
   type AgentInfo,
   type ClaraAction,
   type ClaraPayload,
   type ClaraState,
+  type EngineRequestAction,
   type ClientHelloFrameV4,
   type DeviceClass,
   type DeviceEnrollAction,
@@ -119,6 +121,8 @@ type Session = {
   sendChain: Promise<void>
   receiveChain: Promise<void>
   requests: Map<string, AbortController>
+  /** Engine requests an adapter asked the hub to proxy. */
+  engineRequests: Map<string, AbortController>
   /** Traffic counters, frozen while monitoring is off. */
   bytesIn: number
   bytesOut: number
@@ -198,6 +202,15 @@ export type AgentOptions = {
   /** Shared traffic counters for the panel; absent in tests. */
   traffic?: TrafficMeter
   adapters?: AdapterSessionHandler
+  /**
+   * The engine bridge. `info` describes direct candidates and proxy support to
+   * an adapter; `url` and `token` are the hub's own loopback access.
+   */
+  engine?: {
+    info: () => AgentEngineInfo
+    url: () => string
+    token: () => string
+  }
   /** Which transport this hub service serves, for the per-transport split. */
   transport?: PanelTransport
   log?: (message: string, detail?: unknown) => void
@@ -642,6 +655,7 @@ export class Agent {
       sendChain: Promise.resolve(),
       receiveChain: Promise.resolve(),
       requests: new Map(),
+      engineRequests: new Map(),
       bytesIn: 0,
       bytesOut: 0,
       requestsTotal: 0,
@@ -747,6 +761,12 @@ export class Agent {
         case 'adapter.error':
           session.adapterBridge?.handleState(payload)
           return
+        case 'engine.request':
+          this.startEngineRequest(session, payload)
+          return
+        case 'engine.abort':
+          session.engineRequests.get(payload.id)?.abort()
+          return
         case 'ready.ack': {
           const setHost = this.options.adapters?.setHost
           if (session.harnessId && payload.host && setHost) {
@@ -815,6 +835,14 @@ export class Agent {
         return
       case 'http.abort':
         session.requests.get(payload.id)?.abort()
+        return
+      case 'engine.abort':
+      case 'engine.request':
+        this.rejectSession(
+          session,
+          'not_allowed',
+          'Only a harness adapter can use the engine bridge'
+        )
         return
       case 'http.request':
         this.startRequest(session, payload)
@@ -1310,9 +1338,14 @@ export class Agent {
    * browser clients do not need them.
    */
   private agentInfoFor(session: Session): AgentInfo {
-    if (session.kind === 'adapter' || !this.options.info.endpoints) return this.options.info
     const info = { ...this.options.info }
+    if (session.kind === 'adapter') {
+      const engine = this.options.engine?.info()
+      if (engine) info.engine = engine
+      return info
+    }
     delete info.endpoints
+    delete info.engine
     return info
   }
 
@@ -1332,6 +1365,115 @@ export class Agent {
   broadcastState(payload: ClaraState): void {
     if (this.sessions.size === 0) return
     for (const session of this.sessions.values()) this.enqueue(session, payload)
+  }
+
+  private startEngineRequest(session: Session, action: EngineRequestAction): void {
+    if (typeof action.id !== 'string' || action.id.length === 0 || action.id.length > 128) return
+    if (session.engineRequests.has(action.id)) return
+    if (!action.path.startsWith('/v1/')) {
+      this.enqueue(session, {
+        type: 'engine.error',
+        id: action.id,
+        code: 'not_found',
+        message: 'Unknown engine endpoint',
+      })
+      return
+    }
+    const engine = this.options.engine
+    if (!engine) {
+      this.enqueue(session, {
+        type: 'engine.error',
+        id: action.id,
+        code: 'engine_unavailable',
+        message: 'The hub has no engine bridge configured',
+      })
+      return
+    }
+    const info = engine.info()
+    if (!info.enabled || !info.proxy) {
+      this.enqueue(session, {
+        type: 'engine.error',
+        id: action.id,
+        code: 'engine_unavailable',
+        message: info.enabled
+          ? 'This adapter session cannot proxy engine requests'
+          : 'Clara orchestration is not running',
+      })
+      return
+    }
+    if (session.engineRequests.size >= MAX_REQUESTS_PER_SESSION) {
+      this.enqueue(session, {
+        type: 'engine.error',
+        id: action.id,
+        code: 'too_many_requests',
+        message: 'Too many concurrent engine requests in this session',
+      })
+      return
+    }
+    const controller = new AbortController()
+    session.engineRequests.set(action.id, controller)
+    this.options.traffic?.recordRequest(this.transport)
+    if (this.monitoring) session.requestsTotal += 1
+    void this.runEngineRequest(session, action, controller)
+  }
+
+  private async runEngineRequest(
+    session: Session,
+    action: EngineRequestAction,
+    controller: AbortController
+  ): Promise<void> {
+    try {
+      const engine = this.options.engine
+      if (!engine) throw new Error('The hub has no engine bridge configured')
+      const url = new URL(`${action.path}${action.search ?? ''}`, engine.url())
+      const headers = new Headers(action.headers)
+      headers.delete('authorization')
+      headers.delete('host')
+      headers.delete('content-length')
+      headers.set('authorization', `Bearer ${engine.token()}`)
+      const response = await fetch(url, {
+        method: action.method,
+        headers,
+        ...(action.body === undefined ? {} : { body: action.body }),
+        signal: controller.signal,
+      })
+      this.enqueue(session, {
+        type: 'engine.response',
+        id: action.id,
+        status: response.status,
+        statusText: response.statusText,
+        headers: responseHeaders(response.headers),
+      })
+      if (response.body) {
+        const reader = response.body.getReader()
+        try {
+          while (true) {
+            const { done, value } = await reader.read()
+            if (done) break
+            for (const chunk of splitChunks(value)) {
+              this.enqueue(session, {
+                type: 'engine.chunk',
+                id: action.id,
+                data: bytesToBase64Url(chunk),
+              })
+            }
+          }
+        } finally {
+          reader.releaseLock()
+        }
+      }
+      this.enqueue(session, { type: 'engine.end', id: action.id })
+    } catch (cause) {
+      const aborted = controller.signal.aborted
+      this.enqueue(session, {
+        type: 'engine.error',
+        id: action.id,
+        code: aborted ? 'aborted' : 'engine_error',
+        message: aborted ? 'Request aborted' : errorMessage(cause),
+      })
+    } finally {
+      session.engineRequests.delete(action.id)
+    }
   }
 
   private startRequest(session: Session, action: HttpRequestAction): void {
@@ -1483,6 +1625,8 @@ export class Agent {
   private abortSession(session: Session): void {
     for (const controller of session.requests.values()) controller.abort()
     session.requests.clear()
+    for (const controller of session.engineRequests.values()) controller.abort()
+    session.engineRequests.clear()
     session.adapterBridge?.abortAll()
   }
 

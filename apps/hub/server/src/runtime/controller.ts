@@ -22,6 +22,7 @@ import type {
   AdapterInstallMethod,
   AdapterInstallOffer,
   AdapterInstallOfferInput,
+  AgentEngineInfo,
   AgentInfo,
   LocalAccessMode,
   PanelConfigInfo,
@@ -42,7 +43,13 @@ import type {
   PanelRelayUpdate,
   PanelSyncUpdate,
 } from '@clara/shared-types'
-import { baseURL } from '@clara/service-control'
+import {
+  baseURL,
+  clientURL,
+  ensureToken,
+  host as engineBindHost,
+  port as enginePort,
+} from '@clara/service-control'
 import type { WebSocket } from 'ws'
 import { Agent } from '../agent.ts'
 import { createApiApp } from '../api/app.ts'
@@ -97,6 +104,7 @@ import {
   buildLocalAddresses,
   containerAddress,
   dockerBridgeAddresses,
+  formatHost,
   lanAddresses,
   localBindHosts as computeLocalBindHosts,
 } from './addresses.ts'
@@ -229,6 +237,7 @@ export class RuntimeController {
       sync: options.sync,
       traffic: this.trafficMeter,
       adapters: adapterSessions(options.harness),
+      engine: this.engineBridge(),
       transport: 'local',
       policy: {
         canPush: () => this.canPush(),
@@ -318,6 +327,7 @@ export class RuntimeController {
       sync: options.sync,
       traffic: this.trafficMeter,
       adapters: adapterSessions(options.harness),
+      engine: this.engineBridge(),
       transport: 'relay',
       policy: {
         canPush: () => this.canPush(),
@@ -389,6 +399,57 @@ export class RuntimeController {
   /** The Docker bridge URL a same-host container should use, when available. */
   get localContainerUrl(): string | undefined {
     return containerAddress(this.localAddresses)?.url
+  }
+
+  /**
+   * Engine URLs an adapter may try from its own machine. The adapter probes
+   * these and falls back to the sealed hub proxy, so a stale or unreachable
+   * candidate costs a failed health check, not a broken install.
+   */
+  private engineDirectURLs(): string[] {
+    const port = enginePort()
+    const urls = new Set<string>()
+    const add = (value: string | undefined): void => {
+      const host = value
+        ?.trim()
+        .replace(/^\[(.*)\]$/, '$1')
+        .replace(/\/$/, '')
+      if (!host || host === '0.0.0.0' || host === '::') return
+      urls.add(/^https?:\/\//i.test(host) ? host : `http://${formatHost(host)}:${port}`)
+    }
+    const advertised =
+      process.env.CLARA_ENGINE_ADVERTISE_URL?.trim() ||
+      process.env.CLARA_ORCHESTRATION_ADVERTISE_URL?.trim()
+    add(advertised)
+    add('127.0.0.1')
+    add('host.docker.internal')
+    for (const address of this.localAddresses) add(address.host)
+    for (const host of lanAddresses()) add(host)
+    for (const host of dockerBridgeAddresses()) add(host)
+    add(engineBindHost())
+    add(this.options.config.local.host)
+    return [...urls]
+  }
+
+  private engineBridge(): {
+    info: () => AgentEngineInfo
+    url: () => string
+    token: () => string
+  } {
+    return {
+      info: () => {
+        const enabled = this.orchestration.effective
+        return {
+          enabled,
+          direct: this.engineDirectURLs(),
+          proxy: enabled,
+          reachable: enabled,
+          ...(enabled ? { token: ensureToken() } : {}),
+        }
+      },
+      url: () => clientURL(),
+      token: () => ensureToken(),
+    }
   }
 
   get traffic(): TrafficMeter {

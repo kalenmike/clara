@@ -44,6 +44,40 @@ export type AgentEndpoints = {
   engine?: string
 }
 
+/**
+ * How an adapter can reach the orchestration engine. The hub resolves this per
+ * adapter session; browsers never see it. `direct` is a list of engine URLs the
+ * adapter may probe from its own machine. When none answer, `proxy` routes the
+ * engine API over the same sealed adapter session.
+ */
+export type AgentEngineInfo = {
+  enabled: boolean
+  /** Direct engine URLs, most preferred first. */
+  direct?: string[]
+  /** True when the hub can forward engine requests for this adapter. */
+  proxy: boolean
+  /** The hub's own engine health at the time this descriptor was built. */
+  reachable: boolean
+  /** Engine version, when the hub has probed it. */
+  version?: string
+  /**
+   * Engine bearer token for direct access. Sent only to adapters, inside the
+   * sealed session. Proxy mode does not need it on the adapter.
+   */
+  token?: string
+}
+
+/** The shared endpoint file that adapters, plugins, runners, and MCP read. */
+export type EngineEndpointConfig = {
+  enabled: boolean
+  mode: 'direct' | 'proxy' | 'none'
+  url?: string
+  /** A local gateway token in proxy mode; otherwise omitted. */
+  token?: string
+  updatedAt?: number
+  reason?: string
+}
+
 export type AgentInfo = {
   version: string
   protocol: number
@@ -57,6 +91,8 @@ export type AgentInfo = {
   syncIntervalMs?: number
   /** True while the Clara orchestration service is reachable. */
   orchestration?: boolean
+  /** Adapter-only orchestration endpoint descriptor. */
+  engine?: AgentEngineInfo
   /** Controller-side service endpoints; adapters only. */
   endpoints?: AgentEndpoints
 }

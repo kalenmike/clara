@@ -36,6 +36,7 @@ export function registerMetaRoutes(
       // knows how it reached the hub.
       const agent = { ...deps.info }
       delete agent.endpoints
+      delete agent.engine
       const info: ApiInfo = {
         server: {
           version: SERVER_VERSION,
