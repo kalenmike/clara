@@ -90,10 +90,10 @@ describe('install service', () => {
     const resolved = await install.manifest('opencode')
     expect(resolved.manifest.version).toBe(manifest.version)
     expect(install.command(resolved.manifest, 'clara-harness1_code')).toBe(
-      'curl -fsSL https://clara.example/adapters/opencode/install.sh | sh -s -- --pair clara-harness1_code --no-runner'
+      "curl -fsSL https://clara.example/adapters/opencode/install.sh | CLARA_ADAPTER_REGISTRY_URL='https://clara.example/adapters' sh -s -- --pair clara-harness1_code --no-runner"
     )
     expect(install.command(resolved.manifest, 'clara-harness1_code', 'http://127.0.0.1:4096')).toBe(
-      "curl -fsSL https://clara.example/adapters/opencode/install.sh | sh -s -- --pair clara-harness1_code --no-runner '--opencode-url' 'http://127.0.0.1:4096'"
+      "curl -fsSL https://clara.example/adapters/opencode/install.sh | CLARA_ADAPTER_REGISTRY_URL='https://clara.example/adapters' sh -s -- --pair clara-harness1_code --no-runner '--opencode-url' 'http://127.0.0.1:4096'"
     )
     expect(install.deepLink('clara-harness1_code')).toBe('clara://adapter?code=clara-harness1_code')
   })
