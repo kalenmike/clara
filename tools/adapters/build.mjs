@@ -249,6 +249,7 @@ function buildArtifact(kind, target, path) {
   try {
     const binary = join(temp, `clara-adapter-${kind}${target.startsWith('win32') ? '.exe' : ''}`)
     const entry = join(repoRoot, 'apps', 'adapters', kind, 'src', 'index.ts')
+    const publicKey = process.env.CLARA_RELEASE_PUBLIC_KEY?.trim()
     run(
       bun,
       [
@@ -258,6 +259,9 @@ function buildArtifact(kind, target, path) {
         '--minify',
         '--outfile',
         binary,
+        ...(publicKey
+          ? ['--define', `process.env.CLARA_RELEASE_PUBLIC_KEY=${JSON.stringify(publicKey)}`]
+          : []),
         entry,
       ],
       repoRoot

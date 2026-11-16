@@ -47,6 +47,8 @@ Usage:
   clara-adapter-pi serve
   clara-adapter-pi start|stop|logs [--lines <n>]
   clara-adapter-pi status
+  clara-adapter-pi upgrade [--check] [--json]
+  clara-adapter-pi clara <command...> [options]
   clara-adapter-pi verify [--directory <path>] [--write] [--json]
   clara-adapter-pi uninstall [--purge]
   clara-adapter-pi config-path
@@ -68,6 +70,10 @@ Install options:
 The adapter runs the Pi installed on this machine and reads the same session
 store, extensions, skills, prompt templates, and model configuration as the Pi
 CLI. Authentication stays in Pi's own auth.json or environment.
+
+The clara command runs the real Clara CLI. When it is missing, it downloads
+the signed release into the standard version store; the adapter never bundles
+the Clara services.
 
 The adapter connects out to the hub over the same WebSocket and E2EE session
 as the browser. It never listens on an inbound port.`

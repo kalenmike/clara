@@ -63,6 +63,8 @@ Usage:
   clara-adapter-opencode serve
   clara-adapter-opencode start|stop|logs [--lines <n>]
   clara-adapter-opencode status
+  clara-adapter-opencode upgrade [--check] [--json]
+  clara-adapter-opencode clara <command...> [options]
   clara-adapter-opencode verify [--directory <path>] [--write] [--json]
   clara-adapter-opencode uninstall [--purge]
   clara-adapter-opencode config-path
@@ -79,6 +81,10 @@ Install options:
   --no-service             Write config without installing a user service
   --force                  Replace files this installer did not generate
   --dry-run                Print the plan without writing anything
+
+The clara command runs the real Clara CLI. When it is missing, it downloads
+the signed release into the standard version store; the adapter never bundles
+the Clara services.
 
 The adapter connects out to the hub over the same WebSocket and E2EE session
 as the browser. It never listens on an inbound port.`

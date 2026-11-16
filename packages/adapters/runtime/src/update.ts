@@ -181,6 +181,53 @@ export function registerAdapterUpdateRoutes(app: Hono, options: AdapterUpdateTar
   })
 }
 
+export type AdapterUpdateCheck = {
+  current: string
+  latest: string
+  available: boolean
+  platform: string
+  registryUrl: string
+}
+
+/**
+ * Compare the running adapter with its recorded registry without staging
+ * anything. A local or provenance-less install cannot be checked remotely.
+ */
+export async function checkAdapterUpdate(target: AdapterUpdateTarget): Promise<AdapterUpdateCheck> {
+  const root = target.root ?? adapterInstallRoot()
+  if (!root) {
+    throw new AdapterUpdateError(
+      409,
+      'update_unavailable',
+      'This adapter has no install directory to update.'
+    )
+  }
+  if (target.containerized) {
+    throw new AdapterUpdateError(
+      409,
+      'container_adapter',
+      'This adapter runs in a container. Rebuild and recreate the container to upgrade it.'
+    )
+  }
+  const provenance = readAdapterProvenance(root)
+  if (!provenance || provenance.source !== 'registry' || !provenance.registryUrl) {
+    throw new AdapterUpdateError(
+      409,
+      'update_unavailable',
+      'This adapter has no recorded registry. Reinstall it with the current command to enable remote updates.'
+    )
+  }
+  const platform = target.platform ?? detectAdapterTarget()
+  const manifest = await fetchManifest(provenance.registryUrl, target.kind, target.fetchImpl)
+  return {
+    current: target.version,
+    latest: manifest.version,
+    available: compareVersions(manifest.version, target.version) > 0,
+    platform,
+    registryUrl: provenance.registryUrl,
+  }
+}
+
 /**
  * Check the pinned registry, stage the newer build, and hand the restart to a
  * detached supervisor. The old adapter keeps running until every byte has been
