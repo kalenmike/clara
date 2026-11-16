@@ -41,17 +41,15 @@ capability flags, not harness kind.
    and relay are transport values, not architectures. Direct access is a hub
    setting: [panel/network.md](panel/network.md).
 2. Adapter pairing uses the same one-time code, fingerprint, expiry, E2EE
-   handshake, replay guard, and revocation as browser pairing. A relay code
-   carries a ten-minute enrollment grant; the adapter then stores a thirty-day
-   grant that the hub refreshes on each connect.
-3. Included installers place different pieces, all with `--pair <code>`:
-   OpenCode installs the daemon, its binding, and shared-runner config; Claude
-   Code and Pi install only the daemon and a user service. `--no-runner`,
-   `--no-service`, and `--from <path>` select those pieces or a checkout build.
-4. On the target the adapter discovers and authenticates the harness, keeps the
-   harness password in its own `config.json`, translates harness traffic into
-   Clara frames, and samples its own machine for `host.metrics`. The hub never
-   holds the password.
+   handshake, replay guard, and revocation as browser pairing; a relay code
+   carries a ten-minute enrollment grant, then a thirty-day refreshed grant.
+3. Included installers place different pieces, all with `--pair <code>`: OpenCode
+   installs the daemon, its binding, and shared-runner config; Claude Code and Pi
+   install only the daemon and a user service. `--no-runner`, `--no-service`, and
+   `--from <path>` select those pieces or a checkout build.
+4. On the target the adapter discovers and authenticates the harness, keeps its
+   password in `config.json`, translates traffic into Clara frames, and samples
+   its machine for `host.metrics`. The hub never holds the password.
 5. A stable harness identity means reinstall, re-pair, and connection deletion
    reconnect the same sessions and Clara project metadata; **Forget** purges
    that metadata explicitly.
@@ -61,19 +59,21 @@ capability flags, not harness kind.
    actions, while Claude Code and Pi report unsupported and Clara applies its
    own state. A harness bump changes only that adapter.
 7. Adapters are pulled, never shipped. The hub embeds no artifact and runs no
-   install script; it verifies the manifest and returns the script URL, its
-   SHA-256, and the command. Adapter setup is off until the owner enables
-   **Network → Adapter setup**.
+   install script; it verifies the manifest and returns its digest and command.
+   Adapter setup stays off until enabled in **Network → Adapter setup**.
 8. Pi runs the user's own `pi` binary over `pi --mode rpc`, never the SDK, so
-   Clara follows the installed version, authentication, `models.json`,
-   extensions, skills, packages, MCP servers, and project trust. It has one
-   built-in agent, no session move, and no session lock; extension dialogs
-   become Clara permission cards and forms.
-9. A container-backed record describes an adapter already running in Docker.
-   The install reads its version and pairing inside the container and writes an
+   Clara follows its version, authentication, `models.json`, extensions, skills,
+   packages, MCP servers, and project trust. It has one built-in agent, no
+   session move, and no session lock; extension dialogs become Clara forms.
+9. A container-backed record describes an adapter already running in Docker. The
+   install reads its version and pairing inside the container and writes an
    `adapters.json` record with no host path or pid, so status, list, logs, start,
-   stop, and verify address the container. Upgrade asks for an image rebuild,
-   and remove stops the container but keeps its volumes.
+   stop, and verify address the container. Upgrade asks for an image rebuild, and
+   remove stops the container but keeps its volumes.
+10. The adapter reports its hostname, platform, architecture, and container
+    state; the hub keeps the latest report and the pairing's local/SSH/Docker
+    install path, so identical harness kinds stay distinguishable and an offline
+    harness keeps the identity it last reported.
 
 ## Edge cases
 

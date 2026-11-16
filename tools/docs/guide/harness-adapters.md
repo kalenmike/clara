@@ -64,6 +64,15 @@ Adapter codes are only for the installer. To pair a browser, use
 by `clara pair`. An adapter code starts with `clara-harness1_`; a browser
 code starts with `clara1_`.
 
+### Which machine is this harness on?
+
+Each adapter reports the machine it runs on. The panel and the workspace picker
+show that hostname beside the harness name, and add **SSH** or **Docker** when
+the adapter was installed that way. An adapter inside a container reports the
+container hostname and is marked as a container. This tells two adapters of the
+same kind on different machines apart. An offline adapter keeps the last
+hostname it reported.
+
 ### Direct access
 
 By default the hub accepts local adapters on loopback only. To pair a local
