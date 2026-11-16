@@ -16,6 +16,7 @@ function makeWorkspace(input: {
   linked?: boolean
   label?: string
   directory?: string
+  harnessHost?: ClaraProjectWorkspace['harnessHost']
 }): ClaraProjectWorkspace {
   const directory = input.directory ?? `/work/${input.id}`
   return {
@@ -23,6 +24,7 @@ function makeWorkspace(input: {
     harnessID: input.harnessID,
     harnessKind: 'test',
     harnessLabel: input.harnessLabel ?? input.harnessID,
+    ...(input.harnessHost ? { harnessHost: input.harnessHost } : {}),
     online: input.online ?? true,
     active: false,
     directory,
@@ -153,5 +155,27 @@ describe('project helpers', () => {
     expect(labels.get('a2')).toBe('OpenCode (aaa111)')
     expect(labels.get('b1')).toBe('OpenCode (bbb222)')
     expect(labels.get('c1')).toBe('Claude')
+  })
+
+  it('uses the reported host to tell identical harness labels apart', () => {
+    const workspaces = [
+      makeWorkspace({
+        id: 'local',
+        harnessID: 'harness-aaa111',
+        harnessLabel: 'OpenCode',
+        harnessHost: { hostname: 'build-box', installMethod: 'local' },
+      }),
+      makeWorkspace({
+        id: 'remote',
+        harnessID: 'harness-bbb222',
+        harnessLabel: 'OpenCode',
+        harnessHost: { hostname: 'prod', installMethod: 'ssh' },
+      }),
+    ]
+
+    const labels = workspaceHarnessLabels(workspaces)
+
+    expect(labels.get('local')).toBe('OpenCode · build-box')
+    expect(labels.get('remote')).toBe('OpenCode · prod · SSH')
   })
 })

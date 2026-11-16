@@ -1,6 +1,7 @@
 import { useMemo, useState, useSyncExternalStore } from 'react'
 import { CircleAlert, Cpu, Eye, EyeOff } from 'lucide-react'
 import type { ClaraModel } from '@clara/api-contract'
+import { harnessHostSummary } from '@clara/shared-types'
 import { Badge } from '@clara/ui/components/badge'
 import { Button } from '@clara/ui/components/button'
 import {
@@ -149,14 +150,19 @@ export function ModelsCard() {
             </SelectTrigger>
             <SelectContent>
               <SelectItem value={ALL_HARNESSES}>All harnesses</SelectItem>
-              {catalog.harnesses.map((harness) => (
-                <SelectItem key={harness.harnessID} value={harness.harnessID}>
-                  <span className="truncate">{harness.label}</span>
-                  <Badge variant={harness.online ? 'secondary' : 'outline'} className="ml-2">
-                    {harness.online ? 'Online' : 'Offline'}
-                  </Badge>
-                </SelectItem>
-              ))}
+              {catalog.harnesses.map((harness) => {
+                const host = harnessHostSummary(harness.host)
+                return (
+                  <SelectItem key={harness.harnessID} value={harness.harnessID}>
+                    <span className="truncate">
+                      {[harness.label, host].filter(Boolean).join(' · ')}
+                    </span>
+                    <Badge variant={harness.online ? 'secondary' : 'outline'} className="ml-2">
+                      {harness.online ? 'Online' : 'Offline'}
+                    </Badge>
+                  </SelectItem>
+                )
+              })}
             </SelectContent>
           </Select>
           <div

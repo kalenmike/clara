@@ -3,7 +3,7 @@ import { Check, ExternalLink, Globe2, LoaderCircle, Wifi, X } from 'lucide-react
 import { Button } from '@clara/ui/components/button'
 import { Input } from '@clara/ui/components/input'
 import { Select, SelectItem, SelectTrigger, SelectValue } from '@clara/ui/components/select'
-import type { AdapterInstallJob } from '@clara/shared-types'
+import { harnessHostSummary, type AdapterInstallJob } from '@clara/shared-types'
 import { HARNESS_KINDS } from '../lib/harness-pairing.ts'
 import { formatRelative } from '../lib/format.ts'
 import { MANUAL_SSH_HOST, type HarnessPairingFlow } from '../lib/use-harness-pairing.ts'
@@ -524,6 +524,9 @@ function OfferStep({ flow, now }: { flow: HarnessPairingFlow; now: number }) {
             <>
               <Check className="size-3.5" aria-hidden="true" />
               Connected · {flow.connection.label}
+              {harnessHostSummary(flow.connection.host)
+                ? ` on ${harnessHostSummary(flow.connection.host)}`
+                : ''}
             </>
           ) : (
             <>

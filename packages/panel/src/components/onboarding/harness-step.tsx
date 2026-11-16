@@ -1,5 +1,5 @@
 import { Cable } from 'lucide-react'
-import type { PanelSnapshot } from '@clara/shared-types'
+import { harnessHostSummary, type PanelSnapshot } from '@clara/shared-types'
 import { findFeature } from '../../lib/feature-control.ts'
 import { useHarnessPairing } from '../../lib/use-harness-pairing.ts'
 import { HarnessPairContent, HarnessPairFooter } from '../harness-pair-views.tsx'
@@ -63,6 +63,9 @@ export function HarnessStep({
             {snapshot.harnesses.map((harness) => (
               <li key={harness.id} className="flex flex-wrap items-center gap-2 text-[11px]">
                 <span className="font-medium">{harness.label}</span>
+                {harnessHostSummary(harness.host) ? (
+                  <span className="text-muted-foreground">{harnessHostSummary(harness.host)}</span>
+                ) : null}
                 <span className="text-muted-foreground">{harness.kind}</span>
                 <Badge tone={harness.online ? 'success' : 'warning'}>
                   {harness.online ? 'Online' : 'Paired · Offline'}

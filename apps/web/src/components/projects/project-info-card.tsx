@@ -2,6 +2,7 @@ import { useState, type ReactNode } from 'react'
 import { FolderPlus, Loader2, RefreshCw, Star, Trash2 } from 'lucide-react'
 import { toast } from 'sonner'
 import type { ClaraProject, ClaraProjectWorkspace } from '@clara/api-contract'
+import { harnessHostSummary } from '@clara/shared-types'
 import { AddWorkspaceDialog } from '@/components/projects/add-workspace-dialog'
 import { ProjectActionsMenu } from '@/components/projects/project-actions'
 import { ProjectAvatar } from '@/components/projects/project-avatar'
@@ -272,6 +273,7 @@ function WorkspaceRow({
   onDefault: () => void
   onRemove: () => void
 }) {
+  const host = harnessHostSummary(workspace.harnessHost)
   return (
     <div className="flex items-start gap-2 rounded-lg border px-3 py-2">
       <div className="min-w-0 flex-1 space-y-1">
@@ -279,6 +281,7 @@ function WorkspaceRow({
           <Badge variant="secondary" className="text-[10px]">
             {workspace.harnessLabel || workspace.harnessKind || 'Harness'}
           </Badge>
+          {host && <span className="truncate text-[10px] text-muted-foreground">{host}</span>}
           {isDefault && (
             <Badge variant="outline" className="text-[10px]">
               <Star className="size-2.5" /> Default
