@@ -5,6 +5,7 @@ import { isServiceName } from './service/specs.ts'
 import { runLogs, runRestart, runStart, runStatus, runStop } from './commands/service.ts'
 import { runPair } from './commands/pair.ts'
 import { runAdapters } from './commands/adapters.ts'
+import { runDesktopCommand } from './commands/desktop.ts'
 import { runRunnerCommand } from './commands/runner.ts'
 import { runSetupCommand, runUpdateCommand } from './commands/release.ts'
 import { runDoctorCommand, runServiceCommand, runUninstallCommand } from './commands/maintenance.ts'
@@ -135,6 +136,20 @@ export const commands: Command[] = [
       { flags: '--no-start', description: 'prepare only; do not start the stack' },
     ],
     run: runSetupCommand,
+  },
+  {
+    name: 'desktop',
+    summary: 'Install or manage the Clara desktop app',
+    usage:
+      'install [--base-url <url>] [--bin-dir <dir>] [--optional] | status [--json] | uninstall [--purge]',
+    options: [
+      { flags: '--base-url <url>', description: 'release registry to read' },
+      { flags: '--bin-dir <dir>', description: 'directory for the clara-desktop launcher' },
+      { flags: '--optional', description: 'install: skip without error when no build exists' },
+      { flags: '--json', description: 'status: machine-readable output' },
+      { flags: '--purge', description: 'uninstall: also remove pairing and cached app data' },
+    ],
+    run: runDesktopCommand,
   },
   {
     name: 'update',

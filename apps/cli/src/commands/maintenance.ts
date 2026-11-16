@@ -11,6 +11,7 @@ import { adapterListReport } from './adapters.ts'
 import { detectRole, roleLabel } from '../state/role.ts'
 import { serviceInstallGuard } from './role-guard.ts'
 import { releaseBaseUrl } from '../release/manifest.ts'
+import { desktopStatus, readDesktopInstallInfo, uninstallDesktop } from '../release/desktop.ts'
 import {
   defaultBinDir,
   installInfoPath,
@@ -96,6 +97,15 @@ export async function runUninstallCommand(args: readonly string[]): Promise<numb
   }
 
   await stopStack(paths, undefined)
+  if (readDesktopInstallInfo(paths.configDir)) {
+    uninstallDesktop({
+      configDir: paths.configDir,
+      dataDir: paths.dataDir,
+      binDir: defaultBinDir(),
+      purge: parsed.flags.has('purge'),
+      log: (line) => console.log(dim(line)),
+    })
+  }
   const kind = detectService()
   applyPlan(uninstallPlan(kind, serviceOptions()))
   const link = join(defaultBinDir(), process.platform === 'win32' ? 'clara.exe' : 'clara')
@@ -132,6 +142,10 @@ export async function runDoctorCommand(): Promise<number> {
   console.log(`release      ${releaseBaseUrl()}`)
   console.log(`login        ${detectService()}`)
   console.log(`installed    ${current?.version ?? 'source checkout'}`)
+  const desktop = desktopStatus(paths.configDir)
+  console.log(
+    `desktop      ${desktop.installed ? `Clara Desktop ${desktop.version}` : 'not installed'}`
+  )
 
   if (role === 'adapter') {
     const hubs = adapterHubLinks(adapterListReport(paths))
