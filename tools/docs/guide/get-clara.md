@@ -125,6 +125,20 @@ pairing code on the hub host, then install the adapter here:
 clara adapter install opencode --pair <code>
 ```
 
+If the machine has only the adapter, the installer links
+`clara-adapter-opencode` into `~/.local/bin`. Use it for local status and
+updates, or download the full command on demand:
+
+```bash
+clara-adapter-opencode status
+clara-adapter-opencode upgrade --check
+clara-adapter-opencode clara install   # fetch the signed `clara` command
+clara-adapter-opencode clara status
+```
+
+The installer writes the same local record as `clara adapter install`, so
+`clara status` shows the adapter once the command is present.
+
 `clara status` recognizes the adapter-only machine, shows the hub's reported web,
 hub, and engine endpoints, and lists the local adapters. `clara status --open`
 opens the hub's web client when an adapter has reported it.
