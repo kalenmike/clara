@@ -86,6 +86,19 @@ fn adapter_take_link(state: tauri::State<'_, AppState>) -> Option<String> {
     state.pending_link.lock().ok().and_then(|mut link| link.take())
 }
 
+/// Bring the app forward after a native notification is clicked.
+#[tauri::command]
+fn focus_main_window(app: AppHandle) {
+    focus_main(&app);
+}
+
+fn focus_main(app: &AppHandle) {
+    if let Some(window) = app.get_webview_window("main") {
+        let _ = window.show();
+        let _ = window.set_focus();
+    }
+}
+
 fn runtime_file() -> Option<PathBuf> {
     if let Some(configured) = env_path("CLARA_RUNTIME_FILE") {
         return Some(configured);
@@ -205,10 +218,12 @@ pub fn run() {
         .plugin(tauri_plugin_opener::init())
         .plugin(tauri_plugin_shell::init())
         .plugin(tauri_plugin_deep_link::init())
+        .plugin(tauri_plugin_notification::init())
         .invoke_handler(tauri::generate_handler![
             hub_runtime,
             adapter_host_runtime,
-            adapter_take_link
+            adapter_take_link,
+            focus_main_window
         ])
         .setup(|app| {
             app.manage(AppState {
@@ -225,10 +240,7 @@ pub fn run() {
                         *link = Some(url.to_string());
                     }
                     let _ = handle.emit("adapter-link", url.to_string());
-                    if let Some(window) = handle.get_webview_window("main") {
-                        let _ = window.show();
-                        let _ = window.set_focus();
-                    }
+                    focus_main(&handle);
                 }
             });
             #[cfg(any(target_os = "linux", all(debug_assertions, windows)))]

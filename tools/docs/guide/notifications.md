@@ -35,26 +35,29 @@ also restores the volume to 70%.
 
 ## Desktop notifications
 
-Desktop notifications are offered on devices with a mouse or trackpad. Turn the
-switch on and allow the browser permission. **Send test** confirms that the
-operating system actually shows the alert.
+Desktop notifications are offered on devices with a mouse or trackpad. In a
+browser, turn the switch on and allow the browser permission. Clara Desktop uses
+the operating system's notifications and does not ask. **Send test** confirms
+that the operating system actually shows the alert.
 
 Without permission, sounds and the sidebar still work.
 
 ## Push notifications
 
-Push notifications work on every device when Clara is connected through the hub.
-They arrive after the last Clara window is closed.
+Push notifications work in a browser or installed PWA while Clara is connected
+through the hub. They arrive after the last browser window is closed. Clara
+Desktop does not include Web Push, because it has no service worker; its native
+notifications work while the window is running.
 
 - On iPhone and iPad, add Clara to the Home Screen and open it from that icon
   before turning push on.
 - **Send test** proves delivery.
 - Tapping a notification focuses Clara and opens the session.
 
-While a desktop Clara window is visible and recently used, mobile pushes are
-held so the desk is alerted once. The idle window is **Hold phone alerts** in
-Settings and defaults to five minutes. Hiding or minimizing the window, locking
-the screen, or closing the tab releases the phone.
+While a desktop Clara window or the Clara Desktop app is visible and recently
+used, mobile pushes are held so the desk is alerted once. The idle window is
+**Hold phone alerts** in Settings and defaults to five minutes. Hiding or
+minimizing the window, locking the screen, or closing the tab releases the phone.
 
 ## Alerts from orchestration
 
@@ -73,7 +76,8 @@ stay reachable.
 
 ## If alerts do not arrive
 
-- Check the browser permission for the Clara site.
+- Check the browser permission for the Clara site, or the operating system's
+  notification settings for Clara Desktop.
 - On iPhone, confirm Clara was added to the Home Screen and opened from there.
 - Send a test notification from Settings.
 - If push is on but the phone stays quiet, check whether a desktop Clara window

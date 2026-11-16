@@ -166,8 +166,11 @@ available in Clara Desktop only.
 - There is no install prompt, service worker, offline shell, or update banner.
   To update, install a newer build. The reload control on the pairing screen
   reloads the bundled app; it cannot fetch a newer one.
-- Web Push is not available. Inbox sounds and toasts work while the window is
-  running; native desktop notifications are not part of this build yet.
+- Clara uses your operating system's notifications. Turn them on in Settings,
+  and click one to focus the app on that session. Inbox sounds still play while
+  the window is running.
+- Web Push is not available, because the app has no service worker; the push row
+  is hidden. A visible window holds mobile pushes while you are at the desk.
 - Pairing and drafts belong to the app installation. Removing the app removes
   them, so pair again after reinstalling.
 

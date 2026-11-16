@@ -8,6 +8,9 @@ export function useNotificationPermission() {
 
   useEffect(() => {
     const refresh = () => setPermission(readNotificationPermission())
+    // The desktop notification plugin installs its global API during page
+    // startup, so re-read after the first render as well as on focus.
+    refresh()
     window.addEventListener('focus', refresh)
     document.addEventListener('visibilitychange', refresh)
     return () => {
