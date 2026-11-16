@@ -4,11 +4,7 @@ import { createHash } from 'node:crypto'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import test from 'node:test'
-import {
-  fetchLatestAdapterTag,
-  isAdapterTag,
-  versionFromTag,
-} from '../../lib/releases.mjs'
+import { fetchLatestAdapterTag, isAdapterTag, versionFromTag } from '../../lib/releases.mjs'
 import { ADAPTER_KINDS, SUPPORTED_TARGETS, checkRegistry } from '../../adapters/lib/registry.mjs'
 
 const VERSION = '0.1.0-dev+abc1234'

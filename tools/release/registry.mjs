@@ -34,10 +34,10 @@ const apiUrl = readString(
   args['api-url'],
   process.env.GITHUB_API_URL?.trim() || 'https://api.github.com'
 ).replace(/\/+$/, '')
-const baseUrl = readString(
-  args['base-url'],
-  'https://clara.kalenmichael.com/release'
-).replace(/\/+$/, '')
+const baseUrl = readString(args['base-url'], 'https://clara.kalenmichael.com/release').replace(
+  /\/+$/,
+  ''
+)
 const adaptersRegistry = readString(
   args['adapters-registry'],
   'https://clara.kalenmichael.com/adapters'

@@ -82,7 +82,12 @@ if (!offline && manifest) {
   await checkReleases(manifest)
 }
 
-const result = { ok: problems.length === 0, directory, ...(manifest ? { version: manifest.cli?.version } : {}), problems }
+const result = {
+  ok: problems.length === 0,
+  directory,
+  ...(manifest ? { version: manifest.cli?.version } : {}),
+  problems,
+}
 if (args.json) {
   console.log(JSON.stringify(result, null, 2))
 } else {
@@ -170,7 +175,8 @@ function checkInstallers(key) {
   }
   if (existsSync(installPs1Path)) {
     const text = readFileSync(installPs1Path, 'utf8')
-    if (!text.includes(expectedBase)) problems.push('install.ps1 does not use the registry base URL')
+    if (!text.includes(expectedBase))
+      problems.push('install.ps1 does not use the registry base URL')
     if (text.includes('__CLARA_RELEASE_BASE_URL__')) {
       problems.push('install.ps1 still has the base URL placeholder')
     }
@@ -189,7 +195,9 @@ async function checkReleases(value) {
       problems.push(`${cliTag} does not publish a v2 command manifest`)
     } else {
       if (published.cli.version !== value.cli.version) {
-        problems.push(`cli version ${value.cli.version} does not match release ${published.cli.version}`)
+        problems.push(
+          `cli version ${value.cli.version} does not match release ${published.cli.version}`
+        )
       }
       compareArtifacts('cli', value.cli.artifacts, published.cli.artifacts)
     }
@@ -214,7 +222,8 @@ function compareArtifacts(label, local, published) {
       continue
     }
     if (artifact.url !== other.url) problems.push(`${label} ${platform} URL does not match`)
-    if (artifact.sha256 !== other.sha256) problems.push(`${label} ${platform} sha256 does not match`)
+    if (artifact.sha256 !== other.sha256)
+      problems.push(`${label} ${platform} sha256 does not match`)
     if (artifact.size !== other.size) problems.push(`${label} ${platform} size does not match`)
   }
 }
