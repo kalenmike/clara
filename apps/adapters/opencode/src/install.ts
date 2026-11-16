@@ -123,6 +123,47 @@ export function parseInstallOptions(args: string[]): InstallOptions {
   }
 }
 
+const POLICY_PLUGIN_ID = 'clara-policy'
+
+type PolicyPluginState =
+  { status: 'active' } | { status: 'missing' | 'unavailable' } | { status: 'failed'; error: string }
+
+/**
+ * The binding writes the plugin directory into the OpenCode config, which
+ * makes a running server rescan plugins without a restart. Poll briefly so an
+ * install reports whether the Clara tools are actually available.
+ */
+async function waitForPolicyPlugin(timeoutMs = 5_000): Promise<PolicyPluginState> {
+  const connection = readConfig()?.opencode
+  if (!connection) return { status: 'unavailable' }
+  const gateway = new OpenCodeGateway({
+    url: connection.url,
+    username: connection.username,
+    ...(connection.password ? { password: connection.password } : {}),
+  })
+  const probe = await gateway.probe(1_500)
+  if (!probe.ok) return { status: 'unavailable' }
+  const deadline = Date.now() + timeoutMs
+  let reachable = false
+  while (true) {
+    try {
+      const listed = await gateway.client.plugin.list(undefined, {
+        signal: AbortSignal.timeout(2_000),
+      })
+      reachable = true
+      const plugin = listed.data.find((entry) => entry.id === POLICY_PLUGIN_ID)
+      if (plugin?.state.status === 'active') return { status: 'active' }
+      if (plugin?.state.status === 'failed') {
+        return { status: 'failed', error: plugin.state.error }
+      }
+    } catch {
+      // OpenCode may be stopped, or still rebuilding after the config change.
+    }
+    if (Date.now() >= deadline) return { status: reachable ? 'missing' : 'unavailable' }
+    await new Promise((resolve) => setTimeout(resolve, 400))
+  }
+}
+
 /** Install the hub-facing daemon, the OpenCode binding, and the shared runner. */
 export async function installOpenCode(options: InstallOptions): Promise<InstallResult> {
   const actions: string[] = []
@@ -151,6 +192,19 @@ export async function installOpenCode(options: InstallOptions): Promise<InstallR
       dryRun: options.dryRun,
     })
     actions.push(...binding.actions)
+    warnings.push(...binding.warnings)
+    if (!options.dryRun) {
+      const state = await waitForPolicyPlugin()
+      if (state.status === 'active') {
+        actions.push('OpenCode loaded the Clara policy plugin')
+      } else if (state.status === 'failed') {
+        warnings.push(`OpenCode failed to load the Clara policy plugin: ${state.error}`)
+      } else if (state.status === 'missing') {
+        warnings.push(
+          'OpenCode has not loaded the Clara policy plugin; restart OpenCode to load the Clara tools.'
+        )
+      }
+    }
   } else {
     actions.push('skip the OpenCode binding (--no-binding)')
   }

@@ -159,12 +159,16 @@ under a supervisor.
 
 If the installer cannot find OpenCode, it asks for the OpenCode URL, username,
 and password, then retests before saving. The same command also installs the
-Clara orchestration binding and writes the shared runner configuration. A
-downloaded adapter build does not include the runner command: on a hub host,
-`clara adapter install opencode` starts the runner after pairing, or you can run
-`clara runner start` once the engine is running. Use `--no-runner` to skip the
-runner configuration, or `--no-service` to write the config without installing a
-user service.
+Clara orchestration binding: the `clara` agent, the policy plugin, and an entry
+for that plugin in the OpenCode configuration, so a running OpenCode server
+reloads the plugin — and the Clara tools in the `clara` agent — without a
+restart. If OpenCode is reachable but has not loaded the plugin, the install
+prints a warning telling you to restart OpenCode. It also writes the shared
+runner configuration. A downloaded adapter build does not include the runner
+command: on a hub host, `clara adapter install opencode` starts the runner after
+pairing, or you can run `clara runner start` once the engine is running. Use
+`--no-runner` to skip the runner configuration, or `--no-service` to write the
+config without installing a user service.
 
 ### Claude Code
 
@@ -281,7 +285,8 @@ adapter against the harness on its machine. Add `--directory <path>` to inspect
 native sessions for a specific workspace. The
 report probes the harness, lists its models, agents, commands, and skills, and
 reads an existing session, so you can confirm that Clara is using the same
-harness as your terminal.
+harness as your terminal. For OpenCode it also checks that the Clara policy
+plugin — the source of the `clara` agent's Clara tools — is loaded.
 
 The command is read-only by default. Add `--write` to create one scratch session,
 confirm the harness sees it, and remove it again; this is the only mode that
@@ -336,6 +341,9 @@ connection keeps that state; use **Forget** only when you want to discard it.
 - **OpenCode needs a password over SSH** — the one-click install cannot prompt.
   Set `OPENCODE_PASSWORD` on the target, or run the manual installer
   interactively.
+- **The Clara agent has no tools** — OpenCode has not loaded the Clara policy
+  plugin. Rerun the OpenCode adapter install, or restart OpenCode, then check
+  `clara adapter verify opencode`; its `plugin` line should say it is loaded.
 - **The browser rejects a panel code** — adapter codes install the adapter, not
   the browser. Use a browser code from **Clients → Pair Client** or
   `clara pair hub`, then paste that link or code in Clara.

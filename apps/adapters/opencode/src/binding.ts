@@ -21,6 +21,12 @@ import {
   type McpEntry,
 } from './mcp-config.ts'
 import { openCodeAgentSource, openCodePluginRoot } from './package-paths.ts'
+import {
+  installOpenCodePluginEntry,
+  openCodePluginConfigured,
+  readAdapterPluginPath,
+  removeOpenCodePluginEntry,
+} from './plugin-config.ts'
 import { opencodePaths } from './opencode-paths.ts'
 
 export interface OpenCodeInstallInput {
@@ -43,6 +49,7 @@ export interface OpenCodeBindingManifest {
 export interface OpenCodeInstallResult {
   manifest: OpenCodeBindingManifest
   actions: string[]
+  warnings: string[]
 }
 
 function linkPlugin(target: string, link: string, force: boolean, actions: string[]): void {
@@ -78,10 +85,14 @@ function isSymlink(path: string): boolean {
   }
 }
 
-function writeAdapterConfig(path: string, actions: string[]): void {
+function writeAdapterConfig(path: string, pluginPath: string, actions: string[]): void {
   const current = existsSync(path) ? readJson(path) : {}
   const runner = isRecord(current.runner) ? current.runner : {}
-  const next = { ...current, runner: { ...runner, enabled: false } }
+  const next = {
+    ...current,
+    runner: { ...runner, enabled: false },
+    plugin: pluginPath,
+  }
   writeJson(path, next)
   actions.push(`write adapter config ${path} (embedded runner disabled)`)
 }
@@ -97,6 +108,7 @@ export function installOpenCode(input: OpenCodeInstallInput): OpenCodeInstallRes
     throw new Error(`The Clara agent definition is missing at ${agentSource}`)
   }
   const actions: string[] = []
+  const warnings: string[] = []
   const now = input.now ?? Date.now()
 
   if (!input.dryRun) {
@@ -109,7 +121,24 @@ export function installOpenCode(input: OpenCodeInstallInput): OpenCodeInstallRes
       force: input.force,
     })
     actions.push(`${agent.written ? 'write' : 'keep'} agent ${agent.path}`)
-    writeAdapterConfig(paths.adapterConfig, actions)
+    // The plugin directory is versioned, so register the current path in the
+    // OpenCode config. The config save is also what makes a running server
+    // rescan plugins, which keeps upgrades from outliving the loaded plugin.
+    const previous = readAdapterPluginPath(paths.adapterConfig)
+    try {
+      const changed = installOpenCodePluginEntry({
+        configPath: paths.config,
+        pluginPath: target,
+        ...(previous ? { previousPath: previous } : {}),
+      })
+      actions.push(`${changed ? 'register' : 'keep'} plugin ${target} in ${paths.config}`)
+    } catch (error) {
+      warnings.push(
+        `Could not register the Clara policy plugin in ${paths.config}: ${messageOf(error)}. ` +
+          `Add ${target} to its plugins list or restart OpenCode after this install.`
+      )
+    }
+    writeAdapterConfig(paths.adapterConfig, target, actions)
     if (input.mcp) {
       if (!input.mcpEntry) throw new Error('The MCP entry path is unavailable')
       installOpenCodeMcp(paths.config, input.mcpEntry)
@@ -121,6 +150,7 @@ export function installOpenCode(input: OpenCodeInstallInput): OpenCodeInstallRes
   } else {
     actions.push(`link plugin ${paths.plugin} -> ${target}`)
     actions.push(`write agent ${paths.agent}`)
+    actions.push(`register plugin ${target} in ${paths.config}`)
     actions.push(`write adapter config ${paths.adapterConfig} (embedded runner disabled)`)
     if (input.mcp) actions.push(`register MCP bridge in ${paths.config}`)
   }
@@ -134,12 +164,14 @@ export function installOpenCode(input: OpenCodeInstallInput): OpenCodeInstallRes
       installedAt: now,
     },
     actions,
+    warnings,
   }
 }
 
 export function uninstallOpenCode(input: { force: boolean; dryRun?: boolean }): string[] {
   const paths = opencodePaths()
   const actions: string[] = []
+  const registered = readAdapterPluginPath(paths.adapterConfig)
   const link = paths.plugin
   if (isSymlink(link)) {
     if (!input.dryRun) unlinkSync(link)
@@ -153,6 +185,15 @@ export function uninstallOpenCode(input: { force: boolean; dryRun?: boolean }): 
     }
   }
   if (!input.dryRun) {
+    for (const pluginPath of new Set([registered, openCodePluginRoot()])) {
+      try {
+        if (pluginPath && removeOpenCodePluginEntry(paths.config, pluginPath)) {
+          actions.push(`remove plugin ${pluginPath} from ${paths.config}`)
+        }
+      } catch {
+        // Leave an unreadable config untouched; the plugin link is already gone.
+      }
+    }
     const agent = removeAgentFile({
       id: 'clara',
       destination: paths.agent,
@@ -164,8 +205,10 @@ export function uninstallOpenCode(input: { force: boolean; dryRun?: boolean }): 
       const current = readJson(paths.adapterConfig)
       const runner = isRecord(current.runner) ? { ...current.runner } : {}
       delete runner.enabled
+      const next: Record<string, unknown> = { ...current, runner }
+      delete next.plugin
       if (Object.keys(runner).length) {
-        writeJson(paths.adapterConfig, { ...current, runner })
+        writeJson(paths.adapterConfig, next)
       } else if (existsSync(paths.adapterConfig)) {
         unlinkSync(paths.adapterConfig)
       }
@@ -174,6 +217,7 @@ export function uninstallOpenCode(input: { force: boolean; dryRun?: boolean }): 
     if (removeOpenCodeMcp(paths.config)) actions.push(`remove MCP bridge from ${paths.config}`)
   } else {
     actions.push(`remove agent ${paths.agent}`)
+    actions.push(`remove plugin ${registered ?? openCodePluginRoot()} from ${paths.config}`)
     actions.push(`remove adapter config ${paths.adapterConfig}`)
     actions.push(`remove MCP bridge from ${paths.config}`)
   }
@@ -182,6 +226,8 @@ export function uninstallOpenCode(input: { force: boolean; dryRun?: boolean }): 
 
 export interface OpenCodeStatus {
   plugin: 'linked' | 'copied' | 'missing'
+  /** The plugin directory is registered in the OpenCode config. */
+  registered: boolean
   agent: string
   config: boolean
   mcp: boolean
@@ -196,8 +242,13 @@ export function openCodeStatus(): OpenCodeStatus {
       : 'missing'
   return {
     plugin,
+    registered: openCodePluginConfigured(paths.config, openCodePluginRoot()),
     agent: agentStatus(paths.agent, paths.agentManifest),
     config: existsSync(paths.adapterConfig),
     mcp: openCodeMcpConfigured(paths.config),
   }
+}
+
+function messageOf(cause: unknown): string {
+  return cause instanceof Error ? cause.message : String(cause)
 }
