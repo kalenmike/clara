@@ -428,6 +428,9 @@ is no UI for it. See [docs/features/sync.md](docs/features/sync.md).
 | `pnpm check`              | Typecheck + lint + format + Knip + tests                    |
 | `pnpm commitlint`         | Lint the last commit message                                |
 | `pnpm deploy:web`         | Build and deploy the Pages project                          |
+| `pnpm deploy:web:release` | Generate or copy the release registry, then deploy Pages    |
+| `pnpm release:registry`   | Rebuild the signed CLI and desktop registry                 |
+| `pnpm release:check`      | Check the registry against the latest releases              |
 | `pnpm deploy:relay`       | Deploy the Worker and DO migration                          |
 | `pnpm format`             | Prettier write                                              |
 | `pnpm format:check`       | Prettier check                                              |

@@ -92,6 +92,7 @@ clara adapter install <kind> --from <path> # Install a checkout adapter build
 clara pair hub      # Print a browser pairing code
 clara service       # install|uninstall|status|print the per-user login service
 clara doctor|uninstall|version
+clara desktop install|status|uninstall # Install or manage the desktop app
 clara start [default|hub|web|engine] [--build] # Start the core stack or one service
 clara stop [default|hub|web|engine] # Stop the core stack or one service
 clara restart [default|hub|web|engine] [--build] # Restart
@@ -126,6 +127,9 @@ pnpm knip           # Unused files, exports, and dependencies
 pnpm check          # typecheck + lint + format:check + knip + test
 pnpm commitlint     # Lint the last commit message (also enforced on commit)
 pnpm deploy:web     # Pages deploy
+pnpm deploy:web:release # Generate or copy the release registry, then deploy
+pnpm release:registry # Rebuild the signed CLI and desktop registry
+pnpm release:check  # Check the registry against the latest releases
 pnpm deploy:relay   # Worker deploy
 pnpm desktop:dev    # Desktop window with the Vite desktop mode
 pnpm desktop:build  # Native installer for the host OS (needs Rust + WebView dev packages)
