@@ -22,10 +22,16 @@ type BunDatabase = {
  * `pragma()`. Normalize those differences here so callers stay unchanged.
  */
 export function openSqlite(path: string, options: SqliteOpenOptions = {}): SqliteDatabase {
-  const db = new Database(path, {
+  const databaseOptions = {
     ...(options.readonly ? { readonly: true } : {}),
     ...(options.fileMustExist ? { create: false } : {}),
-  }) as unknown as BunDatabase
+  }
+  // Bun 1.4 rejects an empty options object with SQLITE_MISUSE.
+  const db = (
+    Object.keys(databaseOptions).length > 0
+      ? new Database(path, databaseOptions)
+      : new Database(path)
+  ) as unknown as BunDatabase
   return new BunSqliteDatabase(db) as unknown as SqliteDatabase
 }
 
