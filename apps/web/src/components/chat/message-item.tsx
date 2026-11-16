@@ -155,7 +155,11 @@ function MessageRow({
               type="button"
               aria-label={collapsed ? `Expand ${sender} message` : `Collapse ${sender} message`}
               className={cn(
-                'flex min-w-0 flex-col gap-1.5 rounded-lg py-3 pr-12 pl-2 text-left transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring md:pr-9',
+                // A button sizes to its content even when it is a flex
+                // container, so ask for the row explicitly; otherwise the
+                // header and the collapsed hover tint shrink-wrap short
+                // messages.
+                'flex w-full min-w-0 flex-col gap-1.5 rounded-lg py-3 pr-12 pl-2 text-left transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring md:pr-9',
                 collapsed && 'hover:bg-accent/40'
               )}
             >

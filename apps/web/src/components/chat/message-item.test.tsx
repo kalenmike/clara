@@ -45,6 +45,22 @@ describe('user message markdown', () => {
   })
 })
 
+describe('message row layout', () => {
+  it('spans the row with its collapse trigger, not the message text', () => {
+    const html = renderToStaticMarkup(
+      <MessageItem
+        message={userMessage('short')}
+        streaming={false}
+        showInternal={false}
+        collapsed
+        onToggle={() => {}}
+      />
+    )
+
+    expect(html).toMatch(/<button[^>]*class="[^"]*\bw-full\b[^"]*"/)
+  })
+})
+
 describe('user message attachments', () => {
   it('caps a long attachment name instead of widening the transcript', () => {
     const name = `${'a'.repeat(120)}.png`
