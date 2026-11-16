@@ -26,7 +26,7 @@
       "project": ["src/**/*.{ts,tsx,css}"]
     },
     "packages/theme": {
-      "project": ["src/**/*.css"]
+      "project": ["src/**/*.{ts,css,json}"]
     },
     "packages/ui": {
       "project": ["src/**/*.{ts,tsx}"]
