@@ -169,6 +169,7 @@ export function Preview({
     target === ''
       ? result?.selected
       : (otherTargets.find((item) => item.ref === target) ?? result?.selected)
+  const wrapperPreview = pipelineInfo?.kind === 'wrapper'
   const friendly = error ? friendlyError(error, 'host') : null
   const errorCount = diagnostics.filter((item) => item.severity === 'error').length
   const warningCount = diagnostics.filter((item) => item.severity === 'warning').length
@@ -184,8 +185,10 @@ export function Preview({
           <div className="view-kicker">Review</div>
           <h1>Pipeline review</h1>
           <p className="text-xs text-muted-foreground">
-            {pipelineInfo?.description ??
-              'Inspect the compiled graph, select a step, and drive a debug run below.'}
+            {wrapperPreview
+              ? 'Wrapper preview — the routed pipeline runs in the slot at runtime.'
+              : (pipelineInfo?.description ??
+                'Inspect the compiled graph, select a step, and drive a debug run below.')}
           </p>
         </div>
         <div className="flex flex-wrap items-center gap-2">
@@ -200,6 +203,12 @@ export function Preview({
               setCompareOpen(true)
               if (!runs.length) void loadRuns()
             }}
+            disabled={wrapperPreview}
+            title={
+              wrapperPreview
+                ? 'Wrapper previews run with the routed pipeline in place of the slot.'
+                : undefined
+            }
             variant="outline"
           >
             Compare run
@@ -216,7 +225,12 @@ export function Preview({
           <Button
             type="button"
             onClick={() => setDebugSignal((value) => value + 1)}
-            disabled={!compiled}
+            disabled={!compiled || wrapperPreview}
+            title={
+              wrapperPreview
+                ? 'Select a pipeline target to start a run; the wrapper is applied by the router.'
+                : undefined
+            }
             variant="default"
           >
             <Icon name="play" size={14} />
@@ -265,6 +279,11 @@ export function Preview({
               </div>
               <div className="flex flex-wrap items-center gap-1.5 text-[10px] text-muted-foreground">
                 {target === '' ? <span>Entry router — chooses a pipeline at runtime.</span> : null}
+                {wrapperPreview ? (
+                  <span>
+                    Wrapper-only preview — the routed pipeline replaces the slot at runtime.
+                  </span>
+                ) : null}
                 {pipelineInfo?.wrappedBy && target ? (
                   <span title="Explicit targets run directly; preview the entry to see the wrapper.">
                     Routed wrap: <code>{pipelineInfo.wrappedBy}</code>
@@ -335,6 +354,7 @@ export function Preview({
                 packages={result?.catalog?.packages ?? []}
                 selected={selected}
                 onSelect={selectNode}
+                rootBadge={wrapperPreview ? '' : 'Entry'}
               />
             ) : (
               <div className="grid h-full place-items-center p-6 text-sm text-muted-foreground">
@@ -370,6 +390,7 @@ export function Preview({
         focusRunID={focusRunID}
         onFocusHandled={onFocusHandled}
         expandSignal={debugSignal}
+        runnable={!wrapperPreview}
       />
 
       <Dialog open={compareOpen} onOpenChange={setCompareOpen}>

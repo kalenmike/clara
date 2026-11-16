@@ -30,7 +30,7 @@ describe('pipeline preview', () => {
     expect(result.catalog?.packages.map((pkg) => pkg.id)).toContain('software')
   })
 
-  it('shows routed wrappers without making them targets', () => {
+  it('shows routed wrappers and exposes each wrapper as a preview target', () => {
     const result = previewPipeline({ workspace: root })
     const software = result.compiled?.root.routes?.find(
       (route) => route.when === 'software-development'
@@ -51,6 +51,23 @@ describe('pipeline preview', () => {
       'std:session/worktree'
     )
     expect(result.targets.map((target) => target.ref)).not.toContain('std:session')
+    expect(result.targets.find((target) => target.ref === 'std:session/worktree')).toMatchObject({
+      kind: 'wrapper',
+      wrapperId: 'worktree',
+    })
+
+    const wrapper = previewPipeline({ workspace: root, target: 'std:session/worktree' })
+    expect(wrapper.selected?.kind).toBe('wrapper')
+    expect(wrapper.compiled?.root.name).toBe('wrapper:worktree')
+    expect(wrapper.compiled?.root.children?.map((child) => child.name)).toEqual([
+      'start_session',
+      'work',
+      'remove_session',
+    ])
+    const work = wrapper.compiled?.root.children?.find((child) => child.name === 'work')
+    expect(work?.children?.map((child) => child.name)).toEqual(['wrapped', 'reconcile', 'merge'])
+    expect(work?.children?.[0]?.slot).toBe(true)
+    expect(wrapper.diagnostics.some((entry) => entry.code === 'empty_group')).toBe(false)
 
     const explicit = previewPipeline({ workspace: root, target: 'std:software' })
     expect(explicit.selected?.wrappedBy).toBe('std:session/worktree')

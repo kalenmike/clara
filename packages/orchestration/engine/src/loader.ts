@@ -1860,6 +1860,21 @@ function resolveWiring(root: CompiledNode): void {
   resolveContainer(root)
 }
 
+function finishCompiledRun(catalog: LoadedCatalog, root: CompiledNode): CompiledRun {
+  const sources = [...new Set(catalog.packages.flatMap((pkg) => pkg.sources))].sort()
+  const snapshot = JSON.stringify({
+    root,
+    sources,
+    packages: catalog.packages.map((pkg) => ({
+      id: pkg.manifest.id,
+      version: pkg.manifest.version,
+      dir: pkg.dir,
+    })),
+  })
+  const hash = `sha256:${createHash('sha256').update(snapshot).digest('hex')}`
+  return { root, hash, snapshot, sources, catalog }
+}
+
 export function compileRun(catalog: LoadedCatalog, targetRef?: string): CompiledRun {
   const fallbackModel = catalog.root.manifest.defaults?.model
   const fallbackProvider = catalog.root.manifest.defaults?.provider
@@ -1876,18 +1891,35 @@ export function compileRun(catalog: LoadedCatalog, targetRef?: string): Compiled
         { wrapped: false }
       )
   resolveWiring(root)
-  const sources = [...new Set(catalog.packages.flatMap((pkg) => pkg.sources))].sort()
-  const snapshot = JSON.stringify({
-    root,
-    sources,
-    packages: catalog.packages.map((pkg) => ({
-      id: pkg.manifest.id,
-      version: pkg.manifest.version,
-      dir: pkg.dir,
-    })),
-  })
-  const hash = `sha256:${createHash('sha256').update(snapshot).digest('hex')}`
-  return { root, hash, snapshot, sources, catalog }
+  return finishCompiledRun(catalog, root)
+}
+
+/**
+ * Compile a wrapper on its own for Lab previews. The wrapped pipeline is
+ * represented by a visible slot node because the runtime body comes from the
+ * router that selects the wrapper.
+ */
+export function compileWrapperRun(catalog: LoadedCatalog, wrapperRef: string): CompiledRun {
+  const fallbackModel = catalog.root.manifest.defaults?.model
+  const fallbackProvider = catalog.root.manifest.defaults?.provider
+  const root = compileWrapper(
+    catalog.root,
+    wrapperRef,
+    wrapperRef,
+    new Set(),
+    fallbackModel,
+    fallbackProvider,
+    (bodyPath) => ({
+      path: bodyPath,
+      kind: 'pipeline',
+      name: 'wrapped',
+      title: 'Wrapped pipeline',
+      description: 'The routed pipeline runs in this slot at runtime.',
+      slot: true,
+    })
+  )
+  resolveWiring(root)
+  return finishCompiledRun(catalog, root)
 }
 
 export function catalogSummary(catalog: LoadedCatalog) {

@@ -1,7 +1,7 @@
 import type { CompiledNode, PackageEntryInfo } from '../types'
 
 export type ReviewNodeKind =
-  'pipeline' | 'wrapper' | 'group' | 'router' | 'agent' | 'script' | 'recovery'
+  'pipeline' | 'wrapper' | 'group' | 'router' | 'agent' | 'script' | 'recovery' | 'slot'
 
 export interface ReviewNode {
   node: CompiledNode
@@ -56,6 +56,7 @@ const LAYER_GAP_Y = 54
 const PADDING = 40
 
 export function classifyNode(node: CompiledNode): ReviewNodeKind {
+  if (node.slot) return 'slot'
   if (node.recoveryFor) return 'recovery'
   if (node.kind === 'group') {
     return node.name.startsWith('wrapper:') ? 'wrapper' : 'group'

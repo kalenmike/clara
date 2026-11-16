@@ -54,6 +54,7 @@ export function DebugDock({
   focusRunID,
   onFocusHandled,
   expandSignal,
+  runnable = true,
 }: {
   stream: LabStream
   runtimeWorkspace: string
@@ -69,6 +70,7 @@ export function DebugDock({
   focusRunID?: number
   onFocusHandled: () => void
   expandSignal: number
+  runnable?: boolean
 }) {
   const [runs, setRuns] = useState<RunRow[]>([])
   const [selectedID, setSelectedID] = useState<number | undefined>()
@@ -173,6 +175,10 @@ export function DebugDock({
   const friendly = error ? friendlyError(error, 'start') : null
 
   const start = async (): Promise<void> => {
+    if (!runnable) {
+      setError('Wrapper previews do not start runs. Select a pipeline target instead.')
+      return
+    }
     if (!prompt.trim()) {
       setError('Enter a prompt before starting a debug run.')
       return
@@ -309,6 +315,12 @@ export function DebugDock({
                 </p>
               </div>
             </div>
+            {!runnable ? (
+              <Notice tone="info">
+                This is a wrapper preview. Select a pipeline target to start a run; the router
+                inserts that pipeline at the slot.
+              </Notice>
+            ) : null}
             <div className="run-start-row">
               <Textarea
                 ref={promptRef}
@@ -316,11 +328,12 @@ export function DebugDock({
                 value={prompt}
                 onChange={(event) => setPrompt(event.target.value)}
                 placeholder="What should the pipeline work on?"
+                disabled={!runnable}
               />
               <Button
                 type="button"
                 onClick={() => void start()}
-                disabled={busy || !prompt.trim()}
+                disabled={busy || !prompt.trim() || !runnable}
                 className="run-start-button"
                 variant="default"
               >

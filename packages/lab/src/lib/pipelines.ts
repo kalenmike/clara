@@ -5,7 +5,7 @@ export interface PipelineLeaf {
   id: string
   name: string
   description?: string
-  kind: 'entry' | 'pipeline'
+  kind: 'entry' | 'pipeline' | 'wrapper'
 }
 
 export interface PipelinePackage {
@@ -14,6 +14,7 @@ export interface PipelinePackage {
   alias?: string
   entry?: PipelineLeaf
   pipelines: PipelineLeaf[]
+  wrappers: PipelineLeaf[]
   disabled: boolean
 }
 
@@ -60,6 +61,20 @@ export function buildPipelineTree(
       })
     }
 
+    const wrappers: PipelineLeaf[] = []
+    for (const wrapper of pkg.wrappers) {
+      const ref = pkg.namespace ? `${pkg.namespace}:${alias}/${wrapper.id}` : wrapper.id
+      const target = targetByRef.get(ref)
+      if (!target || target.kind !== 'wrapper') continue
+      wrappers.push({
+        ref,
+        id: wrapper.id,
+        name: wrapper.name,
+        ...(wrapper.description ? { description: wrapper.description } : {}),
+        kind: 'wrapper',
+      })
+    }
+
     const list = namespaces.get(namespaceID) ?? []
     list.push({
       id: pkg.id,
@@ -67,7 +82,8 @@ export function buildPipelineTree(
       ...(pkg.alias ? { alias: pkg.alias } : {}),
       ...(entry ? { entry } : {}),
       pipelines,
-      disabled: !entry && pipelines.length === 0,
+      wrappers,
+      disabled: !entry && pipelines.length === 0 && wrappers.length === 0,
     })
     namespaces.set(namespaceID, list)
   }

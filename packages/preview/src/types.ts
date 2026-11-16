@@ -46,7 +46,7 @@ export interface Diagnostic {
   stepPath?: string
 }
 
-export type TargetKind = 'entry' | 'pipeline'
+export type TargetKind = 'entry' | 'pipeline' | 'wrapper'
 
 export interface TargetInfo {
   ref: string
@@ -58,6 +58,8 @@ export interface TargetInfo {
   namespace?: string
   alias?: string
   description?: string
+  /** Wrapper id when `kind` is `wrapper`. */
+  wrapperId?: string
   /** Import-level wrapper applied when a router selects this package. */
   wrappedBy?: string
 }

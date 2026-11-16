@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useState } from 'react'
-import { ChevronDown, ChevronUp } from 'lucide-react'
+import { ChevronDown, ChevronUp, CircleDashed } from 'lucide-react'
 import { Badge, Empty, Field } from './Badge'
 import { computeBudget } from '@clara/policy'
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@clara/ui/components/tabs'
@@ -47,9 +47,10 @@ export function DetailPanel({
       ? 'live'
       : node?.kind === 'script'
         ? 'ok'
-        : node?.kind === 'router'
+        : node?.kind === 'router' || node?.name.startsWith('wrapper:')
           ? 'warn'
           : 'ok'
+  const label = node?.slot ? 'slot' : node?.name.startsWith('wrapper:') ? 'wrapper' : node?.kind
 
   useEffect(() => {
     if (!sourceOverride) return
@@ -73,7 +74,7 @@ export function DetailPanel({
         </span>
         {node ? (
           <>
-            <Badge tone={tone}>{node.kind}</Badge>
+            <Badge tone={tone}>{label}</Badge>
             <span className="min-w-0 truncate text-xs font-semibold">{node.title}</span>
             {node.path && node.path !== node.packageId ? (
               <span className="hidden min-w-0 truncate font-mono text-[10px] text-muted-foreground md:inline">
@@ -110,6 +111,18 @@ export function DetailPanel({
 
       {!collapsed ? (
         <div className="min-h-0 border-t">
+          {node?.slot ? (
+            <div className="flex items-start gap-2 border-b bg-muted/25 px-3 py-2 text-xs text-muted-foreground">
+              <CircleDashed
+                className="mt-0.5 size-3.5 shrink-0 text-indigo-500"
+                aria-hidden="true"
+              />
+              <span>
+                This is a runtime slot. The routed pipeline&apos;s steps run here when the wrapper
+                is applied. Select a pipeline target to inspect its steps.
+              </span>
+            </div>
+          ) : null}
           {node ? (
             <Tabs
               value={tab}

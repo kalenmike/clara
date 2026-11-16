@@ -332,6 +332,11 @@ export interface CompiledNode {
   packageId?: string
   /** Fields declared directly on this node, as opposed to inherited defaults. */
   declared?: string[]
+  /**
+   * Preview-only placeholder for the pipeline a wrapper receives at runtime.
+   * `compileRun` never sets this.
+   */
+  slot?: boolean
 }
 
 export interface CompiledRun {
