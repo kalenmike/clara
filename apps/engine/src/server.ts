@@ -5,7 +5,7 @@ import { dirname, extname, join } from 'node:path'
 import { StreamableHTTPServerTransport } from '@modelcontextprotocol/sdk/server/streamableHttp.js'
 import { createClaraServer } from '@clara/mcp'
 import type { Runtime } from '@clara/orchestration'
-import { bundledStdDir, defaultConfigPath } from '@clara/orchestration/loader'
+import { bundledStdDir, defaultConfigPath, workspaceConfigPath } from '@clara/orchestration/loader'
 import { instanceMode } from '@clara/service-control'
 import { RuntimeBackend } from './backend.ts'
 
@@ -268,10 +268,15 @@ export function createEngineServer(options: EngineServerOptions): EngineServer {
         return
       }
       if (req.method === 'GET' && url.pathname === '/v1/config') {
+        const discovered =
+          !options.configPath && options.workspace
+            ? workspaceConfigPath(options.workspace)
+            : undefined
+        const configPath = options.configPath ?? discovered ?? defaultConfigPath()
         json(res, 200, {
           workspace: options.workspace ?? null,
-          configSource: options.configPath ? 'file' : 'bundled',
-          ...(options.configPath ? { configPath: options.configPath } : {}),
+          configSource: options.configPath ? 'file' : discovered ? 'workspace' : 'bundled',
+          ...(configPath ? { configPath } : {}),
         })
         return
       }

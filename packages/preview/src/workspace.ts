@@ -1,6 +1,6 @@
 import { statSync } from 'node:fs'
 import { basename, dirname, resolve } from 'node:path'
-import { defaultConfigPath } from '@clara/orchestration/loader'
+import { defaultConfigPath, workspaceConfigPath } from '@clara/orchestration/loader'
 import type { ResolvedWorkspace, PreviewInput } from './types.ts'
 
 export class WorkspaceError extends Error {
@@ -25,7 +25,8 @@ function file(path: string): boolean {
  * Resolve the run workspace and the active orchestration config without
  * assuming the service is running. Accepts a workspace directory, a package
  * directory, or a config file. An explicit config file always wins; otherwise
- * the config bundled with the engine is used.
+ * the workspace's own `orchestration/index.yml` applies, and the bundled
+ * engine config is the last fallback. The engine uses the same order.
  */
 export function resolveWorkspace(input: PreviewInput = {}): ResolvedWorkspace {
   const cwd = resolve(input.cwd ?? process.cwd())
@@ -40,7 +41,10 @@ export function resolveWorkspace(input: PreviewInput = {}): ResolvedWorkspace {
   }
 
   if (!configPath) {
-    const configured = input.configPath?.trim() || process.env.CLARA_ORCHESTRATION_CONFIG?.trim()
+    const configured =
+      input.configPath?.trim() ||
+      process.env.CLARA_ENGINE_CONFIG?.trim() ||
+      process.env.CLARA_ORCHESTRATION_CONFIG?.trim()
     if (configured) {
       const candidate = resolve(cwd, configured)
       if (!file(candidate)) {
@@ -52,6 +56,11 @@ export function resolveWorkspace(input: PreviewInput = {}): ResolvedWorkspace {
 
   if (configPath) {
     return { workspace, configPath, configSource: 'file' }
+  }
+
+  const discovered = workspaceConfigPath(workspace)
+  if (discovered) {
+    return { workspace, configPath: discovered, configSource: 'workspace' }
   }
 
   const fallback = defaultConfigPath()

@@ -399,11 +399,34 @@ describe('pipeline preview', () => {
 
 describe('workspace resolution', () => {
   it('uses the bundled default when the workspace has no config', () => {
-    const resolved = resolveWorkspace({ workspace: root })
-    expect(resolved.configPath).toBe(config)
-    expect(resolved.configSource).toBe('bundled')
+    const dir = mkdtempSync(join(tmpdir(), 'clara-devtools-plain-'))
+    try {
+      const resolved = resolveWorkspace({ workspace: dir })
+      expect(resolved.configPath).toBe(config)
+      expect(resolved.configSource).toBe('bundled')
+    } finally {
+      rmSync(dir, { recursive: true, force: true })
+    }
     expect(resolveWorkspace({ workspace: config }).configPath).toBe(config)
     expect(resolveWorkspace({ workspace: config }).configSource).toBe('file')
+  })
+
+  it('uses the workspace config when it exists', () => {
+    const dir = mkdtempSync(join(tmpdir(), 'clara-devtools-workspace-'))
+    try {
+      const workspaceConfig = join(dir, 'orchestration', 'index.yml')
+      mkdirSync(join(dir, 'orchestration'))
+      writeFileSync(
+        workspaceConfig,
+        'id: temp\nname: Temp\nversion: 1\npipelines:\n  main:\n    steps:\n      - name: one\n'
+      )
+      const resolved = resolveWorkspace({ workspace: dir })
+      expect(resolved.workspace).toBe(dir)
+      expect(resolved.configPath).toBe(workspaceConfig)
+      expect(resolved.configSource).toBe('workspace')
+    } finally {
+      rmSync(dir, { recursive: true, force: true })
+    }
   })
 
   it('prefers an explicit config path', () => {
@@ -415,6 +438,27 @@ describe('workspace resolution', () => {
         'id: temp\nname: Temp\nversion: 1\npipelines:\n  main:\n    steps:\n      - name: one\n'
       )
       const resolved = resolveWorkspace({ workspace: root, configPath: explicit })
+      expect(resolved.configPath).toBe(explicit)
+      expect(resolved.configSource).toBe('file')
+    } finally {
+      rmSync(dir, { recursive: true, force: true })
+    }
+  })
+
+  it('prefers an explicit config path over the workspace config', () => {
+    const dir = mkdtempSync(join(tmpdir(), 'clara-devtools-workspace-explicit-'))
+    try {
+      mkdirSync(join(dir, 'orchestration'))
+      writeFileSync(
+        join(dir, 'orchestration', 'index.yml'),
+        'id: workspace\nname: Workspace\nversion: 1\npipelines:\n  main:\n    steps:\n      - name: one\n'
+      )
+      const explicit = join(dir, 'explicit.yml')
+      writeFileSync(
+        explicit,
+        'id: explicit\nname: Explicit\nversion: 1\npipelines:\n  main:\n    steps:\n      - name: one\n'
+      )
+      const resolved = resolveWorkspace({ workspace: dir, configPath: explicit })
       expect(resolved.configPath).toBe(explicit)
       expect(resolved.configSource).toBe('file')
     } finally {

@@ -16,7 +16,7 @@ export interface AdapterInfo {
 export interface ResolvedWorkspace {
   workspace: string
   configPath: string
-  configSource: 'bundled' | 'file'
+  configSource: 'bundled' | 'file' | 'workspace'
 }
 
 export interface ModelOption {
