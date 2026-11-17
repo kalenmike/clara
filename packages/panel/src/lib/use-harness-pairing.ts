@@ -66,6 +66,7 @@ export type HarnessPairingFlow = {
   dockerError?: string
   installEnabled: boolean
   installAvailable: boolean
+  autoInstall: boolean
   canContinue: boolean
   canInstall: boolean
   adapterHost: boolean
@@ -335,6 +336,10 @@ export function useHarnessPairing({
     targetReady &&
     job?.state !== 'running'
 
+  // Creating the code also starts the install when this surface can run it.
+  const autoInstall =
+    Boolean(host && manifest) && installEnabled && !snapshot.controls.stopped && targetReady
+
   const notice = snapshot.controls.stopped
     ? 'External connections are off. Turn them on from Overview before pairing an adapter.'
     : !installEnabled
@@ -521,7 +526,7 @@ export function useHarnessPairing({
       setJob(undefined)
       setConnection(undefined)
       onChangedRef.current()
-      await startInstall(next)
+      if (autoInstall) await startInstall(next)
     } catch (cause) {
       setError(cause instanceof Error ? cause.message : String(cause))
     } finally {
@@ -599,6 +604,7 @@ export function useHarnessPairing({
     ...(dockerError ? { dockerError } : {}),
     installEnabled,
     installAvailable,
+    autoInstall,
     canContinue,
     canInstall,
     adapterHost: Boolean(host),

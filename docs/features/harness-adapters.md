@@ -20,9 +20,9 @@ browser client, then speaks the Clara Harness Protocol. The hub routes typed
 2. **Advanced** holds **Harness location** and **Connection mode**, defaulting to
    **Remote host** over **Relay**. Choose **Local machine** for this computer or
    Docker, and **Direct** for a reachable WebSocket address.
-3. The hub returns a one-time code, install command, and `clara://adapter` link
-   in a collapsed **Pairing details** section; it never runs the install. Clara
-   Desktop starts automatically; a browser user runs the copied command.
+3. The hub returns a one-time code, install command, and `clara://adapter`
+   link in a collapsed **Pairing details**; it never runs the install. Clara
+   Desktop streams the log below the install button; a browser runs the command.
 4. The script verifies and installs the archive, runs the installer, starts the
    adapter, and waits for an authenticated hub link.
 5. The installer discovers the harness: OpenCode from flags/env/`service.json`,

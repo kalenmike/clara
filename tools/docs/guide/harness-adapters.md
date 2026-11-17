@@ -39,14 +39,15 @@ Inside the Clara repository you can use
    containers** or **All interfaces**. The hub never blocks a pairing because
    it cannot verify the route; it warns instead, and you can enter the address
    under **WebSocket URL**.
-4. Create the code. Clara Desktop starts the install automatically and shows
-   **Installing via SSH**, **Installing on this computer**, or **Installing in
-   Docker** while it runs. The desktop app uses your SSH agent and Docker socket;
-   your keys never go to the hub. Unlock your key in the keychain/agent first,
-   because there is no password prompt.
-5. If you are using the website only, open **Pairing details**, copy the command,
-   and run it on the machine that hosts the harness. For a container, run it
-   inside the container. The registry command downloads the adapter for that
+4. Choose **Pair Now** when Clara Desktop can run the install. It starts
+   automatically and shows **Installing via SSH**, **Installing on this
+   computer**, or **Installing in Docker** while it runs, with the streamed
+   install log below the button. The desktop app uses your SSH agent and Docker
+   socket; your keys never go to the hub. Unlock your key in the keychain/agent
+   first, because there is no password prompt.
+5. Otherwise choose **Generate Code** and open **Pairing details** to copy the
+   command. Run it on the machine that hosts the harness. For a container, run
+   it inside the container. The registry command downloads the adapter for that
    machine; the repository command works from a Clara checkout.
 6. Turn on adapter setup first in **Network → Adapter setup** if the code
    cannot be created. A hosted or Docker-hosted hub does not need SSH or Docker
