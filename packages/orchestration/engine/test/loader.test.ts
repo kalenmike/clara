@@ -650,6 +650,116 @@ describe('package loader', () => {
     }
   })
 
+  it('reads model and provider from router frontmatter', () => {
+    const dir = mkdtempSync(join(tmpdir(), 'clara-router-model-'))
+    try {
+      mkdirSync(join(dir, 'routers'))
+      writeFileSync(
+        join(dir, 'index.yml'),
+        [
+          'id: temp',
+          'name: Temp',
+          'version: 1',
+          'defaults:',
+          '  provider: package-provider',
+          '  model: package-model',
+          'entry:',
+          '  router: classifier',
+          'router:',
+          '  id: classifier',
+          '  path: ./routers/classifier.md',
+          '  routes:',
+          '    - when: one',
+          '      criteria: first option.',
+          '      run: one',
+          'pipelines:',
+          '  one:',
+          '    steps:',
+          '      - name: do_it',
+          '        type: agent',
+        ].join('\n')
+      )
+      writeFileSync(
+        join(dir, 'routers', 'classifier.md'),
+        [
+          '---',
+          'model: router-model',
+          'provider: router-provider',
+          '---',
+          '# Temp router',
+          '',
+          'Pick one.',
+        ].join('\n')
+      )
+      const run = compileRun(loadCatalog(dir))
+      expect(run.root.kind).toBe('router')
+      expect(run.root.model).toBe('router-model')
+      expect(run.root.provider).toBe('router-provider')
+    } finally {
+      rmSync(dir, { recursive: true, force: true })
+    }
+  })
+
+  it('keeps step and pipeline models ahead of router frontmatter', () => {
+    const dir = mkdtempSync(join(tmpdir(), 'clara-router-model-order-'))
+    try {
+      mkdirSync(join(dir, 'routers'))
+      writeFileSync(
+        join(dir, 'index.yml'),
+        [
+          'id: temp',
+          'name: Temp',
+          'version: 1',
+          'entry: routed',
+          'pipelines:',
+          '  routed:',
+          '    default_provider: pipeline-provider',
+          '    default_model: pipeline-model',
+          '    steps:',
+          '      - name: classify',
+          '        type: router',
+          '        path: ./routers/classifier.md',
+          '  stepped:',
+          '    steps:',
+          '      - name: classify',
+          '        type: router',
+          '        path: ./routers/classifier.md',
+          '        model: step-model',
+          '        provider: step-provider',
+          '  dest:',
+          '    steps:',
+          '      - name: done',
+          '        type: agent',
+        ].join('\n')
+      )
+      writeFileSync(
+        join(dir, 'routers', 'classifier.md'),
+        [
+          '---',
+          'model: router-model',
+          'provider: router-provider',
+          'routes:',
+          '  - when: one',
+          '    criteria: first option.',
+          '    run: dest',
+          '---',
+          '# Temp router',
+          '',
+          'Pick one.',
+        ].join('\n')
+      )
+      const catalog = loadCatalog(dir)
+      const routed = compileRun(catalog, 'routed').root.children?.[0]
+      expect(routed?.model).toBe('pipeline-model')
+      expect(routed?.provider).toBe('pipeline-provider')
+      const stepped = compileRun(catalog, 'stepped').root.children?.[0]
+      expect(stepped?.model).toBe('step-model')
+      expect(stepped?.provider).toBe('step-provider')
+    } finally {
+      rmSync(dir, { recursive: true, force: true })
+    }
+  })
+
   it('compiles a pipeline and fails closed on a missing import', () => {
     const catalog = loadCatalog(config)
     expect(compileRun(catalog, 'std:maintenance/rebuild').root.kind).toBe('pipeline')

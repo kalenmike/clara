@@ -621,6 +621,8 @@ function loadRouterFile(path: string): RouterDefinition {
   return {
     id,
     ...(str(data.description) ? { description: String(data.description) } : {}),
+    ...(str(data.model) ? { model: String(data.model) } : {}),
+    ...(str(data.provider) ? { provider: String(data.provider) } : {}),
     ...(str(data.strategy)
       ? { strategy: String(data.strategy) as RouterDefinition['strategy'] }
       : {}),
@@ -1198,7 +1200,15 @@ const PIPELINE_FIELDS = [
   'notification',
 ] as const
 
-const ROUTER_FIELDS = ['strategy', 'policy', 'limits', 'enforcement', 'requires'] as const
+const ROUTER_FIELDS = [
+  'model',
+  'provider',
+  'strategy',
+  'policy',
+  'limits',
+  'enforcement',
+  'requires',
+] as const
 
 function declaredFields(raw: Record<string, unknown>, keys: readonly string[]): string[] {
   return keys.filter((key) => raw[key] !== undefined)
@@ -1346,11 +1356,13 @@ function compileStep(
   }
   const resolvedAgent = step.type === 'agent' ? agentPrompt(pkg, step) : undefined
   const resolvedScript = step.type === 'script' ? scriptSpec(pkg, step, path) : undefined
+  const resolvedRouter = step.type === 'router' ? routerForStep(pkg, step, path) : undefined
   const model =
     step.type === 'script'
       ? undefined
       : (step.model ??
         inheritedModel ??
+        resolvedRouter?.model ??
         resolvedAgent?.agent?.model ??
         pkg.manifest.defaults?.model ??
         fallbackModel)
@@ -1359,6 +1371,7 @@ function compileStep(
       ? undefined
       : (step.provider ??
         inheritedProvider ??
+        resolvedRouter?.provider ??
         resolvedAgent?.agent?.provider ??
         pkg.manifest.defaults?.provider ??
         fallbackProvider)
@@ -1512,7 +1525,7 @@ function compileStep(
     }
   }
 
-  const router = routerForStep(pkg, step, path)
+  const router = resolvedRouter ?? routerForStep(pkg, step, path)
   const routerKey = `${pkg.dir}#router:${router.id}`
   if (stack.has(routerKey)) throw new OrchestrationError(path, `router cycle at ${router.id}`)
   stack.add(routerKey)
@@ -1615,8 +1628,8 @@ function compileEntry(
     const routerKey = `${pkg.dir}#router:${router.id}`
     if (stack.has(routerKey)) throw new OrchestrationError(path, `router cycle at ${router.id}`)
     stack.add(routerKey)
-    const model = pkg.manifest.defaults?.model ?? fallbackModel
-    const provider = pkg.manifest.defaults?.provider ?? fallbackProvider
+    const model = router.model ?? pkg.manifest.defaults?.model ?? fallbackModel
+    const provider = router.provider ?? pkg.manifest.defaults?.provider ?? fallbackProvider
     const routes = router.routes.map((route) => ({
       ...route,
       target: compileRef(pkg, route.run, `${path}/route-${route.when}`, stack, model, provider, {
