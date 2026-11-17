@@ -27,15 +27,17 @@ namespace. A missing document is a diagnostic warning, not a load error.
 
 ## Routers
 
-Router documents add `strategy`, `routes`, `enforcement`, and `requires`. The
-body carries `[ROUTES]` or gets the rendered route list appended under
-`## Routes`; the manifest `router` block can supplement or replace the file's
-values. Every route needs `when` and `run`, and `criteria` (or legacy
-`description`) tells the classifier when to choose it.
+Router documents add `model`, `provider`, `strategy`, `routes`, `enforcement`,
+and `requires`. The body carries `[ROUTES]` or gets the rendered route list
+appended under `## Routes`; the manifest `router` block can supplement or
+replace the file's values. Every route needs `when` and `run`, and `criteria`
+(or legacy `description`) tells the classifier when to choose it.
 
 ```markdown
 ---
 id: classifier
+model: gpt-5.4-nano
+provider: opencode-go
 strategy: llm_classify
 ---
 
@@ -43,6 +45,10 @@ Pick exactly one route.
 
 [ROUTES]
 ```
+
+A router document's model and provider are less specific than a step or pipeline
+override and more specific than package and workspace defaults. This lets a
+classifier use a cheap model while the pipeline keeps the workspace default.
 
 A router returns exactly one `when` key. An unknown key or a missing control
 call fails the step; prose is never inferred as a route. A router row stays done
