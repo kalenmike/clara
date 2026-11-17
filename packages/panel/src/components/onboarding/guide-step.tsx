@@ -17,6 +17,7 @@ const TAB_GUIDE = [
 
 export function GuideStep({ snapshot, setup }: { snapshot: PanelSnapshot; setup: SetupState }) {
   const webUrl = snapshot.config.pairingBaseUrl.value.replace(/\/+$/, '')
+  const pairedHarnesses = snapshot.harnesses.filter((harness) => !harness.forgottenAt).length
   const pathLabel =
     setup.path === 'relay'
       ? 'Remote via relay'
@@ -39,7 +40,7 @@ export function GuideStep({ snapshot, setup }: { snapshot: PanelSnapshot; setup:
           <div>
             <dt className="text-muted-foreground">Harness</dt>
             <dd className="font-medium">
-              {snapshot.harnesses.length > 0 ? `${snapshot.harnesses.length} paired` : 'Not paired'}
+              {pairedHarnesses > 0 ? `${pairedHarnesses} paired` : 'Not paired'}
             </dd>
           </div>
           <div>

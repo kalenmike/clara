@@ -62,7 +62,8 @@ export function buildSetupState(
   const relayReady = snapshot?.relay.configured === true && snapshot.relay.status === 'online'
   const webUrlReady = isWebUrlReady(snapshot?.config.pairingBaseUrl.value ?? '', path)
   const connectionReady = path === 'local' || (path === 'relay' && relayReady && webUrlReady)
-  const harnessReady = (snapshot?.harnesses.length ?? 0) > 0
+  const harnessReady =
+    (snapshot?.harnesses.filter((harness) => !harness.forgottenAt).length ?? 0) > 0
   const clientReady = snapshot?.devices.some((device) => device.revokedAt === undefined) === true
   const requiredDone = connectionReady && harnessReady && clientReady
   const done = [connectionReady, harnessReady, clientReady].filter(Boolean).length

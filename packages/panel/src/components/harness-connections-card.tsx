@@ -10,7 +10,7 @@ import {
 } from '@clara/shared-types'
 import { formatRelative, formatTimestamp, shortId } from '../lib/format.ts'
 import { harnessState } from '../lib/harness-state.ts'
-import { adapterRepairCommand, fetchInstallInfo, latestAdapterVersion } from '../lib/install.ts'
+import { adapterRepairCommand, adapterUpdate, fetchInstallInfo } from '../lib/install.ts'
 import { deletePanel, postPanel } from '../lib/panel-api.ts'
 import { PEEK_MASK } from '../lib/peek.ts'
 import { usePeek } from '../lib/peek-context.tsx'
@@ -30,10 +30,7 @@ export function HarnessConnectionsCard({
 }) {
   const { masked, redact } = usePeek()
   const [pending, setPending] = useState<string>()
-  const [removeTarget, setRemoveTarget] = useState<{
-    connection: PanelHarness
-    forget: boolean
-  } | null>(null)
+  const [forgetTarget, setForgetTarget] = useState<PanelHarness | null>(null)
   const [error, setError] = useState<string>()
   const [test, setTest] = useState<PanelHarnessTestResult>()
   const [installInfo, setInstallInfo] = useState<PanelInstallInfo>()
@@ -137,26 +134,37 @@ export function HarnessConnectionsCard({
     }
   }
 
-  const remove = async (connection: PanelHarness, forget: boolean) => {
-    const action = forget ? 'forget' : 'delete'
-    setPending(`${action}:${connection.id}`)
+  const forget = async (connection: PanelHarness) => {
+    setPending(`forget:${connection.id}`)
     setError(undefined)
     try {
-      if (forget) {
-        await postPanel(`/panel/api/v1/harnesses/${connection.id}/forget`, {})
-      } else {
-        await deletePanel(`/panel/api/v1/harnesses/${connection.id}`)
-      }
+      await postPanel(`/panel/api/v1/harnesses/${connection.id}/forget`, {})
       onChanged()
     } catch (cause) {
       setError(cause instanceof Error ? cause.message : String(cause))
     } finally {
       setPending(undefined)
-      setRemoveTarget(null)
+      setForgetTarget(null)
+    }
+  }
+
+  const purge = async (connection: PanelHarness) => {
+    setPending(`delete:${connection.id}`)
+    setError(undefined)
+    try {
+      await deletePanel(`/panel/api/v1/harnesses/${connection.id}`)
+      onChanged()
+    } catch (cause) {
+      setError(cause instanceof Error ? cause.message : String(cause))
+    } finally {
+      setPending(undefined)
     }
   }
 
   const repair = updateFailure ? adapterRepairCommand(installInfo, updateFailure.kind) : undefined
+  const active = harnesses.filter((connection) => !connection.forgottenAt)
+  const forgotten = harnesses.filter((connection) => connection.forgottenAt)
+  const ordered = [...active, ...forgotten]
 
   return (
     <CollapsibleCard
@@ -164,7 +172,10 @@ export function HarnessConnectionsCard({
       description="Adapters enrolled with their own credential"
       icon={<Cable className="size-4" aria-hidden="true" />}
       action={
-        <Badge tone={harnesses.length > 0 ? 'info' : 'neutral'}>{harnesses.length} paired</Badge>
+        <span className="inline-flex items-center gap-1">
+          <Badge tone={active.length > 0 ? 'info' : 'neutral'}>{active.length} paired</Badge>
+          {forgotten.length > 0 ? <Badge tone="neutral">{forgotten.length} forgotten</Badge> : null}
+        </span>
       }
       defaultExpanded
     >
@@ -200,7 +211,7 @@ export function HarnessConnectionsCard({
           </EmptyState>
         ) : (
           <div className="-mx-1 overflow-x-auto">
-            <table className="w-full min-w-[1240px] border-collapse text-left text-xs">
+            <table className="w-full min-w-[960px] border-collapse text-left text-xs">
               <thead>
                 <tr className="text-[10px] uppercase tracking-wide text-muted-foreground">
                   <th scope="col" className="px-1 py-2 font-medium">
@@ -213,9 +224,6 @@ export function HarnessConnectionsCard({
                     Fingerprint
                   </th>
                   <th scope="col" className="px-1 py-2 font-medium">
-                    Transport
-                  </th>
-                  <th scope="col" className="px-1 py-2 font-medium">
                     Status
                   </th>
                   <th scope="col" className="px-1 py-2 font-medium">
@@ -224,44 +232,51 @@ export function HarnessConnectionsCard({
                   <th scope="col" className="px-1 py-2 font-medium">
                     Last seen
                   </th>
-                  <th scope="col" className="px-1 py-2 font-medium">
-                    Last test
-                  </th>
                   <th scope="col" className="px-1 py-2 text-right font-medium">
                     Actions
                   </th>
                 </tr>
               </thead>
               <tbody>
-                {harnesses.map((connection) => {
+                {ordered.map((connection) => {
                   const status = harnessState(connection, enabled)
-                  const latest = latestAdapterVersion(installInfo, connection.kind)
+                  const published = adapterUpdate(installInfo, connection)
+                  const latest = published.latest
                   const updating = update?.id === connection.id
                   const updateAvailable =
                     enabled &&
                     installInfo?.available === true &&
                     connection.online &&
-                    Boolean(connection.adapterVersion) &&
-                    Boolean(latest) &&
-                    latest !== connection.adapterVersion &&
-                    connection.host?.installMethod !== 'docker' &&
-                    connection.host?.container === undefined
+                    !connection.forgottenAt &&
+                    published.available
                   return (
-                    <tr key={connection.id} className="border-t border-border">
+                    <tr
+                      key={connection.id}
+                      className={`border-t border-border ${
+                        connection.forgottenAt ? 'text-muted-foreground' : ''
+                      }`}
+                    >
                       <td className="px-1 py-2">
-                        <div className="font-medium">{connection.label}</div>
-                        <div className="font-mono text-[10px] text-muted-foreground">
-                          {connection.kind} · {masked ? PEEK_MASK : shortId(connection.harnessId)}
+                        <div className="font-medium">
+                          {connection.label?.trim() || connection.kind}
                           {connection.harnessVersion ? ` · ${connection.harnessVersion}` : ''}
+                        </div>
+                        <div className="font-mono text-[10px] text-muted-foreground">
+                          {masked ? PEEK_MASK : shortId(connection.harnessId)}
                           {connection.adapterVersion
                             ? ` · adapter v${connection.adapterVersion}`
                             : ''}
-                          {latest && latest !== connection.adapterVersion
-                            ? ` · update v${latest}`
-                            : ''}
+                          {updateAvailable && latest ? ` · update v${latest}` : ''}
                         </div>
                       </td>
-                      <td className="px-1 py-2">{harnessHostSummary(connection.host) ?? '—'}</td>
+                      <td className="px-1 py-2">
+                        <div>{harnessHostSummary(connection.host) ?? '—'}</div>
+                        <div className="mt-1">
+                          <Badge tone={connection.transport === 'local' ? 'info' : 'neutral'}>
+                            {connection.transport}
+                          </Badge>
+                        </div>
+                      </td>
                       <td
                         className="px-1 py-2 font-mono"
                         title={masked ? undefined : connection.fingerprint}
@@ -271,11 +286,6 @@ export function HarnessConnectionsCard({
                             ? PEEK_MASK
                             : connection.fingerprint
                           : '—'}
-                      </td>
-                      <td className="px-1 py-2">
-                        <Badge tone={connection.transport === 'local' ? 'info' : 'neutral'}>
-                          {connection.transport}
-                        </Badge>
                       </td>
                       <td className="px-1 py-2">
                         <Badge tone={status.tone}>{status.label}</Badge>
@@ -296,78 +306,58 @@ export function HarnessConnectionsCard({
                           ? formatRelative(connection.lastSeenAt, now)
                           : 'Never'}
                       </td>
-                      <td
-                        className="px-1 py-2 text-foreground"
-                        title={
-                          connection.lastTestAt ? formatTimestamp(connection.lastTestAt) : undefined
-                        }
-                      >
-                        {connection.lastTestAt ? (
-                          <>
-                            {formatRelative(connection.lastTestAt, now)} ·{' '}
-                            <span
-                              className={
-                                connection.lastTestOk ? '' : 'text-red-600 dark:text-red-400'
-                              }
-                            >
-                              {connection.lastTestOk
-                                ? 'ok'
-                                : redact(connection.lastTestError ?? 'failed')}
-                            </span>
-                          </>
-                        ) : (
-                          'Never'
-                        )}
-                      </td>
                       <td className="px-1 py-2 text-right">
-                        <div className="inline-flex flex-wrap items-center justify-end gap-1">
-                          {updateAvailable || updating ? (
-                            <Button
-                              type="button"
-                              variant="outline"
-                              size="xs"
-                              onClick={() =>
-                                latest ? setUpdateTarget({ connection, to: latest }) : undefined
-                              }
-                              disabled={pending !== undefined || updating || !latest}
-                            >
-                              <RefreshCw
-                                className={`size-3 ${updating ? 'animate-spin' : ''}`}
-                                aria-hidden="true"
-                              />
-                              {updating ? 'Updating…' : 'Update'}
-                            </Button>
-                          ) : null}
-                          <Button
-                            type="button"
-                            variant="outline"
-                            size="xs"
-                            onClick={() => void runTest(connection)}
-                            disabled={pending !== undefined || updating}
-                          >
-                            <FlaskConical className="size-3" aria-hidden="true" />
-                            {pending === `test:${connection.id}` ? 'Testing…' : 'Test'}
-                          </Button>
+                        {connection.forgottenAt ? (
                           <Button
                             type="button"
                             variant="destructive"
                             size="xs"
-                            onClick={() => setRemoveTarget({ connection, forget: false })}
-                            disabled={pending !== undefined || updating}
+                            onClick={() => void purge(connection)}
+                            disabled={pending !== undefined}
                           >
                             <Trash2 className="size-3" aria-hidden="true" />
                             {pending === `delete:${connection.id}` ? 'Deleting…' : 'Delete'}
                           </Button>
-                          <Button
-                            type="button"
-                            variant="outline"
-                            size="xs"
-                            onClick={() => setRemoveTarget({ connection, forget: true })}
-                            disabled={pending !== undefined || updating}
-                          >
-                            {pending === `forget:${connection.id}` ? 'Forgetting…' : 'Forget'}
-                          </Button>
-                        </div>
+                        ) : (
+                          <div className="inline-flex flex-wrap items-center justify-end gap-1">
+                            {updateAvailable || updating ? (
+                              <Button
+                                type="button"
+                                variant="outline"
+                                size="xs"
+                                onClick={() =>
+                                  latest ? setUpdateTarget({ connection, to: latest }) : undefined
+                                }
+                                disabled={pending !== undefined || updating || !latest}
+                              >
+                                <RefreshCw
+                                  className={`size-3 ${updating ? 'animate-spin' : ''}`}
+                                  aria-hidden="true"
+                                />
+                                {updating ? 'Updating…' : 'Update'}
+                              </Button>
+                            ) : null}
+                            <Button
+                              type="button"
+                              variant="outline"
+                              size="xs"
+                              onClick={() => void runTest(connection)}
+                              disabled={pending !== undefined || updating}
+                            >
+                              <FlaskConical className="size-3" aria-hidden="true" />
+                              {pending === `test:${connection.id}` ? 'Testing…' : 'Test'}
+                            </Button>
+                            <Button
+                              type="button"
+                              variant="destructive"
+                              size="xs"
+                              onClick={() => setForgetTarget(connection)}
+                              disabled={pending !== undefined || updating}
+                            >
+                              {pending === `forget:${connection.id}` ? 'Forgetting…' : 'Forget'}
+                            </Button>
+                          </div>
+                        )}
                       </td>
                     </tr>
                   )
@@ -377,38 +367,25 @@ export function HarnessConnectionsCard({
           </div>
         )}
         <p className="pt-2 text-xs text-muted-foreground">
-          Every paired harness is independent; a workspace chooses the one it belongs to. Delete
-          removes the connection but keeps the adapter identity and Clara metadata; Forget purges
-          both. Test probes that adapter's harness endpoint. Update asks the connected adapter to
-          pull the published release and restart; it must be online. Fingerprints identify the
-          credential without revealing it.
+          Every paired harness is independent; a workspace chooses the one it belongs to. Forget
+          revokes the adapter credential and disconnects it but keeps its identity and Clara
+          metadata; Delete a forgotten harness to remove it permanently. Test probes that adapter's
+          harness endpoint. Update asks the connected adapter to pull the published release and
+          restart; it must be online. Fingerprints identify the credential without revealing it.
         </p>
         <ConfirmDialog
-          open={removeTarget != null}
-          title={
-            removeTarget
-              ? removeTarget.forget
-                ? `Forget "${removeTarget.connection.label}"?`
-                : `Delete the "${removeTarget.connection.label}" connection?`
-              : ''
-          }
-          description={
-            removeTarget?.forget
-              ? 'This purges the connection and its Clara session metadata.'
-              : 'This removes the connection but keeps its identity and metadata.'
-          }
-          confirmLabel={removeTarget?.forget ? 'Forget' : 'Delete'}
-          pendingLabel={removeTarget?.forget ? 'Forgetting…' : 'Deleting…'}
-          pending={
-            removeTarget != null &&
-            pending === `${removeTarget.forget ? 'forget' : 'delete'}:${removeTarget.connection.id}`
-          }
+          open={forgetTarget != null}
+          title={forgetTarget ? `Forget "${forgetTarget.label}"?` : ''}
+          description="This revokes the adapter credential and disconnects it. Its identity and Clara metadata stay, so you can pair it again or delete it permanently."
+          confirmLabel="Forget"
+          pendingLabel="Forgetting…"
+          pending={forgetTarget != null && pending === `forget:${forgetTarget.id}`}
           danger
           onOpenChange={(open) => {
-            if (!open) setRemoveTarget(null)
+            if (!open) setForgetTarget(null)
           }}
           onConfirm={() => {
-            if (removeTarget) void remove(removeTarget.connection, removeTarget.forget)
+            if (forgetTarget) void forget(forgetTarget)
           }}
         />
         <ConfirmDialog

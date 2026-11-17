@@ -1,9 +1,11 @@
 import type {
   AdapterInstallOffer,
   AdapterInstallOfferInput,
+  PanelHarness,
   PanelInstallInfo,
   PanelInstallManifest,
 } from '@clara/shared-types'
+import { isAdapterUpdateAvailable } from '@clara/shared-types'
 import { getPanel, postPanel } from './panel-api.ts'
 
 /**
@@ -84,6 +86,27 @@ export function latestAdapterVersion(
   kind: string
 ): string | undefined {
   return installManifest(info, kind)?.version
+}
+
+/**
+ * Whether a connected adapter is behind the published release. Development
+ * builds use the release timestamp, not the commit hash.
+ */
+export function adapterUpdate(
+  info: PanelInstallInfo | undefined,
+  connection: Pick<PanelHarness, 'kind' | 'adapterVersion' | 'adapterInstalledAt'>
+): { latest: string | undefined; available: boolean } {
+  const manifest = installManifest(info, connection.kind)
+  const latest = manifest?.version
+  return {
+    latest,
+    available: isAdapterUpdateAvailable({
+      current: connection.adapterVersion,
+      latest,
+      currentAt: connection.adapterInstalledAt,
+      latestAt: manifest?.publishedAt,
+    }),
+  }
 }
 
 function registryEnv(info: PanelInstallInfo | undefined): string {

@@ -2,6 +2,7 @@ import { afterEach, describe, expect, it } from 'vitest'
 import type { PanelInstallInfo, PanelInstallRegistryEntry } from '@clara/shared-types'
 import {
   adapterRepairCommand,
+  adapterUpdate,
   fetchInstallInfo,
   installManifest,
   installOffered,
@@ -30,6 +31,7 @@ const info: PanelInstallInfo = {
           schemaVersion: 1,
           harness: 'opencode',
           version: '0.1.0-dev+abc1234',
+          publishedAt: '2026-11-16T23:00:00.000Z',
           install: 'https://clara.example/adapters/opencode/install.sh',
           installSha256: 'a'.repeat(64),
           artifacts: {
@@ -113,6 +115,27 @@ describe('install panel helpers', () => {
       "curl -fsSL https://clara.example/adapters/opencode/install.sh | CLARA_ADAPTER_REGISTRY_URL='https://clara.example/adapters' sh -s -- --reuse-pairing"
     )
     expect(latestAdapterVersion(info, 'opencode')).toBe('0.1.0-dev+abc1234')
+  })
+
+  it('uses the release timestamp for a development adapter', () => {
+    expect(
+      adapterUpdate(info, {
+        kind: 'opencode',
+        adapterVersion: '0.1.0-dev+7572258',
+        adapterInstalledAt: '2026-11-16T16:00:00.000Z',
+      })
+    ).toEqual({ latest: '0.1.0-dev+abc1234', available: true })
+    expect(
+      adapterUpdate(info, {
+        kind: 'opencode',
+        adapterVersion: '0.1.0-dev+8809f65',
+        adapterInstalledAt: '2026-11-16T23:30:00.000Z',
+      })
+    ).toEqual({ latest: '0.1.0-dev+abc1234', available: false })
+    expect(adapterUpdate(info, { kind: 'claude', adapterVersion: '0.1.0' })).toEqual({
+      latest: undefined,
+      available: false,
+    })
   })
 
   it('keeps the repository command as a fallback', () => {

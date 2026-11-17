@@ -21,7 +21,8 @@ export function HarnessStep({
     now,
     onChanged,
   })
-  const online = snapshot.harnesses.filter((harness) => harness.online).length
+  const activeHarnesses = snapshot.harnesses.filter((harness) => !harness.forgottenAt)
+  const online = activeHarnesses.filter((harness) => harness.online).length
 
   return (
     <div className="space-y-4">
@@ -51,16 +52,16 @@ export function HarnessStep({
         </Notice>
       ) : null}
 
-      {snapshot.harnesses.length > 0 ? (
+      {activeHarnesses.length > 0 ? (
         <div className="rounded-lg border border-emerald-200 bg-emerald-50/70 p-3 dark:border-emerald-900 dark:bg-emerald-950/30">
           <div className="flex flex-wrap items-center gap-2">
             <p className="text-xs font-semibold">Paired harnesses</p>
             <Badge tone={online > 0 ? 'success' : 'warning'}>
-              {online} of {snapshot.harnesses.length} online
+              {online} of {activeHarnesses.length} online
             </Badge>
           </div>
           <ul className="mt-2 space-y-1">
-            {snapshot.harnesses.map((harness) => (
+            {activeHarnesses.map((harness) => (
               <li key={harness.id} className="flex flex-wrap items-center gap-2 text-[11px]">
                 <span className="font-medium">{harness.label}</span>
                 {harnessHostSummary(harness.host) ? (
