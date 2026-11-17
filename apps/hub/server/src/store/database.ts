@@ -6,7 +6,7 @@ import { openSqlite, type SqliteDatabase } from '@clara/sqlite'
 
 export type ClaraDatabase = SqliteDatabase
 
-export const SCHEMA_VERSION = 17
+export const SCHEMA_VERSION = 18
 
 const BUSY_TIMEOUT_MS = 5_000
 const DATABASE_MODE = 0o600
@@ -646,6 +646,29 @@ const MIGRATIONS: Migration[] = [
       if (!columns.some((column) => column.name === 'install_method')) {
         db.exec('ALTER TABLE harness_pairings ADD COLUMN install_method TEXT')
       }
+    }
+  },
+  /**
+   * A forgotten harness keeps its identity and Clara metadata but revokes the
+   * credential and leaves the active list. The adapter's install timestamp lets
+   * the panel prefer release timestamps over a development commit hash.
+   */
+  (db) => {
+    const connections = db
+      .prepare(
+        "SELECT name FROM sqlite_master WHERE type = 'table' AND name = 'harness_connections'"
+      )
+      .get()
+    if (!connections) return
+    const columns = db.prepare('PRAGMA table_info(harness_connections)').all() as Array<{
+      name: string
+    }>
+    const names = new Set(columns.map((column) => column.name))
+    if (!names.has('adapter_installed_at')) {
+      db.exec('ALTER TABLE harness_connections ADD COLUMN adapter_installed_at INTEGER')
+    }
+    if (!names.has('forgotten_at')) {
+      db.exec('ALTER TABLE harness_connections ADD COLUMN forgotten_at INTEGER')
     }
   },
 ]

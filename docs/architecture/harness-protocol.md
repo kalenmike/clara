@@ -79,7 +79,8 @@ errors the caller's stream when an adapter disconnects.
 
 ## Routes
 
-- `/harness/v1/info` returns `protocol`, `adapter` (`name` and `version`),
+- `/harness/v1/info` returns `protocol`, `adapter` (`name`, `version`, and
+  optional `installedAt`),
   `harness` (`kind` and optional `version`), and `capabilities`. `/health` is the
   live harness probe and `/host` is the adapter machine's CPU, memory, and disk
   sample.

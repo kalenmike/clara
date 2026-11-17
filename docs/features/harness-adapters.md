@@ -49,9 +49,9 @@ browser client, then speaks the Clara Harness Protocol. The hub routes typed
    from the hub after authentication and writes `engine.json`; the pairing code carries no endpoint or token.
 4. On the target the adapter authenticates the harness, keeps its password in
    `config.json`, translates traffic into Clara frames, and samples its machine.
-5. A stable harness identity means reinstall, re-pair, and connection deletion
-   reconnect the same sessions and Clara project metadata; **Forget** purges
-   that metadata explicitly.
+5. A stable harness identity means reinstall and re-pair reconnect the same
+   sessions and Clara project metadata. **Forget** keeps that identity but
+   revokes the credential; **Delete** on a forgotten harness removes it all.
 6. The hub owns Clara metadata: adapters return harness-native data and never
    store snooze, archive, view, or project settings. Archive, unarchive, and
    delete are capability-gated per harness; OpenCode maps them to bulk session
@@ -69,15 +69,14 @@ browser client, then speaks the Clara Harness Protocol. The hub routes typed
 9. A container-backed record describes an adapter already running in Docker. The
    install reads its version and pairing inside the container and writes an
    `adapters.json` record with no host path or pid, so lifecycle commands address
-   the container. Upgrade asks for an image rebuild; remove keeps its volumes.
-10. The adapter reports its hostname, platform, architecture, and container
-    state; the hub keeps the latest report and the pairing's install path, so
-    identical harness kinds stay distinguishable. It rereads `/info` on every
-    authenticated session, so a restart refreshes versions and capabilities.
+   the container. The panel can ask it to self-update; an image rebuild is the fallback.
+10. The adapter reports its hostname, platform, architecture, container state,
+    and install time; the hub keeps the latest report and install path so
+    identical harness kinds stay distinguishable, refreshing it from `/info`.
 11. An adapter updates only itself: it pins its registry in `install.json`,
-    verifies a strictly newer artifact, extracts a new version directory, and
-    hands the restart to a detached supervisor that reinstalls with the saved
-    pairing and restores the old version if the new one does not authenticate.
+    verifies a newer artifact, and hands restart to a detached supervisor that
+    restores the old version if the new one fails. For `-dev+<hash>` builds the
+    registry timestamp decides which release is newer, never the hash.
 12. A standalone install writes the host record and launcher and can download the signed CLI.
 
 ## Edge cases
@@ -93,10 +92,11 @@ browser client, then speaks the Clara Harness Protocol. The hub routes typed
 - **Adapter setup off or registry unreachable** — the panel cannot read the
   manifest or issue a code and names the error; checkout commands still work.
 - **Adapter behind the registry** — the paired-harness row offers **Update**;
-  an adapter without recorded provenance, a container, or a failed update names
-  a no-CLI repair command. The hub never downloads or runs the artifact.
-- **Container-backed adapter** — `--pair` refuses a stopped container; upgrade
-  needs an image rebuild; `verify --directory` reads inside it.
+  an adapter without recorded provenance or a failed update names a no-CLI
+  repair command. The hub never downloads or runs the artifact. A container can
+  try the in-container self-update; rebuild the image when it cannot.
+- **Container-backed adapter** — `--pair` refuses a stopped container; the panel
+  update restarts the adapter inside it; `verify --directory` reads inside it.
 - **SSH alias missing or key locked** — the alias is rejected, and installs use
   key or agent auth only, so unlock the key first.
 - **Checksum mismatch or unsupported target** — the script and archive digests

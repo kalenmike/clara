@@ -7,9 +7,9 @@ import {
   createRelayGrant,
   encodeHarnessPairingCode,
   encodePairingCode,
+  isAdapterUpdateAvailable,
   type HarnessPairingPayload,
 } from '@clara/shared-types'
-import { compareVersions } from '@clara/adapter-artifact'
 import { isHarnessInfo } from '@clara/harness-protocol'
 import type { HarnessInfo } from '@clara/harness-protocol'
 import {
@@ -1255,13 +1255,6 @@ export class RuntimeController {
     if (!connection.online) {
       throw new PanelControlError(409, 'harness_offline', 'Connect the adapter before updating it.')
     }
-    if (connection.host?.installMethod === 'docker' || connection.host?.container) {
-      throw new PanelControlError(
-        409,
-        'container_adapter',
-        'This adapter runs in a container. Rebuild and recreate the container to upgrade it.'
-      )
-    }
     const install = this.options.install
     if (!install) {
       throw new PanelControlError(503, 'install_unavailable', 'Adapter setup is not available.')
@@ -1275,9 +1268,6 @@ export class RuntimeController {
         'update_unavailable',
         'The adapter has not reported a release version.'
       )
-    }
-    if (compareVersions(to, from) <= 0) {
-      throw new PanelControlError(409, 'already_current', `The adapter already runs ${from}.`)
     }
 
     let info: HarnessInfo | undefined
@@ -1310,6 +1300,16 @@ export class RuntimeController {
     }
     if (!info) {
       throw new PanelControlError(409, 'update_unsupported', 'The adapter did not report its info.')
+    }
+    if (
+      !isAdapterUpdateAvailable({
+        current: from,
+        latest: to,
+        currentAt: info.adapter.installedAt ?? connection.adapterInstalledAt,
+        latestAt: resolved.manifest.publishedAt,
+      })
+    ) {
+      throw new PanelControlError(409, 'already_current', `The adapter already runs ${from}.`)
     }
     const maintenance = info.capabilities.maintenance as { update?: unknown } | undefined
     if (maintenance?.update !== true) {

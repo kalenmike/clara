@@ -139,12 +139,16 @@ export type PanelHarness = {
   /** Fingerprint of the paired adapter credential. */
   fingerprint?: string
   adapterVersion?: string
+  /** When the installed adapter recorded its install, when it reports one. */
+  adapterInstalledAt?: string
   protocolVersion?: number
   harnessVersion?: string
   capabilities?: Record<string, unknown>
   /** Live host sample; absent while the adapter is offline or does not report it. */
   resources?: HostResourceMetrics
   credentialConfigured: boolean
+  /** Set when the connection was forgotten; only a permanent delete remains. */
+  forgottenAt?: string
   lastTestAt?: string
   lastTestOk?: boolean
   lastTestError?: string

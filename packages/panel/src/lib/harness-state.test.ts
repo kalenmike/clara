@@ -30,4 +30,17 @@ describe('harnessState', () => {
       tone: 'warning',
     })
   })
+
+  it('reports a forgotten connection before its live state', () => {
+    expect(
+      harnessState(
+        {
+          online: true,
+          credentialConfigured: true,
+          forgottenAt: '2026-11-16T00:00:00.000Z',
+        },
+        true
+      )
+    ).toEqual({ key: 'forgotten', label: 'Forgotten', tone: 'neutral' })
+  })
 })

@@ -24,7 +24,6 @@
     "pair:no-relay": "tsx src/index.ts pair --no-relay"
   },
   "dependencies": {
-    "@clara/adapter-artifact": "workspace:*",
     "@clara/adapter-install": "workspace:*",
     "@clara/api-contract": "workspace:*",
     "@clara/crypto": "workspace:*",

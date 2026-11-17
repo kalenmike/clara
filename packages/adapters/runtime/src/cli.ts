@@ -39,7 +39,7 @@ import {
   writeAdapterPid,
 } from './service.ts'
 import { readState, writeState } from './state.ts'
-import { recordInstallProvenance } from './provenance.ts'
+import { recordInstallProvenance, readInstallProvenance } from './provenance.ts'
 import { runClaraCommand } from './clara-command.ts'
 import {
   ensureAdapterRecord,
@@ -268,8 +268,13 @@ async function serve<THarness>(
     paired: true,
   })
   if (recorded?.warning) console.error(`[adapter] ${recorded.warning}`)
+  const provenance = readInstallProvenance()
   const info: AdapterInfo = {
-    adapter: { name: definition.name, version: definition.version },
+    adapter: {
+      name: definition.name,
+      version: definition.version,
+      ...(provenance?.installedAt ? { installedAt: provenance.installedAt } : {}),
+    },
     harness: {
       kind: definition.name,
       ...(probe.version ? { version: probe.version } : {}),

@@ -9,6 +9,7 @@ import { readAdapterProvenance, writeAdapterProvenance } from '@clara/adapter-ar
 import {
   AdapterUpdateError,
   adapterUpdateStatusPath,
+  checkAdapterUpdate,
   parseManifest,
   readAdapterUpdateStatus,
   stageAdapterUpdate,
@@ -101,6 +102,65 @@ describe('adapter update status', () => {
 
     writeFileSync(adapterUpdateStatusPath(adapterPaths), '{"schemaVersion":2}')
     expect(readAdapterUpdateStatus(adapterPaths).state).toBe('idle')
+  })
+})
+
+describe('adapter update checks', () => {
+  it('uses the release timestamp for a development build', async () => {
+    const base = tempDir()
+    const root = join(base, 'opencode', '0.1.0-dev+7572258')
+    mkdirSync(root, { recursive: true })
+    writeAdapterProvenance(root, {
+      schemaVersion: 1,
+      kind: 'opencode',
+      version: '0.1.0-dev+7572258',
+      platform: 'linux-x64',
+      source: 'registry',
+      registryUrl: 'https://example.test/adapters',
+      installedAt: '2026-11-16T16:00:00.000Z',
+    })
+    const manifest = {
+      schemaVersion: 1,
+      harness: 'opencode',
+      version: '0.1.0-dev+8809f65',
+      publishedAt: '2026-11-16T23:00:00.000Z',
+      artifacts: {
+        'linux-x64': { url: 'https://example.test/a.tar.gz', sha256: 'a'.repeat(64) },
+      },
+    }
+
+    const result = await checkAdapterUpdate({
+      kind: 'opencode',
+      label: 'OpenCode',
+      version: '0.1.0-dev+7572258',
+      paths: paths(base),
+      containerized: false,
+      root,
+      platform: 'linux-x64',
+      fetchImpl: (async () => Response.json(manifest)) as typeof fetch,
+    })
+    expect(result.available).toBe(true)
+
+    writeAdapterProvenance(root, {
+      schemaVersion: 1,
+      kind: 'opencode',
+      version: '0.1.0-dev+8809f65',
+      platform: 'linux-x64',
+      source: 'registry',
+      registryUrl: 'https://example.test/adapters',
+      installedAt: '2026-11-16T23:30:00.000Z',
+    })
+    const current = await checkAdapterUpdate({
+      kind: 'opencode',
+      label: 'OpenCode',
+      version: '0.1.0-dev+8809f65',
+      paths: paths(base),
+      containerized: false,
+      root,
+      platform: 'linux-x64',
+      fetchImpl: (async () => Response.json(manifest)) as typeof fetch,
+    })
+    expect(current.available).toBe(false)
   })
 })
 

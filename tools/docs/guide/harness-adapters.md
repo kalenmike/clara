@@ -305,17 +305,22 @@ downloads the release from the registry it was installed from, verifies it,
 restarts its service or background process, and reconnects with the same
 pairing. Your sessions and projects stay attached.
 
-An adapter installed before Clara recorded its registry, a container-backed
-adapter, or a failed update cannot use the action. The panel then shows a
-one-line repair command that reuses the saved pairing, so no new code or
-`clara` command is needed on the harness machine. Container images still need
-a rebuild.
+An adapter installed before Clara recorded its registry or a failed update
+cannot use the action. The panel then shows a one-line repair command that
+reuses the saved pairing, so no new code or `clara` command is needed on the
+harness machine. A container-backed adapter can try the update in place; if the
+container cannot restart it, rebuild the image.
+
+Development builds carry a commit hash such as `0.1.0-dev+8809f65`. Clara uses
+the release publish time, not the hash, to decide which build is newer.
 
 ## Reinstall and reconnect
 
 The adapter keeps a stable identity. If you uninstall and install it again, or
-pair it again, it reconnects the same sessions and Clara metadata. Deleting the
-connection keeps that state; use **Forget** only when you want to discard it.
+pair it again, it reconnects the same sessions and Clara metadata. **Forget**
+disconnects it and keeps that state, so you can pair it again. A forgotten
+harness moves to the bottom of **Paired harnesses**; **Delete** removes it and
+its metadata permanently.
 
 ## Troubleshooting
 
