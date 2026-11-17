@@ -84,6 +84,11 @@ walks a person through what needs them, and the interface calls a session a
    also show what they need: a red pulsing dot for a blocked run, a red dot for a
    failed latest run, an orange dot for a finished Plan awaiting Steer or Build,
    and a grey dot for an idle session to review.
+9. In Clara Desktop, right-clicking a row opens Clara's own menu instead of the
+   webview's link menu: **Snooze** (or **Remove from Snoozed**), **Archive** (or
+   **Reopen** on an archived row), and **Delete**. Delete uses the same
+   confirmation dialog as multi-session delete. A browser keeps the native link
+   menu.
 
 ## Edge cases
 

@@ -368,21 +368,33 @@ export function SidebarContent({
     setFailureNote(null)
   }, [])
 
+  const beginDelete = useCallback(
+    (sessions: readonly ClaraSession[], focusTarget?: HTMLElement | null) => {
+      focusIntentRef.current = { kind: 'dismiss' }
+      beforeOrderRef.current = projectOrderedIDsRef.current
+      pendingOutcomeRef.current = null
+      pendingNavigationRef.current = null
+      const active = document.activeElement
+      focusBeforeDialogRef.current = focusTarget ?? (active instanceof HTMLElement ? active : null)
+      setSnapshot([...sessions])
+      setDialogOpen(true)
+    },
+    []
+  )
+
   const openConfirm = useCallback(() => {
     if (selectedSessions.length === 0) {
       toast.message(`Select ${lowerPlural} to delete.`)
       return
     }
 
-    focusIntentRef.current = { kind: 'dismiss' }
-    beforeOrderRef.current = projectOrderedIDsRef.current
-    pendingOutcomeRef.current = null
-    pendingNavigationRef.current = null
-    const active = document.activeElement
-    focusBeforeDialogRef.current = active instanceof HTMLElement ? active : null
-    setSnapshot([...selectedSessions])
-    setDialogOpen(true)
-  }, [lowerPlural, selectedSessions])
+    beginDelete(selectedSessions)
+  }, [beginDelete, lowerPlural, selectedSessions])
+
+  const requestDelete = useCallback(
+    (session: ClaraSession) => beginDelete([session], rowRefs.current.get(session.id) ?? null),
+    [beginDelete]
+  )
 
   const closeDialog = useCallback(() => {
     setDialogOpen(false)
@@ -642,6 +654,7 @@ export function SidebarContent({
           onSelect={() => select(session.id)}
           onExtend={() => extendTo(session.id)}
           onNavigate={onNavigate}
+          onRequestDelete={requestDelete}
           linkRef={(element) => {
             if (element) rowRefs.current.set(session.id, element)
             else rowRefs.current.delete(session.id)
