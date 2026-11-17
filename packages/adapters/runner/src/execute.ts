@@ -1,5 +1,5 @@
 import { spawn, type ChildProcess } from 'node:child_process'
-import { mkdtempSync, mkdirSync, rmSync, writeFileSync } from 'node:fs'
+import { existsSync, mkdtempSync, mkdirSync, rmSync, writeFileSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import { basename, isAbsolute, join, relative, resolve } from 'node:path'
 import { RunnerHttpError } from './client.ts'
@@ -42,6 +42,8 @@ export interface RunnerTransport {
 export interface ExecuteOptions {
   heartbeatMs?: number
   logger?: { warn(message: string): void }
+  /** Runner workspace to use when the order's engine-side path is not local. */
+  workspace?: string
 }
 
 export type ExecuteOutcome =
@@ -123,8 +125,14 @@ function materialize(order: ScriptWorkOrder, temp: string): Record<string, strin
   return files
 }
 
-function resolveCwd(order: ScriptWorkOrder): string {
-  const workspace = resolve(order.workspace)
+function resolveWorkspace(order: ScriptWorkOrder, fallback?: string): string {
+  const requested = typeof order.workspace === 'string' ? order.workspace.trim() : ''
+  if (requested && existsSync(requested)) return resolve(requested)
+  if (fallback) return resolve(fallback)
+  return resolve(requested || process.cwd())
+}
+
+function resolveCwd(order: ScriptWorkOrder, workspace: string): string {
   if (!order.script.cwd) return workspace
   const target = isAbsolute(order.script.cwd)
     ? resolve(order.script.cwd)
@@ -262,9 +270,10 @@ export async function executeScript(
   }, heartbeatMs)
 
   try {
-    const cwd = resolveCwd(order)
+    const workspace = resolveWorkspace(order, options.workspace)
+    const cwd = resolveCwd(order, workspace)
     const files = materialize(order, temp)
-    const env = scriptEnv(spec, order.workspace, files)
+    const env = scriptEnv(spec, workspace, files)
     const command = commandFor(spec)
     const timeoutMs = (spec.timeoutSeconds ?? DEFAULT_TIMEOUT_SECONDS) * 1000
 

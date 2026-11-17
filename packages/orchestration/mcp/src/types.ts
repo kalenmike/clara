@@ -2,6 +2,8 @@ export interface OriginInput {
   session_id?: string | null
   harness?: string | null
   agent?: string | null
+  /** Absolute workspace on the caller's machine. */
+  workspace?: string | null
   kind?: 'human' | 'agent' | 'api' | 'worker'
 }
 
@@ -38,6 +40,7 @@ export interface ClaraBackend {
     error: string
     usage?: UsageInput
     exit_code?: number
+    retry?: boolean
   }): Promise<unknown>
   route(input: {
     run_id: number

@@ -544,6 +544,49 @@ describe('runtime', () => {
     }
   })
 
+  it('puts the origin adapter workspace on work orders', () => {
+    const execution = '/mounted/clara'
+    const started = runtime.start({
+      workspace,
+      prompt: 'write it',
+      target: 'std:content',
+      origin: { harness: 'opencode', workspace: execution },
+    })
+    expect(started.run.origin_workspace).toBe(execution)
+    expect(started.work[0].workspace).toBe(execution)
+
+    const child = runtime.spawn(
+      started.run.id,
+      started.work[0].step_path,
+      started.work[0].work_token,
+      {
+        count: 1,
+        prompt: 'child work',
+      }
+    )
+    expect(child.children[0].origin_workspace).toBe(execution)
+    const childOrder = runtime.next(child.children[0].id)[0]
+    expect(childOrder.workspace).toBe(execution)
+  })
+
+  it('fails a step immediately when the caller disables retries', () => {
+    const started = runtime.start({ workspace, prompt: 'write it', target: 'std:content' })
+    const order = started.work[0]
+    const failed = runtime.fail(
+      started.run.id,
+      order.step_path,
+      order.work_token,
+      'dispatch failed: Location not found: /mounted/clara',
+      undefined,
+      undefined,
+      { retry: false }
+    )
+    expect(failed.retry).toBe(false)
+    expect(failed.run.state).toBe('failed')
+    expect(store.openAlerts(started.run.id).map((alert) => alert.kind)).toContain('failure')
+    expect(store.step(started.run.id, order.step_path)?.error).toContain('Location not found')
+  })
+
   it('routes from a package entry router and records the decision', () => {
     adapter()
     const started = runtime.start({ workspace, prompt: 'a new feature', target: 'std:software' })

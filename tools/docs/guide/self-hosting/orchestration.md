@@ -212,6 +212,15 @@ pipeline or package from Clara Lab runs it directly and does not create a
 session; preview the top entry to see the wrapper. The package list marks an
 imported package with its routed wrap.
 
+### Remote and container workspaces
+
+The engine reads its config from its own workspace path, while workers and
+scripts run on the adapter's machine. When a container mount or an SSH host
+maps the repository to a different path, the adapter records its path with the
+run and uses it for workers. Clara Lab shows the engine workspace and the
+worker workspace separately. A worker that cannot start is reported as a step
+error and an alert, never as a running router.
+
 ## MCP
 
 ```bash

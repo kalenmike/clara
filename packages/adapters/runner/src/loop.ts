@@ -79,7 +79,7 @@ export function createRunner(config: RunnerConfig): Runner {
 
   const run = (order: ScriptWorkOrder): Promise<void> => {
     active += 1
-    return executeScript(client, order, { heartbeatMs, logger })
+    return executeScript(client, order, { heartbeatMs, logger, workspace })
       .then((outcome) => {
         if (outcome.ok) {
           completed += 1
@@ -142,7 +142,7 @@ export function createRunner(config: RunnerConfig): Runner {
     },
 
     async execute(order: ScriptWorkOrder): Promise<void> {
-      await executeScript(client, order, { heartbeatMs, logger })
+      await executeScript(client, order, { heartbeatMs, logger, workspace })
     },
 
     async once(): Promise<number> {

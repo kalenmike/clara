@@ -35,7 +35,13 @@ import {
   type ModelTokens,
 } from '@clara/binding-core'
 import { tokensFromEvent } from './usage-events.ts'
-import { catalogPath, needsExplicitWorkspace, resolveWorkspace } from './workspace.ts'
+import {
+  catalogPath,
+  localWorkspacePath,
+  needsExplicitWorkspace,
+  ownsWorkspace,
+  resolveWorkspace,
+} from './workspace.ts'
 
 const CAPABILITIES = [
   'agent',
@@ -49,6 +55,9 @@ const CAPABILITIES = [
 const INTERFACE_AGENT = process.env.CLARA_INTERFACE_AGENT?.trim() || 'clara'
 
 type Any = any
+
+type DispatchOutcome =
+  { status: 'managed' } | { status: 'manual' } | { status: 'failed'; error: string }
 
 interface ActiveWork {
   run_id: number
@@ -236,6 +245,8 @@ export default {
     let configuredWorkspace: string | undefined
     let serviceNeedsWorkspace = false
     const currentWorkspace = (): string => configuredWorkspace ?? resolveWorkspace(ctx)
+    const localWorkspace = (value: unknown): string => localWorkspacePath(value, currentWorkspace())
+    const ownsRun = (run: DeliveryRun): boolean => ownsWorkspace(run, currentWorkspace())
     const lastTurn = new Map<string, number>()
 
     const terminal = (state: string): boolean =>
@@ -523,7 +534,7 @@ export default {
         work_token: String(work.work_token),
         name: String(work.name),
         session,
-        workspace: String(work.workspace ?? currentWorkspace()),
+        workspace: localWorkspace(work.workspace),
         enforcement: String(work.enforcement ?? 'observed'),
         kind: String(work.kind ?? 'agent'),
         routes: Array.isArray(work.routes)
@@ -596,11 +607,32 @@ export default {
       return DEFAULT_WORKER_AGENT
     }
 
-    const dispatch = async (work: Any, context: Any): Promise<boolean> => {
-      if (!ctx.session?.create || !ctx.session?.prompt) return false
-      const parentSession = sessionID(context)
-      const directory =
-        typeof work?.workspace === 'string' && work.workspace ? work.workspace : currentWorkspace()
+    const reportDispatchFailure = async (work: Any, error: string): Promise<void> => {
+      try {
+        const response = await call<Any>(
+          config,
+          'POST',
+          `/v1/runs/${work.run_id}/steps/${encodeURIComponent(work.step_path)}/fail`,
+          {
+            work_token: work.work_token,
+            error: `dispatch failed: ${error}`,
+            retry: false,
+            usage: { turns: 0, toolCalls: 0, tokens: 0 },
+          }
+        )
+        pruneRun(response.run)
+      } catch (cause) {
+        console.error(
+          `[clara-policy] could not report dispatch failure for ${work.step_path}: ${
+            (cause as Error).message
+          }`
+        )
+      }
+    }
+
+    const dispatch = async (work: Any): Promise<DispatchOutcome> => {
+      if (!ctx.session?.create || !ctx.session?.prompt) return { status: 'manual' }
+      const directory = localWorkspace(work?.workspace)
       const agent = await resolveWorkerAgent()
       const model = modelRef(work)
       if (
@@ -611,6 +643,7 @@ export default {
           `[clara-policy] ${work.step_path} has an incomplete model reference (provider=${work.provider ?? '-'} model=${work.model ?? '-'}); using the harness default`
         )
       }
+      let createdID: string | undefined
       try {
         const created = await ctx.session.create({
           title: `Clara ${work.name} (run ${work.run_id})`,
@@ -626,6 +659,7 @@ export default {
             },
           },
         })
+        createdID = created.id
         if (typeof ctx.session.get === 'function') {
           let info = await ctx.session.get({ sessionID: created.id })
           if (!info) throw new Error(`managed session ${created.id} was not persisted`)
@@ -665,15 +699,28 @@ export default {
           metadata: { source: 'clara', synthetic: true, clara: { run_id: work.run_id } },
           delivery: 'queue',
         })
-        return true
-      } catch (error) {
-        console.error(`[clara-policy] dispatch failed: ${(error as Error).message}`)
-        if (parentSession) bind(parentSession, work, false)
-        return false
+        return { status: 'managed' }
+      } catch (cause) {
+        const message = cause instanceof Error ? cause.message : String(cause)
+        console.error(
+          `[clara-policy] dispatch failed for ${work.step_path} (run ${work.run_id}): ${message}`
+        )
+        // The managed session could not be verified or prompted. Do not leave
+        // it running with a heartbeat and do not bind the human session: the
+        // order was not executed, and Clara must not report it as started.
+        if (createdID) {
+          const entry = active.get(createdID)
+          if (entry?.beatTimer) clearInterval(entry.beatTimer)
+          active.delete(createdID)
+          lastTurn.delete(createdID)
+          void stop(createdID)
+        }
+        await reportDispatchFailure(work, message)
+        return { status: 'failed', error: message }
       }
     }
 
-    const dispatchWork = async (work: Any[], context: Any): Promise<unknown[]> => {
+    const dispatchWork = async (work: Any[]): Promise<unknown[]> => {
       const dispatched: unknown[] = []
       for (const order of work) {
         if (order.kind === 'script') {
@@ -689,13 +736,33 @@ export default {
           })
           continue
         }
-        if (await dispatch(order, context)) {
+        const outcome = await dispatch(order)
+        if (outcome.status === 'managed') {
           dispatched.push({ run_id: order.run_id, step_path: order.step_path, session: 'managed' })
-        } else {
+        } else if (outcome.status === 'manual') {
           dispatched.push(order)
+        } else {
+          dispatched.push({
+            run_id: order.run_id,
+            step_path: order.step_path,
+            error: outcome.error,
+          })
         }
       }
       return dispatched
+    }
+
+    const dispatchFailure = (dispatched: unknown[]): string | undefined => {
+      for (const entry of dispatched) {
+        if (!entry || typeof entry !== 'object') continue
+        const failed = entry as { step_path?: unknown; error?: unknown }
+        if (typeof failed.error === 'string') {
+          return `${typeof failed.step_path === 'string' ? failed.step_path : 'step'}: ${
+            failed.error
+          }`
+        }
+      }
+      return undefined
     }
 
     // Resume dispatch after an OpenCode or plugin restart. The orchestrator keeps
@@ -703,11 +770,10 @@ export default {
     const adoptRuns = async (): Promise<void> => {
       try {
         const runs = await call<DeliveryRun[]>(config, 'GET', '/v1/runs?summary=1')
-        const current = resolve(currentWorkspace())
         let adopted = 0
         for (const run of runs) {
           if (!run || run.origin_harness !== 'opencode') continue
-          if (run.workspace && resolve(run.workspace) !== current) continue
+          if (!ownsRun(run)) continue
           const runID = Number(run.id)
           if (!Number.isFinite(runID)) continue
           if (isTerminalState(String(run.state))) {
@@ -747,17 +813,12 @@ export default {
     const deliverRuns = sessions?.prompt
       ? createDeliveryCycle({
           load: async () => {
-            const current = resolve(currentWorkspace())
             const [runs, alerts] = await Promise.all([
               call<DeliveryRun[]>(config, 'GET', '/v1/runs?summary=1'),
               call<DeliveryAlert[]>(config, 'GET', '/v1/inbox'),
             ])
             return {
-              runs: runs.filter(
-                (run) =>
-                  run.origin_harness === 'opencode' &&
-                  (!run.workspace || resolve(run.workspace) === current)
-              ),
+              runs: runs.filter((run) => run.origin_harness === 'opencode' && ownsRun(run)),
               alerts,
             }
           },
@@ -1038,7 +1099,7 @@ export default {
               harness: 'opencode',
             })
             if (work.length) {
-              await dispatchWork(work, ctx)
+              await dispatchWork(work)
               continue
             }
             const run = await call<{ id: number; state: string }>(
@@ -1089,11 +1150,19 @@ export default {
                 session_id: sessionID(context) ?? null,
                 harness: 'opencode',
                 agent: agent || null,
+                workspace: currentWorkspace(),
                 kind: 'human',
               },
             })
             activeRuns.add(Number(started.run.id))
-            const dispatched = await dispatchWork(started.work ?? [], context)
+            const dispatched = await dispatchWork(started.work ?? [])
+            const failure = dispatchFailure(dispatched)
+            if (failure) {
+              activeRuns.delete(Number(started.run.id))
+              throw new Error(
+                `Clara could not start run ${started.run.id}: ${failure}. The run was failed; see Clara Lab for the step error and alert.`
+              )
+            }
             return content({
               run: started.run,
               dispatched,
@@ -1116,13 +1185,20 @@ export default {
             required: ['run_id'],
             additionalProperties: false,
           },
-          async (input: Any, context: Any) => {
+          async (input: Any) => {
             activeRuns.add(Number(input.run_id))
             const work = await call<Any[]>(config, 'POST', `/v1/runs/${input.run_id}/next`, {
               limit: input.limit ?? 1,
               capabilities: ['agent'],
             })
-            return content(await dispatchWork(work, context))
+            const dispatched = await dispatchWork(work)
+            const failure = dispatchFailure(dispatched)
+            if (failure) {
+              throw new Error(
+                `Clara could not dispatch work for run ${input.run_id}: ${failure}. See Clara Lab for the step error and alert.`
+              )
+            }
+            return content(dispatched)
           }
         )
       )

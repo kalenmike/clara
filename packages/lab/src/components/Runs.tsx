@@ -439,6 +439,9 @@ export function Runs({
                 <div className="grid three">
                   <Field label="Host files" value={hostWorkspace || '—'} />
                   <Field label="Engine workspace" value={selectedRun.workspace} />
+                  {selectedRun.origin_workspace ? (
+                    <Field label="Worker workspace" value={selectedRun.origin_workspace} />
+                  ) : null}
                   <Field label="Origin" value={originText(selectedRun)} />
                   <Field label="Created" value={dateTime(selectedRun.created_at)} />
                   <Field
@@ -467,6 +470,7 @@ export function Runs({
                           {modelLabel(step.model, step.provider)}
                         </span>
                       </div>
+                      {step.error ? <Notice tone="danger">{step.error}</Notice> : null}
                       {currentWork ? (
                         <pre className="prompt small">{currentWork.order.prompt}</pre>
                       ) : null}

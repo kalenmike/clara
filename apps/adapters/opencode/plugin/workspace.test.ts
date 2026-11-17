@@ -1,6 +1,15 @@
 import assert from 'node:assert/strict'
+import { mkdtempSync, rmSync } from 'node:fs'
+import { tmpdir } from 'node:os'
+import { join } from 'node:path'
 import test from 'node:test'
-import { catalogPath, needsExplicitWorkspace, resolveWorkspace } from './workspace.ts'
+import {
+  catalogPath,
+  localWorkspacePath,
+  needsExplicitWorkspace,
+  ownsWorkspace,
+  resolveWorkspace,
+} from './workspace.ts'
 
 test('prefers the container workspace override', () => {
   assert.equal(
@@ -33,6 +42,30 @@ test('prefers the session worktree over its directory', () => {
 
 test('uses the tool directory when no worktree is provided', () => {
   assert.equal(resolveWorkspace({ directory: '/project' }, {}, '/cwd'), '/project')
+})
+
+test('maps a missing engine workspace to the adapter workspace', () => {
+  const current = mkdtempSync(join(tmpdir(), 'clara-adapter-workspace-'))
+  try {
+    assert.equal(localWorkspacePath('/engine/host/workspace', current), current)
+    assert.equal(localWorkspacePath(current, current), current)
+  } finally {
+    rmSync(current, { recursive: true, force: true })
+  }
+})
+
+test('owns runs by origin workspace and tolerates a remote engine path', () => {
+  const current = mkdtempSync(join(tmpdir(), 'clara-adapter-owns-'))
+  const other = mkdtempSync(join(tmpdir(), 'clara-adapter-other-'))
+  try {
+    assert.equal(ownsWorkspace({ origin_workspace: current }, current), true)
+    assert.equal(ownsWorkspace({ origin_workspace: '/engine/host/workspace' }, current), true)
+    assert.equal(ownsWorkspace({ workspace: '/engine/host/workspace' }, current), true)
+    assert.equal(ownsWorkspace({ workspace: other }, current), false)
+  } finally {
+    rmSync(current, { recursive: true, force: true })
+    rmSync(other, { recursive: true, force: true })
+  }
 })
 
 test('falls back to the legacy workspace fields', () => {

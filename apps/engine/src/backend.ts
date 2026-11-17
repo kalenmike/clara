@@ -46,6 +46,7 @@ export class RuntimeBackend implements ClaraBackend {
       session_id?: string | null
       harness?: string | null
       agent?: string | null
+      workspace?: string | null
       kind?: 'human' | 'agent' | 'api' | 'worker'
     }
   }) {
@@ -115,6 +116,7 @@ export class RuntimeBackend implements ClaraBackend {
     error: string
     usage?: UsageInput
     exit_code?: number
+    retry?: boolean
   }) {
     const result = this.runtime.fail(
       input.run_id,
@@ -122,7 +124,8 @@ export class RuntimeBackend implements ClaraBackend {
       input.work_token,
       input.error,
       input.usage,
-      input.exit_code
+      input.exit_code,
+      input.retry === undefined ? undefined : { retry: input.retry }
     )
     return { ...result, run: runSummary(result.run) }
   }

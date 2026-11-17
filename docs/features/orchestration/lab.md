@@ -32,8 +32,8 @@ It is for people writing custom pipelines, not an end-user surface.
 4. Press **Run this pipeline** to open the Debug dock. Start a run there and step
    through one current-step card at a time, typing a result and choosing
    **Complete and continue**, or **Choose route** for a router.
-5. Open **Runs** to observe owned runs, read events and the traffic log, and
-   inspect prompts, results, inputs, and policy; start nothing there.
+5. Open **Runs** to observe owned runs, read events, inspect prompts, results,
+   inputs, policy, step errors, and the engine/worker workspaces; start nothing.
 6. Open **Console** to call the engine's MCP tools through a schema-driven form,
    or run `clara-dev status lab --check` from a checkout in CI to compile a
    target and fail on errors.
