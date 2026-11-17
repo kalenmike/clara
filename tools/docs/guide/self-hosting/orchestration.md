@@ -131,15 +131,47 @@ it adds only the shared lab token. To turn the bridge off, set
 
 Pipelines are YAML and Markdown data. The engine ships with a default
 config that routes to the standard packages, so you can start a run without
-writing any configuration. To choose your own routing, point
-`CLARA_ENGINE_CONFIG` at an `index.yml`; its imports identify the
-packages. The service may start with the orchestration switch, or the MCP bridge
-may start it on first use. The service owns the workspace and entry point; the
-model never passes them.
+writing any configuration. To choose your own routing, add an
+`orchestration/index.yml` to the workspace and commit it with the project. The
+engine uses that file for runs in the workspace, so one service can route
+different projects differently.
 
-Clara Lab compiles a package with the same loader as the service, so you can
-point it at a local `index.yml`, inspect the resolved steps and prompts, and see
-load errors before starting a run. The [developer documentation](/internals/)
+```yaml
+# <workspace>/orchestration/index.yml
+id: workspaces
+name: Workspace routing
+version: 1
+defaults:
+  provider: ollama
+  model: 'mistral-nemo:12b'
+imports:
+  std:
+    - path: software
+router:
+  id: classifier
+  path: ./routers/classifier.md
+  routes:
+    - when: software-development
+      criteria: a normal software feature, bug, or documentation request.
+      run: std:software
+```
+
+The config imports the packages it routes to and declares its own entry. Pin
+`defaults.provider` and `defaults.model` to keep every step on one model; use
+`overrides` to change the model for an imported package without editing it.
+Without a pinned model, workers fall back to the harness default, which may not
+be what you expect. Restart the engine after editing an existing config file.
+
+If you keep configuration outside the workspace, start the service with
+`CLARA_ENGINE_CONFIG` pointing at an `index.yml`; that explicit file wins over
+the workspace file. The bundled default applies when neither exists. The service
+may start with the orchestration switch, or the MCP bridge may start it on first
+use. The service owns the workspace and entry point; the model never passes
+them.
+
+Clara Lab compiles a package with the same loader as the service, so it previews
+the workspace config, shows the resolved steps and prompts, and reports load
+errors before starting a run. The [developer documentation](/internals/)
 includes the complete package and step reference.
 
 ### Worktree sessions

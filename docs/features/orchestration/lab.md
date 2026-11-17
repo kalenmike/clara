@@ -58,9 +58,9 @@ The lab has three parts, and only the first is a window:
    the service with `CLARA_LAB_HOST`, and set `CLARA_LAB_ALLOW_REMOTE=1` when the
    hub is remote. Keep the service on a private network or loopback.
 
-The preview uses the engine's own standard packages: before a preview, the lab
-caches the exact std/default bundle by hash from the engine's read-only
-`GET /v1/packages/assets`, so a preview and a run cannot drift.
+The preview uses the engine's own standard packages: the lab caches the exact
+std/default bundle by hash from `GET /v1/packages/assets` and resolves the same
+config order (explicit, workspace `orchestration/index.yml`, bundled).
 
 ## Core business rules
 

@@ -82,8 +82,8 @@ adapter probes direct URLs and otherwise uses the sealed hub proxy. See
 
 ## Edge cases
 
-- A custom config path is missing: startup fails with a clear config error
-  instead of guessing; without one, the bundled default is used.
+- A custom config path is missing: startup fails instead of guessing; otherwise
+  a workspace `orchestration/index.yml` applies, then the bundled default.
 - The package tree changes mid-run: the pinned snapshot and hash still apply.
 - The service restarts with ready work: persisted step state restores the next
   work order without waiting for a watchdog tick.

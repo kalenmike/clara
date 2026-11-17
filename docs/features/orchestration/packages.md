@@ -12,14 +12,17 @@ before a run starts. This is the field reference; run mechanics live in
 
 ## Active config
 
-The default config is `packages/orchestration/engine/default/index.yml`. It
-imports the five standard packages and declares the classifier router, so a
-fresh install starts without a workspace config. Point `CLARA_ENGINE_CONFIG` at
-an `index.yml` (or pass `--config` to Clara Lab) for custom routing: its imports
-resolve relative to that file, while `std:` imports resolve to the bundled
-packages. A missing explicit config fails with `config_missing`; otherwise the
-bundled default applies. The root `index.yml` is a manifest plus root-only
-`overrides`; unknown keys are ignored and `watchdog` is reserved.
+The default config is `packages/orchestration/engine/default/index.yml`; it
+imports the five standard packages and declares the classifier router. At run
+start an explicit `CLARA_ENGINE_CONFIG` (or `configPath`) wins, then a
+workspace `orchestration/index.yml`, then the bundled default. Imports resolve
+relative to the chosen file (`std:` against the bundled packages); a missing
+explicit config fails with `config_missing`, and a missing workspace file falls
+through. `GET /v1/config` reports `configSource` (`file`, `workspace`, or
+`bundled`) and `configPath`; the catalog is cached by path, so restart the
+engine after editing a file. The root file is a manifest plus root-only
+`overrides` (unknown keys ignored, `watchdog` reserved). Pin models with
+`defaults.model` / `defaults.provider`, or one package with `overrides`.
 
 ## Package layout
 
@@ -89,10 +92,10 @@ Model and provider resolve independently, most specific first:
 2. pipeline `default_model` / `default_provider`
 3. agent frontmatter `model` / `provider`
 4. package `defaults.model` / `defaults.provider`
-5. workspace `defaults`
+5. workspace `defaults` (the root config, bundled or in the workspace)
 
-A step may set one half only; the other is inherited. Standard packages pin
-no model, so a fresh install follows the harness default (`model_unset`).
+A step may set one half only; the other is inherited. Standard packages pin no
+model, so with no `defaults` the harness default applies (`model_unset`).
 
 ## Pipelines
 
