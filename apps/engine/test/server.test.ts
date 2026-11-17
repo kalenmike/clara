@@ -1,3 +1,4 @@
+import { mkdirSync, mkdtempSync, rmSync, writeFileSync } from 'node:fs'
 import { fileURLToPath } from 'node:url'
 import type { AddressInfo } from 'node:net'
 import { tmpdir } from 'node:os'
@@ -19,7 +20,14 @@ let runtime: Runtime
 beforeAll(async () => {
   const store = new Store(':memory:')
   runtime = new Runtime({ store, configPath: config })
-  app = createEngineServer({ runtime, token, port: 0, tickMs: 60_000, workspace })
+  app = createEngineServer({
+    runtime,
+    token,
+    port: 0,
+    tickMs: 60_000,
+    workspace,
+    configPath: config,
+  })
   await new Promise<void>((resolve) => app.server.listen(0, '127.0.0.1', () => resolve()))
   const address = app.server.address() as AddressInfo
   base = `http://127.0.0.1:${address.port}`
@@ -63,7 +71,44 @@ describe('engine HTTP service', () => {
 
     const response = await fetch(`${base}/v1/config`, { headers: auth() })
     expect(response.status).toBe(200)
-    expect(await response.json()).toMatchObject({ workspace, configSource: 'bundled' })
+    expect(await response.json()).toMatchObject({
+      workspace,
+      configSource: 'file',
+      configPath: config,
+    })
+  })
+
+  it('reports a workspace config when no explicit config is set', async () => {
+    const dir = mkdtempSync(join(tmpdir(), 'clara-engine-workspace-config-'))
+    const local = createEngineServer({
+      runtime: new Runtime({ store: new Store(':memory:') }),
+      token,
+      port: 0,
+      tickMs: 60_000,
+      workspace: dir,
+    })
+    try {
+      mkdirSync(join(dir, 'orchestration'))
+      const workspaceConfig = join(dir, 'orchestration', 'index.yml')
+      writeFileSync(
+        workspaceConfig,
+        'id: temp\nname: Temp\nversion: 1\npipelines:\n  main:\n    steps:\n      - name: one\n'
+      )
+      await new Promise<void>((resolve) => local.server.listen(0, '127.0.0.1', () => resolve()))
+      const address = local.server.address() as AddressInfo
+      const response = await fetch(`http://127.0.0.1:${address.port}/v1/config`, {
+        headers: auth(),
+      })
+      expect(response.status).toBe(200)
+      expect(await response.json()).toMatchObject({
+        workspace: dir,
+        configSource: 'workspace',
+        configPath: workspaceConfig,
+      })
+    } finally {
+      await local.close()
+      rmSync(dir, { recursive: true, force: true })
+    }
   })
 
   it('returns the resolved package catalog', async () => {

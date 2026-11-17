@@ -16,7 +16,7 @@ import {
   type Usage,
 } from '@clara/policy'
 import { analyzeDatabase, type DiagnosticsOptions, type DiagnosticsReport } from './diagnostics.ts'
-import { compileRun, defaultConfigPath, loadCatalog } from './loader.ts'
+import { compileRun, defaultConfigPath, loadCatalog, workspaceConfigPath } from './loader.ts'
 import type { CompiledNode, LoadedCatalog, ScriptSpec } from './types.ts'
 import {
   now,
@@ -332,6 +332,8 @@ export class Runtime {
       }
       return path
     }
+    const discovered = workspaceConfigPath(workspace)
+    if (discovered) return discovered
     const path = defaultConfigPath()
     if (path) return path
     throw new OrchestrationErrorWithCode(

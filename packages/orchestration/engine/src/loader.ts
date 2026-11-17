@@ -748,6 +748,16 @@ export function bundledStdDir(): string | undefined {
 }
 
 /**
+ * A workspace owns its routing config in `orchestration/index.yml`, beside the
+ * packages it imports. Discovery is opt-in: without the file, the engine keeps
+ * using the explicit config or the bundled default.
+ */
+export function workspaceConfigPath(workspace: string): string | undefined {
+  const candidate = join(resolve(workspace), 'orchestration', 'index.yml')
+  return existsSync(candidate) ? candidate : undefined
+}
+
+/**
  * The default routing config ships with the engine. A source checkout resolves
  * it next to this module; a bundled service resolves the copy placed beside its
  * bundle, or the extracted copy named by `CLARA_ENGINE_ASSETS_DIR`.

@@ -459,6 +459,91 @@ describe('runtime', () => {
     }
   })
 
+  it('discovers a workspace orchestration config without an explicit path', () => {
+    const dir = mkdtempSync(join(tmpdir(), 'clara-workspace-config-'))
+    try {
+      mkdirSync(join(dir, 'orchestration'))
+      const workspaceConfig = join(dir, 'orchestration', 'index.yml')
+      writeFileSync(
+        workspaceConfig,
+        [
+          'id: temp',
+          'name: Temp',
+          'version: 1',
+          'defaults:',
+          '  provider: discovered-provider',
+          '  model: discovered-model',
+          'pipelines:',
+          '  main:',
+          '    steps:',
+          '      - name: do_work',
+        ].join('\n')
+      )
+      const local = new Runtime({ store: new Store(':memory:') })
+      expect(local.configFor(dir)).toBe(workspaceConfig)
+      const started = local.start({ workspace: dir, prompt: 'do it' })
+      expect(started.work[0].provider).toBe('discovered-provider')
+      expect(started.work[0].model).toBe('discovered-model')
+    } finally {
+      rmSync(dir, { recursive: true, force: true })
+    }
+  })
+
+  it('keeps an explicit config ahead of the workspace config', () => {
+    const dir = mkdtempSync(join(tmpdir(), 'clara-workspace-config-explicit-'))
+    try {
+      mkdirSync(join(dir, 'orchestration'))
+      writeFileSync(
+        join(dir, 'orchestration', 'index.yml'),
+        [
+          'id: workspace',
+          'name: Workspace',
+          'version: 1',
+          'defaults:',
+          '  provider: workspace-provider',
+          '  model: workspace-model',
+          'pipelines:',
+          '  main:',
+          '    steps:',
+          '      - name: do_work',
+        ].join('\n')
+      )
+      const explicit = join(dir, 'explicit.yml')
+      writeFileSync(
+        explicit,
+        [
+          'id: explicit',
+          'name: Explicit',
+          'version: 1',
+          'defaults:',
+          '  provider: explicit-provider',
+          '  model: explicit-model',
+          'pipelines:',
+          '  main:',
+          '    steps:',
+          '      - name: do_work',
+        ].join('\n')
+      )
+      const local = new Runtime({ store: new Store(':memory:'), configPath: explicit })
+      expect(local.configFor(dir)).toBe(explicit)
+      const started = local.start({ workspace: dir, prompt: 'do it' })
+      expect(started.work[0].provider).toBe('explicit-provider')
+      expect(started.work[0].model).toBe('explicit-model')
+    } finally {
+      rmSync(dir, { recursive: true, force: true })
+    }
+  })
+
+  it('uses the bundled default without an explicit or workspace config', () => {
+    const dir = mkdtempSync(join(tmpdir(), 'clara-workspace-config-empty-'))
+    try {
+      const local = new Runtime({ store: new Store(':memory:') })
+      expect(local.configFor(dir)).toBe(config)
+    } finally {
+      rmSync(dir, { recursive: true, force: true })
+    }
+  })
+
   it('routes from a package entry router and records the decision', () => {
     adapter()
     const started = runtime.start({ workspace, prompt: 'a new feature', target: 'std:software' })
