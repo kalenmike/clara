@@ -169,8 +169,8 @@ Keep that value stable: every pairing code is scoped to it.
 
 Confirm the relay card is connected, and set **Web URL** to the public HTTPS URL.
 `CLARA_PAIRING_BASE_URL` overrides the panel value. When an adapter must reach the
-hub from another network, choose **Remote** for it in
-**Harness → Pair Harness**.
+hub from another network, **Harness → Pair Harness** already defaults to
+**Remote host** over **Relay** under **Advanced**.
 
 ## If another hub takes the room
 

@@ -15,23 +15,23 @@ browser client, then speaks the Clara Harness Protocol. The hub routes typed
 
 ## User flow
 
-1. In the panel's **Harness** view, choose **Pair Harness**, then the harness.
-2. The hub returns a one-time code, an install command, and a `clara://adapter`
-   link; it never runs the install. Adapter codes start with `clara-harness1_`,
-   while a browser uses a `clara1_` code from **Clients → Pair Client**.
-3. Answer **Remote** or **Local**, then host or Docker container; Direct needs a
-   reachable address.
-4. A browser user runs the command on the harness machine. Clara Desktop adds
-   **This computer**, an **SSH host**, and a local **Docker container**.
-5. The script verifies and installs the archive, runs the installer, starts the
+1. In **Harness**, choose **Pair Harness**, pick an OpenCode, Claude Code, or Pi
+   card, then choose an **SSH host** when Clara Desktop can install.
+2. **Advanced** holds **Harness location** and **Connection mode**, defaulting to
+   **Remote host** over **Relay**. Choose **Local machine** for this computer or
+   Docker, and **Direct** for a reachable WebSocket address.
+3. The hub returns a one-time code, install command, and `clara://adapter` link
+   in a collapsed **Pairing details** section; it never runs the install. Clara
+   Desktop starts automatically; a browser user runs the copied command.
+4. The script verifies and installs the archive, runs the installer, starts the
    adapter, and waits for an authenticated hub link.
-6. The installer discovers the harness: OpenCode from flags/env/`service.json`,
+5. The installer discovers the harness: OpenCode from flags/env/`service.json`,
    Claude Code from the machine's login, and Pi from the installed `pi` binary.
-7. The adapter enrolls, stores its credential, and starts a service or background
+6. The adapter enrolls, stores its credential, and starts a service or background
    process. The panel shows **Connected** only after an authenticated link; a
    failed start prints the adapter state and log in the install card.
-8. Open the web client; sessions and Clara projects arrive through the adapter.
-9. A newer release shows **Update** on the paired harness row. The adapter
+7. Open the web client; sessions and Clara projects arrive through the adapter.
+8. A newer release shows **Update** on the paired harness row. The adapter
    pulls, verifies, restarts, and reconnects; older installs get a repair command.
 
 ## Core business rules

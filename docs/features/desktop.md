@@ -23,10 +23,10 @@ paired hub's bridge; the app runs neither service.
 4. Use Clara as usual: browse projects, start and steer sessions, answer
    approvals, and read usage. A message link opens in the system browser.
 5. Run `clara desktop install` to update; Settings → App reports the version.
-6. Open **Hub** and use **Harness → Pair Harness** to install an adapter on
-   **This computer**, an **SSH host**, or a local **Docker container**. A
-   `clara://adapter?code=…` link opens the same flow; see
-   [harness-adapters.md](harness-adapters.md).
+6. Open **Hub** and use **Harness → Pair Harness**. Choose an **SSH host**, or
+   **Local machine** under **Advanced**, to install on **This computer**, an
+   **SSH host**, or a **Docker container**. The install starts automatically; a
+   `clara://adapter` link opens the same flow. See [harness-adapters.md](harness-adapters.md).
 7. Open **Hub** from the connected app to use the hub panel in this window over
    the encrypted connection, without opening its loopback page.
 8. Open **Clara Lab** from the sidebar to preview packages and drive a run by

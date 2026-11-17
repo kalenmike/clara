@@ -34,17 +34,21 @@ and editing a label all take effect from this surface.
    an alias of up to 64 characters; the enrolled label stays as secondary text,
    and clearing the alias restores it. **Revoke** ends access; the revoked row
    stays listed and can then be deleted permanently.
-5. Open **Harness** and choose **Pair Harness**. Pick the adapter, answer
-   **Remote** or **Local**, then **This machine** or **Docker container** for a
-   local target, and **Relay** or **Direct** for the route. Direct pairing needs
-   a reachable WebSocket address; the panel suggests loopback, Docker bridge,
-   LAN, and, in Clara Desktop, the container gateway.
+5. Open **Harness** and choose **Pair Harness**. Pick the harness card, then an
+   **SSH host** when Clara Desktop can install. **Advanced** holds **Harness
+   location** (default **Remote host**) and **Connection mode** (default
+   **Relay**); choose **Local machine** with the Docker toggle, or **Direct**
+   for the route. Direct pairing needs a reachable WebSocket address; the panel
+   suggests loopback, Docker bridge, LAN, and, in Clara Desktop, the container
+   gateway.
 6. The hub returns a one-time code, registry manifest, copy command, and
-   `clara://adapter` link. Install actions are off until **Network → Adapter
-   setup** is enabled. A browser-only user runs the command on the harness
-   machine. Clara Desktop can install on **This computer**, an **SSH host**, or a
-   local **Docker container**, streams the log, and can cancel; the hub host never
-   receives SSH keys, Docker access, or a route to the harness machine.
+   `clara://adapter` link. The endpoint, code, and command stay in the collapsed
+   **Pairing details** section. Install actions are off until **Network →
+   Adapter setup** is enabled. A browser-only user runs the command on the
+   harness machine. Clara Desktop starts the install automatically on **This
+   computer**, an **SSH host**, or a local **Docker container**, streams the log,
+   and can cancel; the hub host never receives SSH keys, Docker access, or a
+   route to the harness machine.
 7. The pairing card waits for the adapter, then reports **Connected**; the new
    adapter appears as **Paired · Offline**, and its credential session under
    **Connected adapters** turns it **Online**. That table shows transport,

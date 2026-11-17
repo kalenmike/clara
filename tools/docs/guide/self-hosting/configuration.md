@@ -43,7 +43,8 @@ After the owner account exists, the panel opens a dismissible Setup modal:
 1. Choose **Local only** or **Remote via relay**. The relay path embeds the
    relay editor and the Web URL; it continues only when the relay is online and
    the Web URL is HTTPS.
-2. Pair a harness. The setup path preselects **Remote** or **Local**.
+2. Pair a harness. The setup path defaults to **Remote host** over **Relay**;
+   change either under **Advanced**.
 3. Pair a client. The pairing link uses the Web URL chosen in step 1.
 4. Read **How Clara works**.
 
@@ -56,13 +57,14 @@ relay or its room can require adapters and devices to pair again.
 ## Connect a harness
 
 1. Start the hub and open the panel.
-2. Open **Harness** and choose **Pair Harness**. Choose the adapter type and
-   answer remote or local; a direct WebSocket URL under **Advanced** is available
-   when the adapter reaches the hub at another address. The hub returns a
-   one-time code and command. Turn on adapter setup in
-   **Network → Adapter setup** first. Clara Desktop can install it on this
-   computer, an SSH host, or a local container.
-3. Run the copied command on the harness machine, or install from Clara Desktop.
+2. Open **Harness** and choose **Pair Harness**. Pick the harness card, then an
+   SSH host when Clara Desktop can install. **Harness location** and
+   **Connection mode** live under **Advanced** and default to **Remote host**
+   over **Relay**; choose **Direct** when the adapter reaches the hub at another
+   address. The hub returns a one-time code and command in **Pairing details**.
+   Turn on adapter setup in **Network → Adapter setup** first.
+3. Clara Desktop starts the install automatically. Otherwise, run the copied
+   command on the harness machine.
 4. The adapter connects out to the hub. **Paired harnesses** shows
    **Paired · Offline** until the adapter connects, then **Online** with a live
    row under **Connected adapters**. Use **Test** to probe it and **Activate**
