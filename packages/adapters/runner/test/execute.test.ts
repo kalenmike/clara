@@ -76,6 +76,18 @@ describe('executeScript', () => {
     expect(calls.failed).toEqual([])
   })
 
+  it('uses the runner workspace when the order workspace is not local', async () => {
+    const calls = recorder()
+    const remote = { ...order({ resultMode: 'text' }), workspace: '/missing/engine/workspace' }
+    const outcome = await executeScript(
+      calls.transport,
+      { ...remote, script: { ...remote.script, command: 'printf %s "$CLARA_WORKSPACE"' } },
+      { workspace }
+    )
+    expect(outcome).toEqual({ ok: true, exitCode: 0 })
+    expect(calls.completed[0]?.result).toBe(workspace)
+  })
+
   it('parses JSON output in auto mode', async () => {
     const calls = recorder()
     const command = `${JSON.stringify(process.execPath)} -e "process.stdout.write(JSON.stringify({ok:true}))"`

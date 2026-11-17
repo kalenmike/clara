@@ -78,6 +78,7 @@ export class HttpBackend implements ClaraBackend {
     error: string
     usage?: UsageInput
     exit_code?: number
+    retry?: boolean
   }) {
     return this.request(
       'POST',

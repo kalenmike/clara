@@ -14,6 +14,7 @@ export interface DeliveryRun {
   origin_session_id?: string | null
   origin_harness?: string | null
   origin_agent?: string | null
+  origin_workspace?: string | null
   workspace?: string | null
   error?: string | null
 }

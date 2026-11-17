@@ -32,6 +32,8 @@ export interface Origin {
   session_id?: string | null
   harness?: string | null
   agent?: string | null
+  /** Absolute workspace on the origin adapter's machine. */
+  workspace?: string | null
   kind?: 'human' | 'agent' | 'api' | 'worker'
 }
 
@@ -363,7 +365,9 @@ export class Runtime {
     const target = input.target ?? input.parent_run_id ?? catalog.root.manifest.id
     const compiled = compileRun(catalog, input.target)
     const enforcement = compiled.root.enforcement ?? 'observed'
-    if (enforcement === 'strict') this.assertAdapter(workspace, compiled.root)
+    if (enforcement === 'strict') {
+      this.assertAdapter(workspace, compiled.root, input.origin?.workspace ?? undefined)
+    }
     const rootRunID = input.parent_run_id ?? 0
     let run = this.store.insertRun({
       workspace,
@@ -375,6 +379,7 @@ export class Runtime {
       origin_session_id: input.origin?.session_id ?? null,
       origin_harness: input.origin?.harness ?? null,
       origin_agent: input.origin?.agent ?? null,
+      origin_workspace: input.origin?.workspace?.trim() || null,
       origin_kind: input.origin?.kind ?? 'human',
       pipeline_ref: compiled.root.name,
       snapshot: JSON.stringify(compiled.root),
@@ -412,15 +417,20 @@ export class Runtime {
     return { run: this.store.run(Number(run.id)) as RunRow, work }
   }
 
-  private assertAdapter(workspace: string, root: CompiledNode): void {
+  private assertAdapter(workspace: string, root: CompiledNode, execution?: string): void {
     const leaves = compiledLeaves(root)
     const needsAgent = leaves.some((leaf) => leaf.kind === 'agent' || leaf.kind === 'router')
     const needsScript = leaves.some((leaf) => leaf.kind === 'script')
     const extra = root.requires?.capabilities ?? []
     const harness = root.requires?.adapter
-    const live = this.store
-      .adapters(workspace)
-      .filter((row) => ageMs(row.heartbeat_at) <= this.adapterStaleMs)
+    const registered = [...this.store.adapters(workspace)]
+    if (execution && resolve(execution) !== resolve(workspace)) {
+      const seen = new Set(registered.map((row) => row.id))
+      for (const row of this.store.adapters(execution)) {
+        if (!seen.has(row.id)) registered.push(row)
+      }
+    }
+    const live = registered.filter((row) => ageMs(row.heartbeat_at) <= this.adapterStaleMs)
     const has = (role: 'harness' | 'runner', capabilities: string[]): boolean =>
       live.some((row) => {
         if (row.role !== role) return false
@@ -1068,7 +1078,14 @@ export class Runtime {
     const budget = computeBudget(limits, Number(row.attempt) || 1)
     const steps = new Map(this.store.steps(Number(run.id)).map((step) => [step.path, step]))
     const scope = node.scopePath ? steps.get(node.scopePath) : undefined
-    const workspace = scope?.workspace ? resolve(scope.workspace) : run.workspace
+    // The engine workspace is where config and run state live. Work orders
+    // execute on the origin adapter's machine, which can mount the same
+    // workspace at a different absolute path.
+    const originWorkspace = run.origin_workspace?.trim()
+    const workspace = scope?.workspace ? resolve(scope.workspace) : originWorkspace || run.workspace
+    // The engine cannot stat a file on the adapter's filesystem.
+    const remoteWorkspace =
+      !scope?.workspace && Boolean(originWorkspace) && originWorkspace !== run.workspace
     const inputs = Object.entries(node.inputs ?? {}).flatMap(([label, path]) => {
       const input = steps.get(path)
       if (!input?.result) return []
@@ -1084,7 +1101,9 @@ export class Runtime {
     const artifacts = Object.entries(node.artifacts ?? {}).map(([label, path]) => ({
       label,
       path,
-      ...(isLiteralPath(path) ? { exists: existsSync(join(workspace, path)) } : {}),
+      ...(isLiteralPath(path) && !remoteWorkspace
+        ? { exists: existsSync(join(workspace, path)) }
+        : {}),
     }))
     const previous =
       Number(row.attempt) > 1
@@ -1152,7 +1171,11 @@ export class Runtime {
     const orders: WorkOrder[] = []
     for (const run of this.store.activeRuns()) {
       if (orders.length >= limit) break
-      if (resolve(run.workspace) !== target) continue
+      const execution = run.origin_workspace?.trim()
+      const matches =
+        resolve(run.workspace) === target ||
+        (execution !== undefined && (execution === workspace || resolve(execution) === target))
+      if (!matches) continue
       orders.push(...this.claim(Number(run.id), limit - orders.length, owner, filter))
     }
     return orders
@@ -1274,7 +1297,8 @@ export class Runtime {
     token: string,
     error: string,
     usage?: Partial<Usage>,
-    exitCode?: number
+    exitCode?: number,
+    options?: { retry?: boolean }
   ): { run: RunRow; retry: boolean; ready: StepRow[] } {
     const { run, row } = this.requireRunningStep(runID, path, token)
     const attempt = Number(row.attempt)
@@ -1290,7 +1314,7 @@ export class Runtime {
       tool_calls: usage?.toolCalls ?? Number(row.tool_calls),
       violations: usage?.violations ?? Number(row.violations),
     }
-    if (attempt < maxAttempts) {
+    if (options?.retry !== false && attempt < maxAttempts) {
       this.store.transaction(() => {
         if (attemptID !== null) {
           this.store.updateStepAttempt(Number(attemptID), {
@@ -1446,6 +1470,7 @@ export class Runtime {
         origin_session_id: run.origin_session_id,
         origin_harness: run.origin_harness,
         origin_agent: run.origin_agent,
+        origin_workspace: run.origin_workspace ?? null,
         origin_kind: run.origin_kind,
         pipeline_ref: 'spawn',
         snapshot,
@@ -1811,7 +1836,8 @@ export class Runtime {
       if (existing.has(step.path)) continue
       if (ageMs(step.updated_at) < this.runnerWaitMs) continue
       const node = findNode(root, step.path)
-      if (this.hasRunner(resolve(run.workspace), node?.requires?.runner)) continue
+      const runnerWorkspace = run.origin_workspace?.trim() || resolve(run.workspace)
+      if (this.hasRunner(runnerWorkspace, node?.requires?.runner)) continue
       const alert = this.store.alert({
         run_id: runID,
         step_path: step.path,

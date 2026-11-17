@@ -17,6 +17,11 @@ const originSchema = z
     session_id: z.string().nullable().optional(),
     harness: z.string().nullable().optional(),
     agent: z.string().nullable().optional(),
+    workspace: z
+      .string()
+      .nullable()
+      .optional()
+      .describe('Absolute workspace on the calling adapter machine'),
     kind: z.enum(['human', 'agent', 'api', 'worker']).optional(),
   })
   .optional()
@@ -128,7 +133,7 @@ export function createClaraServer(backend: ClaraBackend, version = '0.1.0'): Mcp
     'clara_fail',
     {
       description:
-        'Record a step failure. The service retries until the attempt limit, then fails the run and opens an alert.',
+        'Record a step failure. The service retries until the attempt limit unless retry is false, then fails the run and opens an alert.',
       inputSchema: {
         run_id: z.number().int().positive(),
         step_path: z.string().min(1),
@@ -136,6 +141,10 @@ export function createClaraServer(backend: ClaraBackend, version = '0.1.0'): Mcp
         error: z.string().min(1),
         usage: usageSchema,
         exit_code: z.number().int().optional().describe('Process exit code for a script step'),
+        retry: z
+          .boolean()
+          .optional()
+          .describe('Set false for a deterministic failure that a retry cannot fix'),
       },
     },
     async (args) => text(await backend.fail(args))

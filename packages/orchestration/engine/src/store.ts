@@ -17,6 +17,8 @@ export interface RunRow extends Row {
   origin_session_id: string | null
   origin_harness: string | null
   origin_agent: string | null
+  /** Absolute workspace where the origin adapter runs the steps. */
+  origin_workspace?: string | null
   origin_kind: string
   pipeline_ref: string
   snapshot: string
@@ -195,6 +197,7 @@ export class Store {
         origin_session_id TEXT,
         origin_harness TEXT,
         origin_agent TEXT,
+        origin_workspace TEXT,
         origin_kind TEXT NOT NULL DEFAULT 'human',
         pipeline_ref TEXT NOT NULL,
         snapshot TEXT NOT NULL,
@@ -320,6 +323,7 @@ export class Store {
       );
       CREATE INDEX IF NOT EXISTS idx_delivery_claims_run ON delivery_claims (run_id, kind);
     `)
+    this.ensureColumn('runs', 'origin_workspace', 'TEXT')
     this.ensureColumn('steps', 'provider', 'TEXT')
     this.ensureColumn('steps', 'workspace', 'TEXT')
     this.ensureColumn('steps', 'current_attempt_id', 'INTEGER')
@@ -444,6 +448,7 @@ export class Store {
     origin_session_id: string | null
     origin_harness: string | null
     origin_agent: string | null
+    origin_workspace?: string | null
     origin_kind: string
     pipeline_ref: string
     snapshot: string
@@ -456,9 +461,9 @@ export class Store {
       .prepare(
         `INSERT INTO runs
           (workspace, prompt, target, state, root_run_id, parent_run_id, parent_step_path,
-           origin_session_id, origin_harness, origin_agent, origin_kind, pipeline_ref,
-           snapshot, hash, enforcement, notification, created_at, updated_at)
-         VALUES (?, ?, ?, 'queued', ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`
+           origin_session_id, origin_harness, origin_agent, origin_workspace, origin_kind,
+           pipeline_ref, snapshot, hash, enforcement, notification, created_at, updated_at)
+         VALUES (?, ?, ?, 'queued', ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`
       )
       .run(
         input.workspace,
@@ -470,6 +475,7 @@ export class Store {
         input.origin_session_id,
         input.origin_harness,
         input.origin_agent,
+        input.origin_workspace ?? null,
         input.origin_kind,
         input.pipeline_ref,
         input.snapshot,

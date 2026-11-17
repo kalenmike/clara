@@ -133,6 +133,23 @@ describe('script steps', () => {
     expect(claimed[0].kind).toBe('script')
   })
 
+  it('lets a runner claim work for the origin adapter workspace', () => {
+    const { dir, runtime } = fixture({
+      steps: ['      - name: build', '        type: script', '        command: echo ready'],
+    })
+    const execution = '/mounted/clara'
+    const started = runtime.start({
+      workspace: dir,
+      prompt: 'go',
+      capabilities: ['agent'],
+      origin: { workspace: execution },
+    })
+    expect(started.work).toEqual([])
+    const claimed = runtime.claimWork(execution, { capabilities: ['script'] }, 1, 'runner')
+    expect(claimed).toHaveLength(1)
+    expect(claimed[0].workspace).toBe(execution)
+  })
+
   it('filters work by advertised capability', () => {
     const { dir, runtime, store } = fixture({
       steps: [
