@@ -1,10 +1,12 @@
 import type { KeyboardEvent, MouseEvent, Ref } from 'react'
 import { Link } from 'react-router'
 import type { ClaraSession } from '@clara/api-contract'
+import { SidebarSessionContextMenu } from '@/components/layout/sidebar-session-context-menu'
 import { SessionStatusIcon } from '@/components/sessions/session-status-icon'
 import type { SessionStatusKind } from '@/features/sessions/session-status'
 import { useSessionWording } from '@/features/sessions/use-wording'
 import { formatRelativeTime } from '@/lib/format'
+import { isDesktop } from '@/lib/runtime'
 import { cn } from '@clara/ui/lib/utils'
 
 export function SidebarSessionRow({
@@ -17,6 +19,7 @@ export function SidebarSessionRow({
   onSelect,
   onExtend,
   onNavigate,
+  onRequestDelete,
   linkRef,
 }: {
   session: ClaraSession
@@ -28,6 +31,7 @@ export function SidebarSessionRow({
   onSelect: () => void
   onExtend: () => void
   onNavigate?: () => void
+  onRequestDelete: (session: ClaraSession) => void
   linkRef?: Ref<HTMLAnchorElement>
 }) {
   const { lowerSingular } = useSessionWording()
@@ -55,7 +59,7 @@ export function SidebarSessionRow({
     }
   }
 
-  return (
+  const row = (
     <Link
       ref={linkRef}
       to={`/p/${projectID}/s/${session.id}`}
@@ -103,5 +107,13 @@ export function SidebarSessionRow({
       </span>
       {bulkSelected && <span className="sr-only">Selected for deletion</span>}
     </Link>
+  )
+
+  if (!isDesktop) return row
+
+  return (
+    <SidebarSessionContextMenu session={session} onRequestDelete={onRequestDelete}>
+      {row}
+    </SidebarSessionContextMenu>
   )
 }
