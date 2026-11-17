@@ -46,9 +46,9 @@ and editing a label all take effect from this surface.
    **Pairing details** section. Install actions are off until **Network →
    Adapter setup** is enabled. A browser-only user runs the command on the
    harness machine. Clara Desktop starts the install automatically on **This
-   computer**, an **SSH host**, or a local **Docker container**, streams the log,
-   and can cancel; the hub host never receives SSH keys, Docker access, or a
-   route to the harness machine.
+   computer**, an **SSH host**, or a local **Docker container**, streams the log
+   below the install button, and can cancel; the hub host never receives SSH
+   keys, Docker access, or a route to the harness machine.
 7. The pairing card waits for the adapter, then reports **Connected**; the new
    adapter appears as **Paired · Offline**, and its credential session under
    **Connected adapters** turns it **Online**. That table shows transport,
