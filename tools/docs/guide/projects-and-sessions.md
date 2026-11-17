@@ -119,6 +119,9 @@ the run.
 
 - The session header's more menu can **Snooze session**, and on an archived
   session it shows **Reopen** instead of Archive.
+- In Clara Desktop, right-click a session row for **Snooze** (or **Remove from
+  Snoozed**), **Archive** (or **Reopen**), and **Delete**. Delete asks for
+  confirmation first.
 - **Done** in the composer's send menu archives the session without renaming it.
 - **Reopen** appears in the send menu on an archived or snoozed session and
   clears that state.
