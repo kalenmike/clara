@@ -40,19 +40,19 @@ first-run, headless, and emergency surface.
    password.
 5. **Overview** leads with six health tiles — Hub, Local, Relay, Harness, Push,
    and Orchestration — then **Needs attention**, Active clients and Active
-   adapters previews, five recent events, and a storage summary. Tiles open their
-   view, the Hub tile opens Settings, the Orchestration tile opens Network, and
-   **Go offline** sits at the far right.
+   adapters previews, five recent events, and a storage summary. Each preview card
+   puts **View all** bottom right; the connection cards show their badge by the
+   title and a **Pair** shortcut top right. Tiles open their view (Hub → Settings,
+   Orchestration → Network); **Go offline** sits at the far right.
 6. The activity rail holds **Home** (Overview), **Harness**, **Clients**,
    **Network**, **Traffic**, **Activity**, **Sessions**, and **Settings**. Views
    are hash links and keep scroll; cards open from their header, and a feature
    that is off cannot expand. Every Network card starts collapsed.
 7. The title bar carries peek and **Refresh** icon buttons plus **Sign out**. Peek
    unmasks ids, fingerprints, paths, endpoints, relay room, and session ids.
-8. In Clara, open **Hub** to use the same views at `/hub`, signed in with the
-   owner account. The app holds the token and disables tunnel-cutting controls.
-   The panel polls every five seconds while visible and pauses while hidden;
-   **Refresh** checks immediately.
+8. In Clara, open **Hub** for the same views at `/hub`; the app holds the token,
+   disables tunnel-cutting controls, polls every five seconds while visible,
+   pauses while hidden, and **Refresh** checks immediately.
 
 ## Core business rules
 

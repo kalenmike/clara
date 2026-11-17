@@ -4,7 +4,7 @@ import { Card, CardContent, CardHeader } from '@clara/ui/components/card'
 import { formatRelative, formatTimestamp, shortId } from '../lib/format.ts'
 import { PEEK_MASK } from '../lib/peek.ts'
 import { usePeek } from '../lib/peek-context.tsx'
-import { Badge, EmptyState } from './primitives.tsx'
+import { Badge, CardLink, EmptyState } from './primitives.tsx'
 
 const PREVIEW_ROWS = 5
 
@@ -17,11 +17,13 @@ export function ActiveClientsCard({
   devices,
   now,
   onOpen,
+  onPair,
 }: {
   clients: PanelClientInfo[]
   devices: PanelDeviceInfo[]
   now: number
   onOpen: () => void
+  onPair: () => void
 }) {
   const { masked } = usePeek()
   const deviceById = new Map(devices.map((device) => [device.id, device]))
@@ -32,22 +34,22 @@ export function ActiveClientsCard({
   return (
     <Card asChild>
       <section aria-labelledby="overview-clients-title">
-        <CardHeader className="flex items-center justify-between gap-2">
+        <CardHeader className="flex items-start justify-between gap-2">
           <div>
-            <h2 id="overview-clients-title" className="text-sm font-semibold">
-              Active clients
-            </h2>
+            <div className="flex flex-wrap items-center gap-2">
+              <h2 id="overview-clients-title" className="text-sm font-semibold">
+                Active clients
+              </h2>
+              <Badge tone={active > 0 ? 'info' : 'neutral'}>{active} active</Badge>
+              {pairing > 0 ? <Badge tone="warning">{pairing} pairing</Badge> : null}
+            </div>
             <p className="text-[11px] text-muted-foreground">
               Live end-to-end encrypted browser sessions
             </p>
           </div>
-          <span className="flex items-center gap-2">
-            <Badge tone={active > 0 ? 'info' : 'neutral'}>{active} active</Badge>
-            {pairing > 0 ? <Badge tone="warning">{pairing} pairing</Badge> : null}
-            <Button type="button" variant="link" className="h-auto p-0 text-xs" onClick={onOpen}>
-              View all
-            </Button>
-          </span>
+          <Button type="button" size="sm" variant="outline" onClick={onPair}>
+            Pair a client
+          </Button>
         </CardHeader>
         <CardContent>
           {visible.length === 0 ? (
@@ -124,6 +126,7 @@ export function ActiveClientsCard({
             </div>
           )}
         </CardContent>
+        <CardLink onClick={onOpen}>View all</CardLink>
       </section>
     </Card>
   )
@@ -134,11 +137,13 @@ export function ActiveAdaptersCard({
   harnesses,
   now,
   onOpen,
+  onPair,
 }: {
   clients: PanelClientInfo[]
   harnesses: PanelHarness[]
   now: number
   onOpen: () => void
+  onPair: () => void
 }) {
   const { masked } = usePeek()
   const harnessById = new Map(harnesses.map((harness) => [harness.harnessId, harness]))
@@ -147,21 +152,23 @@ export function ActiveAdaptersCard({
   return (
     <Card asChild>
       <section aria-labelledby="overview-adapters-title">
-        <CardHeader className="flex items-center justify-between gap-2">
+        <CardHeader className="flex items-start justify-between gap-2">
           <div>
-            <h2 id="overview-adapters-title" className="text-sm font-semibold">
-              Active adapters
-            </h2>
+            <div className="flex flex-wrap items-center gap-2">
+              <h2 id="overview-adapters-title" className="text-sm font-semibold">
+                Active adapters
+              </h2>
+              <Badge tone={clients.length > 0 ? 'info' : 'neutral'}>
+                {clients.length} connected
+              </Badge>
+            </div>
             <p className="text-[11px] text-muted-foreground">
               Live end-to-end encrypted adapter sessions
             </p>
           </div>
-          <span className="flex items-center gap-2">
-            <Badge tone={clients.length > 0 ? 'info' : 'neutral'}>{clients.length} connected</Badge>
-            <Button type="button" variant="link" className="h-auto p-0 text-xs" onClick={onOpen}>
-              View all
-            </Button>
-          </span>
+          <Button type="button" size="sm" variant="outline" onClick={onPair}>
+            Pair a harness
+          </Button>
         </CardHeader>
         <CardContent>
           {visible.length === 0 ? (
@@ -226,6 +233,7 @@ export function ActiveAdaptersCard({
             </div>
           )}
         </CardContent>
+        <CardLink onClick={onOpen}>View all</CardLink>
       </section>
     </Card>
   )

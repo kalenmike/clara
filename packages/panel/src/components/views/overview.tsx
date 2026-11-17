@@ -1,5 +1,4 @@
 import { useState } from 'react'
-import { Button } from '@clara/ui/components/button'
 import { Card, CardContent, CardHeader } from '@clara/ui/components/card'
 import type { PanelEvent, PanelSnapshot, PanelStorageEntry } from '@clara/shared-types'
 import type { PanelTab } from '../../lib/tabs.ts'
@@ -8,9 +7,11 @@ import { needsAttention, overviewHealth, storageHealth, type HealthTone } from '
 import { PEEK_MASK } from '../../lib/peek.ts'
 import { usePeek } from '../../lib/peek-context.tsx'
 import { HubPowerButton } from '../hub-power-button.tsx'
+import { HarnessPairDialog } from '../harness-pair-dialog.tsx'
 import { ActiveAdaptersCard, ActiveClientsCard } from '../overview-connections.tsx'
 import { AttentionBanner, HealthTiles } from '../overview-health.tsx'
-import { Badge, EmptyState, Notice, type Tone } from '../primitives.tsx'
+import { PairClientDialog } from '../pair-client-dialog.tsx'
+import { Badge, CardLink, EmptyState, Notice, type Tone } from '../primitives.tsx'
 import { View } from '../shell/view.tsx'
 
 const EVENT_TONE: Record<PanelEvent['level'], Tone> = {
@@ -47,6 +48,8 @@ export function OverviewView({
   const health = overviewHealth(snapshot)
   const attention = health.filter(needsAttention)
   const [powerError, setPowerError] = useState<string>()
+  const [pairClientOpen, setPairClientOpen] = useState(false)
+  const [pairHarnessOpen, setPairHarnessOpen] = useState(false)
   const { redact } = usePeek()
   const browserClients = snapshot.clients.filter((client) => client.kind !== 'adapter')
   const adapterClients = snapshot.clients.filter((client) => client.kind === 'adapter')
@@ -77,12 +80,14 @@ export function OverviewView({
           devices={snapshot.devices}
           now={now}
           onOpen={() => onSelect('clients')}
+          onPair={() => setPairClientOpen(true)}
         />
         <ActiveAdaptersCard
           clients={adapterClients}
           harnesses={snapshot.harnesses}
           now={now}
           onOpen={() => onSelect('harness')}
+          onPair={() => setPairHarnessOpen(true)}
         />
       </div>
 
@@ -90,6 +95,21 @@ export function OverviewView({
         <RecentActivity events={snapshot.events} now={now} onOpen={() => onSelect('activity')} />
         <StorageSummary storage={snapshot.storage} now={now} onOpen={() => onSelect('activity')} />
       </div>
+
+      <PairClientDialog
+        open={pairClientOpen}
+        snapshot={snapshot}
+        now={now}
+        onChanged={onChanged}
+        onClose={() => setPairClientOpen(false)}
+      />
+      <HarnessPairDialog
+        open={pairHarnessOpen}
+        snapshot={snapshot}
+        now={now}
+        onChanged={onChanged}
+        onClose={() => setPairHarnessOpen(false)}
+      />
     </View>
   )
 }
@@ -118,9 +138,6 @@ function RecentActivity({
               In-memory events since the hub service started
             </p>
           </div>
-          <Button type="button" variant="link" className="h-auto p-0 text-xs" onClick={onOpen}>
-            View all
-          </Button>
         </CardHeader>
         <CardContent>
           {recent.length === 0 ? (
@@ -139,6 +156,7 @@ function RecentActivity({
             </ol>
           )}
         </CardContent>
+        <CardLink onClick={onOpen}>View all</CardLink>
       </section>
     </Card>
   )
@@ -162,19 +180,16 @@ function StorageSummary({
       <section aria-labelledby="overview-storage-title">
         <CardHeader className="flex items-center justify-between gap-2">
           <div>
-            <h2 id="overview-storage-title" className="text-sm font-semibold">
-              Storage
-            </h2>
+            <div className="flex flex-wrap items-center gap-2">
+              <h2 id="overview-storage-title" className="text-sm font-semibold">
+                Storage
+              </h2>
+              <Badge tone={STORAGE_SUMMARY_TONE[summary.tone]}>{summary.label}</Badge>
+            </div>
             <p className="text-[11px] text-muted-foreground" title={summary.title}>
               {summary.title}
             </p>
           </div>
-          <span className="flex items-center gap-2">
-            <Badge tone={STORAGE_SUMMARY_TONE[summary.tone]}>{summary.label}</Badge>
-            <Button type="button" variant="link" className="h-auto p-0 text-xs" onClick={onOpen}>
-              View all
-            </Button>
-          </span>
         </CardHeader>
         <CardContent>
           {storage.length === 0 ? (
@@ -205,6 +220,7 @@ function StorageSummary({
             </ul>
           )}
         </CardContent>
+        <CardLink onClick={onOpen}>View all</CardLink>
       </section>
     </Card>
   )

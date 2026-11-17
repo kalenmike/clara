@@ -1,5 +1,6 @@
 import type { ReactNode } from 'react'
 import { Badge as UiBadge } from '@clara/ui/components/badge'
+import { Button } from '@clara/ui/components/button'
 import { Switch } from '@clara/ui/components/switch'
 import { CopyButton as SharedCopyButton } from '@clara/ui/patterns/copy-button'
 import { EmptyState as SharedEmptyState } from '@clara/ui/patterns/empty-state'
@@ -151,4 +152,15 @@ export function CopyButton({
 
 export function EmptyState({ children }: { children: ReactNode }) {
   return <SharedEmptyState>{children}</SharedEmptyState>
+}
+
+/** Right-aligned preview link that closes an overview card. */
+export function CardLink({ onClick, children }: { onClick: () => void; children: ReactNode }) {
+  return (
+    <div className="flex justify-end px-(--card-spacing)">
+      <Button type="button" variant="link" className="h-auto p-0 text-xs" onClick={onClick}>
+        {children}
+      </Button>
+    </div>
+  )
 }
