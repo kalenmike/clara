@@ -1,0 +1,46 @@
+id: orchestration
+name: Clara orchestration
+version: 1
+description: Workspace routing for the Clara checkout.
+
+# Pin the worker model for this workspace. The engine inherits these defaults
+# for every step that does not declare its own model or provider.
+defaults:
+  provider: ollama
+  model: 'mistral-nemo:12b'
+
+imports:
+  std:
+    - path: session
+    - path: software
+      wrap: std:session/worktree
+    - path: content
+    - path: research
+    - path: diagnostics
+    - path: maintenance
+
+router:
+  id: classifier
+  path: ./routers/classifier.md
+  routes:
+    - when: maintenance-recovery
+      criteria: an explicit request to recover or restart the Clara services using the existing rebuild snapshot, without rebuilding or taking a new snapshot.
+      run: std:maintenance/recover
+    - when: maintenance-diagnosis
+      criteria: an explicit request to diagnose why a recent Clara rebuild or service restart failed, and what to do next.
+      run: std:maintenance/diagnose
+    - when: rebuild
+      criteria: an explicit request to rebuild Clara itself, reinstall its adapters, restart all local Clara services, or verify their health.
+      run: std:maintenance
+    - when: content
+      criteria: a request to write, draft, edit, or deliver an article, post, essay, or other prose content.
+      run: std:content
+    - when: software-development
+      criteria: a normal software feature, bug, or documentation request.
+      run: std:software
+    - when: research
+      criteria: a request for external research, industry or market analysis, source gathering, or a cited research brief.
+      run: std:research
+    - when: diagnostics
+      criteria: a request to audit, diagnose, or self-analyze the orchestrator itself, including its database, run history, failures, alerts, retries, or pipeline setup.
+      run: std:diagnostics
