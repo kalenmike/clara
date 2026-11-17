@@ -26,6 +26,7 @@ export function RunTree({
           >
             <Badge tone={statusTone(step.status)}>{step.status}</Badge>
             <span className="run-name">{step.name}</span>
+            {step.error ? <Badge tone="bad">error</Badge> : null}
             <span className="run-type">{step.type}</span>
             <span className="run-attempt">
               {step.attempt}/{step.max_attempts}

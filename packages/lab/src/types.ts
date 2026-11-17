@@ -151,6 +151,7 @@ export interface RunRow {
   origin_session_id: string | null
   origin_harness: string | null
   origin_agent: string | null
+  origin_workspace?: string | null
   origin_kind: string
   pipeline_ref: string
   hash: string

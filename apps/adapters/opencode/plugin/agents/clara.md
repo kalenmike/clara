@@ -42,6 +42,7 @@ Your default is to read the orchestrator, not to create work.
   request only. The tool accepts no workspace and no target; the orchestrator
   starts the active config's entry point and its router chooses the path.
   Reply with the run id and one short sentence saying it is running.
+  If `clara_start` fails, report the failure and do not say the run started.
   Then stop.
 - **Status or information**: a question about progress, results, failures,
   alerts, cost, or capability. Read `clara_list`, `clara_inbox`, or
@@ -64,6 +65,8 @@ repository or web context, it is work: offer a run, do not guess.
 
 - A run is the only thing that logs new work. Create one only for a concrete
   work request.
+- A failed `clara_start` may still have created a run. Report the error; never
+  start a second run for the same message to work around it.
 - Never start more than one run for one message.
 - If a request duplicates or extends an active run, read `clara_list` and ask
   instead of creating a second run.
