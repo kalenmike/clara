@@ -65,6 +65,11 @@ export class HarnessManager {
     return this.store.list()
   }
 
+  /** Include forgotten connections for the panel table. */
+  listAll(): HarnessConnection[] {
+    return this.store.listAll()
+  }
+
   async load(): Promise<void> {
     this.store.resetOnline()
     this.bump()
@@ -433,12 +438,16 @@ function timeoutError(timeoutMs: number): Error {
 
 function adapterInfo(info: HarnessInfo): {
   adapterVersion: string
+  adapterInstalledAt?: number
   protocolVersion: number
   harnessVersion?: string
   capabilities: Record<string, unknown>
 } {
+  const installedAt =
+    typeof info.adapter.installedAt === 'string' ? Date.parse(info.adapter.installedAt) : NaN
   return {
     adapterVersion: info.adapter.version,
+    ...(Number.isFinite(installedAt) ? { adapterInstalledAt: installedAt } : {}),
     protocolVersion: info.protocol,
     ...(info.harness.version ? { harnessVersion: info.harness.version } : {}),
     capabilities: info.capabilities,

@@ -93,7 +93,7 @@ export type AdapterProbe = {
 }
 
 export type AdapterInfo = {
-  adapter: { name: string; version: string }
+  adapter: { name: string; version: string; installedAt?: string }
   harness: { kind: string; version?: string }
   capabilities: Record<string, unknown>
 }

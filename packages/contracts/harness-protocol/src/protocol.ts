@@ -6,7 +6,7 @@ export const HARNESS_API_PREFIX = '/harness/v1'
 
 export type HarnessInfo = {
   protocol: number
-  adapter: { name: string; version: string }
+  adapter: { name: string; version: string; installedAt?: string }
   harness: { kind: string; version?: string }
   capabilities: HarnessCapabilities
 }

@@ -144,10 +144,26 @@ describe('harness store', () => {
     expect(store.list()).toHaveLength(1)
   })
 
-  it('keeps identity and metadata when a connection is removed', async () => {
+  it('keeps identity and metadata when a connection is forgotten', async () => {
+    const first = await enroll({ harnessId: 'same' })
+    store.forget(first.connection.id)
+    expect(store.list()).toHaveLength(0)
+    expect(store.listAll()).toHaveLength(1)
+    expect(store.listAll()[0]).toMatchObject({ id: first.connection.id, online: false })
+    expect(store.listAll()[0]?.forgottenAt).toBeTypeOf('number')
+    expect(await store.credential('adapter-a')).toBeUndefined()
+
+    const second = await enroll({ harnessId: 'same', adapterId: 'new-adapter' })
+    expect(second.connection.id).toBe(first.connection.id)
+    expect(second.connection.forgottenAt).toBeUndefined()
+    expect(store.list()).toHaveLength(1)
+  })
+
+  it('removes identity and metadata when a connection is deleted permanently', async () => {
     const first = await enroll({ harnessId: 'same' })
     store.remove(first.connection.id)
     expect(store.list()).toHaveLength(0)
+    expect(store.listAll()).toHaveLength(0)
 
     const second = await enroll({ harnessId: 'same', adapterId: 'new-adapter' })
     expect(second.connection.id).not.toBe(first.connection.id)
@@ -206,6 +222,7 @@ describe('harness store', () => {
     expect(
       store.setAdapterInfo('same', {
         adapterVersion: '0.2.0',
+        adapterInstalledAt: Date.parse('2026-11-16T23:00:00Z'),
         protocolVersion: 1,
         harnessVersion: '2.1.1',
         capabilities: { sessions: true, maintenance: { update: true } },
@@ -213,12 +230,14 @@ describe('harness store', () => {
     ).toBe(true)
     expect(store.get(first.connection.id)).toMatchObject({
       adapterVersion: '0.2.0',
+      adapterInstalledAt: Date.parse('2026-11-16T23:00:00Z'),
       harnessVersion: '2.1.1',
       capabilities: { sessions: true, maintenance: { update: true } },
     })
     expect(
       store.setAdapterInfo('same', {
         adapterVersion: '0.2.0',
+        adapterInstalledAt: Date.parse('2026-11-16T23:00:00Z'),
         protocolVersion: 1,
         harnessVersion: '2.1.1',
         capabilities: { sessions: true, maintenance: { update: true } },

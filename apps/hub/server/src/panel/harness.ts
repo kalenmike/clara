@@ -13,12 +13,18 @@ export function toPanelHarness(connection: HarnessConnection): PanelHarness {
     ...(connection.host ? { host: connection.host } : {}),
     ...(connection.fingerprint ? { fingerprint: connection.fingerprint } : {}),
     ...(connection.adapterVersion ? { adapterVersion: connection.adapterVersion } : {}),
+    ...(connection.adapterInstalledAt !== undefined
+      ? { adapterInstalledAt: new Date(connection.adapterInstalledAt).toISOString() }
+      : {}),
     ...(connection.protocolVersion !== undefined
       ? { protocolVersion: connection.protocolVersion }
       : {}),
     ...(connection.harnessVersion ? { harnessVersion: connection.harnessVersion } : {}),
     ...(connection.capabilities ? { capabilities: connection.capabilities } : {}),
     credentialConfigured: connection.credentialConfigured,
+    ...(connection.forgottenAt !== undefined
+      ? { forgottenAt: new Date(connection.forgottenAt).toISOString() }
+      : {}),
     ...(connection.lastTestAt !== undefined
       ? {
           lastTestAt: new Date(connection.lastTestAt).toISOString(),
@@ -50,7 +56,7 @@ export function harnessState(
 }
 
 export function harnessList(manager: HarnessManager): PanelHarness[] {
-  return manager.list().map(toPanelHarness)
+  return manager.listAll().map(toPanelHarness)
 }
 
 export function toPanelHarnessTest(probe: HarnessProbe): PanelHarnessTestResult {

@@ -15,6 +15,7 @@ export type HarnessConnection = {
   /** Fingerprint of the paired adapter credential. */
   fingerprint?: string
   adapterVersion?: string
+  adapterInstalledAt?: number
   protocolVersion?: number
   harnessVersion?: string
   capabilities: Record<string, unknown>
@@ -25,6 +26,7 @@ export type HarnessConnection = {
   lastSeenAt?: number
   createdAt: number
   updatedAt: number
+  forgottenAt?: number
 }
 
 export type HarnessProbe = {

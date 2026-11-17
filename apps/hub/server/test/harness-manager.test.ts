@@ -108,6 +108,23 @@ describe('harness manager', () => {
     expect(manager.list().map((connection) => connection.harnessId)).toEqual(['harness-b'])
   })
 
+  it('hides a forgotten harness from the active list until it is deleted', async () => {
+    const first = await enroll('harness-a', 'adapter-a')
+    await enroll('harness-b', 'adapter-b')
+
+    await manager.forget(first.connection.id)
+
+    expect(manager.list().map((connection) => connection.harnessId)).toEqual(['harness-b'])
+    expect(manager.listAll().map((connection) => connection.harnessId)).toEqual([
+      'harness-a',
+      'harness-b',
+    ])
+    expect(manager.listAll()[0]?.forgottenAt).toBeTypeOf('number')
+
+    await manager.remove(first.connection.id)
+    expect(manager.listAll().map((connection) => connection.harnessId)).toEqual(['harness-b'])
+  })
+
   it('keeps every harness record linked to one workspace', async () => {
     await enroll()
     const project = manager.projects.create({ name: 'Demo' })

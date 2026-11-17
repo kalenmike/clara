@@ -137,6 +137,7 @@ function fakeHarness(options: {
     active: connection,
     lastError: undefined,
     list: () => [connection],
+    listAll: () => [connection],
     hostResources: async () => {
       if (options.hostCalls) options.hostCalls.value += 1
       return options.host ?? { state: 'unavailable' }

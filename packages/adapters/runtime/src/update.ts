@@ -14,10 +14,10 @@ import {
 import { tmpdir } from 'node:os'
 import { dirname, join } from 'node:path'
 import type { Hono } from 'hono'
+import { isAdapterUpdateAvailable } from '@clara/shared-types'
 import {
   adapterBinaryName,
   archiveFormat,
-  compareVersions,
   detectAdapterTarget,
   downloadVerified,
   extractArchive,
@@ -74,6 +74,7 @@ type AdapterManifest = {
   schemaVersion: 1
   harness: string
   version: string
+  publishedAt?: string
   artifacts: Record<string, { url: string; sha256: string; size?: number }>
 }
 
@@ -202,13 +203,6 @@ export async function checkAdapterUpdate(target: AdapterUpdateTarget): Promise<A
       'This adapter has no install directory to update.'
     )
   }
-  if (target.containerized) {
-    throw new AdapterUpdateError(
-      409,
-      'container_adapter',
-      'This adapter runs in a container. Rebuild and recreate the container to upgrade it.'
-    )
-  }
   const provenance = readAdapterProvenance(root)
   if (!provenance || provenance.source !== 'registry' || !provenance.registryUrl) {
     throw new AdapterUpdateError(
@@ -222,7 +216,12 @@ export async function checkAdapterUpdate(target: AdapterUpdateTarget): Promise<A
   return {
     current: target.version,
     latest: manifest.version,
-    available: compareVersions(manifest.version, target.version) > 0,
+    available: isAdapterUpdateAvailable({
+      current: target.version,
+      latest: manifest.version,
+      currentAt: provenance.installedAt,
+      latestAt: manifest.publishedAt,
+    }),
     platform,
     registryUrl: provenance.registryUrl,
   }
@@ -243,13 +242,6 @@ export async function stageAdapterUpdate(
       409,
       'update_unavailable',
       'This adapter has no install directory to update.'
-    )
-  }
-  if (target.containerized) {
-    throw new AdapterUpdateError(
-      409,
-      'container_adapter',
-      'This adapter runs in a container. Rebuild and recreate the container to upgrade it.'
     )
   }
   const provenance = readAdapterProvenance(root)
@@ -288,7 +280,14 @@ export async function stageAdapterUpdate(
         `The adapter's registry publishes ${manifest.version}, not ${requestedVersion}.`
       )
     }
-    if (compareVersions(manifest.version, target.version) <= 0) {
+    if (
+      !isAdapterUpdateAvailable({
+        current: target.version,
+        latest: manifest.version,
+        currentAt: provenance.installedAt,
+        latestAt: manifest.publishedAt,
+      })
+    ) {
       throw new AdapterUpdateError(
         409,
         'already_current',
@@ -613,7 +612,13 @@ export function parseManifest(value: unknown, kind: string): AdapterManifest {
       ...(typeof entry.size === 'number' && entry.size > 0 ? { size: entry.size } : {}),
     }
   }
-  return { schemaVersion: 1, harness: kind, version: record.version, artifacts }
+  return {
+    schemaVersion: 1,
+    harness: kind,
+    version: record.version,
+    ...(typeof record.publishedAt === 'string' ? { publishedAt: record.publishedAt } : {}),
+    artifacts,
+  }
 }
 
 function allowedArtifactUrl(value: string): boolean {

@@ -37,6 +37,7 @@ type ConnectionRow = {
   host_json: string | null
   install_method: string | null
   adapter_version: string | null
+  adapter_installed_at: number | null
   protocol_version: number | null
   harness_version: string | null
   capabilities_json: string | null
@@ -46,6 +47,7 @@ type ConnectionRow = {
   last_seen_at: number | null
   created_at: number
   updated_at: number
+  forgotten_at: number | null
   credential_id: string | null
   credential_fingerprint: string | null
 }
@@ -113,6 +115,14 @@ export class HarnessStore {
 
   list(): HarnessConnection[] {
     const rows = this.db
+      .prepare(`${selectConnection} WHERE c.forgotten_at IS NULL ORDER BY c.created_at ASC`)
+      .all() as ConnectionRow[]
+    return rows.map(toConnection)
+  }
+
+  /** Include forgotten connections for the panel, which offers their deletion. */
+  listAll(): HarnessConnection[] {
+    const rows = this.db
       .prepare(`${selectConnection} ORDER BY c.created_at ASC`)
       .all() as ConnectionRow[]
     return rows.map(toConnection)
@@ -168,14 +178,8 @@ export class HarnessStore {
     }
   }
 
+  /** Permanently delete a connection, its credential, identity, and metadata. */
   remove(id: string): void {
-    const result = this.db.prepare('DELETE FROM harness_connections WHERE id = ?').run(id)
-    if (result.changes === 0) {
-      throw new HarnessValidationError('not_found', 'That harness connection no longer exists')
-    }
-  }
-
-  forget(id: string): void {
     const connection = this.get(id)
     if (!connection) {
       throw new HarnessValidationError('not_found', 'That harness connection no longer exists')
@@ -190,6 +194,35 @@ export class HarnessStore {
       this.db
         .prepare('DELETE FROM harness_identities WHERE harness_id = ?')
         .run(connection.harnessId)
+    })
+    write()
+  }
+
+  /**
+   * Forget a connection but keep its identity and Clara metadata. The credential
+   * is revoked so the running adapter cannot reconnect until it is paired again.
+   */
+  forget(id: string): void {
+    const connection = this.get(id)
+    if (!connection) {
+      throw new HarnessValidationError('not_found', 'That harness connection no longer exists')
+    }
+    const now = Date.now()
+    const write = this.db.transaction(() => {
+      this.db
+        .prepare(
+          `UPDATE harness_connections
+              SET online = 0, forgotten_at = ?, updated_at = ?
+            WHERE id = ?`
+        )
+        .run(now, now, id)
+      this.db
+        .prepare(
+          `UPDATE adapter_credentials
+              SET revoked_at = ?
+            WHERE harness_id = ? AND revoked_at IS NULL`
+        )
+        .run(now, connection.harnessId)
     })
     write()
   }
@@ -245,6 +278,7 @@ export class HarnessStore {
     harnessId: string,
     info: {
       adapterVersion: string
+      adapterInstalledAt?: number
       protocolVersion: number
       harnessVersion?: string
       capabilities: Record<string, unknown>
@@ -252,12 +286,14 @@ export class HarnessStore {
   ): boolean {
     const row = this.db
       .prepare(
-        `SELECT adapter_version, protocol_version, harness_version, capabilities_json
+        `SELECT adapter_version, adapter_installed_at, protocol_version,
+                harness_version, capabilities_json
            FROM harness_connections WHERE harness_id = ?`
       )
       .get(harnessId) as
       | {
           adapter_version: string | null
+          adapter_installed_at: number | null
           protocol_version: number | null
           harness_version: string | null
           capabilities_json: string | null
@@ -267,6 +303,7 @@ export class HarnessStore {
     const capabilities = JSON.stringify(info.capabilities)
     if (
       row.adapter_version === info.adapterVersion &&
+      row.adapter_installed_at === (info.adapterInstalledAt ?? null) &&
       row.protocol_version === info.protocolVersion &&
       row.harness_version === (info.harnessVersion ?? null) &&
       row.capabilities_json === capabilities
@@ -276,12 +313,13 @@ export class HarnessStore {
     this.db
       .prepare(
         `UPDATE harness_connections
-            SET adapter_version = ?, protocol_version = ?, harness_version = ?,
-                capabilities_json = ?, updated_at = ?
+            SET adapter_version = ?, adapter_installed_at = ?, protocol_version = ?,
+                harness_version = ?, capabilities_json = ?, updated_at = ?
           WHERE harness_id = ?`
       )
       .run(
         info.adapterVersion,
+        info.adapterInstalledAt ?? null,
         info.protocolVersion,
         info.harnessVersion ?? null,
         capabilities,
@@ -507,9 +545,11 @@ export class HarnessStore {
           .prepare(
             `UPDATE harness_connections
                 SET harness_id = ?, kind = ?, label = ?, transport = ?, online = 0,
-                    adapter_version = ?, protocol_version = ?, harness_version = ?,
+                    adapter_version = ?, adapter_installed_at = NULL,
+                    protocol_version = ?, harness_version = ?,
                     capabilities_json = ?, credential_id = ?, host_json = COALESCE(?, host_json),
                     install_method = COALESCE(?, install_method),
+                    forgotten_at = NULL,
                     last_seen_at = ?, updated_at = ?
               WHERE id = ?`
           )
@@ -596,10 +636,11 @@ export class HarnessStore {
 
 const selectConnection = `
   SELECT c.id, c.harness_id, c.kind, c.label, c.transport, c.online,
-         c.adapter_version, c.protocol_version, c.harness_version, c.capabilities_json,
+         c.adapter_version, c.adapter_installed_at, c.protocol_version,
+         c.harness_version, c.capabilities_json,
          c.host_json, c.install_method,
          c.last_test_at, c.last_test_ok, c.last_test_error,
-         c.last_seen_at, c.created_at, c.updated_at, c.credential_id,
+         c.last_seen_at, c.created_at, c.updated_at, c.forgotten_at, c.credential_id,
          ac.fingerprint AS credential_fingerprint
     FROM harness_connections c
     LEFT JOIN adapter_credentials ac ON ac.adapter_id = c.credential_id`
@@ -619,6 +660,7 @@ function toConnection(row: ConnectionRow): HarnessConnection {
       : {}),
     ...(row.credential_fingerprint ? { fingerprint: row.credential_fingerprint } : {}),
     ...(row.adapter_version ? { adapterVersion: row.adapter_version } : {}),
+    ...(row.adapter_installed_at !== null ? { adapterInstalledAt: row.adapter_installed_at } : {}),
     ...(row.protocol_version !== null ? { protocolVersion: row.protocol_version } : {}),
     ...(row.harness_version ? { harnessVersion: row.harness_version } : {}),
     capabilities: parseObject(row.capabilities_json),
@@ -627,6 +669,7 @@ function toConnection(row: ConnectionRow): HarnessConnection {
     ...(row.last_test_ok !== null ? { lastTestOk: row.last_test_ok === 1 } : {}),
     ...(row.last_test_error ? { lastTestError: row.last_test_error } : {}),
     ...(row.last_seen_at !== null ? { lastSeenAt: row.last_seen_at } : {}),
+    ...(row.forgotten_at !== null ? { forgottenAt: row.forgotten_at } : {}),
     createdAt: row.created_at,
     updatedAt: row.updated_at,
   }
