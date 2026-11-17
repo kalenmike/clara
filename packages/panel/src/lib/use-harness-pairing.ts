@@ -62,6 +62,8 @@ export type HarnessPairingFlow = {
   infoLoading: boolean
   infoError?: string
   targetsError?: string
+  sshError?: string
+  dockerError?: string
   installEnabled: boolean
   installAvailable: boolean
   canContinue: boolean
@@ -135,10 +137,20 @@ export function useHarnessPairing({
   const containerUrl = snapshot.local.containerUrl
   const detectedAddresses = snapshot.local.addresses ?? []
 
-  const [machine, setMachine] = useState<HarnessMachine>('local')
-  const [target, setTarget] = useState<HarnessTarget>(() => defaultHarnessTarget(containerized))
+  const initialTarget = defaultHarnessTarget(containerized)
+  const [machine, setMachine] = useState<HarnessMachine>('remote')
+  const [target, setTarget] = useState<HarnessTarget>(initialTarget)
   const [kind, setKind] = useState<string>(HARNESS_KINDS[0].kind)
-  const [connectionMode, setConnectionModeState] = useState<HarnessConnectionMode>('direct')
+  const [connectionMode, setConnectionModeState] = useState<HarnessConnectionMode>(() =>
+    defaultHarnessConnectionMode({
+      machine: 'remote',
+      target: initialTarget,
+      containerized,
+      relayUsable,
+      defaultTransport,
+      ...(containerUrl ? { containerUrl } : {}),
+    })
+  )
   const [modeTouched, setModeTouched] = useState(false)
   const [offer, setOffer] = useState<AdapterInstallOffer>()
   const [connection, setConnection] = useState<PanelHarness>()
@@ -151,6 +163,8 @@ export function useHarnessPairing({
   const [infoLoading, setInfoLoading] = useState(false)
   const [infoError, setInfoError] = useState<string>()
   const [targetsError, setTargetsError] = useState<string>()
+  const [sshError, setSshError] = useState<string>()
+  const [dockerError, setDockerError] = useState<string>()
   const [sshHosts, setSshHosts] = useState<PanelInstallSshHost[]>([])
   const [containers, setContainers] = useState<PanelInstallDockerContainer[]>([])
 
@@ -192,15 +206,16 @@ export function useHarnessPairing({
     if (!open || !host) return
     let active = true
     setTargetsError(undefined)
+    setSshError(undefined)
+    setDockerError(undefined)
     void host
       .targets()
       .then((value) => {
         if (!active) return
         setSshHosts(value.ssh.hosts)
         setContainers(value.docker.containers)
-        if (!value.ssh.available && value.ssh.reason) setTargetsError(value.ssh.reason)
-        else if (!value.docker.available && value.docker.reason)
-          setTargetsError(value.docker.reason)
+        setSshError(value.ssh.available ? undefined : value.ssh.reason)
+        setDockerError(value.docker.available ? undefined : value.docker.reason)
       })
       .catch((cause: unknown) => {
         if (active) setTargetsError(cause instanceof Error ? cause.message : String(cause))
@@ -223,6 +238,12 @@ export function useHarnessPairing({
     if (!open) return
     reset()
   }, [open, reset])
+
+  useEffect(() => {
+    if (open) return
+    setMachine('remote')
+    setTarget(defaultHarnessTarget(containerized))
+  }, [containerized, open])
 
   const directMode = connectionMode === 'direct'
   const directUrl = wsUrl.trim()
@@ -295,17 +316,18 @@ export function useHarnessPairing({
         direct: directUrl.length > 0,
       })
     : !relayUsable
+  const manualSsh = sshHost === MANUAL_SSH_HOST
+  const hostReady = manualSsh ? sshHostname.trim().length > 0 : Boolean(sshHost)
+  const targetReady = method === 'ssh' ? hostReady : method === 'docker' ? Boolean(container) : true
   const canContinue =
     !snapshot.controls.stopped &&
     installAvailable &&
     Boolean(manifest) &&
     !needsAddress &&
     !directProtocolInvalid &&
-    transportUsable
+    transportUsable &&
+    (!host || targetReady)
 
-  const manualSsh = sshHost === MANUAL_SSH_HOST
-  const hostReady = manualSsh ? sshHostname.trim().length > 0 : Boolean(sshHost)
-  const targetReady = method === 'ssh' ? hostReady : method === 'docker' ? Boolean(container) : true
   const canInstall =
     Boolean(host && offer?.manifest && pairing) &&
     installEnabled &&
@@ -437,6 +459,47 @@ export function useHarnessPairing({
     }
   }, [host, jobId, running])
 
+  const startInstall = async (targetOffer: AdapterInstallOffer) => {
+    if (!host || !installEnabled || snapshot.controls.stopped) return
+    if (!targetOffer.manifest || !targetReady || job?.state === 'running') return
+    setPending('install')
+    setError(undefined)
+    try {
+      const port = sshPort.trim() ? Number(sshPort.trim()) : undefined
+      if (port !== undefined && (!Number.isInteger(port) || port < 1 || port > 65_535)) {
+        throw new Error('The SSH port must be between 1 and 65535.')
+      }
+      const next = await host.start({
+        kind: targetOffer.pairing.kind,
+        method,
+        pairingCode: targetOffer.pairing.code,
+        manifest: targetOffer.manifest,
+        ...(method === 'ssh'
+          ? {
+              host: manualSsh
+                ? {
+                    hostname: sshHostname.trim(),
+                    ...(sshUser.trim() ? { user: sshUser.trim() } : {}),
+                    ...(port !== undefined ? { port } : {}),
+                  }
+                : { alias: sshHost },
+            }
+          : {}),
+        ...(method === 'docker' ? { container } : {}),
+        ...(targetOffer.pairing.kind === 'opencode' && opencodeUrl.trim()
+          ? { opencodeUrl: opencodeUrl.trim() }
+          : {}),
+      })
+      setJob(next)
+      setConnection(undefined)
+      onChangedRef.current()
+    } catch (cause) {
+      setError(cause instanceof Error ? cause.message : String(cause))
+    } finally {
+      setPending(undefined)
+    }
+  }
+
   const begin = async () => {
     if (pending || !canContinue) return
     if (directMode && directUrl && !/^ws:\/\//i.test(directUrl)) {
@@ -458,6 +521,7 @@ export function useHarnessPairing({
       setJob(undefined)
       setConnection(undefined)
       onChangedRef.current()
+      await startInstall(next)
     } catch (cause) {
       setError(cause instanceof Error ? cause.message : String(cause))
     } finally {
@@ -466,43 +530,8 @@ export function useHarnessPairing({
   }
 
   const install = async () => {
-    if (pending || !canInstall || !host || !offer?.manifest || !pairing) return
-    setPending('install')
-    setError(undefined)
-    try {
-      const port = sshPort.trim() ? Number(sshPort.trim()) : undefined
-      if (port !== undefined && (!Number.isInteger(port) || port < 1 || port > 65_535)) {
-        throw new Error('The SSH port must be between 1 and 65535.')
-      }
-      const next = await host.start({
-        kind: pairing.kind,
-        method,
-        pairingCode: pairing.code,
-        manifest: offer.manifest,
-        ...(method === 'ssh'
-          ? {
-              host: manualSsh
-                ? {
-                    hostname: sshHostname.trim(),
-                    ...(sshUser.trim() ? { user: sshUser.trim() } : {}),
-                    ...(port !== undefined ? { port } : {}),
-                  }
-                : { alias: sshHost },
-            }
-          : {}),
-        ...(method === 'docker' ? { container } : {}),
-        ...(pairing.kind === 'opencode' && opencodeUrl.trim()
-          ? { opencodeUrl: opencodeUrl.trim() }
-          : {}),
-      })
-      setJob(next)
-      setConnection(undefined)
-      onChangedRef.current()
-    } catch (cause) {
-      setError(cause instanceof Error ? cause.message : String(cause))
-    } finally {
-      setPending(undefined)
-    }
+    if (pending || !canInstall || !offer) return
+    await startInstall(offer)
   }
 
   const cancelInstall = async () => {
@@ -566,6 +595,8 @@ export function useHarnessPairing({
     infoLoading,
     ...(infoError ? { infoError } : {}),
     ...(targetsError ? { targetsError } : {}),
+    ...(sshError ? { sshError } : {}),
+    ...(dockerError ? { dockerError } : {}),
     installEnabled,
     installAvailable,
     canContinue,
