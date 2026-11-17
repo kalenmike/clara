@@ -155,6 +155,8 @@ export interface PipelineDefinition {
 export interface RouterDefinition {
   id: string
   description?: string
+  model?: string
+  provider?: string
   strategy?: RouterStrategy
   instructions: string
   routes: RouteDefinition[]

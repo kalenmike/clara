@@ -587,6 +587,57 @@ describe('runtime', () => {
     expect(store.step(started.run.id, order.step_path)?.error).toContain('Location not found')
   })
 
+  it('dispatches the entry router with its frontmatter model', () => {
+    const dir = mkdtempSync(join(tmpdir(), 'clara-router-model-'))
+    try {
+      mkdirSync(join(dir, 'orchestration', 'routers'), { recursive: true })
+      writeFileSync(
+        join(dir, 'orchestration', 'index.yml'),
+        [
+          'id: temp',
+          'name: Temp',
+          'version: 1',
+          'defaults:',
+          '  provider: package-provider',
+          '  model: package-model',
+          'entry:',
+          '  router: classifier',
+          'router:',
+          '  id: classifier',
+          '  path: ./routers/classifier.md',
+          '  routes:',
+          '    - when: one',
+          '      criteria: first option.',
+          '      run: main',
+          'pipelines:',
+          '  main:',
+          '    steps:',
+          '      - name: do_it',
+          '        type: agent',
+        ].join('\n')
+      )
+      writeFileSync(
+        join(dir, 'orchestration', 'routers', 'classifier.md'),
+        [
+          '---',
+          'model: router-model',
+          'provider: router-provider',
+          '---',
+          '# Temp router',
+          '',
+          'Pick one.',
+        ].join('\n')
+      )
+      const local = new Runtime({ store: new Store(':memory:') })
+      const started = local.start({ workspace: dir, prompt: 'go' })
+      expect(started.work[0].kind).toBe('router')
+      expect(started.work[0].model).toBe('router-model')
+      expect(started.work[0].provider).toBe('router-provider')
+    } finally {
+      rmSync(dir, { recursive: true, force: true })
+    }
+  })
+
   it('routes from a package entry router and records the decision', () => {
     adapter()
     const started = runtime.start({ workspace, prompt: 'a new feature', target: 'std:software' })

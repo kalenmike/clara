@@ -90,7 +90,7 @@ Model and provider resolve independently, most specific first:
 
 1. step `model` / `provider`
 2. pipeline `default_model` / `default_provider`
-3. agent frontmatter `model` / `provider`
+3. agent or router frontmatter `model` / `provider`
 4. package `defaults.model` / `defaults.provider`
 5. workspace `defaults` (the root config, bundled or in the workspace)
 
@@ -147,7 +147,9 @@ A router step names a `path` to a router Markdown file or declares inline
 `routes`; `prompt` or `description` supplies inline instructions. Every route
 needs `when` and `run`; `criteria` (or legacy `description`) tells the classifier
 when to choose it. The classifier returns exactly one `when` key: an unknown key
-or missing route fails the step, and prose is never inferred.
+or missing route fails the step, and prose is never inferred. A router
+document's `model`/`provider` applies when the step and pipeline do not set one;
+the step's own overrides win.
 
 ### Script steps
 
