@@ -393,6 +393,7 @@ function OfferStep({ flow, now }: { flow: HarnessPairingFlow; now: number }) {
       </div>
 
       {flow.adapterHost && offer.manifest ? <InstallButton flow={flow} /> : null}
+      {flow.job ? <JobLog job={flow.job} onCancel={() => void flow.cancelInstall()} /> : null}
 
       <div className="space-y-1 text-center">
         <p className="text-[11px] text-muted-foreground">
@@ -438,13 +439,7 @@ function OfferStep({ flow, now }: { flow: HarnessPairingFlow; now: number }) {
         </Notice>
       ) : null}
 
-      {flow.job?.state === 'failed' ? (
-        <Notice tone="danger">
-          {flow.job.error ?? 'The install failed. Open Pairing details for the log.'}
-        </Notice>
-      ) : null}
-
-      <PairingDetails flow={flow} offer={offer} />
+      <PairingDetails offer={offer} />
     </div>
   )
 }
@@ -536,7 +531,7 @@ function InstallButton({ flow }: { flow: HarnessPairingFlow }) {
   )
 }
 
-function PairingDetails({ flow, offer }: { flow: HarnessPairingFlow; offer: AdapterInstallOffer }) {
+function PairingDetails({ offer }: { offer: AdapterInstallOffer }) {
   return (
     <details className="rounded-lg border border-border px-3 py-2.5">
       <summary className="cursor-pointer text-[11px] font-medium text-foreground">
@@ -559,7 +554,6 @@ function PairingDetails({ flow, offer }: { flow: HarnessPairingFlow; offer: Adap
             </pre>
           </div>
         ) : null}
-        {flow.job ? <JobLog job={flow.job} onCancel={() => void flow.cancelInstall()} /> : null}
       </div>
     </details>
   )
@@ -606,7 +600,11 @@ export function HarnessPairFooter({ flow }: { flow: HarnessPairingFlow }) {
             {flow.pending === 'create' ? (
               <LoaderCircle className="size-3.5 animate-spin" aria-hidden="true" />
             ) : null}
-            {flow.pending === 'create' ? 'Preparing…' : 'Create code'}
+            {flow.pending === 'create'
+              ? 'Preparing…'
+              : flow.autoInstall
+                ? 'Pair Now'
+                : 'Generate Code'}
           </Button>
         </div>
       </footer>
