@@ -131,7 +131,7 @@ browser client, then speaks the Clara Harness Protocol. The hub routes typed
 
 - Config: `<config>/clara/adapters/<kind>/config.json`; data:
   `<data>/clara/adapters/<kind>/{identity.json,adapter.log,adapter.pid,runner.pid,
-  runner.log,state.json,update.json,update.log}`. Claude keeps `catalog.json`; Pi keeps `prompt-ids.json`.
+runner.log,state.json,update.json,update.log}`. Claude keeps `catalog.json`; Pi keeps `prompt-ids.json`.
 - Commands: `clara-adapter-<kind> install --pair <code>` (plus `--no-service`,
   `--no-runner`), `clara-adapter-<kind> runner status|start|stop [--workspace <path>]`,
   `clara-adapter-<kind> upgrade [--check]`, and
