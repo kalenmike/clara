@@ -1,5 +1,5 @@
 import { spawn, type ChildProcess } from 'node:child_process'
-import { createHash } from 'node:crypto'
+import { createHash, randomUUID } from 'node:crypto'
 import {
   closeSync,
   mkdirSync,
@@ -188,7 +188,7 @@ export type RunnerSupervisorOptions = {
   intervalMs?: number
   log?: (message: string) => void
   /** Test override for the runner child spawn. */
-  spawnChild?: (args: string[]) => ChildProcess
+  spawnChild?: (command: string, args: string[]) => ChildProcess
 }
 
 /**
@@ -206,13 +206,15 @@ export class RunnerSupervisor {
   private readonly env: NodeJS.ProcessEnv
   private readonly intervalMs: number
   private readonly log: (message: string) => void
-  private readonly spawnChild: (args: string[]) => ChildProcess
+  private readonly spawnChild: (command: string, args: string[]) => ChildProcess
   private timer?: NodeJS.Timeout
   private tracked = new Map<string, { pid: number; workspace: string; proc?: ChildProcess }>()
   private backoff = new Map<string, { failures: number; nextAt: number }>()
   private skipping = new Set<string>()
   private stopping = false
   private reconciling = false
+  /** Identifies this supervisor instance in the workspace lock across restarts. */
+  private readonly ownerId = randomUUID()
 
   constructor(options: RunnerSupervisorOptions) {
     this.name = options.name
@@ -222,12 +224,11 @@ export class RunnerSupervisor {
     this.log = options.log ?? (() => {})
     this.spawnChild =
       options.spawnChild ??
-      ((args) => {
+      ((command, args) => {
         mkdirSync(this.paths.dataDir, { recursive: true, mode: 0o700 })
         const log = openSync(runnerLogPath(this.paths), 'a', 0o600)
-        const [command, ...rest] = args
         try {
-          return spawn(command, rest, {
+          return spawn(command, args, {
             detached: false,
             stdio: ['ignore', log, log],
             env: this.env,
@@ -280,6 +281,21 @@ export class RunnerSupervisor {
       for (const [hash, entry] of desired) {
         const existing = this.tracked.get(hash) ?? readChild(this.paths, hash)
         if (existing && alive(existing.pid)) {
+          if (this.lockHeldByOther(hash)) {
+            // Another daemon owns this workspace now; drop any leftover child of
+            // ours so there is exactly one runner per (machine, workspace).
+            terminate(existing.pid)
+            await waitForExit(existing.pid)
+            this.tracked.delete(hash)
+            removeChild(this.paths, hash)
+            if (!this.skipping.has(hash)) {
+              this.skipping.add(hash)
+              this.log(`another adapter already runs the runner for ${entry.path}`)
+            }
+            continue
+          }
+          this.skipping.delete(hash)
+          this.claimLock(hash, entry.path)
           this.tracked.set(hash, { pid: existing.pid, workspace: existing.workspace })
           continue
         }
@@ -349,26 +365,49 @@ export class RunnerSupervisor {
     return join(this.lockDir(), `${hash}.lock`)
   }
 
-  /** One supervised runner per (machine, workspace) across adapter daemons. */
-  private claimLock(hash: string, workspace: string): boolean {
-    const path = this.lockPath(hash)
+  private lockOwner(hash: string): { pid?: number; owner?: string } | undefined {
     try {
-      const current = JSON.parse(readFileSync(path, 'utf8')) as { pid?: unknown }
-      if (
-        typeof current.pid === 'number' &&
-        current.pid !== process.pid &&
-        alive(current.pid)
-      ) {
-        return false
+      const current = JSON.parse(readFileSync(this.lockPath(hash), 'utf8')) as {
+        pid?: unknown
+        owner?: unknown
+      }
+      return {
+        ...(typeof current.pid === 'number' ? { pid: current.pid } : {}),
+        ...(typeof current.owner === 'string' ? { owner: current.owner } : {}),
       }
     } catch {
-      // No lock yet, or it is unreadable; claim it.
+      return undefined
     }
+  }
+
+  /** True when a live adapter daemon other than this one owns the workspace lock. */
+  private lockHeldByOther(hash: string): boolean {
+    const current = this.lockOwner(hash)
+    if (!current || current.owner === this.ownerId) return false
+    return current.pid !== undefined && alive(current.pid)
+  }
+
+  /** One supervised runner per (machine, workspace) across adapter daemons. */
+  private claimLock(hash: string, workspace: string): boolean {
+    const current = this.lockOwner(hash)
+    if (
+      current &&
+      current.owner !== this.ownerId &&
+      current.pid !== undefined &&
+      alive(current.pid)
+    ) {
+      return false
+    }
+    const path = this.lockPath(hash)
     mkdirSync(this.lockDir(), { recursive: true, mode: 0o700 })
     const temporary = `${path}.tmp`
     writeFileSync(
       temporary,
-      `${JSON.stringify({ pid: process.pid, adapter: this.name, workspace }, null, 2)}\n`,
+      `${JSON.stringify(
+        { pid: process.pid, owner: this.ownerId, adapter: this.name, workspace },
+        null,
+        2
+      )}\n`,
       { mode: 0o600 }
     )
     renameSync(temporary, path)
@@ -380,7 +419,7 @@ export class RunnerSupervisor {
     if (entry.concurrency !== undefined) args.push('--concurrency', String(entry.concurrency))
     for (const label of entry.labels ?? []) args.push('--label', label)
     try {
-      const proc = this.spawnChild(selfCommand(selfEntry(), '__runner', args))
+      const proc = this.spawnChild(process.execPath, selfCommand(selfEntry(), '__runner', args))
       if (proc.pid === undefined) throw new Error('the runner child has no pid')
       const pidPath = childPidPath(this.paths, hash)
       writeFileSync(

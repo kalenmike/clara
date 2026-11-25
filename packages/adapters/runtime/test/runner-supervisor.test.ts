@@ -1,6 +1,6 @@
 import { spawn, type ChildProcess } from 'node:child_process'
 import { createServer, type Server } from 'node:http'
-import { existsSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs'
+import { existsSync, mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs'
 import { hostname, tmpdir } from 'node:os'
 import { join } from 'node:path'
 import { afterAll, describe, expect, it } from 'vitest'
@@ -21,6 +21,15 @@ function tempRoot(): string {
   const root = mkdtempSync(join(tmpdir(), 'clara-runner-supervisor-'))
   roots.push(root)
   return root
+}
+
+function isAlive(pid: number): boolean {
+  try {
+    process.kill(pid, 0)
+    return true
+  } catch {
+    return false
+  }
 }
 
 function adapterPaths(root: string): AdapterPaths {
@@ -78,17 +87,22 @@ function harnessRow(workspace: string, options: Partial<Row> = {}): Row {
 }
 
 function supervisorFor(
-  root: string,
+  adapterRoot: string,
+  claraRoot: string,
   url: string,
   spawned: { args: string[][]; procs: ChildProcess[] }
 ): RunnerSupervisor {
-  const paths = adapterPaths(root)
   return new RunnerSupervisor({
     name: 'opencode',
-    paths,
-    env: { ...process.env, CLARA_DATA_DIR: join(root, 'data'), CLARA_ENGINE_URL: url, CLARA_ENGINE_TOKEN: 't' },
+    paths: adapterPaths(adapterRoot),
+    env: {
+      ...process.env,
+      CLARA_DATA_DIR: claraRoot,
+      CLARA_ENGINE_URL: url,
+      CLARA_ENGINE_TOKEN: 't',
+    },
     log: () => {},
-    spawnChild: (args) => {
+    spawnChild: (_command, args) => {
       spawned.args.push(args)
       const proc = spawn('sleep', ['30'], { stdio: 'ignore' })
       spawned.procs.push(proc)
@@ -123,7 +137,7 @@ describe('runner supervisor', () => {
     const { url, server } = await startRegistry(() => [])
     const spawned: { args: string[][]; procs: ChildProcess[] } = { args: [], procs: [] }
     try {
-      const supervisor = supervisorFor(root, url, spawned)
+      const supervisor = supervisorFor(root, join(root, 'data'), url, spawned)
       writeRunnerDesired(paths, [{ path: '/work/one' }])
       await supervisor.reconcile()
       await supervisor.reconcile()
@@ -162,7 +176,7 @@ describe('runner supervisor', () => {
     const { url, server } = await startRegistry(() => rows)
     const spawned: { args: string[][]; procs: ChildProcess[] } = { args: [], procs: [] }
     try {
-      const supervisor = supervisorFor(root, url, spawned)
+      const supervisor = supervisorFor(root, join(root, 'data'), url, spawned)
       await supervisor.reconcile()
       expect(spawned.args).toHaveLength(1)
       expect(spawned.args[0]).toContain('/work/hosted')
@@ -176,22 +190,49 @@ describe('runner supervisor', () => {
 
   it('lets one adapter daemon own the runner for a workspace', async () => {
     const root = tempRoot()
-    const paths = adapterPaths(root)
+    const clara = join(root, 'clara')
+    const pathsA = adapterPaths(join(root, 'adapter-a'))
+    const pathsB = adapterPaths(join(root, 'adapter-b'))
     const { url, server } = await startRegistry(() => [])
     const firstSpawned: { args: string[][]; procs: ChildProcess[] } = { args: [], procs: [] }
     const secondSpawned: { args: string[][]; procs: ChildProcess[] } = { args: [], procs: [] }
     try {
-      writeRunnerDesired(paths, [{ path: '/work/shared' }])
-      const first = supervisorFor(root, url, firstSpawned)
-      const second = supervisorFor(root, url, secondSpawned)
+      writeRunnerDesired(pathsA, [{ path: '/work/shared' }])
+      writeRunnerDesired(pathsB, [{ path: '/work/shared' }])
+      const first = supervisorFor(join(root, 'adapter-a'), clara, url, firstSpawned)
+      const second = supervisorFor(join(root, 'adapter-b'), clara, url, secondSpawned)
       await first.reconcile()
-      await second.reconcile()
       expect(firstSpawned.args).toHaveLength(1)
+      const child = listRunnerChildren(pathsA)[0]
+      expect(child).toBeDefined()
+
+      // The lock is held by the first daemon, so the second neither spawns a
+      // duplicate nor disturbs the first daemon's runner.
+      await second.reconcile()
       expect(secondSpawned.args).toHaveLength(0)
+      expect(listRunnerChildren(pathsB)).toHaveLength(0)
+
+      // A leftover live child of ours loses to another daemon's live lock.
+      const leftover = spawn('sleep', ['60'], { stdio: 'ignore' })
+      secondSpawned.procs.push(leftover)
+      const hash = runnerWorkspaceHash('/work/shared')
+      mkdirSync(pathsB.dataDir, { recursive: true })
+      writeFileSync(
+        join(pathsB.dataDir, `runner-${hash}.pid`),
+        `${JSON.stringify({ pid: leftover.pid, workspace: '/work/shared', startedAt: Date.now() })}\n`
+      )
+      await second.reconcile()
+      expect(listRunnerChildren(pathsB)).toHaveLength(0)
+      expect(isAlive(leftover.pid)).toBe(false)
+      expect(isAlive(child.pid)).toBe(true)
+
+      // With the first daemon gone, the second adopts the workspace.
       await first.stop()
       await second.reconcile()
-      expect(secondSpawned.args).toHaveLength(1)
+      expect(secondSpawned.args.filter((args) => args.includes('--workspace'))).toHaveLength(1)
+      expect(listRunnerChildren(pathsB)).toHaveLength(1)
       await second.stop()
+      expect(listRunnerChildren(pathsB)).toHaveLength(0)
     } finally {
       for (const proc of [...firstSpawned.procs, ...secondSpawned.procs]) proc.kill()
       server.close()
@@ -204,7 +245,7 @@ describe('runner supervisor', () => {
     const { url, server } = await startRegistry(() => [])
     const spawned: { args: string[][]; procs: ChildProcess[] } = { args: [], procs: [] }
     try {
-      const supervisor = supervisorFor(root, url, spawned)
+      const supervisor = supervisorFor(root, join(root, 'data'), url, spawned)
       writeRunnerDesired(paths, [{ path: '/work/stop' }])
       await supervisor.reconcile()
       const [child] = listRunnerChildren(paths)
