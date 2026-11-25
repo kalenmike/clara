@@ -71,6 +71,7 @@ Usage:
   clara-adapter-claude serve
   clara-adapter-claude start|stop|logs [--lines <n>]
   clara-adapter-claude status
+  clara-adapter-claude runner <status|start|stop> [--workspace <path>]
   clara-adapter-claude upgrade [--check] [--json]
   clara-adapter-claude clara <command...> [options]
   clara-adapter-claude verify [--directory <path>] [--write] [--json]

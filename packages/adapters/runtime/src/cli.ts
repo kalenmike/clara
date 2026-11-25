@@ -41,6 +41,7 @@ import {
 import { readState, writeState } from './state.ts'
 import { recordInstallProvenance, readInstallProvenance } from './provenance.ts'
 import { runClaraCommand } from './clara-command.ts'
+import { runnerCommand, serveRunnerProcess } from './runner-command.ts'
 import {
   ensureAdapterRecord,
   forgetAdapterInstall,
@@ -193,6 +194,14 @@ export async function runAdapterCli<THarness>(
   }
   if (command === 'upgrade') {
     await upgrade(definition, args)
+    return
+  }
+  if (command === 'runner') {
+    await runnerCommand({ name: definition.name, paths: definition.paths }, args)
+    return
+  }
+  if (command === '__runner') {
+    await serveRunnerProcess(definition.name, args)
     return
   }
   if (command === 'clara') {
@@ -813,6 +822,7 @@ Usage:
   ${bin} serve
   ${bin} start|stop|logs [--lines <n>]
   ${bin} status
+  ${bin} runner <status|start|stop> [--workspace <path>]
   ${bin} verify [--directory <path>] [--write] [--json]
   ${bin} uninstall
   ${bin} config-path
