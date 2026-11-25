@@ -22,7 +22,7 @@ export function claraDataDir(env: NodeJS.ProcessEnv = process.env): string {
   return join(xdg, 'clara')
 }
 
-type EngineEndpointFile = {
+export type EngineEndpointFile = {
   enabled: boolean
   mode: 'direct' | 'proxy' | 'none'
   url?: string

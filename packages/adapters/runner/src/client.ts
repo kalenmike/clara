@@ -1,4 +1,4 @@
-import type { RunnerConfig, ScriptWorkOrder } from './types.ts'
+import type { EngineAdapterRow, RunnerConfig, ScriptWorkOrder } from './types.ts'
 
 export class RunnerHttpError extends Error {
   readonly status: number
@@ -14,11 +14,13 @@ export class RunnerClient {
   private readonly base: string
   private readonly token: string
   private readonly resolve?: () => { url: string; token: string }
+  private readonly timeoutMs?: number
 
-  constructor(config: Pick<RunnerConfig, 'url' | 'token' | 'resolve'>) {
+  constructor(config: Pick<RunnerConfig, 'url' | 'token' | 'resolve'> & { timeoutMs?: number }) {
     this.base = config.url.replace(/\/+$/, '')
     this.token = config.token
     this.resolve = config.resolve
+    this.timeoutMs = config.timeoutMs
   }
 
   private async request<T>(method: string, path: string, body?: unknown): Promise<T> {
@@ -32,6 +34,7 @@ export class RunnerClient {
         ...(body === undefined ? {} : { 'content-type': 'application/json' }),
       },
       ...(body === undefined ? {} : { body: JSON.stringify(body) }),
+      ...(this.timeoutMs ? { signal: AbortSignal.timeout(this.timeoutMs) } : {}),
     })
     const text = await response.text()
     let value: unknown
@@ -83,6 +86,12 @@ export class RunnerClient {
       workspace: input.workspace,
       capabilities: input.capabilities,
     })
+  }
+
+  /** Adapter and runner registrations, optionally scoped to one workspace. */
+  adapters(workspace?: string): Promise<EngineAdapterRow[]> {
+    const query = workspace ? `?workspace=${encodeURIComponent(workspace)}` : ''
+    return this.request('GET', `/v1/adapters${query}`)
   }
 
   heartbeatAdapter(id: string): Promise<unknown> {

@@ -62,9 +62,21 @@ export async function runRunner(argv: string[]): Promise<void> {
   }
   const labels = options.labels.length ? options.labels : (saved?.labels ?? [])
   const concurrency = options.concurrency ?? saved?.concurrency ?? 2
+  // Without an explicit or saved URL the endpoint comes from engine.json, so
+  // re-resolve it per request: a restarting adapter daemon republishes the
+  // gateway with a new port and token, and the runner must follow.
+  const dynamicEndpoint = !options.url && !saved?.url
   const runner = createRunner({
     url,
     token,
+    ...(dynamicEndpoint
+      ? {
+          resolve: () => ({
+            url: engineURL(),
+            token: options.token ?? engineToken(),
+          }),
+        }
+      : {}),
     workspace,
     concurrency,
     labels,
