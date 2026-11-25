@@ -46,7 +46,16 @@ The engine never spawns a process. A runner claims a script step, renews the
 lease, streams `step.output`, and reports the result. It belongs on the machine
 that owns the workspace, not the hub host: a panel install enables the OpenCode
 embedded runner by default (`runner.enabled: false` or `--no-runner` turns it
-off); a shared `clara start runner` is optional and both read `engine.json`.
+off); a shared `clara runner start` or `clara-adapter-<kind> runner start` is
+optional and both read `engine.json`.
+
+Runner registrations are observable: each runner registers with the engine and
+heartbeats, and `clara runner status [--workspace <path>]` or
+`clara-adapter-<kind> runner status` lists those registrations with their age
+against the engine's 120-second stale window. A clean stop removes the
+registration at once; a crash ages out through the window. `clara status` shows
+the live registrations, and adapter `verify` fails its `runner` check when no
+live runner serves the verified directory.
 
 Claims are capability-filtered: agent work stays with its harness, while any
 runner with `script` can claim script work for the workspace it registered,

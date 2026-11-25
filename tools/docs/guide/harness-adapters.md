@@ -298,6 +298,13 @@ confirm the harness sees it, and remove it again; this is the only mode that
 writes to the native store. Use `--json` for a machine-readable report. If an
 adapter is not installed, its section is skipped.
 
+The report also carries a `runner` line: pipeline scripts run only in a
+workspace that has a live runner registered with the engine, so the check fails
+when the directory you verify has none and names the workspaces that live
+runners do serve. `clara runner status` and `clara-adapter-<kind> runner
+status` list those registrations, and `clara-adapter-<kind> runner start
+--workspace <path>` starts one on the harness machine.
+
 ## Update an adapter
 
 When a newer adapter is published, **Harness → Paired harnesses** shows the

@@ -308,7 +308,7 @@ function runnerLifecycle(name, argv) {
 function runnerLogs(options) {
   const manifest = readRunnerManifest()
   if (!manifest) {
-    console.error('The Clara runner is not installed. Start it with `clara start runner`.')
+    console.error('The Clara runner is not installed. Start it with `clara-dev start runner`.')
     return 1
   }
   if (manifest.service === 'systemd') {

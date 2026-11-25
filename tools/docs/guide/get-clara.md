@@ -160,7 +160,10 @@ clara runner stop
 ```
 
 The runner connects to the local engine and executes pipeline scripts in the
-workspace you name.
+workspace you name. `clara runner status [--workspace <path>]` lists the
+runners the engine currently knows about, live or stale, including runners
+embedded in harness adapters. A harness machine without the Clara command can
+do the same with `clara-adapter-<kind> runner status|start|stop`.
 
 ## Update
 
