@@ -1,5 +1,4 @@
 import { detectAdapterTarget } from '@clara/adapter-artifact'
-import { readManifest as readRunnerManifest } from '@clara/runner'
 import { AdapterRegistry, ADAPTER_KINDS, type AdapterKind } from '../adapters/registry.ts'
 import {
   installAdapter,
@@ -286,10 +285,6 @@ async function startSharedRunner(
   container: boolean
 ): Promise<void> {
   if (container || kind !== 'opencode' || noRunner || detectRole(paths) !== 'hub') return
-  const installed = readRunnerManifest().runner
-  // A checkout adapter can install the runner service itself; do not start a
-  // second runner next to it.
-  if (installed?.service === 'systemd' || installed?.service === 'launchd') return
   console.log('')
   try {
     const code = await runRunnerStart([])

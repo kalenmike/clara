@@ -77,7 +77,6 @@ Install options:
   --opencode-username <u>  OpenCode username (default opencode)
   --opencode-password <p>  OpenCode password
   --mcp                    Register the MCP bridge in OpenCode
-  --no-runner              Do not install the shared script runner
   --no-binding             Skip the OpenCode plugin, agent, and MCP config
   --no-service             Write config without installing a user service
   --force                  Replace files this installer did not generate

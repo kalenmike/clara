@@ -4,10 +4,6 @@
   "version": "0.1.0",
   "type": "module",
   "description": "Shared script runner for Clara harness adapters.",
-  "bin": {
-    "clara-runner": "./dist/cli.js",
-    "clara-runner-install": "./dist/install-cli.js"
-  },
   "exports": {
     ".": "./src/index.ts"
   },

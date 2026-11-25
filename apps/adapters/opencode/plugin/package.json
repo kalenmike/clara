@@ -8,8 +8,7 @@
     ".": "./index.ts"
   },
   "dependencies": {
-    "@clara/binding-core": "workspace:*",
-    "@clara/runner": "workspace:*"
+    "@clara/binding-core": "workspace:*"
   },
   "scripts": {
     "typecheck": "tsc -p tsconfig.json",

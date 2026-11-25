@@ -3,12 +3,12 @@
 // A lifecycle command accepts one target before its options:
 //
 //   clara start hub
-//   clara status runner --json
+//   clara status lab --json
 //
 // Targets are intentionally a fixed list. Unknown words are rejected instead of
 // being forwarded, so a typo cannot silently become a service name.
 
-export const LIFECYCLE_TARGETS = ['default', 'hub', 'web', 'engine', 'runner', 'lab', 'docs']
+export const LIFECYCLE_TARGETS = ['default', 'hub', 'web', 'engine', 'lab', 'docs']
 
 export const CORE_TARGETS = ['hub', 'web', 'engine']
 

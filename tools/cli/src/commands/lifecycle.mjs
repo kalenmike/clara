@@ -8,9 +8,10 @@
 //   clara logs [target] [options]
 //   clara pair [target] [options]
 //
-// `hub`, `web`, and `engine` are the core services. `runner`, `lab`, and `docs`
-// are host-side targets. `default` means the core stack. Adapters are managed by
-// the packaged `clara` command.
+// `hub`, `web`, and `engine` are the core services. `lab` and `docs` are
+// host-side targets. `default` means the core stack. Adapters are managed by
+// the packaged `clara` command, and the adapter daemon supervises the script
+// runner for each workspace.
 
 import { mkdirSync, writeFileSync } from 'node:fs'
 import { join } from 'node:path'
@@ -37,18 +38,6 @@ import { followCommands, followFiles } from '../lib/multi-log.mjs'
 import { openPanel } from '../lib/panel.mjs'
 import { engineURL, panelURL } from '../lib/server-control.mjs'
 import { renderHelp, root, runNode, runPnpm } from '../lib/router.mjs'
-import {
-  readRunnerManifest,
-  renderRunnerStatus,
-  runRunnerForeground,
-  runRunnerInstaller,
-  runnerFileLogAvailable,
-  runnerInstallArgs,
-  runnerJournalCommand,
-  runnerLogPath,
-  runnerStatus,
-  stopRunnerService,
-} from '../lib/runner.mjs'
 import { collectStatus, renderJSON, renderStatus, statusExitCode } from '../lib/status.mjs'
 import { CORE_TARGETS, serviceKey, takeTarget } from '../lib/targets.mjs'
 
@@ -94,7 +83,6 @@ async function lifecycle(name, argv) {
   if (target === 'default' || CORE_TARGETS.includes(target)) {
     return coreLifecycle(name, target, rest)
   }
-  if (target === 'runner') return runnerLifecycle(name, rest)
   if (target === 'lab') return labLifecycle(name, rest)
   if (target === 'docs') return docsLifecycle(name, rest)
   throw new Error(`unknown target: ${target}`)
@@ -236,95 +224,6 @@ function printCoreSummary(keys) {
 function displayName(key) {
   if (key === 'server') return 'hub'
   return key
-}
-
-// ---------------------------------------------------------------------------
-// Runner
-
-function parseRunnerOptions(commandName, argv) {
-  const options = {
-    workspace: undefined,
-    url: undefined,
-    concurrency: undefined,
-    labels: [],
-    noService: false,
-    foreground: false,
-    purge: false,
-    json: false,
-    lines: 80,
-    follow: true,
-  }
-  for (let index = 0; index < argv.length; index++) {
-    const arg = argv[index]
-    if (arg === '--workspace') options.workspace = valueOf(argv, ++index, '--workspace')
-    else if (arg === '--url') options.url = valueOf(argv, ++index, '--url')
-    else if (arg === '--concurrency') {
-      options.concurrency = positiveNumber(valueOf(argv, ++index, '--concurrency'), '--concurrency')
-    } else if (arg === '--label') options.labels.push(valueOf(argv, ++index, '--label'))
-    else if (arg === '--no-service') options.noService = true
-    else if (arg === '--foreground') options.foreground = true
-    else if (arg === '--purge') options.purge = true
-    else if (arg === '--json') options.json = true
-    else if (arg === '--no-follow') options.follow = false
-    else if (arg === '--lines') options.lines = positiveNumber(argv[++index], '--lines')
-    else throw new Error(`unknown option for ${commandName} runner: ${arg}`)
-  }
-  if (options.foreground && commandName !== 'start') {
-    throw new Error('--foreground is only valid for start runner')
-  }
-  if (options.purge && commandName !== 'stop') {
-    throw new Error('--purge is only valid for stop runner')
-  }
-  return options
-}
-
-function runnerLifecycle(name, argv) {
-  const options = parseRunnerOptions(name, argv)
-  if (name === 'status') {
-    const status = runnerStatus()
-    renderRunnerStatus(status, { json: options.json })
-    process.exitCode = status.installed && status.active === 'active' ? 0 : 1
-    return
-  }
-  if (name === 'logs') return runnerLogs(options)
-  if (name === 'start') {
-    if (options.foreground) return runRunnerForeground()
-    return runRunnerInstaller(runnerInstallArgs(options))
-  }
-  if (name === 'stop') {
-    const manifest = readRunnerManifest()
-    if (options.purge) return runRunnerInstaller(['uninstall'])
-    for (const action of stopRunnerService(manifest)) console.log(action)
-    return 0
-  }
-  if (name === 'restart') {
-    const manifest = readRunnerManifest()
-    for (const action of stopRunnerService(manifest)) console.log(action)
-    return runRunnerInstaller(runnerInstallArgs(options))
-  }
-  throw new Error(`unknown runner command: ${name}`)
-}
-
-function runnerLogs(options) {
-  const manifest = readRunnerManifest()
-  if (!manifest) {
-    console.error('The Clara runner is not installed. Start it with `clara-dev start runner`.')
-    return 1
-  }
-  if (manifest.service === 'systemd') {
-    const { command: cmd, args: cmdArgs } = runnerJournalCommand(options.lines, options.follow)
-    return followCommands([{ name: 'runner', command: cmd, args: cmdArgs }], {
-      follow: options.follow,
-    })
-  }
-  if (!runnerFileLogAvailable(manifest)) {
-    console.error(`No runner log at ${runnerLogPath()}.`)
-    return 1
-  }
-  return followFiles([{ name: 'runner', path: runnerLogPath() }], {
-    lines: options.lines,
-    follow: options.follow,
-  })
 }
 
 // ---------------------------------------------------------------------------
