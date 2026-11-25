@@ -19,7 +19,11 @@ export class RuntimeBackend implements ClaraBackend {
     this.defaultWorkspace = defaultWorkspace
   }
 
-  private workspace(value?: string): string {
+  /**
+   * Resolve a workspace string only. A runner serves a workspace on ITS own
+   * machine, so the claim path must never stat the engine host's filesystem.
+   */
+  private resolveWorkspace(value?: string): string {
     const workspace = value ?? this.defaultWorkspace
     if (!workspace) {
       throw new OrchestrationErrorWithCode(
@@ -27,7 +31,12 @@ export class RuntimeBackend implements ClaraBackend {
         'The engine has no configured workspace.'
       )
     }
-    const resolved = resolve(workspace)
+    return resolve(workspace)
+  }
+
+  /** Resolve a workspace the engine host itself must be able to read. */
+  private requireWorkspace(value?: string): string {
+    const resolved = this.resolveWorkspace(value)
     if (!existsSync(resolved)) {
       throw new OrchestrationErrorWithCode(
         'workspace_missing',
@@ -50,7 +59,10 @@ export class RuntimeBackend implements ClaraBackend {
       kind?: 'human' | 'agent' | 'api' | 'worker'
     }
   }) {
-    const result = this.runtime.start({ ...input, workspace: this.workspace(input.workspace) })
+    const result = this.runtime.start({
+      ...input,
+      workspace: this.requireWorkspace(input.workspace),
+    })
     return { ...result, run: runSummary(result.run) }
   }
 
@@ -68,7 +80,7 @@ export class RuntimeBackend implements ClaraBackend {
     limit?: number
   }) {
     return this.runtime.claimWork(
-      this.workspace(input.workspace),
+      this.resolveWorkspace(input.workspace),
       {
         capabilities: input.capabilities,
         role: 'runner',
@@ -251,7 +263,7 @@ export class RuntimeBackend implements ClaraBackend {
   }
 
   async catalog(workspace?: string) {
-    return catalogSummary(this.runtime.catalogFor(this.workspace(workspace)))
+    return catalogSummary(this.runtime.catalogFor(this.requireWorkspace(workspace)))
   }
 
   async registerAdapter(input: {
