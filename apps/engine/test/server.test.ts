@@ -291,6 +291,65 @@ describe('engine HTTP service', () => {
     expect(started.status).toBe(201)
   })
 
+  it('claims work for a workspace that only exists on the runner machine', async () => {
+    const remote = join(tmpdir(), 'clara-engine-absent-runner-workspace')
+    rmSync(remote, { recursive: true, force: true })
+
+    const registered = await fetch(`${base}/v1/adapters/register`, {
+      method: 'POST',
+      headers: auth({ 'content-type': 'application/json' }),
+      body: JSON.stringify({
+        id: 'runner-absent-workspace',
+        harness: 'clara-runner',
+        role: 'runner',
+        workspace: remote,
+        capabilities: ['script'],
+      }),
+    })
+    expect(registered.status).toBe(200)
+
+    const denied = await fetch(`${base}/v1/runs`, {
+      method: 'POST',
+      headers: auth({ 'content-type': 'application/json' }),
+      body: JSON.stringify({
+        workspace: remote,
+        prompt: 'patch it',
+        target: 'std:maintenance/rebuild',
+      }),
+    })
+    expect(denied.status).toBe(422)
+    const error = (await denied.json()) as { error: { code: string } }
+    expect(error.error.code).toBe('workspace_missing')
+
+    const started = await fetch(`${base}/v1/runs`, {
+      method: 'POST',
+      headers: auth({ 'content-type': 'application/json' }),
+      body: JSON.stringify({
+        workspace,
+        prompt: 'patch it',
+        target: 'std:maintenance/rebuild',
+        capabilities: ['agent'],
+        origin: { harness: 'opencode', workspace: remote },
+      }),
+    })
+    expect(started.status).toBe(201)
+
+    const claim = await fetch(`${base}/v1/work/next`, {
+      method: 'POST',
+      headers: auth({ 'content-type': 'application/json' }),
+      body: JSON.stringify({
+        workspace: remote,
+        capabilities: ['script'],
+        runner: { id: 'runner-absent-workspace', labels: [] },
+      }),
+    })
+    expect(claim.status).toBe(200)
+    const orders = (await claim.json()) as Array<{ kind: string; workspace: string }>
+    expect(orders.length).toBeGreaterThan(0)
+    expect(orders.every((order) => order.kind === 'script')).toBe(true)
+    expect(orders[0].workspace).toBe(remote)
+  })
+
   it('returns attempt history per run and per step', async () => {
     const started = await fetch(`${base}/v1/runs`, {
       method: 'POST',
