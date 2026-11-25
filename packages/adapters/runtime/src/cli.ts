@@ -41,7 +41,7 @@ import {
 import { readState, writeState } from './state.ts'
 import { recordInstallProvenance, readInstallProvenance } from './provenance.ts'
 import { runClaraCommand } from './clara-command.ts'
-import { runnerCommand, serveRunnerProcess } from './runner-command.ts'
+import { runnerCommand, serveRunnerProcess, verifyRunnerCheck } from './runner-command.ts'
 import {
   ensureAdapterRecord,
   forgetAdapterInstall,
@@ -571,10 +571,17 @@ async function verify<THarness>(
   if (!definition.verify) {
     throw new Error(`${definition.label} does not support verify`)
   }
+  const directory = argValue(args, '--directory')
   const report = await definition.verify(config, {
-    ...(argValue(args, '--directory') ? { directory: argValue(args, '--directory') } : {}),
+    ...(directory ? { directory } : {}),
     write: hasFlag(args, '--write'),
   })
+  report.checks.push(
+    await verifyRunnerCheck({
+      paths: definition.paths,
+      ...(directory ? { directory } : {}),
+    })
+  )
   if (hasFlag(args, '--json')) console.log(JSON.stringify(report, null, 2))
   else printVerifyReport(report)
   if (report.checks.some((check) => check.status === 'fail')) process.exitCode = 1

@@ -11,6 +11,7 @@ import {
   type RunnerSnapshot,
 } from '@clara/runner'
 import { selfCommand, selfEntry } from './service.ts'
+import type { AdapterVerifyCheck } from './cli.ts'
 import type { AdapterPaths } from './types.ts'
 
 /**
@@ -314,8 +315,55 @@ function parseStartArgs(args: string[]): {
   return { ...(workspace ? { workspace } : {}), ...(concurrency ? { concurrency } : {}), labels }
 }
 
-function formatAge(ms: number): string {
-  if (!Number.isFinite(ms)) return 'never'
+/**
+ * Verify check: the workspace being verified must have a live runner
+ * registration on the engine, otherwise script steps cannot run there.
+ */
+export async function verifyRunnerCheck(options: {
+  paths: AdapterPaths
+  directory?: string
+}): Promise<AdapterVerifyCheck> {
+  const directory = resolve(options.directory ?? process.cwd())
+  const url = engineURL()
+  const token = engineToken()
+  if (!token) {
+    return {
+      name: 'runner',
+      status: 'skip',
+      detail: 'no engine endpoint published; start the adapter daemon first',
+    }
+  }
+  let runners: RunnerSnapshot[]
+  try {
+    const client = new RunnerClient({ url, token, timeoutMs: 2_000 })
+    runners = runnerSnapshots(await client.adapters())
+  } catch (cause) {
+    const message = cause instanceof Error ? cause.message : String(cause)
+    return { name: 'runner', status: 'fail', detail: `engine unreachable at ${url}: ${message}` }
+  }
+  const live = runners.filter((runner) => runner.live)
+  const here = live.filter((runner) => runner.workspace === directory)
+  if (here.length > 0) {
+    return {
+      name: 'runner',
+      status: 'ok',
+      detail: `${here[0].id} live for ${directory}`,
+      data: { runners: here.map((runner) => ({ id: runner.id, workspace: runner.workspace })) },
+    }
+  }
+  const elsewhere = live.map((runner) => runner.workspace)
+  const detail = elsewhere.length
+    ? `no live runner for ${directory}; live runners serve ${elsewhere.join(', ')}`
+    : `no runner registered with the engine at ${url}`
+  return {
+    name: 'runner',
+    status: 'fail',
+    detail,
+    ...(elsewhere.length ? { data: { live: elsewhere } } : {}),
+  }
+}
+
+function formatAge(ms: number): string {  if (!Number.isFinite(ms)) return 'never'
   const seconds = Math.floor(ms / 1000)
   if (seconds < 60) return `${seconds}s`
   const minutes = Math.floor(seconds / 60)
