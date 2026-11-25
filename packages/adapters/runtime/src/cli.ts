@@ -42,6 +42,7 @@ import { readState, writeState } from './state.ts'
 import { recordInstallProvenance, readInstallProvenance } from './provenance.ts'
 import { runClaraCommand } from './clara-command.ts'
 import { runnerCommand, serveRunnerProcess, verifyRunnerCheck } from './runner-command.ts'
+import { RunnerSupervisor } from './runner-supervisor.ts'
 import {
   ensureAdapterRecord,
   forgetAdapterInstall,
@@ -374,6 +375,11 @@ async function serve<THarness>(
   let current = probe
   let checkedAt = startedAt
   let probing = false
+  const runnerSupervisor = new RunnerSupervisor({
+    name: definition.name,
+    paths: definition.paths,
+    log: (message) => console.error(`[adapter] ${message}`),
+  })
   writeLive = () => {
     const status = transport.status
     const state: AdapterLiveState = {
@@ -410,6 +416,7 @@ async function serve<THarness>(
 
   transport.start()
   hostMetrics.start()
+  runnerSupervisor.start()
   writeLive()
   // The adapter is a long-running service. This timer stays referenced so a
   // disconnected hub cannot empty the event loop and exit the process; the
@@ -440,7 +447,10 @@ async function serve<THarness>(
     hostMetrics.stop()
     transport.close()
     writeLive()
-    void orchestratorRef.current?.close().finally(() => process.exit(0))
+    void Promise.allSettled([
+      runnerSupervisor.stop(),
+      orchestratorRef.current?.close(),
+    ]).finally(() => process.exit(0))
   }
   process.on('SIGINT', stop)
   process.on('SIGTERM', stop)

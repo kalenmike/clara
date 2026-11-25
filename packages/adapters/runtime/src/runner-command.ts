@@ -1,7 +1,5 @@
-import { spawn } from 'node:child_process'
-import { closeSync, mkdirSync, openSync, readFileSync, rmSync, writeFileSync } from 'node:fs'
 import { hostname } from 'node:os'
-import { dirname, join, resolve } from 'node:path'
+import { resolve } from 'node:path'
 import {
   RunnerClient,
   createRunner,
@@ -10,15 +8,23 @@ import {
   runnerSnapshots,
   type RunnerSnapshot,
 } from '@clara/runner'
-import { selfCommand, selfEntry } from './service.ts'
+import {
+  listRunnerChildren,
+  readRunnerDesired,
+  runnerLogPath,
+  stopRunnerChildren,
+  writeRunnerDesired,
+  type RunnerDesired,
+} from './runner-supervisor.ts'
 import type { AdapterVerifyCheck } from './cli.ts'
 import type { AdapterPaths } from './types.ts'
 
 /**
- * `clara-adapter-<kind> runner <status|start|stop>` manages a script runner
- * on this machine without the packaged `clara` command. Status reads the
- * engine's live registrations; start spawns a runner child that follows the
- * adapter daemon's published engine endpoint.
+ * `clara-adapter-<kind> runner <status|start|stop>` manages the script runners
+ * on this machine without the packaged `clara` command. The adapter daemon
+ * owns the runner processes: start and stop edit the desired state the daemon
+ * reconciles, and status combines the engine's live registrations with the
+ * children this adapter manages.
  */
 export async function runnerCommand(
   options: { name: string; paths: AdapterPaths },
@@ -30,11 +36,11 @@ export async function runnerCommand(
     return
   }
   if (sub === 'start') {
-    await startRunnerProcess(options, rest)
+    await requestRunner(options, rest)
     return
   }
   if (sub === 'stop') {
-    await stopRunnerProcess(options.paths)
+    await releaseRunner(options, rest)
     return
   }
   if (sub === 'help' || sub === '--help' || sub === '-h') {
@@ -52,51 +58,22 @@ function runnerHelp(name: string): string {
 Usage:
   clara-adapter-${name} runner status [--workspace <path>] [--json]
   clara-adapter-${name} runner start [--workspace <path>] [--concurrency <n>] [--label <label>]
-  clara-adapter-${name} runner stop
+  clara-adapter-${name} runner stop [--workspace <path>]
 
-Status lists the runner registrations the engine holds, with age against the
-engine's stale window. Start spawns a background runner that follows the
-adapter daemon's engine endpoint; the harness may already run an embedded
-runner for its own workspace.`
-}
-
-function runnerPidPath(paths: AdapterPaths): string {
-  return join(paths.dataDir, 'runner.pid')
-}
-
-function runnerLogPath(paths: AdapterPaths): string {
-  return join(paths.dataDir, 'runner.log')
-}
-
-function readRunnerPid(paths: AdapterPaths): number | undefined {
-  try {
-    const value = Number.parseInt(readFileSync(runnerPidPath(paths), 'utf8').trim(), 10)
-    return Number.isInteger(value) && value > 0 ? value : undefined
-  } catch {
-    return undefined
-  }
-}
-
-function isAlive(pid: number): boolean {
-  try {
-    process.kill(pid, 0)
-    return true
-  } catch (error) {
-    return (error as NodeJS.ErrnoException).code === 'EPERM'
-  }
-}
-
-function localRunner(paths: AdapterPaths): { running: boolean; pid?: number } {
-  const pid = readRunnerPid(paths)
-  if (pid === undefined) return { running: false }
-  return isAlive(pid) ? { running: true, pid } : { running: false, pid }
+The adapter daemon supervises exactly one runner per workspace on this
+machine. Start records the workspace in the daemon's desired state and the
+daemon starts the child within seconds; stop removes it and terminates the
+child. Status lists the engine's runner registrations with age against the
+engine's stale window.`
 }
 
 type StatusReport = {
   engine: { url: string; reachable: boolean; error: string | null }
   workspace?: string
   runners: RunnerSnapshot[]
-  local: { running: boolean; pid: number | null; log: string }
+  managed: { workspace: string; pid: number; running: boolean }[]
+  desired: string[]
+  log: string
 }
 
 async function collectRunnerStatus(
@@ -120,12 +97,27 @@ async function collectRunnerStatus(
       error = cause instanceof Error ? cause.message : String(cause)
     }
   }
-  const local = localRunner(paths)
+  const managed = listRunnerChildren(paths).map((child) => ({
+    workspace: child.workspace,
+    pid: child.pid,
+    running: isAlive(child.pid),
+  }))
   return {
     engine: { url, reachable, error },
     ...(options.workspace ? { workspace: options.workspace } : {}),
     runners,
-    local: { running: local.running, pid: local.pid ?? null, log: runnerLogPath(paths) },
+    managed,
+    desired: readRunnerDesired(paths).map((entry) => entry.path),
+    log: runnerLogPath(paths),
+  }
+}
+
+function isAlive(pid: number): boolean {
+  try {
+    process.kill(pid, 0)
+    return true
+  } catch (error) {
+    return (error as NodeJS.ErrnoException).code === 'EPERM'
   }
 }
 
@@ -153,87 +145,82 @@ async function printRunnerStatus(
       console.log(`  ${state}  ${runner.workspace}${machine}  ${runner.id}`)
     }
   }
-  console.log(
-    `local:    ${report.local.running ? `runner running (pid ${report.local.pid})` : 'no runner started from this adapter'}`
-  )
-  console.log(`log:      ${report.local.log}`)
+  if (report.managed.length === 0 && report.desired.length === 0) {
+    console.log('managed:  this adapter supervises no runners')
+  } else {
+    console.log('managed:')
+    for (const child of report.managed) {
+      console.log(
+        `  ${child.running ? `running (pid ${child.pid})` : 'exited  '}  ${child.workspace}`
+      )
+    }
+    for (const workspace of report.desired) {
+      if (!report.managed.some((child) => child.workspace === workspace)) {
+        console.log(`  wanted      ${workspace}`)
+      }
+    }
+  }
+  console.log(`log:      ${report.log}`)
 }
 
-async function startRunnerProcess(
+/**
+ * `runner start` records the workspace in the daemon's desired state. The
+ * daemon's reconcile loop starts (or adopts) the supervised child; this
+ * command never spawns a runner itself.
+ */
+async function requestRunner(
   options: { name: string; paths: AdapterPaths },
   args: string[]
 ): Promise<void> {
   const { workspace, concurrency, labels } = parseStartArgs(args)
   const target = resolve(workspace ?? process.cwd())
-  const current = localRunner(options.paths)
-  if (current.running) {
-    console.log(`The runner is already running (pid ${current.pid}).`)
-    return
-  }
   if (!engineToken()) {
     throw new Error(
       `No engine endpoint is published. Start the adapter daemon with \`clara-adapter-${options.name} start\`.`
     )
   }
-  rmRunnerPid(options.paths)
-  mkdirSync(dirname(options.paths.logPath), { recursive: true, mode: 0o700 })
-  const log = openSync(runnerLogPath(options.paths), 'a', 0o600)
-  try {
-    const childArgs = ['--workspace', target]
-    if (concurrency !== undefined) childArgs.push('--concurrency', String(concurrency))
-    for (const label of labels) childArgs.push('--label', label)
-    const child = spawn(process.execPath, selfCommand(selfEntry(), '__runner', childArgs), {
-      detached: true,
-      stdio: ['ignore', log, log],
-      env: process.env,
-      windowsHide: true,
-    })
-    child.unref()
-    if (child.pid === undefined) throw new Error('Could not start the runner process.')
-    mkdirSync(options.paths.dataDir, { recursive: true, mode: 0o700 })
-    writeFileSync(runnerPidPath(options.paths), `${child.pid}\n`, { mode: 0o600 })
-    console.log(`Started the runner (pid ${child.pid}) for ${target}.`)
-    console.log(`Logs: ${runnerLogPath(options.paths)}`)
-  } finally {
-    closeSync(log)
+  const desired = readRunnerDesired(options.paths)
+  const entry: RunnerDesired = {
+    path: target,
+    ...(concurrency !== undefined ? { concurrency } : {}),
+    ...(labels.length ? { labels } : {}),
   }
+  const index = desired.findIndex((existing) => existing.path === target)
+  if (index >= 0) desired[index] = entry
+  else desired.push(entry)
+  writeRunnerDesired(options.paths, desired)
+  console.log(`The adapter daemon now supervises the runner for ${target}.`)
+  console.log(`Logs: ${runnerLogPath(options.paths)}`)
 }
 
-async function stopRunnerProcess(paths: AdapterPaths): Promise<void> {
-  const current = localRunner(paths)
-  if (!current.running || current.pid === undefined) {
-    rmRunnerPid(paths)
-    console.log('The runner is not running.')
+/** `runner stop` removes the workspace from desired state and ends its child. */
+async function releaseRunner(
+  options: { name: string; paths: AdapterPaths },
+  args: string[]
+): Promise<void> {
+  const { workspace } = parseStopArgs(args)
+  const target = workspace ? resolve(workspace) : undefined
+  const desired = readRunnerDesired(options.paths).filter(
+    (entry) => target === undefined || entry.path !== target
+  )
+  writeRunnerDesired(options.paths, desired)
+  const stopped = await stopRunnerChildren(options.paths, target ? { workspace: target } : {})
+  if (stopped.length === 0 && target) {
+    console.log(`No runner child is running for ${target}.`)
     return
   }
-  try {
-    process.kill(current.pid, 'SIGTERM')
-  } catch {
-    rmRunnerPid(paths)
-    console.log('The runner is not running.')
-    return
-  }
-  const deadline = Date.now() + 5_000
-  while (Date.now() < deadline && isAlive(current.pid)) {
-    await new Promise((done) => setTimeout(done, 100))
-  }
-  rmRunnerPid(paths)
-  if (isAlive(current.pid)) {
-    console.error(`The runner (pid ${current.pid}) did not stop within 5s.`)
-    process.exitCode = 1
-    return
-  }
-  console.log(`Stopped the runner (pid ${current.pid}).`)
-}
-
-function rmRunnerPid(paths: AdapterPaths): void {
-  rmSync(runnerPidPath(paths), { force: true })
+  const where = target ? ` for ${target}` : ''
+  console.log(
+    stopped.length
+      ? `Stopped ${stopped.length} runner child(ren)${where}.`
+      : `Removed the runner${where} from the daemon's desired state.`
+  )
 }
 
 /**
- * Hidden `__runner` command: the detached runner child. It re-resolves the
- * engine endpoint per request so a daemon restart (new gateway port and
- * token) does not kill it.
+ * Hidden `__runner` command: the daemon-supervised runner child. It
+ * re-resolves the engine endpoint per request so a daemon restart (new
+ * gateway port and token) does not kill it.
  */
 export async function serveRunnerProcess(name: string, args: string[]): Promise<void> {
   const { workspace, concurrency, labels } = parseStartArgs(args)
@@ -317,6 +304,25 @@ function parseStartArgs(args: string[]): {
     )
   }
   return { ...(workspace ? { workspace } : {}), ...(concurrency ? { concurrency } : {}), labels }
+}
+
+function parseStopArgs(args: string[]): { workspace?: string } {
+  let workspace: string | undefined
+  for (let index = 0; index < args.length; index++) {
+    const arg = args[index]
+    if (arg === '--workspace') {
+      workspace = args[++index]
+      if (!workspace) throw new Error('--workspace needs a path')
+      continue
+    }
+    if (arg.startsWith('--workspace=')) {
+      workspace = arg.slice('--workspace='.length)
+      if (!workspace) throw new Error('--workspace needs a path')
+      continue
+    }
+    throw new Error('usage: runner stop [--workspace <path>]')
+  }
+  return { ...(workspace ? { workspace } : {}) }
 }
 
 /**
