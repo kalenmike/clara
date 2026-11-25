@@ -63,6 +63,7 @@ Usage:
   clara-adapter-opencode serve
   clara-adapter-opencode start|stop|logs [--lines <n>]
   clara-adapter-opencode status
+  clara-adapter-opencode runner <status|start|stop> [--workspace <path>]
   clara-adapter-opencode upgrade [--check] [--json]
   clara-adapter-opencode clara <command...> [options]
   clara-adapter-opencode verify [--directory <path>] [--write] [--json]

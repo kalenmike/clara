@@ -98,3 +98,29 @@ export interface RunnerStatus {
   failed: number
   lastError?: string
 }
+
+/** One adapter or runner registration as the engine returns it. */
+export interface EngineAdapterRow {
+  id: string
+  harness: string
+  role: 'harness' | 'runner' | string
+  machine: string | null
+  labels: string
+  session_id: string | null
+  workspace: string
+  capabilities: string
+  heartbeat_at: string
+  created_at: string
+}
+
+/** A runner registration with parsed labels and age against the stale window. */
+export interface RunnerSnapshot {
+  id: string
+  harness: string
+  machine: string | null
+  workspace: string
+  labels: string[]
+  capabilities: string[]
+  ageMs: number
+  live: boolean
+}

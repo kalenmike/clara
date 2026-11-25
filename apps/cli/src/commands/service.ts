@@ -21,7 +21,7 @@ import { adapterListReport, type AdapterListEntry } from './adapters.ts'
 import { adapterHubLinks, type AdapterHubLink } from '../adapters/hubs.ts'
 import { detectRole, roleLabel, type ClaraRole } from '../state/role.ts'
 import { logsGuard, stackGuard } from './role-guard.ts'
-import { runnerProcess } from '../state/runner.ts'
+import { engineRunnerReport, runnerProcess, type EngineRunnerReport } from '../state/runner.ts'
 import { version } from '../version.ts'
 import { bold, cyan, dim, green, red, yellow } from '../ui/color.ts'
 import { formatDuration, stateLabel, success, warn } from '../ui/index.ts'
@@ -213,6 +213,7 @@ export async function runStatus(args: readonly string[]): Promise<number> {
   const adapters = adapterListReport(paths)
   const hubs = adapterHubLinks(adapters)
   const runner = runnerProcess(paths)
+  const engineRunners = await engineRunnerReport()
 
   if (role === 'adapter') {
     if (parsed.flags.has('--json')) {
@@ -226,6 +227,7 @@ export async function runStatus(args: readonly string[]): Promise<number> {
             hubs,
             adapters,
             runner,
+            engineRunners,
           },
           null,
           2
@@ -233,7 +235,7 @@ export async function runStatus(args: readonly string[]): Promise<number> {
       )
       return 0
     }
-    printRemoteStatus(hubs, adapters, runner)
+    printRemoteStatus(hubs, adapters, runner, engineRunners)
     if (parsed.flags.has('--open')) {
       const web = hubs.find((hub) => hub.endpoints.web && !isLoopbackUrl(hub.endpoints.web))
         ?.endpoints.web
@@ -247,12 +249,12 @@ export async function runStatus(args: readonly string[]): Promise<number> {
   const report = await statusStack(paths, ports, services)
 
   if (parsed.flags.has('--json')) {
-    console.log(JSON.stringify({ ...report, role, hubs, adapters, runner }, null, 2))
+    console.log(JSON.stringify({ ...report, role, hubs, adapters, runner, engineRunners }, null, 2))
     return 0
   }
 
   await printStatus(paths, ports, services, true, report, role)
-  printExtras(adapters, runner)
+  printExtras(adapters, runner, engineRunners)
   if (parsed.flags.has('--open')) openUrl(panelUrl(report))
   return 0
 }
@@ -302,7 +304,8 @@ async function printStatus(
 function printRemoteStatus(
   hubs: readonly AdapterHubLink[],
   adapters: readonly AdapterListEntry[],
-  runner: ReturnType<typeof runnerProcess>
+  runner: ReturnType<typeof runnerProcess>,
+  engineRunners: EngineRunnerReport
 ): void {
   console.log(bold(`Clara ${version()} · ${roleLabel('adapter')}`))
   console.log('')
@@ -335,7 +338,7 @@ function printRemoteStatus(
     }
     console.log(`  ${'adapters'.padEnd(9)} ${hub.adapters.join(', ')}`)
   }
-  printExtras(adapters, runner)
+  printExtras(adapters, runner, engineRunners)
 }
 
 function linkState(hub: AdapterHubLink): string {
@@ -361,7 +364,8 @@ function isLoopbackUrl(url: string): boolean {
 
 function printExtras(
   adapters: readonly AdapterListEntry[],
-  runner: ReturnType<typeof runnerProcess>
+  runner: ReturnType<typeof runnerProcess>,
+  engineRunners: EngineRunnerReport
 ): void {
   console.log('')
   if (adapters.length === 0) {
@@ -389,9 +393,18 @@ function printExtras(
       ])
     )
   }
-  console.log(
-    `  ${dim('runner')}    ${runner.running ? stateLabel('running') : stateLabel('stopped')}${runner.pid ? dim(` (${runner.pid})`) : ''}`
-  )
+  const live = engineRunners.runners.filter((entry) => entry.live)
+  if (engineRunners.reachable) {
+    const summary = live.length
+      ? `${green(`${live.length} live`)} ${live.map((entry) => entry.workspace).join(' ')}`
+      : dim('none registered')
+    console.log(`  ${'runner'.padEnd(9)} ${summary}`)
+  } else {
+    const reason = engineRunners.error ?? 'engine unreachable'
+    console.log(`  ${'runner'.padEnd(9)} ${dim(`engine registrations unavailable (${reason})`)}`)
+  }
+  const localState = runner.running ? green(`running (pid ${runner.pid})`) : dim('stopped')
+  console.log(`  ${'local'.padEnd(9)} shared runner ${localState}`)
 }
 
 function printSummary(services: readonly ServiceStatus[]): void {

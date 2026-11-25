@@ -41,6 +41,7 @@ import {
 import { readState, writeState } from './state.ts'
 import { recordInstallProvenance, readInstallProvenance } from './provenance.ts'
 import { runClaraCommand } from './clara-command.ts'
+import { runnerCommand, serveRunnerProcess, verifyRunnerCheck } from './runner-command.ts'
 import {
   ensureAdapterRecord,
   forgetAdapterInstall,
@@ -193,6 +194,14 @@ export async function runAdapterCli<THarness>(
   }
   if (command === 'upgrade') {
     await upgrade(definition, args)
+    return
+  }
+  if (command === 'runner') {
+    await runnerCommand({ name: definition.name, paths: definition.paths }, args)
+    return
+  }
+  if (command === '__runner') {
+    await serveRunnerProcess(definition.name, args)
     return
   }
   if (command === 'clara') {
@@ -562,10 +571,17 @@ async function verify<THarness>(
   if (!definition.verify) {
     throw new Error(`${definition.label} does not support verify`)
   }
+  const directory = argValue(args, '--directory')
   const report = await definition.verify(config, {
-    ...(argValue(args, '--directory') ? { directory: argValue(args, '--directory') } : {}),
+    ...(directory ? { directory } : {}),
     write: hasFlag(args, '--write'),
   })
+  report.checks.push(
+    await verifyRunnerCheck({
+      paths: definition.paths,
+      ...(directory ? { directory } : {}),
+    })
+  )
   if (hasFlag(args, '--json')) console.log(JSON.stringify(report, null, 2))
   else printVerifyReport(report)
   if (report.checks.some((check) => check.status === 'fail')) process.exitCode = 1
@@ -813,6 +829,7 @@ Usage:
   ${bin} serve
   ${bin} start|stop|logs [--lines <n>]
   ${bin} status
+  ${bin} runner <status|start|stop> [--workspace <path>]
   ${bin} verify [--directory <path>] [--write] [--json]
   ${bin} uninstall
   ${bin} config-path

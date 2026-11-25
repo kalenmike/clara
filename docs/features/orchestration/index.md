@@ -130,7 +130,7 @@ adapter probes direct URLs and otherwise uses the sealed hub proxy. See
   `packages/adapters/binding` (adapter delivery and usage).
 - CLI: `clara start|stop|restart|status|logs engine`,
   `clara adapter install|upgrade|verify|remove <kind> [--mcp]`,
-  `clara start runner [--workspace <path>] [--label <name>]`, and `clara start lab`.
+  `clara runner start|stop|status|logs [--workspace <path>]`, and `clara start lab`.
 - Workspace: `GET /v1/config` reports the workspace from
   `CLARA_ENGINE_WORKSPACE` (default: the service working directory), the active
   `configSource` (`bundled` or `file`), and `configPath`.

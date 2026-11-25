@@ -20,6 +20,7 @@
     "@clara/crypto": "workspace:*",
     "@clara/harness-protocol": "workspace:*",
     "@clara/release": "workspace:*",
+    "@clara/runner": "workspace:*",
     "@clara/shared-types": "workspace:*",
     "hono": "^4.13.17",
     "ws": "^8.22.1"

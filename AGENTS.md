@@ -101,9 +101,9 @@ clara logs [default|hub|web|engine] # Follow service logs
 clara start hub --open # Start the hub and open the panel
 clara status hub --open # Open the running panel
 clara-dev mcp install [--api] # Checkout-only MCP bridge
-clara start runner [--workspace <path>] # Start the shared runner service
-clara stop runner [--purge] # Stop the runner service
-clara status runner [--json] # Inspect the runner
+clara runner start [--workspace <path>] # Start the shared runner service
+clara runner stop # Stop the shared runner service
+clara runner status [--workspace <path>] [--json] # Inspect engine runner registrations
 clara-dev start lab [--workspace <path>] # Start only Clara Lab from a checkout
 clara-dev status lab --check # Validate a package target for CI
 clara start docs [--build] # Start the documentation site on :5176

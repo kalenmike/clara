@@ -1,4 +1,4 @@
-import type { RunnerConfig, ScriptWorkOrder } from './types.ts'
+import type { EngineAdapterRow, RunnerConfig, ScriptWorkOrder } from './types.ts'
 
 export class RunnerHttpError extends Error {
   readonly status: number
@@ -14,17 +14,25 @@ export class RunnerClient {
   private readonly base: string
   private readonly token: string
   private readonly resolve?: () => { url: string; token: string }
+  private readonly timeoutMs?: number
 
-  constructor(config: Pick<RunnerConfig, 'url' | 'token' | 'resolve'>) {
+  constructor(config: Pick<RunnerConfig, 'url' | 'token' | 'resolve'> & { timeoutMs?: number }) {
     this.base = config.url.replace(/\/+$/, '')
     this.token = config.token
     this.resolve = config.resolve
+    this.timeoutMs = config.timeoutMs
   }
 
-  private async request<T>(method: string, path: string, body?: unknown): Promise<T> {
+  private async request<T>(
+    method: string,
+    path: string,
+    body?: unknown,
+    timeoutMs?: number
+  ): Promise<T> {
     const current = this.resolve?.()
     const base = (current?.url ?? this.base).replace(/\/+$/, '')
     const token = current?.token ?? this.token
+    const timeout = timeoutMs ?? this.timeoutMs
     const response = await fetch(`${base}${path}`, {
       method,
       headers: {
@@ -32,6 +40,7 @@ export class RunnerClient {
         ...(body === undefined ? {} : { 'content-type': 'application/json' }),
       },
       ...(body === undefined ? {} : { body: JSON.stringify(body) }),
+      ...(timeout ? { signal: AbortSignal.timeout(timeout) } : {}),
     })
     const text = await response.text()
     let value: unknown
@@ -41,11 +50,10 @@ export class RunnerClient {
       value = text
     }
     if (!response.ok) {
-      const message =
-        value && typeof value === 'object' && 'error' in value
-          ? String((value as { error: unknown }).error)
-          : `${method} ${path} failed with ${response.status}`
-      throw new RunnerHttpError(response.status, message)
+      throw new RunnerHttpError(
+        response.status,
+        describeHttpError(value, method, path, response.status)
+      )
     }
     return value as T
   }
@@ -85,8 +93,19 @@ export class RunnerClient {
     })
   }
 
+  /** Adapter and runner registrations, optionally scoped to one workspace. */
+  adapters(workspace?: string): Promise<EngineAdapterRow[]> {
+    const query = workspace ? `?workspace=${encodeURIComponent(workspace)}` : ''
+    return this.request('GET', `/v1/adapters${query}`)
+  }
+
   heartbeatAdapter(id: string): Promise<unknown> {
     return this.request('POST', `/v1/adapters/${encodeURIComponent(id)}/heartbeat`, {})
+  }
+
+  /** Remove this runner's registration; a clean stop should not leave a live row. */
+  removeAdapter(id: string): Promise<unknown> {
+    return this.request('DELETE', `/v1/adapters/${encodeURIComponent(id)}`, undefined, 2_000)
   }
 
   workNext(input: {
@@ -133,4 +152,22 @@ export class RunnerClient {
       }
     )
   }
+}
+
+/** The engine returns `{ error: { code, message } }`; render it readably. */
+function describeHttpError(value: unknown, method: string, path: string, status: number): string {
+  const error =
+    value && typeof value === 'object' && 'error' in value
+      ? (value as { error: unknown }).error
+      : undefined
+  if (typeof error === 'string') return error
+  if (error && typeof error === 'object') {
+    const record = error as { code?: unknown; message?: unknown }
+    const code = typeof record.code === 'string' ? record.code : ''
+    const message = typeof record.message === 'string' ? record.message : ''
+    if (code && message) return `${code}: ${message}`
+    if (message) return message
+    if (code) return code
+  }
+  return `${method} ${path} failed with ${status}`
 }

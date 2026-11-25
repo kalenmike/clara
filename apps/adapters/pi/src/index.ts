@@ -47,6 +47,7 @@ Usage:
   clara-adapter-pi serve
   clara-adapter-pi start|stop|logs [--lines <n>]
   clara-adapter-pi status
+  clara-adapter-pi runner <status|start|stop> [--workspace <path>]
   clara-adapter-pi upgrade [--check] [--json]
   clara-adapter-pi clara <command...> [options]
   clara-adapter-pi verify [--directory <path>] [--write] [--json]
