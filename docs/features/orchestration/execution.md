@@ -51,8 +51,9 @@ read `engine.json`.
 
 Claims are capability-filtered: agent work stays with its harness, while any
 runner with `script` can claim script work for the workspace it registered,
-including the run's origin adapter workspace. With no capable runner the step
-stays ready and one `no_runner` alert opens after `CLARA_RUNNER_WAIT_MS`.
+including the run's origin adapter workspace. A claim matches that path as a
+string; the engine never stats it on its own host. With no capable runner the
+step stays ready and one `no_runner` alert opens after `CLARA_RUNNER_WAIT_MS`.
 Runners register and heartbeat with the engine: `clara runner status
 [--workspace <path>]`, `clara status`, and adapter `verify` report them live or
 stale against a 120s window, and a clean stop deregisters at once.
@@ -97,10 +98,9 @@ packages inherit workspace defaults; precedence is defined in
 the order's `{ providerID, id }` and a primary agent, then verifies agent, model,
 and workspace before prompting; the worker agent defaults to `build`.
 
-The engine workspace owns config and run state; the origin adapter workspace
-owns workers and scripts. `clara_start` records it, work orders carry it,
-wrapper scopes override it, and an adapter falls back to its own workspace when
-the engine path is not mounted locally.
+The engine workspace owns config and run state; the origin adapter workspace owns workers
+and scripts. `clara_start` records it, work orders carry it, wrapper scopes override it,
+and an adapter falls back to its own workspace when the engine path is not mounted locally.
 
 A managed dispatch failure is a step failure with `retry: false` and an alert, never a heartbeat-only worker or an order handed back to the interface agent.
 

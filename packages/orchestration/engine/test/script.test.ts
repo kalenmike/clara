@@ -205,6 +205,36 @@ describe('script steps', () => {
     expect(started.work[0].kind).toBe('script')
   })
 
+  it('accepts a strict runner registered for a path absent on the engine host', () => {
+    const { dir, runtime } = fixture({
+      enforcement: 'strict',
+      steps: ['      - name: build', '        type: script', '        command: echo ready'],
+    })
+    const remote = join(tmpdir(), 'clara-script-absent-runner-workspace')
+    runtime.registerAdapter({
+      harness: 'clara-runner',
+      role: 'runner',
+      workspace: remote,
+      capabilities: ['script'],
+    })
+    const started = runtime.start({
+      workspace: dir,
+      prompt: 'go',
+      capabilities: ['agent'],
+      origin: { workspace: remote },
+    })
+    expect(started.work).toEqual([])
+    const claimed = runtime.claimWork(
+      remote,
+      { capabilities: ['script'], role: 'runner' },
+      1,
+      'runner'
+    )
+    expect(claimed).toHaveLength(1)
+    expect(claimed[0].kind).toBe('script')
+    expect(claimed[0].workspace).toBe(remote)
+  })
+
   it('shares script work across harness origins with one runner', () => {
     const { dir, runtime } = fixture({
       steps: ['      - name: build', '        type: script', '        command: echo ready'],
