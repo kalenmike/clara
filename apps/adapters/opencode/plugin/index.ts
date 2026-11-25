@@ -8,10 +8,9 @@
 // Install it next to the MCP bridge when a workspace uses `enforcement: strict`.
 // The MCP bridge remains the generic surface for other harnesses.
 
-import { existsSync, readFileSync } from 'node:fs'
-import { homedir, hostname } from 'node:os'
+import { existsSync } from 'node:fs'
+import { hostname } from 'node:os'
 import { join, resolve } from 'node:path'
-import { createRunner, type Runner, type ScriptWorkOrder } from '@clara/runner'
 import {
   applyDeliveryClaim,
   budgetTokenDelta,
@@ -45,7 +44,6 @@ import {
 
 const CAPABILITIES = [
   'agent',
-  'script',
   'tool_policy',
   'path_policy',
   'shell_policy',
@@ -142,37 +140,6 @@ function deliveryFile(): string {
   return join(claraDataDir(), 'policy-delivery.json')
 }
 
-interface AdapterConfig {
-  runner?: {
-    enabled?: boolean
-    concurrency?: number
-    labels?: string[]
-  }
-}
-
-function adapterConfigPath(): string {
-  const configHome = process.env.XDG_CONFIG_HOME?.trim() || join(homedir(), '.config')
-  return join(configHome, 'opencode', 'clara-policy.json')
-}
-
-function readAdapterConfig(): AdapterConfig {
-  const path = adapterConfigPath()
-  if (!existsSync(path)) return {}
-  try {
-    const parsed = JSON.parse(readFileSync(path, 'utf8')) as AdapterConfig
-    return parsed && typeof parsed === 'object' ? parsed : {}
-  } catch {
-    return {}
-  }
-}
-
-function runnerEnabled(config: AdapterConfig): boolean {
-  const env = process.env.CLARA_RUNNER_ENABLED?.trim().toLowerCase()
-  if (env === '0' || env === 'false' || env === 'off') return false
-  if (env === '1' || env === 'true' || env === 'on') return true
-  return config.runner?.enabled !== false
-}
-
 export const CONTROL_TOOL_OPTIONS = { namespace: NAMESPACE, codemode: false }
 
 // The interface agent submits work; it never chooses the workspace or a
@@ -234,8 +201,6 @@ export default {
         return engineServiceConfig().token
       },
     }
-    const localConfig = readAdapterConfig()
-    let runner: Runner | undefined
     const active = new Map<string, ActiveWork>()
     const seenMessages = new Set<string>()
     const activeRuns = new Set<number>()
@@ -475,42 +440,6 @@ export default {
       }
     }
 
-    const startRunner = async (): Promise<void> => {
-      if (runner || !runnerEnabled(localConfig)) return
-      // The adapter daemon publishes engine.json after it authenticates. Do
-      // not start a runner against the loopback default while that is pending.
-      const current = engineServiceConfig()
-      if (!current.token) return
-      const workspace = currentWorkspace()
-      const configured = Number(
-        process.env.CLARA_RUNNER_CONCURRENCY ?? localConfig.runner?.concurrency ?? 2
-      )
-      const labels =
-        localConfig.runner?.labels ??
-        (process.env.CLARA_RUNNER_LABELS ?? '')
-          .split(',')
-          .map((label) => label.trim())
-          .filter(Boolean)
-      runner = createRunner({
-        url: config.url,
-        token: config.token,
-        resolve: () => engineServiceConfig(),
-        workspace,
-        id:
-          process.env.CLARA_RUNNER_ID?.trim() ||
-          `clara-runner-opencode-${hostname()}-${process.pid}`,
-        labels,
-        concurrency: Number.isFinite(configured) && configured > 0 ? configured : 2,
-        capabilities: ['script'],
-        logger: {
-          log: (message) => console.log(message),
-          warn: (message) => console.warn(message),
-          error: (message) => console.error(message),
-        },
-      })
-      await runner.start()
-    }
-
     const bind = (session: string | undefined, work: Any, managed: boolean): void => {
       if (!session) return
       const runID = Number(work.run_id)
@@ -724,16 +653,9 @@ export default {
       const dispatched: unknown[] = []
       for (const order of work) {
         if (order.kind === 'script') {
-          if (!runner) {
-            dispatched.push(order)
-            continue
-          }
-          await runner.execute(order as ScriptWorkOrder)
-          dispatched.push({
-            run_id: order.run_id,
-            step_path: order.step_path,
-            runner: 'managed',
-          })
+          // Script work belongs to the daemon-supervised runner for this
+          // workspace; the plugin never executes it.
+          dispatched.push(order)
           continue
         }
         const outcome = await dispatch(order)
@@ -911,7 +833,6 @@ export default {
     }
 
     await register()
-    if (adapterID) await startRunner()
     await adoptRuns()
     void deliverRuns()
     const registration = setInterval(() => {
@@ -922,7 +843,6 @@ export default {
       void register().then(() => {
         if (!adapterID) return
         clearInterval(registration)
-        void startRunner()
         void adoptRuns()
         void deliverRuns()
       })
@@ -1503,7 +1423,6 @@ export default {
       clearInterval(heartbeat)
       clearInterval(dispatchTimer)
       clearInterval(deliveryTimer)
-      void runner?.stop()
       for (const work of active.values()) {
         if (work.beatTimer) clearInterval(work.beatTimer)
       }
