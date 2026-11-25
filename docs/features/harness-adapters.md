@@ -109,9 +109,8 @@ browser client, then speaks the Clara Harness Protocol. The hub routes typed
 - A direct public `wss://` hub endpoint, a hub-wide default harness, or one
   active adapter per hub.
 - One-click installs into a remote Docker host; copy or SSH the command.
-- A Claude Code or Pi orchestration binding, an embedded runner in those
-  adapters, or a shipped container image. Those adapters can still start a
-  shared runner with `clara-adapter-<kind> runner start`.
+- A Claude Code or Pi orchestration binding or embedded runner, or a shipped
+  container image; those adapters can still `clara-adapter-<kind> runner start`.
 - Attaching to an already-running Pi TUI process; Pi exposes no attach API.
 
 ## Known gaps
@@ -133,9 +132,8 @@ browser client, then speaks the Clara Harness Protocol. The hub routes typed
   `<data>/clara/adapters/<kind>/{identity.json,adapter.log,adapter.pid,runner.pid,
 runner.log,state.json,update.json,update.log}`. Claude keeps `catalog.json`; Pi keeps `prompt-ids.json`.
 - Commands: `clara-adapter-<kind> install --pair <code>` (plus `--no-service`,
-  `--no-runner`), `clara-adapter-<kind> runner status|start|stop [--workspace <path>]`,
-  `clara-adapter-<kind> upgrade [--check]`, and
-  `clara-adapter-<kind> clara <command…>`. Hub-facing:
+  `--no-runner`), `runner status|start|stop [--workspace <path>]`,
+  `upgrade [--check]`, and `clara <command…>`. Hub-facing:
   `clara adapter install|list|status|start|stop|logs|verify|upgrade|remove <kind>`.
   The panel update posts to `/harness/v1/maintenance/update`; the hidden
   `apply-update --plan <path>` supervisor performs the switch.
