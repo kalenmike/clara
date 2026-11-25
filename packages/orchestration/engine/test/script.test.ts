@@ -150,6 +150,79 @@ describe('script steps', () => {
     expect(claimed[0].workspace).toBe(execution)
   })
 
+  it('refuses a runner claim from another machine than the run origin', () => {
+    const { dir, runtime } = fixture({
+      steps: ['      - name: build', '        type: script', '        command: echo ready'],
+    })
+    const started = runtime.start({
+      workspace: dir,
+      prompt: 'go',
+      capabilities: ['agent'],
+      origin: { workspace: dir, machine: 'host-a' },
+    })
+    expect(started.run.origin_machine).toBe('host-a')
+    const away = runtime.claimWork(
+      dir,
+      { capabilities: ['script'], runner: { id: 'r1', labels: [], machine: 'host-b' } },
+      1,
+      'runner'
+    )
+    expect(away).toEqual([])
+    const local = runtime.claimWork(
+      dir,
+      { capabilities: ['script'], runner: { id: 'r1', labels: [], machine: 'host-a' } },
+      1,
+      'runner'
+    )
+    expect(local).toHaveLength(1)
+  })
+
+  it('keeps runs without an origin machine claimable from any machine', () => {
+    const { dir, runtime } = fixture({
+      steps: ['      - name: build', '        type: script', '        command: echo ready'],
+    })
+    runtime.start({
+      workspace: dir,
+      prompt: 'go',
+      capabilities: ['agent'],
+      origin: { workspace: dir },
+    })
+    const claimed = runtime.claimWork(
+      dir,
+      { capabilities: ['script'], runner: { id: 'r1', labels: [], machine: 'host-b' } },
+      1,
+      'runner'
+    )
+    expect(claimed).toHaveLength(1)
+  })
+
+  it('uses the registered runner machine when the claim omits it', () => {
+    const { dir, runtime } = fixture({
+      steps: ['      - name: build', '        type: script', '        command: echo ready'],
+    })
+    runtime.start({
+      workspace: dir,
+      prompt: 'go',
+      capabilities: ['agent'],
+      origin: { workspace: dir, machine: 'host-a' },
+    })
+    runtime.registerAdapter({
+      id: 'r1',
+      harness: 'clara-runner',
+      role: 'runner',
+      machine: 'host-b',
+      workspace: dir,
+      capabilities: ['script'],
+    })
+    const claimed = runtime.claimWork(
+      dir,
+      { capabilities: ['script'], runner: { id: 'r1', labels: [] } },
+      1,
+      'runner'
+    )
+    expect(claimed).toEqual([])
+  })
+
   it('filters work by advertised capability', () => {
     const { dir, runtime, store } = fixture({
       steps: [
