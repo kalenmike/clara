@@ -53,16 +53,17 @@ host the packaged `clara runner start|stop` runs a runner as a Clara service.
 Claims are capability-filtered: agent work stays with its harness, while any
 runner with `script` can claim script work for the workspace it registered.
 The claim matches that path as a string; the engine never stats it on its own
-host. With no capable runner the step stays ready and one `no_runner` alert
-opens after `CLARA_RUNNER_WAIT_MS`. `clara runner status`, `clara status`, and
-adapter `verify` report registrations live or stale against a 120s window; a
-clean stop deregisters and the watchdog deletes one quiet for ten windows.
+host. A run records its origin machine, and a runner claim from a different
+known machine is refused; unknown machines keep the work claimable. With no
+capable runner the step stays ready and one `no_runner` alert opens after
+`CLARA_RUNNER_WAIT_MS`. `clara runner status`, `clara status`, and adapter
+`verify` report registrations live or stale against a 120s window; a clean
+stop deregisters and the watchdog deletes one quiet for ten windows.
 
 ## Leases and heartbeats
 
-A claim returns a work token and a lease. The adapter renews every ten seconds
-while a step runs; the model never heartbeats itself, so a long turn does not
-look like a stall.
+A claim returns a work token and a lease. The adapter renews it every ten
+seconds; the model never heartbeats itself, so a long turn is not a stall.
 
 The watchdog runs every ten seconds. A step whose heartbeat is older than
 `CLARA_ENGINE_STALLED_MS` (five minutes) or whose lease expired is requeued
@@ -87,9 +88,8 @@ overwrites the previous attempt. History: `GET /v1/runs/:id/attempts`.
 ## Dispatch
 
 Route entries carry the `criteria` that tell the classifier when to pick them.
-The engine renders a bullet list, substitutes it for `[ROUTES]`, and appends it
-under `## Routes` when absent; the rendered prompt is pinned, and a router
-returns one `when` key, exposed to the adapter as an enum.
+The engine renders the list, substitutes `[ROUTES]`, appends it under
+`## Routes` when absent, and pins the prompt; a router returns one enum key.
 
 The engine does not call a model, but every dispatched step carries the model
 and provider that own it so the harness can pin the worker session. Standard

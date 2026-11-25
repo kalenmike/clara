@@ -78,8 +78,12 @@ clara-adapter-opencode runner stop --workspace /srv/project
 
 To see which runners the engine can dispatch scripts to, run
 `clara runner status` on the hub host or
-`clara-adapter-opencode runner status` on the harness machine; adapter
+`clara-adapter-<kind> runner status` on the harness machine; adapter
 `verify` also fails when the workspace you verify has no live runner.
+
+A run remembers the machine that started it. Its script steps only run on that
+machine: a runner on another machine does not pick them up, even when the same
+workspace path is mounted on both.
 
 After installation, select the **Clara** agent in OpenCode. She is the
 human-facing entry point: a concrete request starts a run, a status question

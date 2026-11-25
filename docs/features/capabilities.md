@@ -73,8 +73,10 @@ imports; it has no OpenCode logic. The runtime supervises one script runner per
 workspace on the adapter's machine, so the daemon-owned runner is the only
 script executor. The OpenCode binding installs a `clara` primary agent. Agent
 and router claims are scoped to the harness that owns the run or the adapter
-pinned by `requires.adapter`; script claims stay shared so one runner serves
-every harness in the workspace.
+pinned by `requires.adapter`; script claims stay shared across harnesses in the
+workspace, and a run also records its origin machine: a script claim from a
+different known machine is refused, so cross-machine workspace collisions cannot
+claim.
 
 ## Partial
 
