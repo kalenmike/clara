@@ -22,6 +22,11 @@ const originSchema = z
       .nullable()
       .optional()
       .describe('Absolute workspace on the calling adapter machine'),
+    machine: z
+      .string()
+      .nullable()
+      .optional()
+      .describe('Machine name of the host running the calling adapter'),
     kind: z.enum(['human', 'agent', 'api', 'worker']).optional(),
   })
   .optional()

@@ -1071,6 +1071,7 @@ export default {
                 harness: 'opencode',
                 agent: agent || null,
                 workspace: currentWorkspace(),
+                machine: hostname(),
                 kind: 'human',
               },
             })

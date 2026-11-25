@@ -403,6 +403,9 @@ export function createEngineServer(options: EngineServerOptions): EngineServer {
                       (item): item is string => typeof item === 'string'
                     )
                   : [],
+                ...(typeof (input.runner as Record<string, unknown>).machine === 'string'
+                  ? { machine: String((input.runner as Record<string, unknown>).machine).trim() }
+                  : {}),
               }
             : undefined
         json(

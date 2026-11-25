@@ -19,6 +19,8 @@ export interface RunRow extends Row {
   origin_agent: string | null
   /** Absolute workspace where the origin adapter runs the steps. */
   origin_workspace?: string | null
+  /** Machine name of the host that started the run, when known. */
+  origin_machine?: string | null
   origin_kind: string
   pipeline_ref: string
   snapshot: string
@@ -324,6 +326,7 @@ export class Store {
       CREATE INDEX IF NOT EXISTS idx_delivery_claims_run ON delivery_claims (run_id, kind);
     `)
     this.ensureColumn('runs', 'origin_workspace', 'TEXT')
+    this.ensureColumn('runs', 'origin_machine', 'TEXT')
     this.ensureColumn('steps', 'provider', 'TEXT')
     this.ensureColumn('steps', 'workspace', 'TEXT')
     this.ensureColumn('steps', 'current_attempt_id', 'INTEGER')
@@ -449,6 +452,7 @@ export class Store {
     origin_harness: string | null
     origin_agent: string | null
     origin_workspace?: string | null
+    origin_machine?: string | null
     origin_kind: string
     pipeline_ref: string
     snapshot: string
@@ -461,9 +465,10 @@ export class Store {
       .prepare(
         `INSERT INTO runs
           (workspace, prompt, target, state, root_run_id, parent_run_id, parent_step_path,
-           origin_session_id, origin_harness, origin_agent, origin_workspace, origin_kind,
-           pipeline_ref, snapshot, hash, enforcement, notification, created_at, updated_at)
-         VALUES (?, ?, ?, 'queued', ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`
+           origin_session_id, origin_harness, origin_agent, origin_workspace, origin_machine,
+           origin_kind, pipeline_ref, snapshot, hash, enforcement, notification,
+           created_at, updated_at)
+         VALUES (?, ?, ?, 'queued', ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`
       )
       .run(
         input.workspace,
@@ -476,6 +481,7 @@ export class Store {
         input.origin_harness,
         input.origin_agent,
         input.origin_workspace ?? null,
+        input.origin_machine ?? null,
         input.origin_kind,
         input.pipeline_ref,
         input.snapshot,

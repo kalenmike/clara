@@ -4,6 +4,8 @@ export interface OriginInput {
   agent?: string | null
   /** Absolute workspace on the caller's machine. */
   workspace?: string | null
+  /** Machine name of the host running the calling adapter. */
+  machine?: string | null
   kind?: 'human' | 'agent' | 'api' | 'worker'
 }
 

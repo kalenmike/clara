@@ -43,6 +43,8 @@ export class HttpBackend implements ClaraBackend {
       session_id?: string | null
       harness?: string | null
       agent?: string | null
+      workspace?: string | null
+      machine?: string | null
       kind?: 'human' | 'agent' | 'api' | 'worker'
     }
   }) {

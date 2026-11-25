@@ -76,7 +76,7 @@ export class RuntimeBackend implements ClaraBackend {
   async workNext(input: {
     workspace?: string
     capabilities: string[]
-    runner?: { id: string; labels: string[] }
+    runner?: { id: string; labels: string[]; machine?: string }
     limit?: number
   }) {
     return this.runtime.claimWork(

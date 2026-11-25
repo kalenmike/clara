@@ -111,7 +111,7 @@ export class RunnerClient {
   workNext(input: {
     workspace: string
     capabilities: string[]
-    runner: { id: string; labels: string[] }
+    runner: { id: string; labels: string[]; machine?: string }
     limit: number
   }): Promise<ScriptWorkOrder[]> {
     return this.request('POST', '/v1/work/next', input)

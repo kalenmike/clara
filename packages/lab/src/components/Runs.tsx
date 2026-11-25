@@ -442,6 +442,9 @@ export function Runs({
                   {selectedRun.origin_workspace ? (
                     <Field label="Worker workspace" value={selectedRun.origin_workspace} />
                   ) : null}
+                  {selectedRun.origin_machine ? (
+                    <Field label="Origin machine" value={selectedRun.origin_machine} />
+                  ) : null}
                   <Field label="Origin" value={originText(selectedRun)} />
                   <Field label="Created" value={dateTime(selectedRun.created_at)} />
                   <Field

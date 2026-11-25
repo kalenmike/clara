@@ -44,8 +44,8 @@ browser client, then speaks the Clara Harness Protocol. The hub routes typed
    carries a ten-minute enrollment grant, then a thirty-day refreshed grant.
 3. Included installers place different pieces, all with `--pair <code>`: OpenCode installs the daemon and its
    binding; Claude Code and Pi install only the daemon and a user service. `--no-service` and `--from <path>` select
-   those pieces or a checkout build. The daemon supervises one script runner per workspace on its machine, and the
-   binding registers the policy plugin, so a running server reloads its Clara tools without a restart. The adapter
+   those pieces or a checkout build. The daemon supervises one script runner per workspace on its machine, the
+   binding stamps that machine on the run origin and registers the policy plugin, so a running server reloads its Clara tools without a restart. The adapter
    resolves the engine from the hub after authentication and writes `engine.json`; the pairing code carries no endpoint or token.
 4. On the target the adapter authenticates the harness, keeps its password in
    `config.json`, translates traffic into Clara frames, and samples its machine.

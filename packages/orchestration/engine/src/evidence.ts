@@ -20,6 +20,7 @@ export interface EvidenceRun {
   origin_agent: string | null
   origin_harness: string | null
   origin_workspace: string | null
+  origin_machine: string | null
   pipeline_ref: string
   enforcement: string
   created_at: string
@@ -121,6 +122,7 @@ function sanitizeRun(run: RunRow): EvidenceRun {
     origin_agent: run.origin_agent,
     origin_harness: run.origin_harness,
     origin_workspace: run.origin_workspace ?? null,
+    origin_machine: run.origin_machine ?? null,
     pipeline_ref: run.pipeline_ref,
     enforcement: run.enforcement,
     created_at: run.created_at,

@@ -64,7 +64,8 @@ adapter probes direct URLs and otherwise uses the sealed hub proxy. See
    closed with `enforcement_unavailable` unless a registered adapter holds the
    required capabilities. MCP alone cannot enforce native tool policy.
 5. **One conversation, one local instance.** The root run records its origin
-   session and worker sessions stay hidden automation. The panel's
+   session, workspace, and machine; script claims from another known machine
+   are refused. Worker sessions stay hidden automation. The panel's
    Orchestration switch keeps `orchestration.enabled` in the hub database and
    controls a local engine only; one started from the CLI or MCP bridge is
    detected and left alone.
@@ -140,9 +141,8 @@ adapter probes direct URLs and otherwise uses the sealed hub proxy. See
   `clara_heartbeat`, and `clara_catalog`.
 - Entry point: the `clara` agent at `~/.config/opencode/agents/clara.md`. The
   MCP-only path keeps a manual `/pipeline` command.
-- Delivery: `POST /v1/runs/:id/delivery/claim` and
-  `POST /v1/runs/:id/delivery/release` reserve and return a terminal run and its
-  alerts; claims persist in the database, so restarts cannot re-send a run.
+- Delivery: `POST /v1/runs/:id/delivery/claim` and `…/release` reserve and
+  return a terminal run and its alerts; claims persist across restarts.
 - See [capabilities.md](../capabilities.md) for shipped scope and
   [../architecture/overview.md](../../architecture/overview.md) for where the
   engine sits.

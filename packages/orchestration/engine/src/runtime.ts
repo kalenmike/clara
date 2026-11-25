@@ -34,6 +34,8 @@ export interface Origin {
   agent?: string | null
   /** Absolute workspace on the origin adapter's machine. */
   workspace?: string | null
+  /** Machine name of the host running the origin adapter. */
+  machine?: string | null
   kind?: 'human' | 'agent' | 'api' | 'worker'
 }
 
@@ -252,13 +254,23 @@ export interface ClaimFilter {
    */
   harness?: string
   /** Runner identity, used to satisfy a step's `requires.runner`. */
-  runner?: { id: string; labels: string[] }
+  runner?: { id: string; labels: string[]; machine?: string }
 }
 
 function canRun(node: CompiledNode, run: RunRow, filter?: ClaimFilter): boolean {
   if (!filter) return true
   if (filter.role === 'runner' && node.kind !== 'script') return false
   if (filter.role === 'harness' && node.kind !== 'agent' && node.kind !== 'router') return false
+  // Script work executes on the origin adapter's machine. A runner on another
+  // machine would run it against the wrong checkout, so refuse the claim when
+  // both machines are known and differ; unknown machines stay claimable.
+  if (
+    filter.runner?.machine &&
+    run.origin_machine &&
+    filter.runner.machine !== run.origin_machine
+  ) {
+    return false
+  }
   if (
     filter.capabilities &&
     !nodeCapabilities(node).every((cap) => filter.capabilities?.includes(cap))
@@ -384,6 +396,7 @@ export class Runtime {
       origin_harness: input.origin?.harness ?? null,
       origin_agent: input.origin?.agent ?? null,
       origin_workspace: input.origin?.workspace?.trim() || null,
+      origin_machine: input.origin?.machine?.trim() || null,
       origin_kind: input.origin?.kind ?? 'human',
       pipeline_ref: compiled.root.name,
       snapshot: JSON.stringify(compiled.root),
@@ -999,7 +1012,16 @@ export class Runtime {
     return waiting ? 'waiting' : 'ok'
   }
 
+  /** Fill a claim's machine from the runner's registration when the payload omits it. */
+  private withClaimantMachine(filter?: ClaimFilter): ClaimFilter | undefined {
+    if (!filter?.runner || filter.runner.machine) return filter
+    const registered = this.store.adapter(filter.runner.id)?.machine?.trim()
+    if (!registered) return filter
+    return { ...filter, runner: { ...filter.runner, machine: registered } }
+  }
+
   claim(runID: number, limit = 1, owner = 'dispatcher', filter?: ClaimFilter): WorkOrder[] {
+    filter = this.withClaimantMachine(filter)
     const advanced = this.advance(runID, limit)
     const run = advanced.run
     const root = JSON.parse(run.snapshot) as CompiledNode
@@ -1475,6 +1497,7 @@ export class Runtime {
         origin_harness: run.origin_harness,
         origin_agent: run.origin_agent,
         origin_workspace: run.origin_workspace ?? null,
+        origin_machine: run.origin_machine ?? null,
         origin_kind: run.origin_kind,
         pipeline_ref: 'spawn',
         snapshot,
