@@ -144,9 +144,7 @@ export async function runRunnerStatus(args: readonly string[]): Promise<number> 
   const current = runnerProcess(paths)
   const configPath = join(paths.configDir, 'runner.json')
   const saved = readRunnerConfig(configPath)
-  const engine = await engineRunnerReport(
-    workspace ? { workspace } : {}
-  )
+  const engine = await engineRunnerReport(workspace ? { workspace } : {})
   if (json) {
     console.log(
       JSON.stringify(

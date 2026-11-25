@@ -23,7 +23,12 @@ export class RunnerClient {
     this.timeoutMs = config.timeoutMs
   }
 
-  private async request<T>(method: string, path: string, body?: unknown, timeoutMs?: number): Promise<T> {
+  private async request<T>(
+    method: string,
+    path: string,
+    body?: unknown,
+    timeoutMs?: number
+  ): Promise<T> {
     const current = this.resolve?.()
     const base = (current?.url ?? this.base).replace(/\/+$/, '')
     const token = current?.token ?? this.token
@@ -45,7 +50,10 @@ export class RunnerClient {
       value = text
     }
     if (!response.ok) {
-      throw new RunnerHttpError(response.status, describeHttpError(value, method, path, response.status))
+      throw new RunnerHttpError(
+        response.status,
+        describeHttpError(value, method, path, response.status)
+      )
     }
     return value as T
   }
@@ -147,12 +155,7 @@ export class RunnerClient {
 }
 
 /** The engine returns `{ error: { code, message } }`; render it readably. */
-function describeHttpError(
-  value: unknown,
-  method: string,
-  path: string,
-  status: number
-): string {
+function describeHttpError(value: unknown, method: string, path: string, status: number): string {
   const error =
     value && typeof value === 'object' && 'error' in value
       ? (value as { error: unknown }).error

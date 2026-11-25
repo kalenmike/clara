@@ -41,7 +41,9 @@ export async function runnerCommand(
     console.log(runnerHelp(options.name))
     return
   }
-  throw new Error(`unknown runner command: ${sub} (try \`clara-adapter-${options.name} runner help\`)`)
+  throw new Error(
+    `unknown runner command: ${sub} (try \`clara-adapter-${options.name} runner help\`)`
+  )
 }
 
 function runnerHelp(name: string): string {
@@ -310,7 +312,9 @@ function parseStartArgs(args: string[]): {
       labels.push(label)
       continue
     }
-    throw new Error('usage: runner start [--workspace <path>] [--concurrency <n>] [--label <label>]')
+    throw new Error(
+      'usage: runner start [--workspace <path>] [--concurrency <n>] [--label <label>]'
+    )
   }
   return { ...(workspace ? { workspace } : {}), ...(concurrency ? { concurrency } : {}), labels }
 }
@@ -363,7 +367,8 @@ export async function verifyRunnerCheck(options: {
   }
 }
 
-function formatAge(ms: number): string {  if (!Number.isFinite(ms)) return 'never'
+function formatAge(ms: number): string {
+  if (!Number.isFinite(ms)) return 'never'
   const seconds = Math.floor(ms / 1000)
   if (seconds < 60) return `${seconds}s`
   const minutes = Math.floor(seconds / 60)

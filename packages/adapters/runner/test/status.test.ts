@@ -23,7 +23,10 @@ function row(overrides: Partial<EngineAdapterRow> = {}): EngineAdapterRow {
 describe('runnerSnapshots', () => {
   it('marks a fresh runner live and an old runner stale', () => {
     const snapshots = runnerSnapshots(
-      [row(), row({ id: 'old', heartbeat_at: new Date(NOW - RUNNER_STALE_MS - 1_000).toISOString() })],
+      [
+        row(),
+        row({ id: 'old', heartbeat_at: new Date(NOW - RUNNER_STALE_MS - 1_000).toISOString() }),
+      ],
       { nowMs: NOW }
     )
     expect(snapshots).toHaveLength(2)

@@ -73,7 +73,13 @@ function engineEndpoint(): { url: string; token: string } {
   const fromEnv =
     process.env.CLARA_ENGINE_URL?.trim() || process.env.CLARA_ORCHESTRATION_URL?.trim()
   const endpoint = readEngineEndpoint()
-  if (!fromEnv && endpoint?.enabled && endpoint.mode === 'proxy' && endpoint.url && endpoint.token) {
+  if (
+    !fromEnv &&
+    endpoint?.enabled &&
+    endpoint.mode === 'proxy' &&
+    endpoint.url &&
+    endpoint.token
+  ) {
     return { url: endpoint.url, token: endpoint.token }
   }
   return {

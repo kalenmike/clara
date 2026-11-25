@@ -94,8 +94,13 @@ describe('RunnerClient.adapters', () => {
 
   it('renders engine error bodies as code: message', async () => {
     const client = new RunnerClient({ url, token: 'tok' })
-    await expect(client.workNext({ workspace: '/x', capabilities: [], runner: { id: 'r', labels: [] }, limit: 1 })).rejects.toThrow(
-      'workspace_missing: The workspace /x does not exist.'
-    )
+    await expect(
+      client.workNext({
+        workspace: '/x',
+        capabilities: [],
+        runner: { id: 'r', labels: [] },
+        limit: 1,
+      })
+    ).rejects.toThrow('workspace_missing: The workspace /x does not exist.')
   })
 })
