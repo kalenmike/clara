@@ -974,6 +974,27 @@ describe('runtime', () => {
     expect(store.step(started.run.id, work.step_path)?.status).toBe('running')
   })
 
+  it('purges adapter and runner rows past their TTL and keeps live rows', async () => {
+    const expired = new Store(':memory:')
+    const expiredRuntime = new Runtime({ store: expired, configPath: config, adapterTtlMs: 0 })
+    expiredRuntime.registerAdapter({ harness: 'opencode', workspace, capabilities: ['agent'] })
+    expiredRuntime.registerAdapter({
+      id: 'clara-runner-old',
+      harness: 'clara-runner',
+      role: 'runner',
+      workspace: '/workspace/g',
+      capabilities: ['script'],
+    })
+    await new Promise((resolve) => setTimeout(resolve, 5))
+    expiredRuntime.tick()
+    expect(expired.adapters()).toHaveLength(0)
+    runtime.tick()
+    expect(store.adapters()).toHaveLength(0)
+    adapter()
+    runtime.tick()
+    expect(store.adapters()).toHaveLength(1)
+  })
+
   it('accepts the final usage update after a step completes', () => {
     const started = runtime.start({ workspace, prompt: 'patch', target: 'std:content' })
     const work = started.work[0]
