@@ -67,6 +67,20 @@ describe('service endpoints', () => {
     expect(resolvePorts({ CLARA_LAB_PORT: '9200' }).lab).toBe(9200)
     expect(resolvePorts({ CLARA_LAB_PORT: 'nope' }).lab).toBe(8791)
   })
+
+  it('pins the engine workspace instead of the service working directory', () => {
+    const ports = resolvePorts({})
+    vi.stubEnv('CLARA_ENGINE_WORKSPACE', '')
+    vi.stubEnv('CLARA_ORCHESTRATION_WORKSPACE', '')
+    const fallback = SPECS.engine.env(ports).CLARA_ENGINE_WORKSPACE
+    expect(fallback).toBeTruthy()
+    expect(fallback).not.toBe(process.cwd())
+    expect(SPECS.lab.env(ports).CLARA_ENGINE_WORKSPACE).toBe(fallback)
+
+    vi.stubEnv('CLARA_ENGINE_WORKSPACE', '/srv/project')
+    expect(SPECS.engine.env(ports).CLARA_ENGINE_WORKSPACE).toBe('/srv/project')
+    expect(SPECS.lab.env(ports).CLARA_ENGINE_WORKSPACE).toBe('/srv/project')
+  })
 })
 
 describe('reported service identity', () => {
