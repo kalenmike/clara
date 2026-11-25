@@ -14,6 +14,11 @@ beforeAll(async () => {
       authorization: String(req.headers.authorization ?? ''),
     })
     if (req.url?.startsWith('/v1/adapters')) {
+      if (req.method === 'DELETE') {
+        res.writeHead(200, { 'content-type': 'application/json' })
+        res.end(JSON.stringify({ ok: true }))
+        return
+      }
       res.writeHead(200, { 'content-type': 'application/json' })
       res.end(
         JSON.stringify([
@@ -30,6 +35,15 @@ beforeAll(async () => {
             created_at: new Date().toISOString(),
           },
         ])
+      )
+      return
+    }
+    if (req.url === '/v1/work/next') {
+      res.writeHead(400, { 'content-type': 'application/json' })
+      res.end(
+        JSON.stringify({
+          error: { code: 'workspace_missing', message: 'The workspace /x does not exist.' },
+        })
       )
       return
     }
@@ -69,5 +83,19 @@ describe('RunnerClient.adapters', () => {
     const rows = await client.adapters()
     expect(rows).toHaveLength(1)
     expect(seen.at(-1)?.authorization).toBe('Bearer fresh')
+  })
+
+  it('removes a registration with DELETE', async () => {
+    const client = new RunnerClient({ url, token: 'tok' })
+    await client.removeAdapter('runner 1')
+    expect(seen.at(-1)?.method).toBe('DELETE')
+    expect(seen.at(-1)?.path).toBe('/v1/adapters/runner%201')
+  })
+
+  it('renders engine error bodies as code: message', async () => {
+    const client = new RunnerClient({ url, token: 'tok' })
+    await expect(client.workNext({ workspace: '/x', capabilities: [], runner: { id: 'r', labels: [] }, limit: 1 })).rejects.toThrow(
+      'workspace_missing: The workspace /x does not exist.'
+    )
   })
 })

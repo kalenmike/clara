@@ -139,6 +139,16 @@ export function createRunner(config: RunnerConfig): Runner {
       if (adapterTimer) clearInterval(adapterTimer)
       pollTimer = undefined
       adapterTimer = undefined
+      if (registered) {
+        registered = false
+        // A clean stop removes the row so status is accurate at once; a crash
+        // still ages out through the engine's stale window.
+        try {
+          await client.removeAdapter(id)
+        } catch {
+          // Ignore: the engine drops the row once heartbeats stop.
+        }
+      }
     },
 
     async execute(order: ScriptWorkOrder): Promise<void> {
