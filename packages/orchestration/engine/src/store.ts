@@ -762,8 +762,6 @@ export class Store {
    * briefly quiet registration is never purged.
    */
   purgeAdapters(beforeISO: string): number {
-    return this.db
-      .prepare('DELETE FROM adapters WHERE heartbeat_at < ?')
-      .run(beforeISO).changes
+    return this.db.prepare('DELETE FROM adapters WHERE heartbeat_at < ?').run(beforeISO).changes
   }
 }

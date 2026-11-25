@@ -447,10 +447,9 @@ async function serve<THarness>(
     hostMetrics.stop()
     transport.close()
     writeLive()
-    void Promise.allSettled([
-      runnerSupervisor.stop(),
-      orchestratorRef.current?.close(),
-    ]).finally(() => process.exit(0))
+    void Promise.allSettled([runnerSupervisor.stop(), orchestratorRef.current?.close()]).finally(
+      () => process.exit(0)
+    )
   }
   process.on('SIGINT', stop)
   process.on('SIGTERM', stop)

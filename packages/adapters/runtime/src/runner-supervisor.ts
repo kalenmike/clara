@@ -12,13 +12,7 @@ import {
 } from 'node:fs'
 import { hostname } from 'node:os'
 import { join } from 'node:path'
-import {
-  RUNNER_STALE_MS,
-  RunnerClient,
-  claraDataDir,
-  engineToken,
-  engineURL,
-} from '@clara/runner'
+import { RUNNER_STALE_MS, RunnerClient, claraDataDir, engineToken, engineURL } from '@clara/runner'
 import { selfCommand, selfEntry } from './service.ts'
 import type { AdapterPaths } from './types.ts'
 
@@ -69,14 +63,21 @@ export function readRunnerDesired(paths: AdapterPaths): RunnerDesired[] {
       const entry = item as { path?: unknown; concurrency?: unknown; labels?: unknown }
       if (typeof entry.path !== 'string' || !entry.path.trim()) return []
       const concurrency =
-        typeof entry.concurrency === 'number' && Number.isInteger(entry.concurrency) &&
+        typeof entry.concurrency === 'number' &&
+        Number.isInteger(entry.concurrency) &&
         entry.concurrency > 0
           ? entry.concurrency
           : undefined
       const labels = Array.isArray(entry.labels)
         ? entry.labels.filter((label): label is string => typeof label === 'string' && !!label)
         : undefined
-      return [{ path: entry.path, ...(concurrency ? { concurrency } : {}), ...(labels?.length ? { labels } : {}) }]
+      return [
+        {
+          path: entry.path,
+          ...(concurrency ? { concurrency } : {}),
+          ...(labels?.length ? { labels } : {}),
+        },
+      ]
     })
   } catch {
     return []
@@ -97,7 +98,7 @@ export function writeRunnerDesired(paths: AdapterPaths, entries: RunnerDesired[]
 
 /** Runner children this adapter recorded, whether or not their processes live. */
 export function listRunnerChildren(paths: AdapterPaths): RunnerChild[] {
-  let names: string[] = []
+  let names: string[]
   try {
     names = readdirSync(paths.dataDir)
   } catch {
@@ -344,8 +345,7 @@ export class RunnerSupervisor {
       const now = Date.now()
       return rows
         .filter(
-          (row) =>
-            row.role === 'harness' && row.harness === this.name && row.machine === machine
+          (row) => row.role === 'harness' && row.harness === this.name && row.machine === machine
         )
         .filter((row) => {
           const heartbeat = Date.parse(row.heartbeat_at)
