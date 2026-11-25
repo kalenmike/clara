@@ -166,14 +166,13 @@ Clara orchestration binding: the `clara` agent, the policy plugin, and an entry
 for that plugin in the OpenCode configuration, so a running OpenCode server
 reloads the plugin — and the Clara tools in the `clara` agent — without a
 restart. If OpenCode is reachable but has not loaded the plugin, the install
-prints a warning telling you to restart OpenCode. The install also enables the
-embedded runner on the OpenCode machine. After the adapter authenticates, the
-hub supplies the engine endpoint: the adapter uses a reachable direct address
-when it can, and otherwise routes engine traffic through the same sealed hub
-connection. Docker and SSH installs therefore need no engine URL or engine token
-in the environment. Use `--no-runner` only when a separate shared runner owns
-scripts, or `--no-service` to write the config without installing a user
-service.
+prints a warning telling you to restart OpenCode. The adapter also supervises
+the script runner for each workspace on the OpenCode machine. After the adapter
+authenticates, the hub supplies the engine endpoint: the adapter uses a
+reachable direct address when it can, and otherwise routes engine traffic
+through the same sealed hub connection. Docker and SSH installs therefore need
+no engine URL or engine token in the environment. Use `--no-service` to write
+the config without installing a user service.
 
 ### Claude Code
 
@@ -303,7 +302,7 @@ workspace that has a live runner registered with the engine, so the check fails
 when the directory you verify has none and names the workspaces that live
 runners do serve. `clara runner status` and `clara-adapter-<kind> runner
 status` list those registrations, and `clara-adapter-<kind> runner start
---workspace <path>` starts one on the harness machine.
+--workspace <path>` asks the adapter daemon on that machine to supervise one.
 
 ## Update an adapter
 

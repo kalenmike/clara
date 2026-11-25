@@ -48,11 +48,11 @@ clara status engine --json
 clara adapter install opencode
 ```
 
-The command links the OpenCode plugin, installs the `Clara` agent, and enables
-the embedded runner on the machine that runs OpenCode. The runner executes
-workspace-specific scripts there, while the engine and its run state stay on the
-hub host. A panel install does this automatically and does not need an
-environment variable.
+The command links the OpenCode plugin and installs the `Clara` agent on the
+machine that runs OpenCode. That adapter also runs the script runners for its
+own machine: exactly one runner per workspace, supervised by the adapter. The
+engine and its run state stay on the hub host. A panel install does this
+automatically and does not need an environment variable.
 
 After the adapter authenticates, the hub tells it where the engine can be
 reached. The adapter tests the direct addresses from its own machine and, when
@@ -67,11 +67,13 @@ reconnects.
 panel install should not need them.
 
 Add `--mcp` to register the MCP bridge with the harness. The OpenCode adapter
-is included with this release; another harness needs its own adapter. Use
-`--no-runner` only when scripts should run through a separate shared runner:
+is included with this release; another harness needs its own adapter. The
+adapter serves the workspace it was installed for; to add another workspace on
+that machine, or to take one away:
 
 ```bash
-clara runner start
+clara-adapter-opencode runner start --workspace /srv/project
+clara-adapter-opencode runner stop --workspace /srv/project
 ```
 
 To see which runners the engine can dispatch scripts to, run
