@@ -103,7 +103,7 @@ export function createRunner(config: RunnerConfig): Runner {
       const orders = await client.workNext({
         workspace,
         capabilities,
-        runner: { id, labels },
+        runner: { id, labels, machine },
         limit: capacity,
       })
       const running = orders.map((order) => run(order))
