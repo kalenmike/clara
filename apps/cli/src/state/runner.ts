@@ -9,6 +9,14 @@ import {
   writeFileSync,
 } from 'node:fs'
 import { join } from 'node:path'
+import {
+  RunnerClient,
+  engineToken,
+  readEngineEndpoint,
+  runnerSnapshots,
+  type RunnerSnapshot,
+} from '@clara/runner'
+import { resolvePorts } from '../ports.ts'
 import { serviceLogPath, type ClaraPaths } from '../paths.ts'
 
 export type RunnerProcess = {
@@ -48,6 +56,50 @@ export function runnerProcess(paths: ClaraPaths): RunnerProcess {
   const pid = readRunnerPid(paths)
   if (pid === undefined) return { running: false }
   return isAlive(pid) ? { running: true, pid } : { running: false, pid }
+}
+
+export type EngineRunnerReport = {
+  url: string
+  reachable: boolean
+  error?: string
+  runners: RunnerSnapshot[]
+}
+
+/**
+ * Resolve the engine endpoint this machine should query: the adapter daemon's
+ * published gateway when present, otherwise the local packaged engine.
+ */
+function engineEndpoint(): { url: string; token: string } {
+  const fromEnv =
+    process.env.CLARA_ENGINE_URL?.trim() || process.env.CLARA_ORCHESTRATION_URL?.trim()
+  const endpoint = readEngineEndpoint()
+  if (!fromEnv && endpoint?.enabled && endpoint.mode === 'proxy' && endpoint.url && endpoint.token) {
+    return { url: endpoint.url, token: endpoint.token }
+  }
+  return {
+    url: fromEnv || `http://127.0.0.1:${resolvePorts().engine}`,
+    token: engineToken(),
+  }
+}
+
+/** Best-effort list of the runner registrations the engine holds. */
+export async function engineRunnerReport(
+  options: { workspace?: string; timeoutMs?: number } = {}
+): Promise<EngineRunnerReport> {
+  const { url, token } = engineEndpoint()
+  if (!token) return { url, reachable: false, error: 'no engine token', runners: [] }
+  try {
+    const client = new RunnerClient({ url, token, timeoutMs: options.timeoutMs ?? 2_000 })
+    const rows = await client.adapters(options.workspace)
+    return { url, reachable: true, runners: runnerSnapshots(rows) }
+  } catch (cause) {
+    return {
+      url,
+      reachable: false,
+      error: cause instanceof Error ? cause.message : String(cause),
+      runners: [],
+    }
+  }
 }
 
 /** Print the tail of the runner log, then optionally follow new lines. */

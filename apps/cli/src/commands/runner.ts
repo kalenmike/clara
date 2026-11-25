@@ -8,14 +8,15 @@ import { detectRole } from '../state/role.ts'
 import { selfCommand } from '../self.ts'
 import {
   clearRunnerPid,
+  engineRunnerReport,
   followRunnerLog,
   runnerLogPath,
   runnerPidPath,
   runnerProcess,
   writeRunnerPid,
 } from '../state/runner.ts'
-import { dim, green } from '../ui/color.ts'
-import { success, warn } from '../ui/index.ts'
+import { dim, green, red, yellow } from '../ui/color.ts'
+import { formatDuration, success, warn } from '../ui/index.ts'
 import { runnerStartGuard } from './role-guard.ts'
 
 type StartOptions = {
@@ -43,7 +44,7 @@ export async function runRunnerCommand(args: readonly string[]): Promise<number>
         'Usage:',
         '  clara runner start [--workspace <path>] [--foreground]',
         '  clara runner stop',
-        '  clara runner status [--json]',
+        '  clara runner status [--workspace <path>] [--json]',
         '  clara runner logs [--tail <n>] [--no-follow]',
       ].join('\n')
     )
@@ -136,40 +137,66 @@ export async function runRunnerStop(_args: readonly string[]): Promise<number> {
   return 0
 }
 
-/** `clara runner status [--json]` */
+/** `clara runner status [--workspace <path>] [--json]` */
 export async function runRunnerStatus(args: readonly string[]): Promise<number> {
-  if (args.some((arg) => arg !== '--json')) {
-    throw new Error('usage: clara runner status [--json]')
-  }
+  const { workspace, json } = parseStatus(args)
   const paths = resolvePaths()
   const current = runnerProcess(paths)
   const configPath = join(paths.configDir, 'runner.json')
   const saved = readRunnerConfig(configPath)
-  const workspace =
-    saved?.workspace ??
-    process.env.CLARA_ENGINE_WORKSPACE?.trim() ??
-    process.env.CLARA_ORCHESTRATION_WORKSPACE?.trim() ??
-    process.cwd()
-  const url = saved?.url ?? localEngineUrl()
-  const report = {
-    state: current.running ? ('running' as const) : ('stopped' as const),
-    pid: current.pid ?? null,
-    workspace,
-    url,
-    concurrency: saved?.concurrency ?? null,
-    configPath,
-    log: runnerLogPath(paths),
-    pidFile: runnerPidPath(paths),
-  }
-  if (args.includes('--json')) {
-    console.log(JSON.stringify(report, null, 2))
+  const engine = await engineRunnerReport(
+    workspace ? { workspace } : {}
+  )
+  if (json) {
+    console.log(
+      JSON.stringify(
+        {
+          engine: {
+            url: engine.url,
+            reachable: engine.reachable,
+            error: engine.error ?? null,
+          },
+          ...(workspace ? { workspace } : {}),
+          runners: engine.runners,
+          local: {
+            state: current.running ? 'running' : 'stopped',
+            pid: current.pid ?? null,
+            workspace: saved?.workspace ?? null,
+            concurrency: saved?.concurrency ?? null,
+            configPath,
+            log: runnerLogPath(paths),
+            pidFile: runnerPidPath(paths),
+          },
+        },
+        null,
+        2
+      )
+    )
     return 0
   }
+  const engineLabel = engine.reachable ? engine.url : `${engine.url} ${red('(unreachable)')}`
+  console.log(`engine:    ${engineLabel}`)
+  if (!engine.reachable && engine.error) console.log(dim(`           ${engine.error}`))
+  if (workspace) console.log(`workspace: ${workspace}`)
+  if (engine.runners.length === 0) {
+    console.log(`runners:   ${dim('none registered')}`)
+  } else {
+    console.log('runners:')
+    for (const runner of engine.runners) {
+      const state = runner.live
+        ? green(`live  ${formatDuration(runner.ageMs)}`)
+        : yellow(`stale ${formatDuration(runner.ageMs)}`)
+      const machine = runner.machine ? ` @${runner.machine}` : ''
+      console.log(`  ${state}  ${runner.workspace}${machine}  ${dim(runner.id)}`)
+    }
+  }
   console.log(
-    `runner:    ${current.running ? green(`running (pid ${current.pid})`) : dim('stopped')}`
+    `local:     ${
+      current.running
+        ? green(`shared runner running (pid ${current.pid})`)
+        : dim('no local shared runner')
+    }`
   )
-  console.log(`workspace: ${workspace ?? dim('(not configured)')}`)
-  console.log(`engine:    ${url}`)
   console.log(`config:    ${configPath}`)
   console.log(`log:       ${runnerLogPath(paths)}`)
   return 0
@@ -212,6 +239,30 @@ function parseStart(args: readonly string[]): StartOptions {
     throw new Error(`unknown option: ${arg}`)
   }
   return { ...(workspace ? { workspace } : {}), foreground }
+}
+
+function parseStatus(args: readonly string[]): { workspace?: string; json: boolean } {
+  let workspace: string | undefined
+  let json = false
+  for (let index = 0; index < args.length; index++) {
+    const arg = args[index]
+    if (arg === '--json') {
+      json = true
+      continue
+    }
+    if (arg === '--workspace') {
+      workspace = args[++index]
+      if (!workspace) throw new Error('--workspace needs a path')
+      continue
+    }
+    if (arg.startsWith('--workspace=')) {
+      workspace = arg.slice('--workspace='.length)
+      if (!workspace) throw new Error('--workspace needs a path')
+      continue
+    }
+    throw new Error('usage: clara runner status [--workspace <path>] [--json]')
+  }
+  return { ...(workspace ? { workspace } : {}), json }
 }
 
 function parseLogs(args: readonly string[]): LogOptions {

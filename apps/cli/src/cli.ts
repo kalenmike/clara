@@ -114,9 +114,12 @@ export const commands: Command[] = [
     name: 'runner',
     summary: 'Manage the shared script runner',
     usage:
-      'start [--workspace <path>] [--foreground] | stop | status [--json] | logs [--tail <n>] [--no-follow]',
+      'start [--workspace <path>] [--foreground] | stop | status [--workspace <path>] [--json] | logs [--tail <n>] [--no-follow]',
     options: [
-      { flags: '--workspace <path>', description: 'directory the runner executes scripts in' },
+      {
+        flags: '--workspace <path>',
+        description: 'workspace to start in, or to filter status to',
+      },
       { flags: '--foreground', description: 'run the runner in this terminal' },
       { flags: '--json', description: 'machine-readable status' },
       { flags: '--tail <n>', description: 'number of log lines to print first (default 80)' },
