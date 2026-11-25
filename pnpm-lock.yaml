@@ -102,9 +102,6 @@ importers:
       '@clara/mcp':
         specifier: workspace:*
         version: link:../../../packages/orchestration/mcp
-      '@clara/runner':
-        specifier: workspace:*
-        version: link:../../../packages/adapters/runner
       '@opencode/client':
         specifier: 2.1.1
         version: 2.1.1(effect@4.0.1)

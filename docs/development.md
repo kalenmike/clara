@@ -293,11 +293,6 @@ pnpm cli adapter install opencode             # or: --from apps/adapters/opencod
 pnpm --filter @clara/adapter-opencode build   # rebuild before --from or --serve
 clara-dev mcp install [--api]                 # checkout-only MCP bridge
 
-# Runner (clara-dev)
-clara-dev start runner [--workspace <path>]
-clara-dev stop runner [--purge]
-clara-dev status runner [--json]
-
 # Setup (clara-dev)
 clara-dev pair [hub] [--no-relay] [--no-qr] [--no-panel] [--revoke-all] [--revoke <id>]
 
@@ -399,11 +394,11 @@ pnpm cli adapter install opencode --from apps/adapters/opencode
 pnpm cli adapter upgrade opencode   # reruns install without a new pairing
 ```
 
-`clara-dev start runner` installs and starts the shared script runner;
-`--foreground` runs it in the foreground. `clara-dev start lab` and
-`clara-dev start docs` run the host-only development sites. Their one-shot
-checks are `status lab --check`, `status docs --check`, and
-`status docs --typecheck`.
+`clara-dev start lab` and `clara-dev start docs` run the host-only development
+sites. Their one-shot checks are `status lab --check`, `status docs --check`,
+and `status docs --typecheck`. The adapter daemon supervises the script runner
+for each workspace; `clara-adapter-<kind> runner start|stop|status` edits that
+desired state from a checkout build.
 
 `clara-dev rebuild` snapshots the running services, rebuilds the primary
 checkout, installs the adapters, restarts only the captured services, and

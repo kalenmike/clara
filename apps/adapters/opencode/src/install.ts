@@ -20,7 +20,6 @@ import {
   waitForAdapterAuthentication,
   writeEngineConfig,
 } from '@clara/adapter-runtime'
-import { installRunner } from '@clara/runner'
 import {
   adapterConfigPath,
   adapterLogPath,
@@ -71,16 +70,12 @@ export type InstallOptions = {
   opencodeUsername?: string
   opencodePassword?: string
   noService?: boolean
-  noRunner?: boolean
   noBinding?: boolean
   mcp?: boolean
   dryRun?: boolean
   force?: boolean
   entry?: string
-  workspace?: string
   url?: string
-  concurrency?: number
-  labels?: string[]
 }
 
 export type InstallResult = {
@@ -98,7 +93,6 @@ export async function installOpenCodeCommand(args: string[]): Promise<InstallRes
 }
 
 export function parseInstallOptions(args: string[]): InstallOptions {
-  const concurrency = argValue(args, '--concurrency')
   return {
     ...(argValue(args, '--pair') ? { pair: argValue(args, '--pair') } : {}),
     ...(hasFlag(args, '--reuse-pairing') ? { reusePairing: true } : {}),
@@ -110,17 +104,11 @@ export function parseInstallOptions(args: string[]): InstallOptions {
       ? { opencodePassword: argValue(args, '--opencode-password') }
       : {}),
     noService: hasFlag(args, '--no-service'),
-    noRunner: hasFlag(args, '--no-runner'),
     noBinding: hasFlag(args, '--no-binding'),
     mcp: hasFlag(args, '--mcp'),
     dryRun: hasFlag(args, '--dry-run'),
     force: hasFlag(args, '--force'),
-    ...(argValue(args, '--workspace') ? { workspace: argValue(args, '--workspace') } : {}),
     ...(argValue(args, '--url') ? { url: argValue(args, '--url') } : {}),
-    ...(concurrency ? { concurrency: Number(concurrency) } : {}),
-    labels: args.flatMap((arg, index) =>
-      arg === '--label' && args[index + 1] ? [args[index + 1]!] : []
-    ),
   }
 }
 
@@ -196,7 +184,6 @@ export async function installOpenCode(options: InstallOptions): Promise<InstallR
       mcp: options.mcp ?? false,
       url,
       ...(mcpEntry ? { mcpEntry } : {}),
-      ...(options.noRunner ? { noRunner: true } : {}),
       dryRun: options.dryRun,
     })
     actions.push(...binding.actions)
@@ -215,22 +202,6 @@ export async function installOpenCode(options: InstallOptions): Promise<InstallR
     }
   } else {
     actions.push('skip the OpenCode binding (--no-binding)')
-  }
-
-  // The OpenCode binding enables the embedded runner on the adapter machine.
-  // Install the standalone shared-runner service only for an adapter-only
-  // install, so one workspace does not get two runners.
-  if (!options.noRunner && options.noBinding) {
-    const runner = installRunner({
-      ...(options.workspace ? { workspace: options.workspace } : {}),
-      url,
-      ...(options.concurrency !== undefined ? { concurrency: options.concurrency } : {}),
-      labels: options.labels ?? [],
-      noService: options.noService,
-      dryRun: options.dryRun,
-    })
-    actions.push(...runner.actions)
-    warnings.push(...runner.warnings)
   }
 
   return {

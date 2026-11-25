@@ -103,6 +103,8 @@ export interface RuntimeOptions {
   leaseMs?: number
   stalledMs?: number
   adapterStaleMs?: number
+  /** How long a quiet adapter or runner row survives before the watchdog deletes it. */
+  adapterTtlMs?: number
   /** How long a ready script step waits for a runner before it alerts. */
   runnerWaitMs?: number
 }
@@ -305,6 +307,7 @@ export class Runtime {
   private readonly leaseMs: number
   private readonly stalledMs: number
   private readonly adapterStaleMs: number
+  private readonly adapterTtlMs: number
   private readonly runnerWaitMs: number
   private catalogCache = new Map<string, { at: number; catalog: LoadedCatalog }>()
   /**
@@ -320,6 +323,7 @@ export class Runtime {
     this.leaseMs = options.leaseMs ?? 30 * 60_000
     this.stalledMs = options.stalledMs ?? 5 * 60_000
     this.adapterStaleMs = options.adapterStaleMs ?? 120_000
+    this.adapterTtlMs = options.adapterTtlMs ?? 10 * this.adapterStaleMs
     this.runnerWaitMs = options.runnerWaitMs ?? 60_000
   }
 
@@ -1870,6 +1874,10 @@ export class Runtime {
 
   tick(): { alerts: AlertRow[] } {
     const alerts: AlertRow[] = []
+    // A host that disappears must not leave its adapter and runner rows in the
+    // registry forever. The TTL is far past the stale window, so a live but
+    // briefly quiet registration is never purged.
+    this.store.purgeAdapters(new Date(Date.now() - this.adapterTtlMs).toISOString())
     for (const run of this.store.activeRuns()) {
       const runID = Number(run.id)
       this.advance(runID)

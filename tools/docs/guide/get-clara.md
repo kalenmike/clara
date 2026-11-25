@@ -150,7 +150,9 @@ well. Adapter search, install, start, stop, logs, and upgrades remain local.
 
 ## Run scripts
 
-The shared runner is part of the command; it does not need a separate download.
+Scripts run in a runner on the machine that owns the workspace. The adapter
+daemon supervises one runner per workspace there, and the Clara command runs
+the runner for the hub host.
 
 ```bash
 clara runner start --workspace ~/src/clara
@@ -161,9 +163,9 @@ clara runner stop
 
 The runner connects to the local engine and executes pipeline scripts in the
 workspace you name. `clara runner status [--workspace <path>]` lists the
-runners the engine currently knows about, live or stale, including runners
-embedded in harness adapters. A harness machine without the Clara command can
-do the same with `clara-adapter-<kind> runner status|start|stop`.
+runners the engine currently knows about, live or stale, including the runners
+adapter daemons supervise. A harness machine without the Clara command uses
+`clara-adapter-<kind> runner status|start|stop`.
 
 ## Update
 

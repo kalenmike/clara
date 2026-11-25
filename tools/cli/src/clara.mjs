@@ -21,22 +21,14 @@ const TARGETS = [
   { name: 'hub', description: 'Clara hub' },
   { name: 'web', description: 'web client' },
   { name: 'engine', description: 'pipeline engine' },
-  { name: 'runner', description: 'shared script runner' },
   { name: 'lab', description: 'Clara Lab' },
   { name: 'docs', description: 'documentation site' },
 ]
 
 const TARGETS_SECTION = { label: 'Targets', items: TARGETS }
 
-const RUNNER_OPTIONS = [
-  { flags: '--workspace <path>', description: 'runner or lab: workspace path' },
-  { flags: '--url <url>', description: 'runner: engine URL' },
-  { flags: '--concurrency <n>', description: 'runner: concurrent scripts' },
-  { flags: '--label <name>', description: 'runner: queue label (repeatable)' },
-  { flags: '--no-service', description: 'runner: do not install a service' },
-]
-
 const LAB_OPTIONS = [
+  { flags: '--workspace <path>', description: 'lab: workspace path' },
   { flags: '--target <ref>', description: 'lab: package target' },
   { flags: '--config <path>', description: 'lab: package config' },
 ]
@@ -51,8 +43,7 @@ const SITE_OPTIONS = [
 const START_OPTIONS = [
   { flags: '--build', description: 'build before starting' },
   { flags: '--open', description: 'open the hub panel after starting' },
-  { flags: '--foreground', description: 'engine or runner: run in the foreground' },
-  ...RUNNER_OPTIONS,
+  { flags: '--foreground', description: 'engine: run in the foreground' },
   ...LAB_OPTIONS,
   ...SITE_OPTIONS,
   ...DOCS_OPTIONS,
@@ -71,7 +62,6 @@ const commands = [
       'clara start',
       'clara start hub --build',
       'clara start hub --open',
-      'clara start runner',
       'clara start lab',
       'clara start docs --build',
     ],
@@ -84,8 +74,7 @@ const commands = [
     usage: '<target> [options]',
     passthroughHelp: true,
     sections: [TARGETS_SECTION],
-    options: [{ flags: '--purge', description: 'runner: remove the install' }],
-    examples: ['clara stop', 'clara stop hub', 'clara stop runner --purge'],
+    examples: ['clara stop', 'clara stop hub'],
     run: (args) => lifecycle('stop', args),
   },
   {
@@ -98,18 +87,17 @@ const commands = [
     options: [
       { flags: '--build', description: 'build before starting' },
       { flags: '--open', description: 'open the hub panel after starting' },
-      ...RUNNER_OPTIONS,
       ...LAB_OPTIONS,
       ...SITE_OPTIONS,
       ...DOCS_OPTIONS,
     ],
-    examples: ['clara restart', 'clara restart --build', 'clara restart runner'],
+    examples: ['clara restart', 'clara restart --build'],
     run: (args) => lifecycle('restart', args),
   },
   {
     name: 'status',
     group: 'Lifecycle',
-    summary: 'Inspect the core stack, runner, Lab, or docs',
+    summary: 'Inspect the core stack, Lab, or docs',
     usage: '[target] [options]',
     passthroughHelp: true,
     sections: [TARGETS_SECTION],
@@ -130,7 +118,7 @@ const commands = [
   {
     name: 'logs',
     group: 'Lifecycle',
-    summary: 'Follow core service, runner, Lab, or docs logs',
+    summary: 'Follow core service, Lab, or docs logs',
     usage: '<target> [options]',
     passthroughHelp: true,
     sections: [TARGETS_SECTION],
@@ -138,7 +126,7 @@ const commands = [
       { flags: '--lines <n>', description: 'tail length (default 80)' },
       { flags: '--no-follow', description: 'print the tail and exit' },
     ],
-    examples: ['clara logs hub', 'clara logs runner'],
+    examples: ['clara logs hub', 'clara logs lab'],
     run: (args) => lifecycle('logs', args),
   },
   {
@@ -221,6 +209,6 @@ export const clara = {
   name: 'clara',
   bin: 'clara',
   summary: 'Clara lifecycle and maintenance tools',
-  examples: ['clara start', 'clara status', 'clara start runner', 'clara pair', 'clara rebuild'],
+  examples: ['clara start', 'clara status', 'clara start lab', 'clara pair', 'clara rebuild'],
   commands,
 }

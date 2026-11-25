@@ -43,20 +43,20 @@ Field definitions live in [packages.md](packages.md).
 ## Runners
 
 The engine never spawns a process. A runner claims a script step, renews the
-lease, streams `step.output`, and reports the result. It belongs on the machine
-that owns the workspace: the OpenCode embedded runner is on by default
-(`runner.enabled: false` or `--no-runner` turns it off); a shared
-`clara runner start` or `clara-adapter-<kind> runner start` is optional; both
-read `engine.json`.
+lease, streams `step.output`, and reports the result. The adapter daemon owns
+the runner topology on its machine: it reconciles one supervised runner per
+(machine, workspace) from the engine's live harness rows for that host plus the
+desired state `clara-adapter-<kind> runner start|stop` writes, backing off after
+a crash and locking per workspace so two daemons never duplicate one. On the hub
+host the packaged `clara runner start|stop` runs a runner as a Clara service.
 
 Claims are capability-filtered: agent work stays with its harness, while any
-runner with `script` can claim script work for the workspace it registered,
-including the run's origin adapter workspace. A claim matches that path as a
-string; the engine never stats it on its own host. With no capable runner the
-step stays ready and one `no_runner` alert opens after `CLARA_RUNNER_WAIT_MS`.
-Runners register and heartbeat with the engine: `clara runner status
-[--workspace <path>]`, `clara status`, and adapter `verify` report them live or
-stale against a 120s window, and a clean stop deregisters at once.
+runner with `script` can claim script work for the workspace it registered.
+The claim matches that path as a string; the engine never stats it on its own
+host. With no capable runner the step stays ready and one `no_runner` alert
+opens after `CLARA_RUNNER_WAIT_MS`. `clara runner status`, `clara status`, and
+adapter `verify` report registrations live or stale against a 120s window; a
+clean stop deregisters and the watchdog deletes one quiet for ten windows.
 
 ## Leases and heartbeats
 

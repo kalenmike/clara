@@ -21,9 +21,9 @@ process. `CLARA_ORCHESTRATION_*` is a compatibility name for one release.
 1. Start the service from the hub panel's **Orchestration** switch, with
    `clara start engine`, or let the MCP bridge start it on first use.
 2. Install the adapter from the hub panel or with
-   `clara adapter install opencode --pair <code>`; it enables the
-   adapter-machine runner and resolves the engine endpoint after authentication
-   ([endpoints.md](endpoints.md)). `--mcp`, `--no-runner`, and `--no-service`
+   `clara adapter install opencode --pair <code>`; it resolves the engine
+   endpoint after authentication ([endpoints.md](endpoints.md)) and supervises
+   one script runner per workspace on its machine. `--mcp` and `--no-service`
    select the other pieces.
 3. Preview a package in Clara Lab: choose host files, read the workspace the
    engine reports, compile the target, inspect rendered prompts and policy, then
@@ -129,11 +129,11 @@ adapter probes direct URLs and otherwise uses the sealed hub proxy. See
   `packages/adapters/runner` (script runner), and
   `packages/adapters/binding` (adapter delivery and usage).
 - CLI: `clara start|stop|restart|status|logs engine`,
-  `clara adapter install|upgrade|verify|remove <kind> [--mcp]`,
-  `clara runner start|stop|status|logs [--workspace <path>]`, and `clara start lab`.
-- Workspace: `GET /v1/config` reports the workspace from
-  `CLARA_ENGINE_WORKSPACE` (default: the service working directory), the active
-  `configSource` (`bundled` or `file`), and `configPath`.
+  `clara adapter install|upgrade|verify|remove <kind> [--mcp]`, `clara runner
+  start|stop|status|logs` on the hub host, `clara-adapter-<kind> runner
+  start|stop|status` elsewhere, and `clara start lab`.
+- Workspace: `GET /v1/config` reports the workspace from `CLARA_ENGINE_WORKSPACE`
+  (the supervisor pins it to the user's home), `configSource`, and `configPath`.
 - MCP tools: `clara_start`, `clara_next`, `clara_complete`, `clara_fail`,
   `clara_route`, `clara_spawn`, `clara_status`, `clara_attempts`, `clara_inbox`,
   `clara_ack`, `clara_cancel`, `clara_tick`, `clara_check`, `clara_usage`,

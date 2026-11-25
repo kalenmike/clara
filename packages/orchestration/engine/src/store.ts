@@ -754,4 +754,14 @@ export class Store {
   removeAdapter(id: string): void {
     this.db.prepare('DELETE FROM adapters WHERE id = ?').run(id)
   }
+
+  /**
+   * Delete adapter and runner registrations whose heartbeat is older than
+   * `beforeISO`. A host that goes away for good must not leave its rows in the
+   * registry forever; the cutoff is far past the stale window, so a live but
+   * briefly quiet registration is never purged.
+   */
+  purgeAdapters(beforeISO: string): number {
+    return this.db.prepare('DELETE FROM adapters WHERE heartbeat_at < ?').run(beforeISO).changes
+  }
 }

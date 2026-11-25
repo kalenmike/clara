@@ -42,11 +42,11 @@ browser client, then speaks the Clara Harness Protocol. The hub routes typed
 2. Adapter pairing uses the same one-time code, fingerprint, expiry, E2EE
    handshake, replay guard, and revocation as browser pairing; a relay code
    carries a ten-minute enrollment grant, then a thirty-day refreshed grant.
-3. Included installers place different pieces, all with `--pair <code>`: OpenCode installs the daemon, its binding,
-   and an adapter-machine runner by default; Claude Code and Pi install only the daemon and a user service.
-   `--no-runner`, `--no-service`, and `--from <path>` select those pieces or a checkout build. The binding registers
-   the policy plugin, so a running server reloads its Clara tools without a restart. The adapter resolves the engine
-   from the hub after authentication and writes `engine.json`; the pairing code carries no endpoint or token.
+3. Included installers place different pieces, all with `--pair <code>`: OpenCode installs the daemon and its
+   binding; Claude Code and Pi install only the daemon and a user service. `--no-service` and `--from <path>` select
+   those pieces or a checkout build. The daemon supervises one script runner per workspace on its machine, and the
+   binding registers the policy plugin, so a running server reloads its Clara tools without a restart. The adapter
+   resolves the engine from the hub after authentication and writes `engine.json`; the pairing code carries no endpoint or token.
 4. On the target the adapter authenticates the harness, keeps its password in
    `config.json`, translates traffic into Clara frames, and samples its machine.
 5. A stable harness identity means reinstall and re-pair reconnect the same
@@ -109,8 +109,8 @@ browser client, then speaks the Clara Harness Protocol. The hub routes typed
 - A direct public `wss://` hub endpoint, a hub-wide default harness, or one
   active adapter per hub.
 - One-click installs into a remote Docker host; copy or SSH the command.
-- A Claude Code or Pi orchestration binding or embedded runner, or a shipped
-  container image; those adapters can still `clara-adapter-<kind> runner start`.
+- A Claude Code or Pi orchestration binding, or a shipped container image; every
+  adapter daemon supervises the script runners for its own machine.
 - Attaching to an already-running Pi TUI process; Pi exposes no attach API.
 
 ## Known gaps
@@ -129,10 +129,10 @@ browser client, then speaks the Clara Harness Protocol. The hub routes typed
 <summary>Commands, data, and references</summary>
 
 - Config: `<config>/clara/adapters/<kind>/config.json`; data:
-  `<data>/clara/adapters/<kind>/{identity.json,adapter.log,adapter.pid,runner.pid,
-runner.log,state.json,update.json,update.log}`. Claude keeps `catalog.json`; Pi keeps `prompt-ids.json`.
-- Commands: `clara-adapter-<kind> install --pair <code>` (plus `--no-service`,
-  `--no-runner`), `runner status|start|stop [--workspace <path>]`,
+  `<data>/clara/adapters/<kind>/{identity.json,adapter.log,adapter.pid,runner.json,
+runner-*.pid,runner.log,state.json,update.json,update.log}`. Claude keeps `catalog.json`; Pi keeps `prompt-ids.json`.
+- Commands: `clara-adapter-<kind> install --pair <code>` (plus `--no-service`),
+  `runner status|start|stop [--workspace <path>]`,
   `upgrade [--check]`, and `clara <command…>`. Hub-facing:
   `clara adapter install|list|status|start|stop|logs|verify|upgrade|remove <kind>`.
   The panel update posts to `/harness/v1/maintenance/update`; the hidden

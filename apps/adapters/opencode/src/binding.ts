@@ -13,7 +13,6 @@ import { agentStatus, installAgentFile, removeAgentFile } from './agent-file.ts'
 import { removeGeneratedCommand } from './command.ts'
 import {
   installOpenCodeMcp,
-  isRecord,
   openCodeMcpConfigured,
   readJson,
   removeOpenCodeMcp,
@@ -34,7 +33,6 @@ export interface OpenCodeInstallInput {
   mcp: boolean
   url: string
   mcpEntry?: McpEntry
-  noRunner?: boolean
   dryRun?: boolean
   now?: number
 }
@@ -86,22 +84,11 @@ function isSymlink(path: string): boolean {
   }
 }
 
-function writeAdapterConfig(
-  path: string,
-  pluginPath: string,
-  noRunner: boolean | undefined,
-  actions: string[]
-): void {
+function writeAdapterConfig(path: string, pluginPath: string, actions: string[]): void {
   const current = existsSync(path) ? readJson(path) : {}
-  const runner = isRecord(current.runner) ? current.runner : {}
-  const enabled = noRunner !== true
-  const next = {
-    ...current,
-    runner: { ...runner, enabled },
-    plugin: pluginPath,
-  }
+  const next = { ...current, plugin: pluginPath }
   writeJson(path, next)
-  actions.push(`write adapter config ${path} (embedded runner ${enabled ? 'enabled' : 'disabled'})`)
+  actions.push(`write adapter config ${path}`)
 }
 
 export function installOpenCode(input: OpenCodeInstallInput): OpenCodeInstallResult {
@@ -145,7 +132,7 @@ export function installOpenCode(input: OpenCodeInstallInput): OpenCodeInstallRes
           `Add ${target} to its plugins list or restart OpenCode after this install.`
       )
     }
-    writeAdapterConfig(paths.adapterConfig, target, input.noRunner, actions)
+    writeAdapterConfig(paths.adapterConfig, target, actions)
     if (input.mcp) {
       if (!input.mcpEntry) throw new Error('The MCP entry path is unavailable')
       installOpenCodeMcp(paths.config, input.mcpEntry)
@@ -158,11 +145,7 @@ export function installOpenCode(input: OpenCodeInstallInput): OpenCodeInstallRes
     actions.push(`link plugin ${paths.plugin} -> ${target}`)
     actions.push(`write agent ${paths.agent}`)
     actions.push(`register plugin ${target} in ${paths.config}`)
-    actions.push(
-      `write adapter config ${paths.adapterConfig} (embedded runner ${
-        input.noRunner === true ? 'disabled' : 'enabled'
-      })`
-    )
+    actions.push(`write adapter config ${paths.adapterConfig}`)
     if (input.mcp) actions.push(`register MCP bridge in ${paths.config}`)
   }
 
@@ -214,13 +197,12 @@ export function uninstallOpenCode(input: { force: boolean; dryRun?: boolean }): 
     else if (agent.kept) actions.push(`keep modified agent ${agent.path}`)
     if (existsSync(paths.adapterConfig)) {
       const current = readJson(paths.adapterConfig)
-      const runner = isRecord(current.runner) ? { ...current.runner } : {}
-      delete runner.enabled
-      const next: Record<string, unknown> = { ...current, runner }
+      const next: Record<string, unknown> = { ...current }
       delete next.plugin
-      if (Object.keys(runner).length) {
+      delete next.runner
+      if (Object.keys(next).length) {
         writeJson(paths.adapterConfig, next)
-      } else if (existsSync(paths.adapterConfig)) {
+      } else {
         unlinkSync(paths.adapterConfig)
       }
       actions.push(`remove adapter config ${paths.adapterConfig}`)
